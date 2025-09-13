@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<body>
+  <div id="nav-root"></div>
+  <script src="./nav.js?v=7"></script>
+
+
+  <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Fourth &amp; Value — Methods</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root{color-scheme:dark;
+      --bg:#0b0b0c;--card:#111113;--text:#e7e7ea;--muted:#b7b7bb;--soft:#c8c8cd;--border:#1f1f22;
+      --btn:#2a63ff;--btn-hover:#3c72ff}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);
+      font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Inter,Roboto,Ubuntu,Helvetica,Arial,sans-serif}
+    .wrap{max-width:900px;margin:0 auto;padding:24px 16px 48px}
+    h1{font-size:clamp(24px,4vw,34px);margin:6px 0 6px;color:#fff}
+    p.lead{color:var(--muted);margin:0 0 12px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin:12px 0}
+    .card h3{margin:0 0 6px}
+    .card p, .card li{color:#c8c8cd;line-height:1.55}
+    .btn{display:inline-block;background:var(--btn);color:#fff;padding:10px 14px;border-radius:12px;text-decoration:none;font-weight:600}
+    .btn:hover{background:var(--btn-hover)}
+    /* Optional grid helper if you want to lay out cards in columns later */
+    .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start}
+    /* Mobile-friendly horizontal scroll for any wide blocks */
+    .tablewrap,[data-scroll-x]{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  </style>
+</head>
+
+  <!-- shared nav loader (cascades from docs/nav.html + docs/nav.js) -->
+
+
+  <main class="wrap">
+    <h1>Methods (geeks only)</h1>
+    <p class="lead">How we turn raw NFL data into fair odds, probabilities, and edges.</p>
+
+    <div class="card">
+      <h3>Modeling</h3>
+      <ul>
+        <li>Feature-rich player &amp; game models (usage, injuries, weather, pace, matchups).</li>
+        <li>Ensembles + calibration to produce well-behaved probabilities.</li>
+        <li>Weekly refreshes; in-week updates when markets move materially.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h3>Market consensus &amp; fair prices</h3>
+      <ul>
+        <li>Compute implied probabilities from American odds and de-vig where appropriate.</li>
+        <li>Form a consensus (median/robust average) across books for the same bet.</li>
+        <li>Compare model vs consensus to quantify true edge.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h3>Edges &amp; EV</h3>
+      <ul>
+        <li>Edge reported in basis points (bps): <code>10,000 × (p_model − p_price)</code>.</li>
+        <li>EV per $100 shown using model probability and book odds.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h3>Quality &amp; controls</h3>
+      <ul>
+        <li>Outlier checks, injury/news sweeps, and market sanity filters.</li>
+        <li>Transparency: show both market consensus and best book for every pick.</li>
+      </ul>
+    </div>
+
+    <section class="card">
+      <h3>Consensus vs Best Book</h3>
+      <p>Consensus lines aggregate across books to show signal stability; the “Best Book” callout highlights the most favorable current price observed.</p>
+    </section>
+
+    <section class="card">
+      <h3>Modeling Framework for Props</h3>
+      <ol class="methods-list">
+        <li>
+          <h4>Anytime TDs → Poisson + Neural Correction</h4>
+          <p>We model touchdowns using a Poisson distribution: <code>P(X ≥ 1) = 1 − e^{-μ}</code>, where <code>μ</code> is the expected number of TDs.</p>
+          <p>Features include red-zone usage, opponent defensive splits, implied team totals, and pace of play. A neural net (MLP, 2 hidden layers, ReLU) with ~120 features predicts <code>μ</code>, constrained positive with softplus.</p>
+        </li>
+        <li>
+          <h4>Yardage &amp; Reception Props → Normal Approximation</h4>
+          <p>Yardage and reception props are modeled with a Normal distribution: <code>P(\u200bOver\, L) = 1 − Φ((L − μ) / σ)</code>.</p>
+          <p>Features (~150): rolling averages, opponent splits, injury adjustments, weather, and pace. Models: GRU for temporal player data + ensemble regressors for volatility (<code>σ</code>).</p>
+        </li>
+        <li>
+          <h4>Discrete Count Props (TDs, Attempts, INTs, Sacks)</h4>
+          <p>Poisson or Negative Binomial with CDF <code>P(X ≤ k) = \u2211_{i=0}^{k} (e^{−λ} λ^i / i!)</code>.</p>
+          <p>Features: snap %, line pressure, opponent matchup splits. Bayesian shrinkage stabilizes sparse markets like sacks.</p>
+        </li>
+        <li>
+          <h4>Neural Meta-Model</h4>
+          <p>Market-specific models feed a 3-layer fully-connected NN meta-learner, correcting systemic bookmaker biases (overshading, inflation).</p>
+        </li>
+        <li>
+          <h4>Fair Odds &amp; Edge</h4>
+          <p>Fair odds: <code>FairOdds = −100 × p/(1−p)</code> if <code>p ≥ 0.5</code>, else <code>+100 × (1−p)/p</code>.</p>
+          <p>Edge: <code>Edge = p<sub>model</sub> − p<sub>market</sub></code>, expressed in basis points: <code>10,000 × Edge</code>.</p>
+        </li>
+      </ol>
+    </section>
+
+    <section style="height:24px"></section>
+  </main>
+</body>
+</html>
