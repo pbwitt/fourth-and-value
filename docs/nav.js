@@ -1,56 +1,41 @@
-// docs/nav.js
 (function () {
   const slot = document.getElementById('nav-root');
   if (!slot) return;
 
-  // figure relative base: pages under /props/ are one level deeper
-  const inProps = location.pathname.includes('/props/');
-  const base = inProps ? '..' : '.';
+  // Find this script tag and compute the site base from its URL
+  const script = document.currentScript || Array.from(document.scripts).find(s => (s.src||'').includes('nav.js'));
+  const base = new URL('.', (script && script.src) || location.href).pathname.replace(/\/$/, '');
 
-  const items = [
-    { href: `${base}/index.html`,            label: 'Home' },
-    { href: `${base}/props/insights.html`,   label: 'Insights' },
-    { href: `${base}/props/index.html`,      label: 'Props' },
-    { href: `${base}/props/top.html`,        label: 'Top Picks' },
-    { href: `${base}/props/consensus.html`,  label: 'Consensus' },
-    { href: `${base}/methods.html`,  label: 'Methods' },
+  const links = [
+    { href: `${base}/index.html`,          label: 'Home' },
+    { href: `${base}/props/index.html`,    label: 'Player Props' },
+    { href: `${base}/props/top.html`,      label: 'Top Picks' },
+    { href: `${base}/props/consensus.html`,label: 'Consensus' },
+    { href: 'https://github.com/pbwitt/fourth-and-value', label: 'GitHub' },
   ];
 
-  const here = location.pathname.replace(/\/+$/, '');
-
+  const cur = location.pathname.replace(/\/+$/, '');
   const nav = document.createElement('nav');
-  nav.className = 'fv-nav';
-  nav.setAttribute('data-fv-nav', '');
+  nav.style.display = 'flex';
+  nav.style.gap = '12px';
+  nav.style.padding = '12px 0';
 
-  // Scoped styles so page CSS can't override colors
-  nav.innerHTML = `
-    <style>
-      #nav-root .fv-nav { display:flex; gap:12px; align-items:center; padding:12px 16px; }
-      #nav-root .fv-link {
-        display:inline-block; padding:6px 12px; border-radius:999px;
-        border:1px solid rgba(255,255,255,.12); color:#cfd5e7; text-decoration:none; font-weight:600;
-      }
-      #nav-root .fv-link:is(:hover,:focus) { color:#fff; border-color:rgba(255,255,255,.32); text-decoration:none; }
-      /* Use a nav-specific active class so generic .active on pages won't bleed in */
-      #nav-root .fv-link.is-active {
-        color:#e6e6ff;
-        border-color:#8b5cf6;            /* purple accent */
-        background:rgba(139,92,246,.12); /* subtle pill bg */
-      }
-    </style>
-  `;
-
-  items.forEach(it => {
+  links.forEach(({ href, label }) => {
     const a = document.createElement('a');
-    a.className = 'fv-link';
-    a.href = it.href;
-    a.textContent = it.label;
+    a.href = href;
+    a.textContent = label;
+    a.style.color = '#9fb0c3';
+    a.style.textDecoration = 'none';
+    a.style.padding = '6px 10px';
+    a.style.borderRadius = '10px';
 
-    const targetPath = new URL(it.href, location.origin).pathname.replace(/\/+$/, '');
-    if (here.endsWith(targetPath)) a.classList.add('is-active');
+    const abs = new URL(href, location.origin).pathname.replace(/\/+$/, '');
+    if (abs === cur) a.style.color = '#fff';
+    a.onmouseenter = () => (a.style.color = '#fff');
+    a.onmouseleave = () => (a.style.color = (abs === cur ? '#fff' : '#9fb0c3'));
 
     nav.appendChild(a);
   });
 
-  slot.replaceChildren(nav);
+  slot.appendChild(nav);
 })();
