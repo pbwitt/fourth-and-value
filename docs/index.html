@@ -1,93 +1,78 @@
 <!doctype html>
 <html lang="en">
-<body>
 <head>
-  <div id="nav-root"></div>
-<script src="./nav.js?v=7"></script>
-
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Fourth &amp; Value — Home</title>
-  <link rel="icon" href="data:,">
-  <style>
-    :root{color-scheme:dark;
-      --bg:#0b0b0c;--card:#111113;--text:#e7e7ea;--muted:#b7b7bb;--soft:#c8c8cd;--border:#1f1f22;
-      --brand:#2a63ff;--brand-2:#5b8aff;--btn:#2a63ff;--btn-hover:#3c72ff
-    }
-    *{box-sizing:border-box}
-    body{margin:0;background:var(--bg);color:var(--text);
-      font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Inter,Roboto,Ubuntu,Helvetica,Arial,sans-serif}
-    .wrap{max-width:1024px;margin:0 auto;padding:24px 16px 48px}
-    .hero{display:grid;gap:10px;margin:12px 0 16px}
-    .hero h1{font-size:clamp(26px,4.2vw,40px);margin:0;color:#fff}
-    .lead{color:var(--muted);font-size:16px;line-height:1.55;margin:0 0 8px}
-    .cta{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:6px}
-    .btn{
-      display:inline-flex;align-items:center;justify-content:center;min-height:44px;
-      padding:0 16px;border-radius:12px;text-decoration:none;font-weight:600;
-      background:var(--btn);color:#fff;border:1px solid transparent;line-height:1
-    }
-    .btn:hover{background:var(--btn-hover)}
-    .btn.ghost{background:#1a1a1d;border:1px solid #2a2a2e;color:#e7e7ea}
-    .btn .emoji{display:inline-block;transform:translateY(1px);margin-left:4px}
-    .grid{display:grid;gap:12px;margin:18px 0}
-    @media (min-width:900px){.grid{grid-template-columns:repeat(3,1fr)}}
-    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:6px}
-    .card h3{margin:0 0 4px;color:#fff;font-size:18px}
-    .card p{margin:0;color:#c8c8cd;font-size:14px;line-height:1.5}
-    .section h2{margin:18px 0 6px;font-size:20px;color:#fff}
-    .section p{color:#d6d6d9;line-height:1.6;margin:0 0 10px}
-    footer{margin-top:30px;color:var(--muted);font-size:12px}
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>NFL Edges – Week 1</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b1220; --card:#111a2b; --text:#eaf0ff; --muted:#a6b3d0; --accent:#5fd4ff; --accent2:#8bd17c; --border:#273049;
+}
+@media (prefers-color-scheme: light){
+  :root{ --bg:#f7f9ff; --card:#ffffff; --text:#0e1320; --muted:#49536a; --accent:#0066ff; --accent2:#1a9e47; --border:#e7ecf6; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--accent);text-decoration:none}
+.header{position:sticky;top:0;backdrop-filter:saturate(180%) blur(10px);background:color-mix(in oklab, var(--bg) 85%, transparent);border-bottom:1px solid var(--border);z-index:999}
+.header-inner{max-width:1100px;margin:auto;display:flex;gap:16px;align-items:center;justify-content:space-between;padding:12px 16px}
+.brand{font-weight:800;letter-spacing:.2px}
+.nav a{padding:8px 10px;border-radius:10px}
+.nav a.active, .nav a:hover{background:color-mix(in oklab, var(--accent) 20%, transparent);color:var(--text)}
+.main{max-width:1100px;margin:28px auto;padding:0 16px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 8px 20px rgba(0,0,0,.15);overflow:hidden}
+.card h2{margin:0;padding:18px 20px;border-bottom:1px solid var(--border)}
+.card .body{padding:16px 20px}
+.meta{color:var(--muted);font-size:.9rem;margin-bottom:10px}
+.table-wrap{overflow:auto;border:1px solid var(--border);border-radius:12px}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:.95rem}
+thead th{position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--border);text-align:left;padding:10px 12px;font-weight:600}
+tbody td{padding:10px 12px;border-bottom:1px solid var(--border)}
+tbody tr:nth-child(even){background:color-mix(in oklab, var(--card) 90%, var(--bg))}
+tbody tr:hover{background:color-mix(in oklab, var(--accent) 12%, var(--card))}
+.badge{display:inline-block;padding:3px 8px;border-radius:999px;border:1px solid var(--border);color:var(--muted)}
+.footer{color:var(--muted);text-align:center;margin:28px 0}
+</style>
 </head>
-
-  <!-- shared nav loader (cascading updates via docs/nav.html + docs/nav.js) -->
-
-
-
-  <div class="wrap">
-    <section class="hero">
-      <h1>Sharper NFL bets, minus the noise.</h1>
-
-      <p>
-        Welcome to the future of sports betting analytics. We leverage the latest AI — advanced neural networks,
-        robust statistical ensembles, and Bayesian calibration — to translate raw NFL data into clear, actionable insights.
-        Our system ingests thousands of features each week — from snap counts and red-zone usage to weather and
-        line movement — and converts them into fair odds, probabilities, and edges you can trust.
-      </p>
-
-      <p>
-        Fourth &amp; Value runs weekly model updates and continuously compares sportsbook lines to our fair prices
-        to surface edges worth your time. Keep the fun parts; let us handle the math.
-      </p>
-
-      <div class="cta">
-        <a class="btn" href="/NFL-2025/props/">Explore Player Props <span class="emoji">🔍</span></a>
-        <a class="btn" href="/NFL-2025/props/top.html">Just tell me what to bet <span class="emoji">💰</span></a>
-        <a class="btn" href="/NFL-2025/methods.html">Methods (geeks only) <span class="emoji">🧠</span></a>
-      </div>
-    </section>
-
-    <section class="hero">
-      <h2>Why us?</h2>
-    </section>
-
-    <section class="grid">
-      <div class="card">
-        <h3>Real edges</h3>
-        <p>We derive fair odds from model probabilities and show basis-point edges vs the market.</p>
-      </div>
-      <div class="card">
-        <h3>Shop best books</h3>
-        <p>We highlight the best available book per bet and a consensus view across books.</p>
-      </div>
-      <div class="card">
-        <h3>Data-driven insights</h3>
-        <p>Pulls data from multiple sources to provide state-of-the-art modeling and analytics.</p>
-      </div>
-    </section>
-
-    <footer>© Fourth &amp; Value</footer>
+<body>
+<header class="header">
+  <div class="header-inner">
+    <div class="brand">Fourth &amp; Value</div>
+    <nav class="nav">
+      <a class="active" href="index.html">Home</a>
+      <a href="props/index.html">Player Props</a>
+      <a href="props/top.html">Top Picks</a>
+      <a href="props/consensus.html">Consensus</a>
+      <a href="https://github.com/pbwitt/fourth-and-value">GitHub</a>
+    </nav>
   </div>
+</header>
+
+
+<main class="main">
+  <div class="card">
+    <h2>Game Edges — Week 1 <span class="badge">updated 2025-09-13 23:51 UTC</span></h2>
+    <div class="body">
+      <div class="meta">Model edges derived from Elo & market lines.</div>
+      <div class="table-wrap">
+        <table class="dataframe tbl">
+  <thead>
+    <tr style="text-align: left;">
+      <th>info</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>No edges CSV found at data/edges/edges_week.csv</td>
+    </tr>
+  </tbody>
+</table>
+      </div>
+    </div>
+  </div>
+  <div class="footer">© 2025 NFL-2025</div>
+</main>
 </body>
 </html>
