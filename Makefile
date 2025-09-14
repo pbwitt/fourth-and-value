@@ -18,10 +18,7 @@ monday_all_pub: weekly
 odds:
 	$(PY) scripts/fetch_odds.py > data/odds/latest.csv
 
-# Site home
-site_home:
-	$(PY) scripts/build_edges_site.py --out $(DOCS_DIR)/index.html
-	touch $(DOCS_DIR)/.nojekyll
+
 
 # Props pipeline
 props_now: data/props/props_with_model_week$(WEEK).csv docs/props/index.html docs/props/top.html docs/props/consensus.html
@@ -67,4 +64,13 @@ insights:
 	$(PY) scripts/build_insights_page.py --season $(SEASON) --week $(WEEK) \
 		--title "Fourth & Value — Insights (Week $(WEEK))" \
 		--out $(DOCS_DIR)/props/insights.html
+	touch $(DOCS_DIR)/.nojekyll
+
+
+site_home:
+	@if [ -f data/edges/edges_week$(WEEK).csv ]; then \
+		$(PY) scripts/build_edges_site.py --out $(DOCS_DIR)/home_edges.html; \
+	else \
+		echo "[site_home] edges missing → keeping static Home"; \
+	fi
 	touch $(DOCS_DIR)/.nojekyll

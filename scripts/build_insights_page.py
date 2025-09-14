@@ -1,512 +1,381 @@
 #!/usr/bin/env python3
-# build_insights_page.py
-# Fourth & Value — Insights page builder (Week N)
-# - No direct LLM calls here. Use scripts/make_ai_commentary.py to precompute LLM text.
-# - Reads merged props CSV, selects top picks, renders summaries + cards with a JS game filter.
-
-import argparse, json, os, re, html, sys
-from datetime import datetime
-import numpy as np
-import pandas as pd
-
-# ---------------------------
-# Utilities & normalization
-# ---------------------------
-
-def _dedupe_for_bullets(df: pd.DataFrame) -> pd.DataFrame:
-    """One bullet per (player, market, side); keep the highest-edge row."""
-    if df.empty:
-        return df
-    # sort so the best edge is kept when dropping dupes
-    df = df.sort_values("edge_bps", ascending=False)
-    keys = [c for c in ("player", "market_std", "name") if c in df.columns]
-    return df.drop_duplicates(subset=keys, keep="first")
-
-
-def items_for_all_games(df: pd.DataFrame, games: list[str], k_per_game: int = 3) -> list[dict]:
-    """Return up to k cards per game so the game filter never shows '1 card' unless that's all we have."""
-    out = []
-    for g in games:
-        gdf = df[df["game_norm"] == g].copy()
-        # prefer real edges; else fallback to implied-prob picks
-        with_edge = gdf[gdf["edge_bps"].notna() & gdf["mkt_prob"].notna() & gdf["model_prob"].notna()]
-        if not with_edge.empty:
-            top = with_edge.sort_values("edge_bps", ascending=False).head(k_per_game)
-        else:
-            implied = gdf[gdf["mkt_prob"].notna()]
-            top = implied.sort_values("mkt_prob", ascending=False).head(k_per_game)
-        out.extend(top.to_dict(orient="records"))
-    return out
-
-
-def _slug(s: str) -> str:
-    if not s: return ""
-    return re.sub(r"[^a-z0-9]+", "-", str(s).lower()).strip("-")
-
-
-def _is_nan_like(x) -> bool:
-    try:
-        return pd.isna(x)
-    except Exception:
-        return x is None
-
-def _coalesce(*vals):
-    for v in vals:
-        if v is None:
-            continue
-        if isinstance(v, float) and np.isnan(v):
-            continue
-        if isinstance(v, str) and v.strip() == "":
-            continue
-        return v
-    return None
-
-def _pick_odds_col(obj):
-    """Return the column name that holds American odds for either a DataFrame, Series(row), or dict."""
-    if hasattr(obj, "columns"):
-        cols = set(obj.columns)
-    elif isinstance(obj, pd.Series):
-        cols = set(obj.index)
-    else:
-        try:
-            cols = set(obj.keys())
-        except Exception:
-            cols = set()
-    for c in ("american_odds", "mkt_odds", "odds", "price"):
-        if c in cols:
-            return c
-    return None
-
-def fmt_pct(x):
-    try:
-        return f"{float(x):.0%}"
-    except Exception:
-        return ""
-
-def clean_metric_label(row):
-    """
-    Prefer edge if present; else fall back to price-implied probability; else empty string.
-    Works for dicts or Series.
-    """
-    get = (row.get if hasattr(row, "get") else (lambda k, d=None: row[k] if k in row else d))
-    edge = get("edge_bps", np.nan)
-    mkt_prob = get("mkt_prob", np.nan)
-    model_prob = get("model_prob", np.nan)
-
-    if pd.notna(edge):
-        sign = "+" if edge >= 0 else ""
-        return f"Edge: {sign}{edge:.0f} bps"
-    if pd.notna(model_prob) and pd.notna(mkt_prob):
-        delta = (float(model_prob) - float(mkt_prob)) * 10000
-        sign = "+" if delta >= 0 else ""
-        return f"Edge: {sign}{delta:.0f} bps"
-    if pd.notna(mkt_prob):
-        return f"Implied: {fmt_pct(mkt_prob)}"
-    return ""
-
-def odds_label(row):
-    """Return 'Odds: +150' if American odds exist; else fall back to implied probability; else ''."""
-    get = (row.get if hasattr(row, "get") else (lambda k, d=None: row[k] if k in row else d))
-    col = _pick_odds_col(row)
-    if col:
-        v = get(col, np.nan)
-        if pd.notna(v):
-            try:
-                iv = int(float(str(v)))
-                return f"Odds: {iv:+d}"
-            except Exception:
-                pass
-    mp = get("mkt_prob", np.nan)
-    if pd.notna(mp):
-        return f"Implied: {fmt_pct(mp)}"
-    return ""
-
-PRETTY_MAP = {
-    "recv_yds": "Receiving Yards",
-    "rush_yds": "Rushing Yards",
-    "pass_yds": "Passing Yards",
-    "pass_tds": "Passing TDs",
-    "pass_interceptions": "Interceptions",
-    "receptions": "Receptions",
-    "anytime_td": "Anytime TD",
-    "1st_td": "1st TD",
-    "last_td": "Last TD",
-}
-
-def _pretty_market(m):
-    if m is None:
-        return ""
-    return PRETTY_MAP.get(str(m), str(m))
-
-def _ensure_probs_and_edge(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
-    # normalize snake_case columns
-    df.columns = [c.strip().lower().replace(" ", "_") for c in df.columns]
-
-    # aliases
-    ALIASES = {
-        "game": ["game", "matchup"],
-        "player": ["player"],
-        "market_std": ["market_std", "market", "bet"],
-        "name": ["name", "side", "pick"],  # Over/Under/Yes/No
-        "kick_et": ["kick_et", "kickoff", "kick", "kickoff_et"],
-        "mkt_prob": ["mkt_prob", "market_prob", "consensus_prob", "book_implied_prob"],
-        "model_prob": ["model_prob", "model_probability"],
-        "edge_bps": ["edge_bps", "edge", "edge_bps_"],
-        "american_odds": ["american_odds", "mkt_odds", "odds", "price"],
-        "title": ["title"],  # optional
-        "game_norm": ["game_norm"],  # optional
-    }
-    for std, cands in ALIASES.items():
-        if std not in df.columns:
-            for c in cands:
-                if c in df.columns:
-                    df.rename(columns={c: std}, inplace=True)
-                    break
-
-    # ensure probabilities are numeric
-    for p in ("mkt_prob", "model_prob"):
-        if p in df.columns:
-            df[p] = pd.to_numeric(df[p], errors="coerce")
-
-    # compute edge if missing
-    if "edge_bps" not in df.columns or df["edge_bps"].isna().all():
-        if {"model_prob", "mkt_prob"}.issubset(df.columns):
-            df["edge_bps"] = (df["model_prob"] - df["mkt_prob"]) * 10000
-
-    # compute EV per $100 if odds + model_prob exist
-    odds_col = _pick_odds_col(df)
-    if odds_col and "ev_per_100" not in df.columns:
-        o = pd.to_numeric(df[odds_col], errors="coerce")
-        payout = np.where(o > 0, o, 10000/(-o))  # $ return for $100 stake
-        if "model_prob" in df.columns:
-            df["ev_per_100"] = df["model_prob"] * payout - (1 - df["model_prob"]) * 100
-
-    # ensure minimal fields
-    for k in ("game", "player", "market_std", "name", "kick_et"):
-        if k not in df.columns:
-            df[k] = np.nan
-
-    # derive a clean display title + normalized game label
-    if "title" not in df.columns or df["title"].isna().all():
-        pretty = df["market_std"].map(_pretty_market).fillna(df["market_std"])
-        df["title"] = (df["player"].fillna("") + " — " + pretty.astype(str) + " " + df["name"].fillna("")).str.strip()
-
-    if "game_norm" not in df.columns or df["game_norm"].isna().all():
-        df["game_norm"] = df["game"]
-
-    # a human kicker string
-    if "kick_str" not in df.columns:
-        df["kick_str"] = df["kick_et"].astype(str).replace("nan", "")
-
-    return df
-
-def _collapse_books_for_keys(df, keys=("game_norm","player","market_std","name")):
-    """
-    Keep one row per logical bet across books/dupes. Prefer max edge, then max EV.
-    """
-    df = df.copy()
-    df["_ev_"] = df.get("ev_per_100", pd.Series(index=df.index, dtype=float))
-    df = df.sort_values(["edge_bps","_ev_"], ascending=[False, False])
-    out = df.groupby(list(keys), dropna=False, as_index=False).head(1)
-    return out.drop(columns=["_ev_"], errors="ignore")
-
-def prepare_overall(df, per_game_cap=2, top_n=10):
-    """Overall Top picks: require model + market probs; collapse dupes; diversify by game."""
-    valid = df[df["edge_bps"].notna() & df["mkt_prob"].notna() & df["model_prob"].notna()].copy()
-    if valid.empty:
-        return valid
-    collapsed = _collapse_books_for_keys(valid)
-    collapsed = collapsed.sort_values("edge_bps", ascending=False)
-    # diversify across games
-    diversified = collapsed.groupby("game_norm", group_keys=False).head(per_game_cap)
-    return diversified.head(top_n).reset_index(drop=True)
-
-def select_game_top(df, game, k=10):
-    g = df[(df["game_norm"] == game) & df["edge_bps"].notna()]
-    g = g.sort_values("edge_bps", ascending=False).head(k)
-    return g.reset_index(drop=True)
-
-# ---------------------------
-# HTML pieces
-# ---------------------------
-
-def _card_html(it: dict) -> str:
-    head = " · ".join([s for s in (it.get("kick_str",""), it.get("game_norm","")) if s])
-
-    # derive game strings (escaped + slug)
-    game_raw  = it.get("game_norm","") or it.get("game","") or ""
-    game_attr = html.escape(game_raw)
-    slug      = _slug(game_raw)
-
-
-    title = html.escape(it.get("title","") or "")
-
-    # Clean meta (no '—')
-    meta_txt = " · ".join([x for x in (clean_metric_label(it), odds_label(it)) if x])
-    meta_txt = html.escape(meta_txt)
-
-    # Blurb (only include edge text if present)
-    player = it.get("player","")
-    bet    = _pretty_market(_coalesce(it.get("bet_pretty"), it.get("market_pretty"),
-                                      it.get("market_std"), it.get("market")))
-    side   = it.get("name","")
-    ao     = it.get(_pick_odds_col(it) or "american_odds")
-    ao_s   = ""
-    if not _is_nan_like(ao):
-        s = str(ao).strip()
-        if s.lstrip("+-").isdigit():
-            ao_s = f" ({int(float(s)):+d})"
-
-    edge_phrase = clean_metric_label(it)
-    edge_phrase = f" {edge_phrase}." if edge_phrase else ""
-    blurb = f"Our numbers like {player} {bet} {side}{ao_s}.{edge_phrase}"
-    blurb = html.escape(blurb)
-
-    return (
-        f'<div class="card" data-game="{game_attr}" data-slug="{slug}">'
-        f'<div class="kicker">{html.escape(head)}</div>'
-        f'<h3 class="title">{title}</h3>'
-        f'<div class="meta">{meta_txt}</div>'
-        f'<div class="blurb">{blurb}</div>'
-        '</div>'
-    )
-
-def _compose_summaries(df: pd.DataFrame, games: list, llm_text: dict | None = None, k_per_game=10) -> str:
-    parts = ['<section class="summaries"><h2>Summaries (Top 10 per game)</h2>']
-    for g in games:
-        slug = _slug(g)
-        picks = select_game_top(df, g, k=k_per_game)
-        picks = _dedupe_for_bullets(picks)
-
-        parts.append(f'<section class="summary-block" data-slug="{slug}">')
-        parts.append(f'<h3>{html.escape(g)}</h3>')
-
-        if llm_text and g in llm_text and llm_text[g]:
-            parts.append(f"<p class='muted'>{html.escape(llm_text[g].strip())}</p>")
-        else:
-            parts.append(f"<p class='muted'>Top opportunities for <strong>{html.escape(g)}</strong>: {len(picks)} picks stand out. Shop prices; size modestly.</p>")
-
-        bullets = []
-        for _, r in picks.iterrows():
-            d = r.to_dict()
-            player = _coalesce(d.get("player"))
-            bet    = _pretty_market(_coalesce(d.get("bet_pretty"), d.get("market_pretty"), d.get("market_std")))
-            side   = _coalesce(d.get("name"))
-            meta   = " — ".join([x for x in (clean_metric_label(d), odds_label(d)) if x])
-            meta_s = f" <span class='muted'>[{html.escape(meta)}]</span>" if meta else ""
-            bullets.append(f"<li><strong>{html.escape(str(player))}</strong> — {html.escape(str(bet))} {html.escape(str(side))}{meta_s}</li>")
-        parts.append("<ul>\n" + "\n".join(bullets) + "\n</ul>")
-        parts.append("</section>")
-    parts.append("</section>")
-    return "\n".join(parts)
-
-def _build_cards_grid(items_overall: list[dict]) -> str:
-    if not items_overall:
-        return "<p>No model-backed edges available yet.</p>"
-    cards = [_card_html(it) for it in items_overall]
-    return '<section class="cards"><div class="grid">' + "\n".join(cards) + "</div></section>"
-
-def _page_css() -> str:
-    return """
-<style>
-:root { color-scheme: dark; }
-body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji"; background:#0b1220; color:#e6ebf5; margin:0; }
-.wrap { max-width: 1100px; margin: 0 auto; padding: 16px 20px 40px; }
-h1 { font-size: 28px; margin: 16px 0 8px; }
-h2 { font-size: 18px; margin: 16px 0 8px; color:#cbd5e1; }
-h3 { font-size: 16px; margin: 18px 0 6px; }
-.muted { color: #93a4bf; }
-select { background:#0f172a; color:#e6ebf5; border:1px solid #3b4252; padding:8px 10px; border-radius:10px; }
-.cards .grid { display:grid; grid-template-columns: repeat(auto-fill,minmax(300px,1fr)); gap:14px; margin-top: 10px;}
-.card { border:1px solid rgba(255,255,255,0.08); background:#0f172a; border-radius:16px; padding:14px; }
-.card .kicker { color:#9aa7bd; font-size:13px; }
-.card .title { font-size:18px; margin:6px 0 4px; }
-.card .meta { color:#9aa7bd; font-size:13px; }
-.card .blurb { color:#cbd5e1; font-size:14px; margin-top:6px; }
-.topbar { display:flex; align-items:center; gap:10px; border-top:1px solid rgba(255,255,255,0.08); padding-top:12px; margin-top:12px;}
-.count { color:#9aa7bd; font-size:13px; }
-hr { border:0; border-top:1px solid rgba(255,255,255,0.08); margin:14px 0; }
-#nav-root { margin-bottom: 4px; }
-</style>
-"""
-
-def _page_js() -> str:
-    # filters cards by data-slug
-    return """
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const sel       = document.getElementById('game-filter');
-  const cards     = Array.from(document.querySelectorAll('.card[data-slug]'));
-  const summaries = Array.from(document.querySelectorAll('.summary-block[data-slug]'));
-  const count     = document.getElementById('count');
-  const empty     = document.getElementById('empty-state');
-
-  function apply() {
-    const v = sel.value;
-    let shown = 0;
-
-    for (const c of cards) {
-      const show = (v === '__all__') || (c.dataset.slug === v);
-      c.style.display = show ? '' : 'none';
-      if (show) shown++;
-    }
-    for (const s of summaries) {
-      const show = (v === '__all__') || (s.dataset.slug === v);
-      s.style.display = show ? '' : 'none';
-    }
-
-    if (count) count.textContent = shown;
-    if (empty) empty.style.display = shown ? 'none' : '';
-  }
-
-  sel.addEventListener('change', apply);
-  apply();
-});
-</script>
+# -*- coding: utf-8 -*-
 
 """
+build_insights_page.py
+Generates docs/props/insights.html from weekly AI commentary JSON.
 
-def build_html(title: str, games: list[str], items_overall: list[dict], summaries_html: str) -> str:
-    # Build <option>s only for games that actually have cards
-    games_in_cards = sorted({
-        (it.get("game_norm") or it.get("game") or "").strip()
-        for it in items_overall
-        if (it.get("game_norm") or it.get("game"))
-    })
-    opts = ['<option value="__all__">All games</option>'] + [
-        f'<option value="{_slug(g)}">{html.escape(g)}</option>' for g in games_in_cards
+Features:
+- Dark theme consistent with the site (#0b1220).
+- Game selector: pick a single game to view just that game's summary.
+- "Week at a glance" summary (visible when All games is selected).
+- Mobile-friendly layout.
+- Share links: when a game is selected, a Share button and copy link appear
+  (uses Web Share API on mobile; clipboard fallback elsewhere).
+- Robust JSON loading (docs/data/ai → data/ai → data/ai cache), tolerant
+  to slightly different JSON shapes.
+"""
+
+import argparse, json, sys, html
+from pathlib import Path
+from typing import Any, Dict, List, Tuple, Optional
+
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parent
+DOCS = ROOT / "docs"
+AI_DATA_DOCS = DOCS / "data" / "ai"
+AI_DATA_LOCAL = ROOT / "data" / "ai"
+
+# ---------- JSON LOADING ----------
+
+def guess_json_paths(season: int, week: int) -> List[Path]:
+    return [
+        p for p in [
+            AI_DATA_DOCS / f"insights_week{week}.json",
+            AI_DATA_LOCAL / f"insights_week{week}.json",
+            AI_DATA_LOCAL / f"insights_cache_week{week}.json",
+        ] if p.exists()
     ]
 
-    cards_html = _build_cards_grid(items_overall)
+def coerce_items(obj: Any) -> List[Dict[str, Any]]:
+    """
+    Normalize to: [{"game": str, "summary": str, "picks": [str, ...]}, ...]
+    """
+    items: List[Dict[str, Any]] = []
+
+    def pick_list(d: Dict[str, Any]) -> List[str]:
+        # common variants
+        for k in ("picks", "bullets", "cards", "top", "top_picks"):
+            v = d.get(k)
+            if isinstance(v, list):
+                out: List[str] = []
+                for x in v:
+                    if isinstance(x, str):
+                        s = x.strip()
+                        if s:
+                            out.append(s)
+                    elif isinstance(x, dict):
+                        txt = x.get("text") or x.get("line") or x.get("desc") or ""
+                        txt = str(txt).strip()
+                        if txt:
+                            out.append(txt)
+                return out
+        # fallback
+        v = d.get("lines")
+        if isinstance(v, list):
+            return [str(x).strip() for x in v if str(x).strip()]
+        return []
+
+    # normalize top-level shapes
+    if isinstance(obj, dict) and isinstance(obj.get("games"), list):
+        src = obj["games"]
+    elif isinstance(obj, list):
+        src = obj
+    elif isinstance(obj, dict):
+        src = [{"game": g, **(v if isinstance(v, dict) else {"summary": str(v)})} for g, v in obj.items()]
+    else:
+        src = []
+
+    for it in src:
+        if not isinstance(it, dict):
+            continue
+        game = str(it.get("game") or it.get("matchup") or it.get("title") or "").strip()
+        if not game:
+            for k in ("home_vs_away", "game_name"):
+                if k in it:
+                    game = str(it[k]).strip()
+                    break
+        summary = str(it.get("summary") or it.get("commentary") or it.get("synopsis") or "").strip()
+        picks = pick_list(it)
+        if game or summary or picks:
+            items.append({"game": game, "summary": summary, "picks": picks})
+
+    return items
+
+def load_insights_json(season: int, week: int, override: Optional[str]) -> Tuple[List[Dict[str, Any]], Optional[Path]]:
+    paths: List[Path] = []
+    if override:
+        p = Path(override)
+        if p.exists():
+            paths = [p]
+        else:
+            print(f"[warn] override JSON not found: {p}", file=sys.stderr)
+    if not paths:
+        paths = guess_json_paths(season, week)
+    if not paths:
+        raise FileNotFoundError(
+            "No insights JSON found. Looked for:\n"
+            f"  {AI_DATA_DOCS}/insights_week{week}.json\n"
+            f"  {AI_DATA_LOCAL}/insights_week{week}.json\n"
+            f"  {AI_DATA_LOCAL}/insights_cache_week{week}.json"
+        )
+    src = paths[0]
+    with src.open("r", encoding="utf-8") as f:
+        raw = json.load(f)
+    items = coerce_items(raw)
+    return items, src
+
+# ---------- HTML RENDERING ----------
+
+STYLE = """
+  :root { color-scheme: dark; }
+  body {
+    margin: 0;
+    background: #0b1220;
+    color: #e5e7eb;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px; }
+  h1, h2, h3 { color: #fff; }
+  .muted { color: #94a3b8; }
+  .filterbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin: 12px 0 10px; }
+  .filterbar label { font-weight:600; }
+  .filterbar select {
+    background:#0f172a; color:#e5e7eb; border:1px solid #27324a;
+    border-radius:10px; padding:8px 10px; min-width: 220px;
+  }
+  .share {
+    display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+  }
+  .share button, .share input {
+    background:#0f172a; color:#e5e7eb; border:1px solid #27324a;
+    border-radius:10px; padding:8px 10px;
+  }
+  .share input {
+    min-width: 220px;
+  }
+  .share button {
+    cursor:pointer;
+  }
+  .week {
+    border: 1px solid #27324a; background:#0f172a; border-radius:12px;
+    padding:12px; margin: 6px 0 12px;
+  }
+  .week ul { margin: 8px 0 0 18px; }
+  .game { margin-top: 16px; }
+  .game p { line-height: 1.55; color: #cbd5e1; }
+  .game ul { margin: 10px 0 0 18px; }
+  .game li { margin: 6px 0; }
+  @media (max-width: 720px) {
+    .wrap { padding: 12px; }
+    .filterbar select { min-width: 180px; }
+    .share input { min-width: 180px; }
+  }
+
+  /* Minimal nav styles (for injected nav.js) */
+  .site-header{position:sticky;top:0;z-index:50;background:rgba(20,20,24,.65);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    border-bottom:1px solid #1f2937}
+  .navbar{max-width:1100px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:12px}
+  .nav-links{margin-left:auto;display:flex;flex-wrap:wrap;gap:8px}
+  .nav-link{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;text-decoration:none;color:#e5e7eb}
+  .nav-link:hover{background:rgba(76,117,255,.14)}
+  .nav-link.active{border:1px solid #4c74ff;background:rgba(76,117,255,.10)}
+"""
+SCRIPT = r"""
+document.addEventListener('DOMContentLoaded', () => {
+  const main = document.querySelector('main') || document.body;
+  if (!document.querySelector('.wrap')) {
+    const wrap = document.createElement('div');
+    wrap.className = 'wrap';
+    while (main.firstChild) wrap.appendChild(main.firstChild);
+    main.appendChild(wrap);
+  }
+  const wrap = document.querySelector('.wrap');
+
+  // Filter bar: Game select + counts + share controls
+  const bar = document.createElement('div');
+  bar.className = 'filterbar';
+  bar.innerHTML = `
+    <label class="muted" for="gameSel">Game:</label>
+    <select id="gameSel" aria-label="Select a game"><option value="__all__">All games</option></select>
+    <span id="count" class="muted"></span>
+    <span class="share" id="shareBox" style="display:none;">
+      <button id="shareBtn" type="button" title="Share this game">Share</button>
+      <input id="shareUrl" readonly value="">
+      <button id="copyBtn" type="button" title="Copy link">Copy</button>
+    </span>
+  `;
+  const h1 = wrap.querySelector('h1');
+  wrap.insertBefore(bar, h1 ? h1.nextSibling : wrap.firstChild);
+
+  // Week-at-a-glance paragraph (shown only for "All games")
+  const weekBox = document.createElement('section');
+  weekBox.className = 'week';
+  weekBox.id = 'weekBox';
+  weekBox.innerHTML = `
+    <strong>Week at a glance</strong>
+    <p class="muted" id="weekLine"></p>
+  `;
+  wrap.insertBefore(weekBox, bar.nextSibling);
+  const weekLine = weekBox.querySelector('#weekLine');
+
+  // Identify game blocks and populate dropdown
+  const blocks = Array.from(wrap.querySelectorAll('.game[data-key]'));
+  const sel = document.getElementById('gameSel');
+  blocks.forEach(b => {
+    const opt = document.createElement('option');
+    opt.value = b.dataset.key;
+    opt.textContent = (b.querySelector('h3')?.textContent || b.dataset.key).trim();
+    sel.appendChild(opt);
+  });
+
+  // Precompute totals
+  const totalGames = blocks.length;
+  const totalPicks = blocks.reduce((acc, b) => acc + b.querySelectorAll('li').length, 0);
+
+  // Counts + Share controls
+  const countSpan = document.getElementById('count');
+  const shareBox = document.getElementById('shareBox');
+  const shareBtn = document.getElementById('shareBtn');
+  const copyBtn  = document.getElementById('copyBtn');
+  const shareUrl = document.getElementById('shareUrl');
+
+  function updateShare(slug, title) {
+    const url = new URL(location.href);
+    if (!slug || slug === '__all__') {
+      url.searchParams.delete('game');
+      shareUrl.value = '';
+      shareBox.style.display = 'none';
+      return;
+    }
+    url.searchParams.set('game', slug);
+    shareUrl.value = url.toString();
+    shareBox.style.display = '';
+    shareBtn.onclick = async () => {
+      try {
+        if (navigator.share) {
+          await navigator.share({ title: title || document.title, url: shareUrl.value });
+        } else {
+          await navigator.clipboard.writeText(shareUrl.value);
+          shareBtn.textContent = 'Copied!';
+          setTimeout(() => shareBtn.textContent = 'Share', 1200);
+        }
+      } catch (_) {}
+    };
+    copyBtn.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(shareUrl.value);
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => copyBtn.textContent = 'Copy', 1200);
+      } catch (_) {}
+    };
+  }
+
+  function applyFilter() {
+  const v = sel.value;
+
+  if (v === '__all__') {
+    blocks.forEach(b => { b.style.display = 'none'; });
+    weekBox.style.display = '';
+    weekLine.textContent = `${totalGames} games • ${totalPicks} total picks. Select a game to view its summary.`;
+    countSpan.textContent = `${totalGames} games`;
+    updateShare(null, null);
+    return;
+  }
+
+  let shownName = '', shownPicks = 0;
+  blocks.forEach(b => {
+    const show = (b.dataset.key === v);
+    b.style.display = show ? '' : 'none';
+    if (show) {
+      shownName = (b.querySelector('h3')?.textContent || '').trim();
+      shownPicks = b.querySelectorAll('li').length;
+    }
+  });
+  weekBox.style.display = 'none';
+  countSpan.textContent = shownPicks > 0 ? `${shownPicks} picks` : ''; // hide when zero
+  updateShare(v, shownName);
+}
+
+
+  sel.addEventListener('change', applyFilter);
+
+  // Deep-link support: ?game=slug
+  const params = new URLSearchParams(location.search);
+  const want = params.get('game');
+  if (want && Array.from(sel.options).some(o => o.value === want)) sel.value = want;
+
+  applyFilter();
+});
+"""
+
+
+def slugify(s: str) -> str:
+    return (
+        s.lower().strip()
+         .replace("&", "and")
+         .replace("@", " at ")
+    ).replace("  ", " ").strip().replace(" ", "-")
+
+def render_html(title: str, items: List[Dict[str, Any]]) -> str:
+    total_picks = sum(len(it.get("picks", [])) for it in items)
+
+    game_sections: List[str] = []
+    for it in items:
+        game = it.get("game", "").strip() or "Game"
+        summary = it.get("summary", "").strip()
+        picks = [p for p in it.get("picks", []) if str(p).strip()]
+        key = slugify(game) or "game"
+
+        parts = [f'<section class="game" data-key="{html.escape(key)}">', f'  <h3>{html.escape(game)}</h3>']
+        if summary:
+            parts.append(f'  <p>{html.escape(summary)}</p>')
+        if picks:
+            parts.append("  <ul>")
+            parts.extend(f'    <li>{html.escape(str(p))}</li>' for p in picks)
+            parts.append("  </ul>")
+        parts.append("</section>")
+        game_sections.append("\n".join(parts))
+
+    sections_html = "\n".join(game_sections)
 
     return f"""<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{html.escape(title)}</title>
-{_page_css()}
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>{html.escape(title)}</title>
+  <style>{STYLE}</style>
 </head>
 <body>
-<div id="nav-root"></div>
-<script src="../nav.js?v=6"></script>
+  <div id="nav-root"></div>
 
-<div class="wrap">
-  <h1>{html.escape(title)}</h1>
-  <p class="muted">AI-assisted commentary on our top edges. We keep it short, factual, and grounded in the numbers.</p>
+  <div class="wrap">
+    <h1>{html.escape(title)}</h1>
+    <p class="muted">AI-assisted commentary per game. Choose a matchup to view just that game’s summary. Total picks: {total_picks}.</p>
 
-  <div class="topbar">
-    <label for="game-filter" class="muted">Filter:</label>
-    <select id="game-filter">{''.join(opts)}</select>
-    <span class="count muted"><span id="count">{len(items_overall)}</span> cards</span>
-  </div>
-  <div id="empty-state" class="muted" style="display:none;margin:8px 0 0;">
-    No model-backed picks for that game in this Top list. Try another game, or see the summaries below.
+    {sections_html}
   </div>
 
-  <hr/>
-
-  {summaries_html}
-
-  <hr/>
-
-  {cards_html}
-</div>
-
-<script>
-document.addEventListener('DOMContentLoaded', () => {{
-  const sel   = document.getElementById('game-filter');
-  const cards = Array.from(document.querySelectorAll('.card[data-slug]'));
-  const count = document.getElementById('count');
-  const empty = document.getElementById('empty-state');
-
-  function apply() {{
-    const v = sel.value;
-    let shown = 0;
-    for (const c of cards) {{
-      const show = (v === '__all__') || (c.dataset.slug === v);
-      c.style.display = show ? '' : 'none';
-      if (show) shown++;
-    }}
-    if (count) count.textContent = shown;
-    if (empty) empty.style.display = shown ? 'none' : '';
-  }}
-  sel.addEventListener('change', apply);
-  apply();
-}});
-</script>
+  <script src="../nav.js?v=9"></script>
+  <script>{SCRIPT}</script>
 </body>
 </html>
 """
 
+# ---------- CLI ----------
 
-# ---------------------------
-# Main
-# ---------------------------
+def main(argv: List[str]) -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--season", type=int, required=True)
+    ap.add_argument("--week", type=int, required=True)
+    ap.add_argument("--title", required=True)
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--json", help="Optional override path to insights JSON")
+    args = ap.parse_args(argv)
 
-def main(argv=None):
-    p = argparse.ArgumentParser(description="Build Insights page (no direct LLM calls).")
-    p.add_argument("--season", type=int, required=True)
-    p.add_argument("--week", type=int, required=True)
-    p.add_argument("--merged_csv", type=str,
-                   help="Merged props CSV; defaults to data/props/props_with_model_week{week}.csv")
-    p.add_argument("--title", type=str, help="Page title (default: Fourth & Value — Insights (Week N))")
-    p.add_argument("--out", type=str, default="docs/props/insights.html")
-    p.add_argument("--ai_json", type=str,
-                   help="Optional JSON cache produced by make_ai_commentary.py (per-game commentary).")
-    args = p.parse_args(argv)
+    items, src = load_insights_json(args.season, args.week, args.json)
+    if not items:
+        print("[warn] No items to render; page will say 0 picks.", file=sys.stderr)
 
-    merged_path = args.merged_csv or f"data/props/props_with_model_week{args.week}.csv"
-    if not os.path.exists(merged_path):
-        print(f"[error] merged CSV not found: {merged_path}", file=sys.stderr)
-        sys.exit(2)
+    html_str = render_html(args.title, items)
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(html_str, encoding="utf-8")
 
-    df = pd.read_csv(merged_path, low_memory=False)
-    df = _ensure_probs_and_edge(df)
-
-    # games list (stable order by first appearance)
-    games = list(pd.unique(df["game_norm"].dropna()))
-
-    # Overall picks (diversified)
-    # BEFORE (remove these two lines)
-# df_overall = prepare_overall(df, per_game_cap=2, top_n=10)
-# items_overall = [r.to_dict() for _, r in df_overall.iterrows()]
-
-# AFTER (add these)
-    games = list(pd.unique(df["game_norm"].dropna()))
-    items_overall = items_for_all_games(df, games, k_per_game=3)  # tweak 3 -> 2/4 to taste
-
-    # Optional LLM commentary (precomputed)
-    llm_text = None
-    src = args.ai_json
-    if not src:
-        # try a sensible default if present
-        cand = f"data/ai/insights_cache_week{args.week}.json"
-        if os.path.exists(cand):
-            src = cand
-    if src and os.path.exists(src):
-        try:
-            with open(src, "r", encoding="utf-8") as f:
-                llm_text = json.load(f)
-            print(f"[info] loaded LLM commentary from {src} ({len(llm_text)} games).")
-        except Exception as e:
-            print(f"[warn] failed to load LLM json: {e}", file=sys.stderr)
-
-    summaries_html = _compose_summaries(df, games, llm_text=llm_text, k_per_game=10)
-    title = args.title or f"Fourth & Value — Insights (Week {args.week})"
-    page = build_html(title, games, items_overall, summaries_html)
-
-    # Write with nav helper if available
-    try:
-        from site_common import write_with_nav
-        write_with_nav(args.out, page, active="Insights")
-        print(f"[ok] wrote {args.out} (with nav).")
-    except Exception:
-        os.makedirs(os.path.dirname(args.out), exist_ok=True)
-        with open(args.out, "w", encoding="utf-8") as f:
-            f.write(page)
-        print(f"[ok] wrote {args.out}.")
+    print(f"[ok] loaded commentary from {src.name if src else '(unknown)'} with {len(items)} games.")
+    print(f"[ok] wrote {out_path}.")
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])

@@ -1,0 +1,94 @@
+SHELL := /bin/bash
+
+# -------- Config (defaults) --------
+SEASON ?= 2025
+WEEK   ?= 2
+PY     ?= python3
+
+DOCS_DIR  := docs
+PROPS_DIR := $(DOCS_DIR)/props
+DATA_DIR  := data
+
+# Load .env for every recipe (ODDS_API_KEY, OPENAI_API_KEY, PUBLISH, etc.)
+ENV := set -a; [ -f .env ] && . ./.env; set +a;
+RUNPY = $(ENV) $(PY)
+
+# Ensure output dirs once
+$(shell mkdir -p $(PROPS_DIR) $(DATA_DIR)/props >/dev/null 2>&1)
+
+.PHONY: help weekly data_only props_now props_now_pages insights site_home monday_all monday_all_pub publish serve clean
+
+help:
+@echo "Targets:"
+@echo "  make weekly SEASON=YYYY WEEK=N        # data pipeline only (to merged CSV)"
+@echo "  make props_now SEASON=YYYY WEEK=N     # data + pages (preview)"
+@echo "  make props_now_pages                   # pages only (uses existing merged CSV)"
+@echo "  make insights SEASON=YYYY WEEK=N       # build AI insights (writes JSON + page)"
+@echo "  make site_home                         # buil@echo "  make site_home                ASON=YYYY WEEK=N     # site_home + props_now"
+@echo @echo @echo @echo @echo @echo EEK=N # monday_all then publish (PUBLISH=1)"
+@e@e@e@e@e@eish                            # @e@e@e@e@e (gunzip @e@e@e@e@e@eish                            # @e@e@e@e@e (gunzip @ server"
+@echo "  make clean                     @echo "  make cleaerived data"
+
+# -------- Data# -------- Data# -------- Data# -------- Data# -------- Data# -ps.# -------- Data# -------- Data# -------- Data# -------- Data# -------- Data# -ps.# -------- Data# -------- Data# ------lh $@ || true
+
+$(DATA_DIR)/$(DATA_DIR)/$(DATA_DIR)/$(DATA_DIR)/$(DATA_DIR)/$(DATA_DIR)/$(DATA_DIR)/$(DATA_DIR)/[w$(DATA_DIR)/$(DATA_DIR)/$(DATA_DIR)/$(DATA_DIR)/$(DATA_DIR)/$(DATA_DIR)/ts$(DATA_DIR)/$(DATA_DIR)/$(DATA_DIR)/$(DATA_DIR)/$(DATA_DIR)/$(DATA_DIR)/$(DATA_DIR)/$(DA).csv: scripts/make_player_prop_params.py $(DATA_DIR)/props/latest_all_props.csv $(DATA_DIR)/$(DATA_DIR)/$(DATA_DIR)/$(DATA_DIR)/$(DATA_DIR)/$(DATA_DIR)/$(DATA_DIR)/$(DATA_DIR)/$(DATA_DIR)/[w$(DATA_DIR)/$(DATA_DIR)/$(DATA_DIR)/$(DAT$(WEEK) --out $@
+@ls -lh $@ || true
+
+$(DATA_DIR)/props/props_with_model_week$(WEEK).csv: scripts/make_props_edges.py $(DATA_DIR)/props/latest_all_props.csv $(DATA_DIR)/props/params_week$(WEEK).csv
+@echo "[make_edges] -> $@"
+@$(RUNPY) scripts/make_props_edges.py --season $(SEASON) --week $(WEEK) \
+--props_csv $(DATA_DIR)/props/latest_all_props.csv \
+--params_csv $(DATA_DIR)/props/params_week$(WEEK).csv \
+--out $@
+@ls -lh $@ || true
+
+# -------- Pages --------
+
+$(PROPS_DIR)/index.html: scripts/build_props_site.py $(DATA_DIR)/props/props_with_model_week$(WEEK).csv
+@echo "[build_props] -> $@"
+@$(RUNPY) scripts/build_props_site.py \
+--merged_csv $(DATA_DIR)/props/props_with_model_week$(WEEK).csv \
+--out $@ \
+--title "Fourth & Value — Props (Week $(WEEK))" \
+--drop_no_scorer
+@touch $(DOCS_DIR)/.nojekyll
+
+$(PROPS_DIR)/top.html: scripts/build_top_picks.py $(DATA_DIR)/props/props_with_model_week$(WEEK).csv
+@echo "[build_top] -> $@"
+@$(RUNPY) scripts/build_top_picks.py \
+--merged_csv $(DATA_DIR)/props/props_wi--merged_csv $(EK).--merged_csv $(DATA_DIR)/props/props_wi--merged_csv $(EK).--merged_csv $(DATA_DIR)/props/props_wi--merged_csv $(EK).--merged_csv $(DATA_DIR)/props/pv
+@echo "[build_consensus] -> $@"
+@$(RUNPY) scripts/build_consensus_page.py \
+--merged_csv $(DATA_DIR)/props/props_with_model_week$(WEEK).csv \
+--out $@
+ripts/build_edges_site.py
+@echo "[site_home] -> $@"
+@$(RUNP@$(RUNP@$(RUNP@$(RUNP@$(RUNP@$(RUNP@$(RUNP@$(RUNP@$(RUNP@$(RUNP@$(RUNP@$(RUNP@$(RUNP@$(RU + page) --------
+
+insights: $(DATA_DIR)/props/props_with_model_week$(WEinsights: $(DATA_DIR)/props/props_with_model_week$(WEinsights: $(Dpy
+@echo "[insights] generating commentary JSON + page"
+@mkdir -p $@mkdir -p $@mkdi
+@$(RUNPY) scripts/make_ai_commentary.py @$(RUNPY) scripts/make_ai_commentary.py @$(RUNPY) scripts/make_ai_commentary.py @$(RUNPY) scripts/make_ai_commentary.py @$(RUk$(WEEK).csv \
+--out_json $(DOCS_DIR)/data/ai/insights_week$(WEEK).--out_json $(DOCS_DIR)/data/ai/insights_week$(WEEK).--out_json $(DOCS_DIR)/data/ai/insights_week$(WEEK).--out_json $(DOCS_DIR)/data/ai/insights_week$(WEEK).--out_json $(DOCS_DIR)/data/ai/insights_week$(WEEK).--_DIR)/insights.html
+@touch $(DOCS_DIR)/.nojekyll
+@ls -lh $(PROPS_DIR)/insights@ls -lh $(PROPS_DIR)/insights@ls -lh $(PROPS_DIR)/insights@ls A_DIR)/props/p@ls -lh $(PROPS_DIR)/insights@ls -lh $(PROPS_DIR)/insights@ls -lh $(PROPS_DIR)tml $(PROPS_DIR)/index.html $@ls -lh $(PROPS_DIR)/insights@ls -lh $(PROPS_DIR)/insights@ls -lh $(PROPS_DIR)/insights@ls A_DIR)/props/p@ls -lh $(PROPS_S_D@ls -lh $(PROPS_DIR)/insights@ls -lh $(PROPS_DIR)/insights@ls -lh $(PROPS_DIR)/insights@ls A_DIR)/props/p@ls -lh $(mo@ls -lh $(PROPS_DIR)/insights@ls -lh $(PROPS_DIR)/sh@ls -lh $(PROPS_DIR)/insightl @ls -lh $(PROPS_DIR)/insights@ls -lh $(PROPS_DIR)/insights@ls -lh $(PROPS_DIR)/insights@ls A_DIR)/props/p@ls -lh $(PROt publishing: set PUBLISH=1"; \
+exit 1; \
+fi
+@echo "[publish] committing and pushing $(DOCS_DIR)/ only"
+@git add -f $(DOCS_DIR)
+@git commit -m "Publish pages (Season $(SEASON) Week $(WEEK))" || true
+@git push
+
+# -------- Utilities --------
+
+serve:
+@echo "Serving $(DOCS_DIR) at http://127.0.0.1:8080/"
+@$(EN@$(EN@$(EN@$(EN@$(EN@$( -b 127.0.0.1 -d $(DOCS_DIR)
+
+clean:
+@echo "[clean] removing derived files"
+@rm -f $(DATA_DIR)/weekly_player_stats_*.parquet
+@rm -f $(DATA_DIR)/props/params_week*.csv
+@rm -f $(DATA_DIR)/props/props_with_model_week*.csv
+@rm -f $(DATA_DIR)/props/latest_all_props.csv
+@echo "[clean] done"

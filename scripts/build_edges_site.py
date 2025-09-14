@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+import argparse, pathlib, pandas as pd, datetime as dt
+
+HTML_PAGE = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>NFL Edges – Week {{WEEK}}</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b1220; --card:#111a2b; --text:#eaf0ff; --muted:#a6b3d0; --accent:#5fd4ff; --accent2:#8bd17c; --border:#273049;
+}
+@media (prefers-color-scheme: light){
+  :root{ --bg:#f7f9ff; --card:#ffffff; --text:#0e1320; --muted:#49536a; --accent:#0066ff; --accent2:#1a9e47; --border:#e7ecf6; }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--accent);text-decoration:none}
+.header{position:sticky;top:0;backdrop-filter:saturate(180%) blur(10px);background:color-mix(in oklab, var(--bg) 85%, transparent);border-bottom:1px solid var(--border);z-index:999}
+.header-inner{max-width:1100px;margin:auto;display:flex;gap:16px;align-items:center;justify-content:space-between;padding:12px 16px}
+.brand{font-weight:800;letter-spacing:.2px}
+.nav a{padding:8px 10px;border-radius:10px}
+.nav a.active, .nav a:hover{background:color-mix(in oklab, var(--accent) 20%, transparent);color:var(--text)}
+.main{max-width:1100px;margin:28px auto;padding:0 16px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 8px 20px rgba(0,0,0,.15);overflow:hidden}
+.card h2{margin:0;padding:18px 20px;border-bottom:1px solid var(--border)}
+.card .body{padding:16px 20px}
+.meta{color:var(--muted);font-size:.9rem;margin-bottom:10px}
+.table-wrap{overflow:auto;border:1px solid var(--border);border-radius:12px}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:.95rem}
+thead th{position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--border);text-align:left;padding:10px 12px;font-weight:600}
+tbody td{padding:10px 12px;border-bottom:1px solid var(--border)}
+tbody tr:nth-child(even){background:color-mix(in oklab, var(--card) 90%, var(--bg))}
+tbody tr:hover{background:color-mix(in oklab, var(--accent) 12%, var(--card))}
+.badge{display:inline-block;padding:3px 8px;border-radius:999px;border:1px solid var(--border);color:var(--muted)}
+.footer{color:var(--muted);text-align:center;margin:28px 0}
+</style>
+</head>
+<body>
+<header class="header">
+  <div class="header-inner">
+    <div class="brand">Fourth &amp; Value</div>
+    <nav class="nav">
+      <a class="active" href="index.html">Home</a>
+      <a href="props/index.html">Player Props</a>
+      <a href="props/top.html">Top Picks</a>
+      <a href="props/consensus.html">Consensus</a>
+      <a href="https://github.com/pbwitt/fourth-and-value">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+
+<main class="main">
+  <div class="card">
+    <h2>Game Edges — Week {{WEEK}} <span class="badge">updated {{UPDATED}}</span></h2>
+    <div class="body">
+      <div class="meta">Model edges derived from Elo & market lines.</div>
+      <div class="table-wrap">
+        {{TABLE_HTML}}
+      </div>
+    </div>
+  </div>
+  <div class="footer">© {{YEAR}} NFL-2025</div>
+</main>
+</body>
+</html>"""
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--edges_csv", default="data/edges/edges_week.csv",
+                    help="CSV with edges (any columns; will render as table)")
+    ap.add_argument("--week", type=int, default=1)
+    ap.add_argument("--out", default="docs/index.html")
+    args = ap.parse_args()
+
+    # Load whatever your pipeline produces; fallback to empty frame
+    if pathlib.Path(args.edges_csv).exists():
+        df = pd.read_csv(args.edges_csv)
+    else:
+        df = pd.DataFrame({"info": ["No edges CSV found at " + args.edges_csv]})
+
+    # Render table with classes (no index)
+    table_html = df.to_html(index=False, classes="tbl", border=0, justify="left", escape=False)
+
+    html = (HTML_PAGE
+            .replace("{{TABLE_HTML}}", table_html)
+            .replace("{{WEEK}}", str(args.week))
+            .replace("{{UPDATED}}", dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"))
+            .replace("{{YEAR}}", str(dt.datetime.utcnow().year)))
+
+    out = pathlib.Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(html, encoding="utf-8")
+    print(f"[edges] wrote {out}")
+
+if __name__ == "__main__":
+    main()

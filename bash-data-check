@@ -1,0 +1,35 @@
+python3 - <<'PY'
+import pandas as pd, pathlib
+p = pathlib.Path("data/props/props_with_model_week2.csv")
+assert p.exists(), f"Missing {p}"
+df = pd.read_csv(p)
+
+rows = len(df)
+seasons = sorted(df['season'].dropna().unique().tolist()) if 'season' in df else ['(no season col)']
+weeks   = sorted(df['week'].dropna().unique().tolist())   if 'week' in df   else ['(no week col)']
+
+has_model = df['model_prob'].notna() if 'model_prob' in df else pd.Series([False]*rows)
+coverage = has_model.mean() if rows else 0.0
+
+print(f"[rows] {rows}")
+print(f"[season distinct] {seasons}")
+print(f"[week   distinct] {weeks}")
+print(f"[model coverage] {coverage:.1%}")
+
+if 'market_std' in df:
+    mk = (df.assign(has_model=has_model)
+            .groupby('market_std')['has_model']
+            .mean().sort_values(ascending=False))
+    print("\n[top markets by model coverage]")
+    print(mk.head(20).to_string())
+
+    cnt = df['market_std'].value_counts().head(20)
+    print("\n[top markets by count]")
+    print(cnt.to_string())
+else:
+    print("[warn] no 'market_std' column found")
+
+# Optional: check that both book and model probs exist for publishable rows
+both = has_model & df['mkt_prob'].notna() if 'mkt_prob' in df else has_model
+print(f"\n[publishable rows (model & book prob present)] {both.sum()} / {rows} = {(both.mean() if rows else 0):.1%}")
+PY
