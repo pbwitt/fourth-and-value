@@ -1,264 +1,170 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Fourth &amp; Value — Insights (Week 2)</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Fourth &amp; Value — Insights (Week 2)</title>
+  <style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0;
+    background: #0b1220;
+    color: #e5e7eb;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px; }
+  h1, h2, h3 { color: #fff; }
+  .muted { color: #94a3b8; }
+  .filterbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin: 10px 0 12px; }
+  .filterbar select {
+    background:#0f172a; color:#e5e7eb; border:1px solid #27324a;
+    border-radius:10px; padding:8px 10px; min-width: 220px;
+  }
+  .game { margin-top: 16px; }
+  .game p { line-height: 1.55; color: #cbd5e1; }
+  .game ul { margin: 10px 0 0 18px; }
+  .game li { margin: 6px 0; }
+  @media (max-width: 720px) {
+    .wrap { padding: 12px; }
+    .filterbar select { min-width: 180px; }
+  }
 
-<style>
-:root { color-scheme: dark; }
-body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji"; background:#0b1220; color:#e6ebf5; margin:0; }
-.wrap { max-width: 1100px; margin: 0 auto; padding: 16px 20px 40px; }
-h1 { font-size: 28px; margin: 16px 0 8px; }
-h2 { font-size: 18px; margin: 16px 0 8px; color:#cbd5e1; }
-h3 { font-size: 16px; margin: 18px 0 6px; }
-.muted { color: #93a4bf; }
-select { background:#0f172a; color:#e6ebf5; border:1px solid #3b4252; padding:8px 10px; border-radius:10px; }
-.cards .grid { display:grid; grid-template-columns: repeat(auto-fill,minmax(300px,1fr)); gap:14px; margin-top: 10px;}
-.card { border:1px solid rgba(255,255,255,0.08); background:#0f172a; border-radius:16px; padding:14px; }
-.card .kicker { color:#9aa7bd; font-size:13px; }
-.card .title { font-size:18px; margin:6px 0 4px; }
-.card .meta { color:#9aa7bd; font-size:13px; }
-.card .blurb { color:#cbd5e1; font-size:14px; margin-top:6px; }
-.topbar { display:flex; align-items:center; gap:10px; border-top:1px solid rgba(255,255,255,0.08); padding-top:12px; margin-top:12px;}
-.count { color:#9aa7bd; font-size:13px; }
-hr { border:0; border-top:1px solid rgba(255,255,255,0.08); margin:14px 0; }
-#nav-root { margin-bottom: 4px; }
+  /* Minimal nav styles (for injected nav.js) */
+  .site-header{position:sticky;top:0;z-index:50;background:rgba(20,20,24,.65);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    border-bottom:1px solid #1f2937}
+  .navbar{max-width:1100px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:12px}
+  .nav-links{margin-left:auto;display:flex;flex-wrap:wrap;gap:8px}
+  .nav-link{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;text-decoration:none;color:#e5e7eb}
+  .nav-link:hover{background:rgba(76,117,255,.14)}
+  .nav-link.active{border:1px solid #4c74ff;background:rgba(76,117,255,.10)}
 </style>
-
 </head>
 <body>
-<div id="nav-root"></div>
-<script src="../nav.js?v=6"></script>
+  <div id="nav-root"></div>
 
-<div class="wrap">
-  <h1>Fourth &amp; Value — Insights (Week 2)</h1>
-  <p class="muted">AI-assisted commentary on our top edges. We keep it short, factual, and grounded in the numbers.</p>
+  <div class="wrap">
+    <h1>Fourth &amp; Value — Insights (Week 2)</h1>
+    <p class="muted">AI-assisted commentary per game. Choose a matchup to view just that game’s summary. Total picks: 0.</p>
 
-  <div class="topbar">
-    <label for="game-filter" class="muted">Filter:</label>
-    <select id="game-filter"><option value="__all__">All games</option><option value="atlanta-falcons-minnesota-vikings">Atlanta Falcons @ Minnesota Vikings</option><option value="buffalo-bills-new-york-jets">Buffalo Bills @ New York Jets</option><option value="carolina-panthers-arizona-cardinals">Carolina Panthers @ Arizona Cardinals</option><option value="chicago-bears-detroit-lions">Chicago Bears @ Detroit Lions</option><option value="cleveland-browns-baltimore-ravens">Cleveland Browns @ Baltimore Ravens</option><option value="denver-broncos-indianapolis-colts">Denver Broncos @ Indianapolis Colts</option><option value="jacksonville-jaguars-cincinnati-bengals">Jacksonville Jaguars @ Cincinnati Bengals</option><option value="los-angeles-chargers-las-vegas-raiders">Los Angeles Chargers @ Las Vegas Raiders</option><option value="los-angeles-rams-tennessee-titans">Los Angeles Rams @ Tennessee Titans</option><option value="new-england-patriots-miami-dolphins">New England Patriots @ Miami Dolphins</option><option value="new-york-giants-dallas-cowboys">New York Giants @ Dallas Cowboys</option><option value="philadelphia-eagles-kansas-city-chiefs">Philadelphia Eagles @ Kansas City Chiefs</option><option value="san-francisco-49ers-new-orleans-saints">San Francisco 49ers @ New Orleans Saints</option><option value="seattle-seahawks-pittsburgh-steelers">Seattle Seahawks @ Pittsburgh Steelers</option><option value="tampa-bay-buccaneers-houston-texans">Tampa Bay Buccaneers @ Houston Texans</option></select>
-    <span class="count muted"><span id="count">45</span> cards</span>
+    <section class="game" data-key="chicago-bears-at-detroit-lions">
+  <h3>Chicago Bears @ Detroit Lions</h3>
+  <p>Chicago Bears @ Detroit Lions: Rushing Yards over pops most on our numbers. Shop for best price; keep stakes modest.</p>
+</section>
+<section class="game" data-key="jacksonville-jaguars-at-cincinnati-bengals">
+  <h3>Jacksonville Jaguars @ Cincinnati Bengals</h3>
+  <p>Jacksonville Jaguars @ Cincinnati Bengals: Receptions under pops most on our numbers. Shop for best price; keep stakes modest.</p>
+</section>
+<section class="game" data-key="new-york-giants-at-dallas-cowboys">
+  <h3>New York Giants @ Dallas Cowboys</h3>
+  <p>New York Giants @ Dallas Cowboys: rush_attempts over pops most on our numbers. Shop for best price; keep stakes modest.</p>
+</section>
+<section class="game" data-key="new-england-patriots-at-miami-dolphins">
+  <h3>New England Patriots @ Miami Dolphins</h3>
+  <p>New England Patriots @ Miami Dolphins: rush_attempts under pops most on our numbers. Shop for best price; keep stakes modest.</p>
+</section>
+<section class="game" data-key="cleveland-browns-at-baltimore-ravens">
+  <h3>Cleveland Browns @ Baltimore Ravens</h3>
+  <p>Cleveland Browns @ Baltimore Ravens: rush_attempts under pops most on our numbers. Shop for best price; keep stakes modest.</p>
+</section>
+<section class="game" data-key="buffalo-bills-at-new-york-jets">
+  <h3>Buffalo Bills @ New York Jets</h3>
+  <p>Buffalo Bills @ New York Jets: Rushing Yards under pops most on our numbers. Shop for best price; keep stakes modest.</p>
+</section>
+<section class="game" data-key="los-angeles-rams-at-tennessee-titans">
+  <h3>Los Angeles Rams @ Tennessee Titans</h3>
+  <p>Los Angeles Rams @ Tennessee Titans: Receptions under pops most on our numbers. Shop for best price; keep stakes modest.</p>
+</section>
+<section class="game" data-key="san-francisco-49ers-at-new-orleans-saints">
+  <h3>San Francisco 49ers @ New Orleans Saints</h3>
+  <p>San Francisco 49ers @ New Orleans Saints: rush_attempts under pops most on our numbers. Shop for best price; keep stakes modest.</p>
+</section>
+<section class="game" data-key="seattle-seahawks-at-pittsburgh-steelers">
+  <h3>Seattle Seahawks @ Pittsburgh Steelers</h3>
+  <p>Seattle Seahawks @ Pittsburgh Steelers: Receptions under pops most on our numbers. Shop for best price; keep stakes modest.</p>
+</section>
+<section class="game" data-key="carolina-panthers-at-arizona-cardinals">
+  <h3>Carolina Panthers @ Arizona Cardinals</h3>
+  <p>Carolina Panthers @ Arizona Cardinals: rush_attempts under pops most on our numbers. Shop for best price; keep stakes modest.</p>
+</section>
+<section class="game" data-key="denver-broncos-at-indianapolis-colts">
+  <h3>Denver Broncos @ Indianapolis Colts</h3>
+  <p>Denver Broncos @ Indianapolis Colts: rush_attempts under pops most on our numbers. Shop for best price; keep stakes modest.</p>
+</section>
+<section class="game" data-key="philadelphia-eagles-at-kansas-city-chiefs">
+  <h3>Philadelphia Eagles @ Kansas City Chiefs</h3>
+  <p>Philadelphia Eagles @ Kansas City Chiefs: rush_attempts under pops most on our numbers. Shop for best price; keep stakes modest.</p>
+</section>
+<section class="game" data-key="atlanta-falcons-at-minnesota-vikings">
+  <h3>Atlanta Falcons @ Minnesota Vikings</h3>
+  <p>Atlanta Falcons @ Minnesota Vikings: rush_attempts under pops most on our numbers. Shop for best price; keep stakes modest.</p>
+</section>
+<section class="game" data-key="tampa-bay-buccaneers-at-houston-texans">
+  <h3>Tampa Bay Buccaneers @ Houston Texans</h3>
+  <p>Tampa Bay Buccaneers @ Houston Texans: rush_attempts under pops most on our numbers. Shop for best price; keep stakes modest.</p>
+</section>
+<section class="game" data-key="los-angeles-chargers-at-las-vegas-raiders">
+  <h3>Los Angeles Chargers @ Las Vegas Raiders</h3>
+  <p>Los Angeles Chargers @ Las Vegas Raiders: rush_attempts under pops most on our numbers. Shop for best price; keep stakes modest.</p>
+</section>
   </div>
-  <div id="empty-state" class="muted" style="display:none;margin:8px 0 0;">
-    No model-backed picks for that game in this Top list. Try another game, or see the summaries below.
-  </div>
 
-  <hr/>
-
-  <section class="summaries"><h2>Summaries (Top 10 per game)</h2>
-<section class="summary-block" data-slug="chicago-bears-detroit-lions">
-<h3>Chicago Bears @ Detroit Lions</h3>
-<p class='muted'>In the matchup between the Chicago Bears and Detroit Lions, there are strong player prop opportunities focusing on rushing unders, particularly for Jahmyr Gibbs and D&#x27;Andre Swift. Gibbs shows a consistent edge across multiple lines for rushing yards under, with a model confidence of 95-96%, while Swift&#x27;s rush attempts under also presents a significant edge. Consider shopping around for the best lines and approach with modest stakes due to the inherent uncertainty in player performance.</p>
-<ul>
-<li><strong>Jameson Williams</strong> — Rushing Yards over <span class='muted'>[Edge: +4656 bps — Odds: +125]</span></li>
-<li><strong>Jared Goff</strong> — Rushing Yards over <span class='muted'>[Edge: +4449 bps — Odds: +115]</span></li>
-<li><strong>Jahmyr Gibbs</strong> — Rushing Yards under <span class='muted'>[Edge: +4339 bps — Odds: -111]</span></li>
-<li><strong>Amon-Ra St. Brown</strong> — Receptions under <span class='muted'>[Edge: +4307 bps — Odds: +108]</span></li>
-<li><strong>Jahmyr Gibbs</strong> — rush_attempts under <span class='muted'>[Edge: +4179 bps — Odds: +101]</span></li>
-</ul>
-</section>
-<section class="summary-block" data-slug="jacksonville-jaguars-cincinnati-bengals">
-<h3>Jacksonville Jaguars @ Cincinnati Bengals</h3>
-<p class='muted'>The best player prop opportunities for the Jaguars vs. Bengals game focus on unders for Ja&#x27;Marr Chase&#x27;s receptions and Chase Brown&#x27;s rush attempts, with multiple edges exceeding 4900 bps for both players. Consider shopping around for the best lines, particularly for Chase&#x27;s receptions, which show consistent value. Given the high uncertainty, modest staking is advisable.</p>
-<ul>
-<li><strong>Ja&#x27;Marr Chase</strong> — Receptions under <span class='muted'>[Edge: +5027 bps — Odds: +115]</span></li>
-<li><strong>Chase Brown</strong> — rush_attempts under <span class='muted'>[Edge: +4986 bps — Odds: +103]</span></li>
-<li><strong>Chase Brown</strong> — Rushing Yards under <span class='muted'>[Edge: +4550 bps — Odds: -105]</span></li>
-<li><strong>Ja&#x27;Marr Chase</strong> — Receiving Yards under <span class='muted'>[Edge: +4533 bps — Odds: -113]</span></li>
-</ul>
-</section>
-<section class="summary-block" data-slug="new-york-giants-dallas-cowboys">
-<h3>New York Giants @ Dallas Cowboys</h3>
-<p class='muted'>For the Giants vs. Cowboys matchup, consider targeting player props focused on CeeDee Lamb&#x27;s receiving metrics, as multiple models indicate strong value on his receptions and receiving yards unders. Additionally, KaVontae Turpin&#x27;s rush attempts over presents a favorable edge. Shop around for the best lines, and if there&#x27;s uncertainty, opt for modest stakes to mitigate risk.</p>
-<ul>
-<li><strong>KaVontae Turpin</strong> — rush_attempts over <span class='muted'>[Edge: +4828 bps — Odds: +115]</span></li>
-<li><strong>CeeDee Lamb</strong> — Receptions under <span class='muted'>[Edge: +4800 bps — Odds: +105]</span></li>
-<li><strong>Javonte Williams</strong> — rush_attempts under <span class='muted'>[Edge: +4479 bps — Odds: +100]</span></li>
-<li><strong>CeeDee Lamb</strong> — Receiving Yards under <span class='muted'>[Edge: +4418 bps — Odds: -110]</span></li>
-</ul>
-</section>
-<section class="summary-block" data-slug="new-england-patriots-miami-dolphins">
-<h3>New England Patriots @ Miami Dolphins</h3>
-<p class='muted'>The best player prop opportunities for the Patriots vs. Dolphins game focus on De&#x27;Von Achane&#x27;s rushing metrics, particularly the Under on rush attempts and rushing yards, which show strong edges around 91-95%. Additionally, consider Tyreek Hill&#x27;s receiving yards Under, with edges around 89-90%. Shop around for the best lines, and if there&#x27;s uncertainty, opt for modest stakes.</p>
-<ul>
-<li><strong>De&#x27;Von Achane</strong> — rush_attempts under <span class='muted'>[Edge: +4154 bps — Odds: +100]</span></li>
-<li><strong>De&#x27;Von Achane</strong> — Rushing Yards under <span class='muted'>[Edge: +3975 bps — Odds: -114]</span></li>
-<li><strong>Tyreek Hill</strong> — Receptions under <span class='muted'>[Edge: +3877 bps — Odds: -110]</span></li>
-</ul>
-</section>
-<section class="summary-block" data-slug="cleveland-browns-baltimore-ravens">
-<h3>Cleveland Browns @ Baltimore Ravens</h3>
-<p class='muted'>The best player prop opportunities for the Cleveland Browns @ Baltimore Ravens game center around Derrick Henry&#x27;s rushing performance, with multiple lines indicating value on the under for both rushing yards and rush attempts. Given the consistent edge across various metrics, consider shopping for the best lines on these unders. Due to high uncertainty, a modest stake is advisable.</p>
-<ul>
-<li><strong>Derrick Henry</strong> — rush_attempts under <span class='muted'>[Edge: +4858 bps — Odds: -105]</span></li>
-<li><strong>Derrick Henry</strong> — Rushing Yards under <span class='muted'>[Edge: +4680 bps — Odds: -113]</span></li>
-</ul>
-</section>
-<section class="summary-block" data-slug="buffalo-bills-new-york-jets">
-<h3>Buffalo Bills @ New York Jets</h3>
-<p class='muted'>The best player prop opportunities for the Bills vs. Jets game focus on unders for both James Cook and Breece Hall&#x27;s rushing metrics. Specifically, consider betting on Breece Hall&#x27;s rushing yards under, which has a strong edge across multiple models (up to 91%). For James Cook, the rush attempts under also presents a solid opportunity with edges around 92%. Shop around for the best lines and consider modest stakes due to the inherent uncertainty in player performance.</p>
-<ul>
-<li><strong>Breece Hall</strong> — Rushing Yards under <span class='muted'>[Edge: +4110 bps — Odds: -108]</span></li>
-<li><strong>James Cook</strong> — rush_attempts under <span class='muted'>[Edge: +3962 bps — Odds: -108]</span></li>
-<li><strong>James Cook</strong> — Rushing Yards under <span class='muted'>[Edge: +3840 bps — Odds: -111]</span></li>
-</ul>
-</section>
-<section class="summary-block" data-slug="los-angeles-rams-tennessee-titans">
-<h3>Los Angeles Rams @ Tennessee Titans</h3>
-<p class='muted'>The best player prop opportunities for the Rams vs. Titans game focus on unders for running back rush attempts, particularly for Tony Pollard and Kyren Williams, both showing strong model support (99-100% confidence). Additionally, Puka Nacua&#x27;s receptions under also presents a solid edge. Consider shopping around for the best lines and approach with modest stakes due to the high uncertainty in player performance.</p>
-<ul>
-<li><strong>Puka Nacua</strong> — Receptions under <span class='muted'>[Edge: +4984 bps — Odds: +113]</span></li>
-<li><strong>Tony Pollard</strong> — rush_attempts under <span class='muted'>[Edge: +4814 bps — Odds: -104]</span></li>
-<li><strong>Kyren Williams</strong> — Rushing Yards under <span class='muted'>[Edge: +4733 bps — Odds: +100]</span></li>
-</ul>
-</section>
-<section class="summary-block" data-slug="san-francisco-49ers-new-orleans-saints">
-<h3>San Francisco 49ers @ New Orleans Saints</h3>
-<p class='muted'>The best player prop opportunities for the 49ers vs. Saints game focus on Christian McCaffrey&#x27;s rushing yards, with multiple strong edges indicating a likely under performance. Additionally, consider Spencer Rattler&#x27;s rushing attempts over, which shows a solid edge as well. Shop around for the best lines and consider modest stakes due to the high uncertainty surrounding these props.</p>
-<ul>
-<li><strong>Christian McCaffrey</strong> — rush_attempts under <span class='muted'>[Edge: +4957 bps — Odds: +100]</span></li>
-<li><strong>Christian McCaffrey</strong> — Rushing Yards under <span class='muted'>[Edge: +4595 bps — Odds: -112]</span></li>
-</ul>
-</section>
-<section class="summary-block" data-slug="seattle-seahawks-pittsburgh-steelers">
-<h3>Seattle Seahawks @ Pittsburgh Steelers</h3>
-<p class='muted'>The best player prop opportunities for the Seahawks vs. Steelers game focus on Jaxon Smith-Njigba&#x27;s receiving metrics, particularly the under on both receptions and receiving yards, with strong edges around 91%. Additionally, consider Sam Darnold&#x27;s rush attempts over, which also shows a solid edge. Shop around for the best lines and consider modest stakes due to potential uncertainty in player performance.</p>
-<ul>
-<li><strong>Jaxon Smith-Njigba</strong> — Receptions under <span class='muted'>[Edge: +4786 bps — Odds: +131]</span></li>
-<li><strong>Sam Darnold</strong> — rush_attempts over <span class='muted'>[Edge: +4110 bps — Odds: +118]</span></li>
-<li><strong>Jaxon Smith-Njigba</strong> — Receiving Yards under <span class='muted'>[Edge: +3917 bps — Odds: -113]</span></li>
-</ul>
-</section>
-<section class="summary-block" data-slug="carolina-panthers-arizona-cardinals">
-<h3>Carolina Panthers @ Arizona Cardinals</h3>
-<p class='muted'>The best player prop opportunities for the Panthers vs. Cardinals game focus on unders for Chuba Hubbard&#x27;s rushing attempts and yards, with multiple edges exceeding 4300 bps and model confidence around 96-97%. Additionally, James Conner&#x27;s rushing attempts also show strong under value with edges above 4450 bps. Consider shopping lines across sportsbooks for the best odds and use modest stakes due to the high uncertainty in player performance.</p>
-<ul>
-<li><strong>Chuba Hubbard</strong> — rush_attempts under <span class='muted'>[Edge: +4601 bps — Odds: +105]</span></li>
-<li><strong>James Conner</strong> — rush_attempts under <span class='muted'>[Edge: +4574 bps — Odds: -105]</span></li>
-<li><strong>James Conner</strong> — Rushing Yards under <span class='muted'>[Edge: +4538 bps — Odds: +105]</span></li>
-</ul>
-</section>
-<section class="summary-block" data-slug="denver-broncos-indianapolis-colts">
-<h3>Denver Broncos @ Indianapolis Colts</h3>
-<p class='muted'>The best player prop opportunities for the Broncos vs. Colts game center around Jonathan Taylor&#x27;s rushing metrics, particularly his rushing attempts and yards, all trending under with strong edges. Consider shopping lines for the best value, as multiple models indicate a high probability of these unders hitting. Given the uncertainty surrounding Taylor&#x27;s workload, a modest stake is advisable.</p>
-<ul>
-<li><strong>Jonathan Taylor</strong> — rush_attempts under <span class='muted'>[Edge: +4907 bps — Odds: -102]</span></li>
-<li><strong>Jonathan Taylor</strong> — Rushing Yards under <span class='muted'>[Edge: +4608 bps — Odds: -110]</span></li>
-</ul>
-</section>
-<section class="summary-block" data-slug="philadelphia-eagles-kansas-city-chiefs">
-<h3>Philadelphia Eagles @ Kansas City Chiefs</h3>
-<p class='muted'>In the matchup between the Philadelphia Eagles and Kansas City Chiefs, there is a strong trend favoring Saquon Barkley&#x27;s rushing yards and attempts unders, with multiple lines showing significant edges. Consider shopping around for the best odds on these unders, as they consistently show high model confidence. Given the uncertainty surrounding game flow, a modest stake is advisable.</p>
-<ul>
-<li><strong>Saquon Barkley</strong> — rush_attempts under <span class='muted'>[Edge: +4835 bps — Odds: -105]</span></li>
-<li><strong>Saquon Barkley</strong> — Rushing Yards under <span class='muted'>[Edge: +4704 bps — Odds: -110]</span></li>
-<li><strong>Marquise Brown</strong> — Receptions under <span class='muted'>[Edge: +4610 bps — Odds: +122]</span></li>
-</ul>
-</section>
-<section class="summary-block" data-slug="atlanta-falcons-minnesota-vikings">
-<h3>Atlanta Falcons @ Minnesota Vikings</h3>
-<p class='muted'>The best player prop opportunities for the Falcons vs. Vikings game center around Bijan Robinson&#x27;s rushing metrics, with multiple strong edges on his rushing attempts and yards unders, all showing high model confidence (95-97%). Consider shopping lines for the best value on these unders, particularly for rush attempts and rushing yards. Given the high uncertainty, modest staking is advisable.</p>
-<ul>
-<li><strong>Bijan Robinson</strong> — rush_attempts under <span class='muted'>[Edge: +4934 bps — Odds: +110]</span></li>
-<li><strong>Drake London</strong> — Receptions under <span class='muted'>[Edge: +4485 bps — Odds: +116]</span></li>
-<li><strong>Michael Penix Jr.</strong> — rush_attempts over <span class='muted'>[Edge: +4349 bps — Odds: +130]</span></li>
-<li><strong>Justin Jefferson</strong> — Receiving Yards under <span class='muted'>[Edge: +4236 bps — Odds: -110]</span></li>
-<li><strong>Bijan Robinson</strong> — Rushing Yards under <span class='muted'>[Edge: +4187 bps — Odds: -114]</span></li>
-</ul>
-</section>
-<section class="summary-block" data-slug="tampa-bay-buccaneers-houston-texans">
-<h3>Tampa Bay Buccaneers @ Houston Texans</h3>
-<p class='muted'>In the matchup between the Tampa Bay Buccaneers and Houston Texans, consider betting on Bucky Irving&#x27;s rushing attempts and yards to go under, as both have strong edges (over 4500 bps and 95% model confidence). Additionally, Nico Collins&#x27; receptions under also presents a solid opportunity, with multiple instances showing a 91% model confidence. Given the high uncertainty, it&#x27;s advisable to shop around for the best lines and stake modestly.</p>
-<ul>
-<li><strong>Bucky Irving</strong> — rush_attempts under <span class='muted'>[Edge: +4770 bps — Odds: +103]</span></li>
-<li><strong>C.J. Stroud</strong> — rush_attempts over <span class='muted'>[Edge: +4349 bps — Odds: +130]</span></li>
-<li><strong>Nico Collins</strong> — Receptions under <span class='muted'>[Edge: +4307 bps — Odds: +108]</span></li>
-<li><strong>Nico Collins</strong> — Receiving Yards under <span class='muted'>[Edge: +4236 bps — Odds: -110]</span></li>
-</ul>
-</section>
-<section class="summary-block" data-slug="los-angeles-chargers-las-vegas-raiders">
-<h3>Los Angeles Chargers @ Las Vegas Raiders</h3>
-<p class='muted'>The best player prop opportunities for the Chargers vs. Raiders game center around Ashton Jeanty&#x27;s rushing attempts and yards, both showing strong under edges (99% model confidence). Additionally, Ladd McConkey&#x27;s receptions also present solid under value (91% model confidence). Consider shopping lines for the best odds and exercise modest staking due to the high uncertainty surrounding player performance.</p>
-<ul>
-<li><strong>Ashton Jeanty</strong> — rush_attempts under <span class='muted'>[Edge: +4499 bps — Odds: -118]</span></li>
-<li><strong>Omarion Hampton</strong> — rush_attempts under <span class='muted'>[Edge: +4437 bps — Odds: +112]</span></li>
-<li><strong>Ladd McConkey</strong> — Receptions under <span class='muted'>[Edge: +4307 bps — Odds: +108]</span></li>
-<li><strong>Geno Smith</strong> — rush_attempts over <span class='muted'>[Edge: +4276 bps — Odds: +105]</span></li>
-<li><strong>Ashton Jeanty</strong> — Rushing Yards under <span class='muted'>[Edge: +4272 bps — Odds: -114]</span></li>
-</ul>
-</section>
-</section>
-
-  <hr/>
-
-  <section class="cards"><div class="grid"><div class="card" data-game="Chicago Bears @ Detroit Lions" data-slug="chicago-bears-detroit-lions"><div class="kicker">Chicago Bears @ Detroit Lions</div><h3 class="title">Jameson Williams — Rushing Yards over</h3><div class="meta">Edge: +4656 bps · Odds: +125</div><div class="blurb">Our numbers like Jameson Williams Rushing Yards over (+125). Edge: +4656 bps.</div></div>
-<div class="card" data-game="Chicago Bears @ Detroit Lions" data-slug="chicago-bears-detroit-lions"><div class="kicker">Chicago Bears @ Detroit Lions</div><h3 class="title">Jared Goff — Rushing Yards over</h3><div class="meta">Edge: +4449 bps · Odds: +115</div><div class="blurb">Our numbers like Jared Goff Rushing Yards over (+115). Edge: +4449 bps.</div></div>
-<div class="card" data-game="Chicago Bears @ Detroit Lions" data-slug="chicago-bears-detroit-lions"><div class="kicker">Chicago Bears @ Detroit Lions</div><h3 class="title">Jahmyr Gibbs — Rushing Yards under</h3><div class="meta">Edge: +4339 bps · Odds: -111</div><div class="blurb">Our numbers like Jahmyr Gibbs Rushing Yards under (-111). Edge: +4339 bps.</div></div>
-<div class="card" data-game="Jacksonville Jaguars @ Cincinnati Bengals" data-slug="jacksonville-jaguars-cincinnati-bengals"><div class="kicker">Jacksonville Jaguars @ Cincinnati Bengals</div><h3 class="title">Ja&#x27;Marr Chase — Receptions under</h3><div class="meta">Edge: +5027 bps · Odds: +115</div><div class="blurb">Our numbers like Ja&#x27;Marr Chase Receptions under (+115). Edge: +5027 bps.</div></div>
-<div class="card" data-game="Jacksonville Jaguars @ Cincinnati Bengals" data-slug="jacksonville-jaguars-cincinnati-bengals"><div class="kicker">Jacksonville Jaguars @ Cincinnati Bengals</div><h3 class="title">Chase Brown — rush_attempts under</h3><div class="meta">Edge: +4986 bps · Odds: +103</div><div class="blurb">Our numbers like Chase Brown rush_attempts under (+103). Edge: +4986 bps.</div></div>
-<div class="card" data-game="Jacksonville Jaguars @ Cincinnati Bengals" data-slug="jacksonville-jaguars-cincinnati-bengals"><div class="kicker">Jacksonville Jaguars @ Cincinnati Bengals</div><h3 class="title">Chase Brown — rush_attempts under</h3><div class="meta">Edge: +4912 bps · Odds: +100</div><div class="blurb">Our numbers like Chase Brown rush_attempts under (+100). Edge: +4912 bps.</div></div>
-<div class="card" data-game="New York Giants @ Dallas Cowboys" data-slug="new-york-giants-dallas-cowboys"><div class="kicker">New York Giants @ Dallas Cowboys</div><h3 class="title">KaVontae Turpin — rush_attempts over</h3><div class="meta">Edge: +4828 bps · Odds: +115</div><div class="blurb">Our numbers like KaVontae Turpin rush_attempts over (+115). Edge: +4828 bps.</div></div>
-<div class="card" data-game="New York Giants @ Dallas Cowboys" data-slug="new-york-giants-dallas-cowboys"><div class="kicker">New York Giants @ Dallas Cowboys</div><h3 class="title">CeeDee Lamb — Receptions under</h3><div class="meta">Edge: +4800 bps · Odds: +105</div><div class="blurb">Our numbers like CeeDee Lamb Receptions under (+105). Edge: +4800 bps.</div></div>
-<div class="card" data-game="New York Giants @ Dallas Cowboys" data-slug="new-york-giants-dallas-cowboys"><div class="kicker">New York Giants @ Dallas Cowboys</div><h3 class="title">CeeDee Lamb — Receptions under</h3><div class="meta">Edge: +4800 bps · Odds: +105</div><div class="blurb">Our numbers like CeeDee Lamb Receptions under (+105). Edge: +4800 bps.</div></div>
-<div class="card" data-game="New England Patriots @ Miami Dolphins" data-slug="new-england-patriots-miami-dolphins"><div class="kicker">New England Patriots @ Miami Dolphins</div><h3 class="title">De&#x27;Von Achane — rush_attempts under</h3><div class="meta">Edge: +4154 bps · Odds: +100</div><div class="blurb">Our numbers like De&#x27;Von Achane rush_attempts under (+100). Edge: +4154 bps.</div></div>
-<div class="card" data-game="New England Patriots @ Miami Dolphins" data-slug="new-england-patriots-miami-dolphins"><div class="kicker">New England Patriots @ Miami Dolphins</div><h3 class="title">De&#x27;Von Achane — rush_attempts under</h3><div class="meta">Edge: +4130 bps · Odds: -115</div><div class="blurb">Our numbers like De&#x27;Von Achane rush_attempts under (-115). Edge: +4130 bps.</div></div>
-<div class="card" data-game="New England Patriots @ Miami Dolphins" data-slug="new-england-patriots-miami-dolphins"><div class="kicker">New England Patriots @ Miami Dolphins</div><h3 class="title">De&#x27;Von Achane — Rushing Yards under</h3><div class="meta">Edge: +3975 bps · Odds: -114</div><div class="blurb">Our numbers like De&#x27;Von Achane Rushing Yards under (-114). Edge: +3975 bps.</div></div>
-<div class="card" data-game="Cleveland Browns @ Baltimore Ravens" data-slug="cleveland-browns-baltimore-ravens"><div class="kicker">Cleveland Browns @ Baltimore Ravens</div><h3 class="title">Derrick Henry — rush_attempts under</h3><div class="meta">Edge: +4858 bps · Odds: -105</div><div class="blurb">Our numbers like Derrick Henry rush_attempts under (-105). Edge: +4858 bps.</div></div>
-<div class="card" data-game="Cleveland Browns @ Baltimore Ravens" data-slug="cleveland-browns-baltimore-ravens"><div class="kicker">Cleveland Browns @ Baltimore Ravens</div><h3 class="title">Derrick Henry — rush_attempts under</h3><div class="meta">Edge: +4811 bps · Odds: -107</div><div class="blurb">Our numbers like Derrick Henry rush_attempts under (-107). Edge: +4811 bps.</div></div>
-<div class="card" data-game="Cleveland Browns @ Baltimore Ravens" data-slug="cleveland-browns-baltimore-ravens"><div class="kicker">Cleveland Browns @ Baltimore Ravens</div><h3 class="title">Derrick Henry — Rushing Yards under</h3><div class="meta">Edge: +4680 bps · Odds: -113</div><div class="blurb">Our numbers like Derrick Henry Rushing Yards under (-113). Edge: +4680 bps.</div></div>
-<div class="card" data-game="Buffalo Bills @ New York Jets" data-slug="buffalo-bills-new-york-jets"><div class="kicker">Buffalo Bills @ New York Jets</div><h3 class="title">Breece Hall — Rushing Yards under</h3><div class="meta">Edge: +4110 bps · Odds: -108</div><div class="blurb">Our numbers like Breece Hall Rushing Yards under (-108). Edge: +4110 bps.</div></div>
-<div class="card" data-game="Buffalo Bills @ New York Jets" data-slug="buffalo-bills-new-york-jets"><div class="kicker">Buffalo Bills @ New York Jets</div><h3 class="title">Breece Hall — Rushing Yards under</h3><div class="meta">Edge: +4065 bps · Odds: +105</div><div class="blurb">Our numbers like Breece Hall Rushing Yards under (+105). Edge: +4065 bps.</div></div>
-<div class="card" data-game="Buffalo Bills @ New York Jets" data-slug="buffalo-bills-new-york-jets"><div class="kicker">Buffalo Bills @ New York Jets</div><h3 class="title">James Cook — rush_attempts under</h3><div class="meta">Edge: +3962 bps · Odds: -108</div><div class="blurb">Our numbers like James Cook rush_attempts under (-108). Edge: +3962 bps.</div></div>
-<div class="card" data-game="Los Angeles Rams @ Tennessee Titans" data-slug="los-angeles-rams-tennessee-titans"><div class="kicker">Los Angeles Rams @ Tennessee Titans</div><h3 class="title">Puka Nacua — Receptions under</h3><div class="meta">Edge: +4984 bps · Odds: +113</div><div class="blurb">Our numbers like Puka Nacua Receptions under (+113). Edge: +4984 bps.</div></div>
-<div class="card" data-game="Los Angeles Rams @ Tennessee Titans" data-slug="los-angeles-rams-tennessee-titans"><div class="kicker">Los Angeles Rams @ Tennessee Titans</div><h3 class="title">Puka Nacua — Receptions under</h3><div class="meta">Edge: +4984 bps · Odds: +113</div><div class="blurb">Our numbers like Puka Nacua Receptions under (+113). Edge: +4984 bps.</div></div>
-<div class="card" data-game="Los Angeles Rams @ Tennessee Titans" data-slug="los-angeles-rams-tennessee-titans"><div class="kicker">Los Angeles Rams @ Tennessee Titans</div><h3 class="title">Puka Nacua — Receptions under</h3><div class="meta">Edge: +4871 bps · Odds: +108</div><div class="blurb">Our numbers like Puka Nacua Receptions under (+108). Edge: +4871 bps.</div></div>
-<div class="card" data-game="San Francisco 49ers @ New Orleans Saints" data-slug="san-francisco-49ers-new-orleans-saints"><div class="kicker">San Francisco 49ers @ New Orleans Saints</div><h3 class="title">Christian McCaffrey — rush_attempts under</h3><div class="meta">Edge: +4957 bps · Odds: +100</div><div class="blurb">Our numbers like Christian McCaffrey rush_attempts under (+100). Edge: +4957 bps.</div></div>
-<div class="card" data-game="San Francisco 49ers @ New Orleans Saints" data-slug="san-francisco-49ers-new-orleans-saints"><div class="kicker">San Francisco 49ers @ New Orleans Saints</div><h3 class="title">Christian McCaffrey — rush_attempts under</h3><div class="meta">Edge: +4630 bps · Odds: -114</div><div class="blurb">Our numbers like Christian McCaffrey rush_attempts under (-114). Edge: +4630 bps.</div></div>
-<div class="card" data-game="San Francisco 49ers @ New Orleans Saints" data-slug="san-francisco-49ers-new-orleans-saints"><div class="kicker">San Francisco 49ers @ New Orleans Saints</div><h3 class="title">Christian McCaffrey — Rushing Yards under</h3><div class="meta">Edge: +4595 bps · Odds: -112</div><div class="blurb">Our numbers like Christian McCaffrey Rushing Yards under (-112). Edge: +4595 bps.</div></div>
-<div class="card" data-game="Seattle Seahawks @ Pittsburgh Steelers" data-slug="seattle-seahawks-pittsburgh-steelers"><div class="kicker">Seattle Seahawks @ Pittsburgh Steelers</div><h3 class="title">Jaxon Smith-Njigba — Receptions under</h3><div class="meta">Edge: +4786 bps · Odds: +131</div><div class="blurb">Our numbers like Jaxon Smith-Njigba Receptions under (+131). Edge: +4786 bps.</div></div>
-<div class="card" data-game="Seattle Seahawks @ Pittsburgh Steelers" data-slug="seattle-seahawks-pittsburgh-steelers"><div class="kicker">Seattle Seahawks @ Pittsburgh Steelers</div><h3 class="title">Jaxon Smith-Njigba — Receptions under</h3><div class="meta">Edge: +4569 bps · Odds: +120</div><div class="blurb">Our numbers like Jaxon Smith-Njigba Receptions under (+120). Edge: +4569 bps.</div></div>
-<div class="card" data-game="Seattle Seahawks @ Pittsburgh Steelers" data-slug="seattle-seahawks-pittsburgh-steelers"><div class="kicker">Seattle Seahawks @ Pittsburgh Steelers</div><h3 class="title">Jaxon Smith-Njigba — Receptions under</h3><div class="meta">Edge: +4464 bps · Odds: +115</div><div class="blurb">Our numbers like Jaxon Smith-Njigba Receptions under (+115). Edge: +4464 bps.</div></div>
-<div class="card" data-game="Carolina Panthers @ Arizona Cardinals" data-slug="carolina-panthers-arizona-cardinals"><div class="kicker">Carolina Panthers @ Arizona Cardinals</div><h3 class="title">Chuba Hubbard — rush_attempts under</h3><div class="meta">Edge: +4601 bps · Odds: +105</div><div class="blurb">Our numbers like Chuba Hubbard rush_attempts under (+105). Edge: +4601 bps.</div></div>
-<div class="card" data-game="Carolina Panthers @ Arizona Cardinals" data-slug="carolina-panthers-arizona-cardinals"><div class="kicker">Carolina Panthers @ Arizona Cardinals</div><h3 class="title">James Conner — rush_attempts under</h3><div class="meta">Edge: +4574 bps · Odds: -105</div><div class="blurb">Our numbers like James Conner rush_attempts under (-105). Edge: +4574 bps.</div></div>
-<div class="card" data-game="Carolina Panthers @ Arizona Cardinals" data-slug="carolina-panthers-arizona-cardinals"><div class="kicker">Carolina Panthers @ Arizona Cardinals</div><h3 class="title">James Conner — Rushing Yards under</h3><div class="meta">Edge: +4538 bps · Odds: +105</div><div class="blurb">Our numbers like James Conner Rushing Yards under (+105). Edge: +4538 bps.</div></div>
-<div class="card" data-game="Denver Broncos @ Indianapolis Colts" data-slug="denver-broncos-indianapolis-colts"><div class="kicker">Denver Broncos @ Indianapolis Colts</div><h3 class="title">Jonathan Taylor — rush_attempts under</h3><div class="meta">Edge: +4907 bps · Odds: -102</div><div class="blurb">Our numbers like Jonathan Taylor rush_attempts under (-102). Edge: +4907 bps.</div></div>
-<div class="card" data-game="Denver Broncos @ Indianapolis Colts" data-slug="denver-broncos-indianapolis-colts"><div class="kicker">Denver Broncos @ Indianapolis Colts</div><h3 class="title">Jonathan Taylor — rush_attempts under</h3><div class="meta">Edge: +4883 bps · Odds: -103</div><div class="blurb">Our numbers like Jonathan Taylor rush_attempts under (-103). Edge: +4883 bps.</div></div>
-<div class="card" data-game="Denver Broncos @ Indianapolis Colts" data-slug="denver-broncos-indianapolis-colts"><div class="kicker">Denver Broncos @ Indianapolis Colts</div><h3 class="title">Jonathan Taylor — rush_attempts under</h3><div class="meta">Edge: +4835 bps · Odds: -105</div><div class="blurb">Our numbers like Jonathan Taylor rush_attempts under (-105). Edge: +4835 bps.</div></div>
-<div class="card" data-game="Philadelphia Eagles @ Kansas City Chiefs" data-slug="philadelphia-eagles-kansas-city-chiefs"><div class="kicker">Philadelphia Eagles @ Kansas City Chiefs</div><h3 class="title">Saquon Barkley — rush_attempts under</h3><div class="meta">Edge: +4835 bps · Odds: -105</div><div class="blurb">Our numbers like Saquon Barkley rush_attempts under (-105). Edge: +4835 bps.</div></div>
-<div class="card" data-game="Philadelphia Eagles @ Kansas City Chiefs" data-slug="philadelphia-eagles-kansas-city-chiefs"><div class="kicker">Philadelphia Eagles @ Kansas City Chiefs</div><h3 class="title">Saquon Barkley — Rushing Yards under</h3><div class="meta">Edge: +4704 bps · Odds: -110</div><div class="blurb">Our numbers like Saquon Barkley Rushing Yards under (-110). Edge: +4704 bps.</div></div>
-<div class="card" data-game="Philadelphia Eagles @ Kansas City Chiefs" data-slug="philadelphia-eagles-kansas-city-chiefs"><div class="kicker">Philadelphia Eagles @ Kansas City Chiefs</div><h3 class="title">Saquon Barkley — Rushing Yards under</h3><div class="meta">Edge: +4672 bps · Odds: -112</div><div class="blurb">Our numbers like Saquon Barkley Rushing Yards under (-112). Edge: +4672 bps.</div></div>
-<div class="card" data-game="Atlanta Falcons @ Minnesota Vikings" data-slug="atlanta-falcons-minnesota-vikings"><div class="kicker">Atlanta Falcons @ Minnesota Vikings</div><h3 class="title">Bijan Robinson — rush_attempts under</h3><div class="meta">Edge: +4934 bps · Odds: +110</div><div class="blurb">Our numbers like Bijan Robinson rush_attempts under (+110). Edge: +4934 bps.</div></div>
-<div class="card" data-game="Atlanta Falcons @ Minnesota Vikings" data-slug="atlanta-falcons-minnesota-vikings"><div class="kicker">Atlanta Falcons @ Minnesota Vikings</div><h3 class="title">Bijan Robinson — rush_attempts under</h3><div class="meta">Edge: +4504 bps · Odds: -108</div><div class="blurb">Our numbers like Bijan Robinson rush_attempts under (-108). Edge: +4504 bps.</div></div>
-<div class="card" data-game="Atlanta Falcons @ Minnesota Vikings" data-slug="atlanta-falcons-minnesota-vikings"><div class="kicker">Atlanta Falcons @ Minnesota Vikings</div><h3 class="title">Drake London — Receptions under</h3><div class="meta">Edge: +4485 bps · Odds: +116</div><div class="blurb">Our numbers like Drake London Receptions under (+116). Edge: +4485 bps.</div></div>
-<div class="card" data-game="Tampa Bay Buccaneers @ Houston Texans" data-slug="tampa-bay-buccaneers-houston-texans"><div class="kicker">Tampa Bay Buccaneers @ Houston Texans</div><h3 class="title">Bucky Irving — rush_attempts under</h3><div class="meta">Edge: +4770 bps · Odds: +103</div><div class="blurb">Our numbers like Bucky Irving rush_attempts under (+103). Edge: +4770 bps.</div></div>
-<div class="card" data-game="Tampa Bay Buccaneers @ Houston Texans" data-slug="tampa-bay-buccaneers-houston-texans"><div class="kicker">Tampa Bay Buccaneers @ Houston Texans</div><h3 class="title">Bucky Irving — rush_attempts under</h3><div class="meta">Edge: +4696 bps · Odds: +100</div><div class="blurb">Our numbers like Bucky Irving rush_attempts under (+100). Edge: +4696 bps.</div></div>
-<div class="card" data-game="Tampa Bay Buccaneers @ Houston Texans" data-slug="tampa-bay-buccaneers-houston-texans"><div class="kicker">Tampa Bay Buccaneers @ Houston Texans</div><h3 class="title">Bucky Irving — rush_attempts under</h3><div class="meta">Edge: +4504 bps · Odds: -108</div><div class="blurb">Our numbers like Bucky Irving rush_attempts under (-108). Edge: +4504 bps.</div></div>
-<div class="card" data-game="Los Angeles Chargers @ Las Vegas Raiders" data-slug="los-angeles-chargers-las-vegas-raiders"><div class="kicker">Los Angeles Chargers @ Las Vegas Raiders</div><h3 class="title">Ashton Jeanty — rush_attempts under</h3><div class="meta">Edge: +4499 bps · Odds: -118</div><div class="blurb">Our numbers like Ashton Jeanty rush_attempts under (-118). Edge: +4499 bps.</div></div>
-<div class="card" data-game="Los Angeles Chargers @ Las Vegas Raiders" data-slug="los-angeles-chargers-las-vegas-raiders"><div class="kicker">Los Angeles Chargers @ Las Vegas Raiders</div><h3 class="title">Ashton Jeanty — rush_attempts under</h3><div class="meta">Edge: +4458 bps · Odds: -120</div><div class="blurb">Our numbers like Ashton Jeanty rush_attempts under (-120). Edge: +4458 bps.</div></div>
-<div class="card" data-game="Los Angeles Chargers @ Las Vegas Raiders" data-slug="los-angeles-chargers-las-vegas-raiders"><div class="kicker">Los Angeles Chargers @ Las Vegas Raiders</div><h3 class="title">Omarion Hampton — rush_attempts under</h3><div class="meta">Edge: +4437 bps · Odds: +112</div><div class="blurb">Our numbers like Omarion Hampton rush_attempts under (+112). Edge: +4437 bps.</div></div></div></section>
-</div>
-
-<script>
+  <script src="../nav.js?v=9"></script>
+  <script>
 document.addEventListener('DOMContentLoaded', () => {
-  const sel   = document.getElementById('game-filter');
-  const cards = Array.from(document.querySelectorAll('.card[data-slug]'));
-  const count = document.getElementById('count');
-  const empty = document.getElementById('empty-state');
-
-  function apply() {
-    const v = sel.value;
-    let shown = 0;
-    for (const c of cards) {
-      const show = (v === '__all__') || (c.dataset.slug === v);
-      c.style.display = show ? '' : 'none';
-      if (show) shown++;
-    }
-    if (count) count.textContent = shown;
-    if (empty) empty.style.display = shown ? 'none' : '';
+  const main = document.querySelector('main') || document.body;
+  if (!document.querySelector('.wrap')) {
+    const wrap = document.createElement('div');
+    wrap.className = 'wrap';
+    while (main.firstChild) wrap.appendChild(main.firstChild);
+    main.appendChild(wrap);
   }
-  sel.addEventListener('change', apply);
-  apply();
+  const wrap = document.querySelector('.wrap');
+
+  // Build filter bar (Game dropdown)
+  const bar = document.createElement('div');
+  bar.className = 'filterbar';
+  bar.innerHTML = `
+    <label class="muted" for="gameSel">Game:</label>
+    <select id="gameSel"><option value="__all__">All games</option></select>
+    <span id="count" class="muted"></span>
+  `;
+  const h1 = wrap.querySelector('h1');
+  wrap.insertBefore(bar, h1 ? h1.nextSibling : wrap.firstChild);
+
+  // Identify game blocks
+  const blocks = Array.from(wrap.querySelectorAll('.game[data-key]'));
+
+  // Populate dropdown
+  const sel = document.getElementById('gameSel');
+  blocks.forEach(b => {
+    const opt = document.createElement('option');
+    opt.value = b.dataset.key;
+    opt.textContent = (b.querySelector('h3')?.textContent || b.dataset.key).trim();
+    sel.appendChild(opt);
+  });
+
+  const countSpan = document.getElementById('count');
+  function applyFilter() {
+    const v = sel.value;
+    let totalPicks = 0, shown = 0;
+    blocks.forEach(b => {
+      const show = (v === '__all__' || b.dataset.key === v);
+      b.style.display = show ? '' : 'none';
+      if (show) {
+        shown++;
+        totalPicks += b.querySelectorAll('li').length;
+      }
+    });
+    countSpan.textContent = (v === '__all__') ? `${shown} games` : `${totalPicks} picks`;
+  }
+  sel.addEventListener('change', applyFilter);
+
+  // Deep-linking: ?game=slug
+  const params = new URLSearchParams(location.search);
+  const want = params.get('game');
+  if (want && Array.from(sel.options).some(o => o.value === want)) sel.value = want;
+  applyFilter();
 });
 </script>
 </body>
