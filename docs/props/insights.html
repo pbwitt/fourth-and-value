@@ -221,32 +221,31 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function applyFilter() {
-    const v = sel.value;
+  const v = sel.value;
 
-    if (v === '__all__') {
-      // Hide *all* game blocks; show just the week summary paragraph.
-      blocks.forEach(b => { b.style.display = 'none'; });
-      weekBox.style.display = '';
-      weekLine.textContent = `${totalGames} games • ${totalPicks} total picks. Select a game to view its summary.`;
-      countSpan.textContent = `${totalGames} games`;
-      updateShare(null, null);
-      return;
-    }
-
-    // Specific game: show only that one, hide week summary.
-    let shownName = '', shownPicks = 0;
-    blocks.forEach(b => {
-      const show = (b.dataset.key === v);
-      b.style.display = show ? '' : 'none';
-      if (show) {
-        shownName = (b.querySelector('h3')?.textContent || '').trim();
-        shownPicks = b.querySelectorAll('li').length;
-      }
-    });
-    weekBox.style.display = 'none';
-    countSpan.textContent = `${shownPicks} picks`;
-    updateShare(v, shownName);
+  if (v === '__all__') {
+    blocks.forEach(b => { b.style.display = 'none'; });
+    weekBox.style.display = '';
+    weekLine.textContent = `${totalGames} games • ${totalPicks} total picks. Select a game to view its summary.`;
+    countSpan.textContent = `${totalGames} games`;
+    updateShare(null, null);
+    return;
   }
+
+  let shownName = '', shownPicks = 0;
+  blocks.forEach(b => {
+    const show = (b.dataset.key === v);
+    b.style.display = show ? '' : 'none';
+    if (show) {
+      shownName = (b.querySelector('h3')?.textContent || '').trim();
+      shownPicks = b.querySelectorAll('li').length;
+    }
+  });
+  weekBox.style.display = 'none';
+  countSpan.textContent = shownPicks > 0 ? `${shownPicks} picks` : ''; // hide when zero
+  updateShare(v, shownName);
+}
+
 
   sel.addEventListener('change', applyFilter);
 
