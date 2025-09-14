@@ -28,6 +28,7 @@
     .fv-logo img{height:40px!important;max-height:40px;margin-top:0;}
     .fv-logo .fv-brand{font-size:15px;}
   }
+  .fv-brand .fv-accent { color: #22c55e; } /* green-500; tweak if you had a different hex */
 
   .fv-links{display:flex;align-items:center;gap:14px;}
   .fv-links a{color:var(--nav-fg-dim);text-decoration:none;padding:8px 10px;border-radius:10px;line-height:1;font-size:15px;}
@@ -93,7 +94,7 @@
 
   const brand = document.createElement('span');
   brand.className = 'fv-brand';
-  brand.textContent = 'Fourth & Value';
+  brand.innerHTML = 'Fourth &amp; <span class="fv-accent">Value</span>';
 
   logoLink.appendChild(img);
   logoLink.appendChild(brand);
@@ -114,6 +115,7 @@
 
   const pages = [
     { href: `${base}/index.html`,        label: 'Home' },
+    { href: `${base}/props/insights.html`,    label: 'Insights' },
     { href: `${base}/props/index.html`,  label: 'Player Props' },
     { href: `${base}/props/top.html`,    label: 'Top Picks' },
     // Hide Consensus on mobile only:
