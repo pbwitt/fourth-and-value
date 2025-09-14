@@ -141,7 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   const wrap = document.querySelector('.wrap');
 
-  // Build filter bar (Game dropdown + counts + share)
+  // Filter bar: Game select + counts + share controls
   const bar = document.createElement('div');
   bar.className = 'filterbar';
   bar.innerHTML = `
@@ -157,50 +157,32 @@ document.addEventListener('DOMContentLoaded', () => {
   const h1 = wrap.querySelector('h1');
   wrap.insertBefore(bar, h1 ? h1.nextSibling : wrap.firstChild);
 
-  // Week-at-a-glance container (shown only for "All games")
+  // Week-at-a-glance paragraph (shown only for "All games")
   const weekBox = document.createElement('section');
   weekBox.className = 'week';
   weekBox.id = 'weekBox';
-  // Placeholder content; we fill it after we discover blocks
   weekBox.innerHTML = `
     <strong>Week at a glance</strong>
     <p class="muted" id="weekLine"></p>
-    <ul id="weekList"></ul>
   `;
   wrap.insertBefore(weekBox, bar.nextSibling);
+  const weekLine = weekBox.querySelector('#weekLine');
 
-  // Identify game blocks
+  // Identify game blocks and populate dropdown
   const blocks = Array.from(wrap.querySelectorAll('.game[data-key]'));
-
-  // Populate dropdown and week list
   const sel = document.getElementById('gameSel');
-  const weekList = document.getElementById('weekList');
   blocks.forEach(b => {
-    const name = (b.querySelector('h3')?.textContent || b.dataset.key).trim();
-    const slug = b.dataset.key;
-
     const opt = document.createElement('option');
-    opt.value = slug;
-    opt.textContent = name;
+    opt.value = b.dataset.key;
+    opt.textContent = (b.querySelector('h3')?.textContent || b.dataset.key).trim();
     sel.appendChild(opt);
-
-    const li = document.createElement('li');
-    const a = document.createElement('a');
-    a.textContent = name;
-    const url = new URL(location.href);
-    url.searchParams.set('game', slug);
-    a.href = url.toString();
-    li.appendChild(a);
-    weekList.appendChild(li);
   });
 
-  // Update week line
-  const weekLine = document.getElementById('weekLine');
+  // Precompute totals
   const totalGames = blocks.length;
   const totalPicks = blocks.reduce((acc, b) => acc + b.querySelectorAll('li').length, 0);
-  weekLine.textContent = `${totalGames} games • ${totalPicks} total picks`;
 
-  // Filtering + counts + share controls
+  // Counts + Share controls
   const countSpan = document.getElementById('count');
   const shareBox = document.getElementById('shareBox');
   const shareBtn = document.getElementById('shareBtn');
@@ -218,7 +200,6 @@ document.addEventListener('DOMContentLoaded', () => {
     url.searchParams.set('game', slug);
     shareUrl.value = url.toString();
     shareBox.style.display = '';
-    // button handlers
     shareBtn.onclick = async () => {
       try {
         if (navigator.share) {
@@ -241,30 +222,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function applyFilter() {
     const v = sel.value;
-    let totalPicksShown = 0, shown = 0, shownName = '';
+
+    if (v === '__all__') {
+      // Hide *all* game blocks; show just the week summary paragraph.
+      blocks.forEach(b => { b.style.display = 'none'; });
+      weekBox.style.display = '';
+      weekLine.textContent = `${totalGames} games • ${totalPicks} total picks. Select a game to view its summary.`;
+      countSpan.textContent = `${totalGames} games`;
+      updateShare(null, null);
+      return;
+    }
+
+    // Specific game: show only that one, hide week summary.
+    let shownName = '', shownPicks = 0;
     blocks.forEach(b => {
-      const show = (v === '__all__' || b.dataset.key === v);
+      const show = (b.dataset.key === v);
       b.style.display = show ? '' : 'none';
       if (show) {
-        shown++;
-        totalPicksShown += b.querySelectorAll('li').length;
-        if (v !== '__all__' && !shownName) shownName = (b.querySelector('h3')?.textContent || '').trim();
+        shownName = (b.querySelector('h3')?.textContent || '').trim();
+        shownPicks = b.querySelectorAll('li').length;
       }
     });
-    if (v === '__all__') {
-      countSpan.textContent = `${shown} games`;
-      weekBox.style.display = '';
-      updateShare(null, null);
-    } else {
-      countSpan.textContent = `${totalPicksShown} picks`;
-      weekBox.style.display = 'none';
-      updateShare(v, shownName);
-    }
+    weekBox.style.display = 'none';
+    countSpan.textContent = `${shownPicks} picks`;
+    updateShare(v, shownName);
   }
 
   sel.addEventListener('change', applyFilter);
 
-  // Deep-linking: ?game=slug
+  // Deep-link support: ?game=slug
   const params = new URLSearchParams(location.search);
   const want = params.get('game');
   if (want && Array.from(sel.options).some(o => o.value === want)) sel.value = want;
