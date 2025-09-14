@@ -1,0 +1,47 @@
+/* docs/props/mobile.css — safe mobile tweaks for props tables */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Make sure long text wraps nicely inside narrow screens */
+.fv-props th, .fv-props td {
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  /* Slightly denser typography & padding on phones */
+  .fv-props {
+    font-size: 14px;
+    table-layout: fixed;
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .fv-props th, .fv-props td {
+    padding: 6px 8px;
+  }
+
+  /* Hide heavy / redundant columns on phones.
+     Expected column order:
+      1 Game | 2 Player | 3 Book | 4 Bet | 5 Line |
+      6 Mkt Odds | 7 Fair | 8 Mkt % | 9 Model % | 10 Edge (bps) | 11 Kick (ET)
+   */
+  .fv-props :is(th, td):nth-child(3),
+  .fv-props :is(th, td):nth-child(6),
+  .fv-props :is(th, td):nth-child(7),
+  .fv-props :is(th, td):nth-child(8),
+  .fv-props :is(th, td):nth-child(9) {
+    display: none;
+  }
+
+  /* Make the first two columns easier to scan */
+  .fv-props :is(th, td):nth-child(1),
+  .fv-props :is(th, td):nth-child(2) {
+    font-weight: 600;
+  }
+
+  /* Subtle row separators for tap targets */
+  .fv-props tr + tr td {
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+}
