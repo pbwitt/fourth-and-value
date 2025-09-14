@@ -71,3 +71,34 @@
 @media (min-width:769px){
   .mobile-only{display:none}
 }
+/* ---- ROTATE HINT ---- */
+/* Default: hidden everywhere */
+.rotate-hint{
+  display:none;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  background:var(--card);
+  border:1px dashed var(--border);
+  padding:10px 12px;
+  border-radius:12px;
+  margin:10px 0 14px;
+  font-size:14px;
+  color:var(--muted);
+}
+/* Show only on small screens in PORTRAIT */
+@media (max-width: 700px) and (orientation: portrait){
+  .rotate-hint{ display:flex !important; }
+}
+
+/* ---- EDGE COLORING (green value back) ---- */
+td.edge-pos { color:#16a34a; font-weight:600; }
+td.edge-neg { color:#ef4444; }
+
+/* ---- FORCE FULL NAV ON MOBILE ---- */
+#nav-root .desktop-only,
+#nav-root .md-only,
+#nav-root .hide-on-mobile,
+#nav-root .consensus-desktop-only {
+  display:inline-flex !important;
+}
