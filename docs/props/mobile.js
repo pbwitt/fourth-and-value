@@ -64,6 +64,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const tbody = document.querySelector('#tbl tbody');
   if (tbody) new MutationObserver(colorEdges).observe(tbody, {childList:true, subtree:true});
 
+
+
   // -------- Cards <-> Table TOGGLE --------
   const btn = document.getElementById('toggle-view');
   const cards = document.getElementById('prop-cards');
@@ -144,5 +146,81 @@ document.addEventListener('DOMContentLoaded', () => {
   btn.addEventListener('click', () => {
     if (cards.hidden) showCards();
     else showTable();
+  });
+});
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('toggle-view');
+  const cards = document.getElementById('prop-cards');
+  const table = document.querySelector('.fv-props');          // your table element
+  const tbody = document.querySelector('.fv-props tbody');
+  const thead = document.querySelector('.fv-props thead');
+
+  if (!btn || !cards || !table || !tbody || !thead) return;
+
+  // Map header text to column index so we can pull fields by name
+  const hdrs = Array.from(thead.querySelectorAll('th')).map(th => th.textContent.trim().toLowerCase());
+  const idx = (label) => hdrs.findIndex(h => h.startsWith(label));
+
+  const col = {
+    game:  idx('game'),
+    player:idx('player'),
+    book:  idx('book'),
+    bet:   idx('bet'),
+    line:  idx('line'),
+    mktp:  idx('mkt %'),
+    modp:  idx('model %'),
+    edge:  idx('edge'),
+    kick:  idx('kick'),
+  };
+
+  let built = false;
+  function buildCardsOnce() {
+    if (built) return;
+    const frag = document.createDocumentFragment();
+    Array.from(tbody.querySelectorAll('tr')).forEach(tr => {
+      const td = Array.from(tr.querySelectorAll('td'));
+      if (!td.length) return;
+      const edgeVal = (td[col.edge]?.textContent || '').trim();
+      const edgeNum = Number(edgeVal.replace(/[,+%]/g,''));
+      const edgeClass = Number.isFinite(edgeNum) ? (edgeNum > 0 ? 'pos' : (edgeNum < 0 ? 'neg' : '')) : '';
+
+      const card = document.createElement('div');
+      card.className = 'prop-card';
+      card.innerHTML = `
+        <div class="prop-top">
+          <div class="prop-player">${td[col.player]?.textContent || ''}</div>
+          <div class="prop-edge ${edgeClass}">${edgeVal || ''}</div>
+        </div>
+        <div class="prop-mid">
+          <div><b>${td[col.bet]?.textContent || ''}</b></div>
+          <div>Line ${td[col.line]?.textContent || ''}</div>
+          <div>Book ${td[col.book]?.textContent || ''}</div>
+        </div>
+        <div class="prop-bottom">
+          <div>${td[col.game]?.textContent || ''}</div>
+          <div>${td[col.kick]?.textContent || ''}</div>
+        </div>
+      `;
+      frag.appendChild(card);
+    });
+    cards.appendChild(frag);
+    built = true;
+  }
+
+  function showCards() {
+    buildCardsOnce();
+    cards.hidden = false;
+    table.classList.add('mobile-hidden'); // CSS hides it on phones
+    btn.textContent = 'Show table view';
+  }
+  function showTable() {
+    cards.hidden = true;
+    table.classList.remove('mobile-hidden');
+    btn.textContent = 'Show card view';
+  }
+
+  // Small screens start with table; button only appears on small (CSS handles .mobile-only)
+  btn.addEventListener('click', () => {
+    if (cards.hidden) showCards(); else showTable();
   });
 });
