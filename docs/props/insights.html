@@ -15,11 +15,30 @@
   .wrap { max-width: 980px; margin: 0 auto; padding: 16px; }
   h1, h2, h3 { color: #fff; }
   .muted { color: #94a3b8; }
-  .filterbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin: 10px 0 12px; }
+  .filterbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin: 12px 0 10px; }
+  .filterbar label { font-weight:600; }
   .filterbar select {
     background:#0f172a; color:#e5e7eb; border:1px solid #27324a;
     border-radius:10px; padding:8px 10px; min-width: 220px;
   }
+  .share {
+    display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+  }
+  .share button, .share input {
+    background:#0f172a; color:#e5e7eb; border:1px solid #27324a;
+    border-radius:10px; padding:8px 10px;
+  }
+  .share input {
+    min-width: 220px;
+  }
+  .share button {
+    cursor:pointer;
+  }
+  .week {
+    border: 1px solid #27324a; background:#0f172a; border-radius:12px;
+    padding:12px; margin: 6px 0 12px;
+  }
+  .week ul { margin: 8px 0 0 18px; }
   .game { margin-top: 16px; }
   .game p { line-height: 1.55; color: #cbd5e1; }
   .game ul { margin: 10px 0 0 18px; }
@@ -27,6 +46,7 @@
   @media (max-width: 720px) {
     .wrap { padding: 12px; }
     .filterbar select { min-width: 180px; }
+    .share input { min-width: 180px; }
   }
 
   /* Minimal nav styles (for injected nav.js) */
@@ -121,49 +141,134 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   const wrap = document.querySelector('.wrap');
 
-  // Build filter bar (Game dropdown)
+  // Build filter bar (Game dropdown + counts + share)
   const bar = document.createElement('div');
   bar.className = 'filterbar';
   bar.innerHTML = `
     <label class="muted" for="gameSel">Game:</label>
-    <select id="gameSel"><option value="__all__">All games</option></select>
+    <select id="gameSel" aria-label="Select a game"><option value="__all__">All games</option></select>
     <span id="count" class="muted"></span>
+    <span class="share" id="shareBox" style="display:none;">
+      <button id="shareBtn" type="button" title="Share this game">Share</button>
+      <input id="shareUrl" readonly value="">
+      <button id="copyBtn" type="button" title="Copy link">Copy</button>
+    </span>
   `;
   const h1 = wrap.querySelector('h1');
   wrap.insertBefore(bar, h1 ? h1.nextSibling : wrap.firstChild);
 
+  // Week-at-a-glance container (shown only for "All games")
+  const weekBox = document.createElement('section');
+  weekBox.className = 'week';
+  weekBox.id = 'weekBox';
+  // Placeholder content; we fill it after we discover blocks
+  weekBox.innerHTML = `
+    <strong>Week at a glance</strong>
+    <p class="muted" id="weekLine"></p>
+    <ul id="weekList"></ul>
+  `;
+  wrap.insertBefore(weekBox, bar.nextSibling);
+
   // Identify game blocks
   const blocks = Array.from(wrap.querySelectorAll('.game[data-key]'));
 
-  // Populate dropdown
+  // Populate dropdown and week list
   const sel = document.getElementById('gameSel');
+  const weekList = document.getElementById('weekList');
   blocks.forEach(b => {
+    const name = (b.querySelector('h3')?.textContent || b.dataset.key).trim();
+    const slug = b.dataset.key;
+
     const opt = document.createElement('option');
-    opt.value = b.dataset.key;
-    opt.textContent = (b.querySelector('h3')?.textContent || b.dataset.key).trim();
+    opt.value = slug;
+    opt.textContent = name;
     sel.appendChild(opt);
+
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.textContent = name;
+    const url = new URL(location.href);
+    url.searchParams.set('game', slug);
+    a.href = url.toString();
+    li.appendChild(a);
+    weekList.appendChild(li);
   });
 
+  // Update week line
+  const weekLine = document.getElementById('weekLine');
+  const totalGames = blocks.length;
+  const totalPicks = blocks.reduce((acc, b) => acc + b.querySelectorAll('li').length, 0);
+  weekLine.textContent = `${totalGames} games • ${totalPicks} total picks`;
+
+  // Filtering + counts + share controls
   const countSpan = document.getElementById('count');
+  const shareBox = document.getElementById('shareBox');
+  const shareBtn = document.getElementById('shareBtn');
+  const copyBtn  = document.getElementById('copyBtn');
+  const shareUrl = document.getElementById('shareUrl');
+
+  function updateShare(slug, title) {
+    const url = new URL(location.href);
+    if (!slug || slug === '__all__') {
+      url.searchParams.delete('game');
+      shareUrl.value = '';
+      shareBox.style.display = 'none';
+      return;
+    }
+    url.searchParams.set('game', slug);
+    shareUrl.value = url.toString();
+    shareBox.style.display = '';
+    // button handlers
+    shareBtn.onclick = async () => {
+      try {
+        if (navigator.share) {
+          await navigator.share({ title: title || document.title, url: shareUrl.value });
+        } else {
+          await navigator.clipboard.writeText(shareUrl.value);
+          shareBtn.textContent = 'Copied!';
+          setTimeout(() => shareBtn.textContent = 'Share', 1200);
+        }
+      } catch (_) {}
+    };
+    copyBtn.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(shareUrl.value);
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => copyBtn.textContent = 'Copy', 1200);
+      } catch (_) {}
+    };
+  }
+
   function applyFilter() {
     const v = sel.value;
-    let totalPicks = 0, shown = 0;
+    let totalPicksShown = 0, shown = 0, shownName = '';
     blocks.forEach(b => {
       const show = (v === '__all__' || b.dataset.key === v);
       b.style.display = show ? '' : 'none';
       if (show) {
         shown++;
-        totalPicks += b.querySelectorAll('li').length;
+        totalPicksShown += b.querySelectorAll('li').length;
+        if (v !== '__all__' && !shownName) shownName = (b.querySelector('h3')?.textContent || '').trim();
       }
     });
-    countSpan.textContent = (v === '__all__') ? `${shown} games` : `${totalPicks} picks`;
+    if (v === '__all__') {
+      countSpan.textContent = `${shown} games`;
+      weekBox.style.display = '';
+      updateShare(null, null);
+    } else {
+      countSpan.textContent = `${totalPicksShown} picks`;
+      weekBox.style.display = 'none';
+      updateShare(v, shownName);
+    }
   }
+
   sel.addEventListener('change', applyFilter);
 
   // Deep-linking: ?game=slug
   const params = new URLSearchParams(location.search);
   const want = params.get('game');
   if (want && Array.from(sel.options).some(o => o.value === want)) sel.value = want;
+
   applyFilter();
 });
 </script>
