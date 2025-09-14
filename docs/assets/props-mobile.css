@@ -1,0 +1,30 @@
+/* Props mobile UX */
+@media (max-width: 700px){
+  /* Filters stack nicely */
+  .controls, .filters, .toolbar { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .controls select, .controls input { height:40px; font-size:16px; }
+
+  /* Table: readable + swipeable */
+  table { display:block; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  thead, tbody { width:max-content; }
+  th, td { padding:8px 10px; font-size:14px; white-space:nowrap; }
+
+  /* Let Game & Player wrap; keep others compact */
+  th:nth-child(1), td:nth-child(1),
+  th:nth-child(2), td:nth-child(2) { white-space:normal; max-width:280px; }
+
+  /* Hide lower-priority cols on phones (tweak if needed) */
+  /* Book(3), Line(5), Mkt Odds(6), Fair(7), Mkt %(8), Model %(9) */
+  th:nth-child(3), td:nth-child(3),
+  th:nth-child(5), td:nth-child(5),
+  th:nth-child(6), td:nth-child(6),
+  th:nth-child(7), td:nth-child(7),
+  th:nth-child(8), td:nth-child(8),
+  th:nth-child(9), td:nth-child(9) { display:none; }
+
+  /* Keep Edge visible and right-aligned */
+  th:nth-child(10), td:nth-child(10) { text-align:right; }
+
+  /* Sticky header for long lists */
+  thead th { position:sticky; top:0; background:#0b0f19; z-index:1; }
+}
