@@ -1,76 +1,122 @@
-# Variables
-PY=python3
-SEASON?=2025
-WEEK?=1
-DOCS_DIR=docs
+# ---- Config ----
+PY ?= python3
+SEASON ?=
+WEEK   ?=
 
-# Core targets
-weekly: odds props_now insights
+# Require SEASON/WEEK
+ifeq ($(strip $(SEASON)),)
+  $(error SEASON=YYYY required (e.g., SEASON=2025))
+endif
+ifeq ($(strip $(WEEK)),)
+  $(error WEEK=N required (e.g., WEEK=3))
+endif
+
+DOCS_DIR   := docs
+PROPS_DIR  := data/props
+ODDS_DIR   := data/odds
+
+PROPS_ALL  := $(PROPS_DIR)/latest_all_props.csv
+PARAMS     := $(PROPS_DIR)/params_week$(WEEK).csv
+MERGED     := $(PROPS_DIR)/props_with_model_week$(WEEK).csv
+
+PROPS_HTML := $(DOCS_DIR)/props/index.html
+TOP_HTML   := $(DOCS_DIR)/props/top.html
+CONS_HTML  := $(DOCS_DIR)/props/consensus.html
+ODDS_CSV   := $(ODDS_DIR)/latest.csv
+
+# ---- Phony targets ----
+.PHONY: monday_all monday_all_pub weekly publish_pages props_now_pages serve_preview clean_pages clean
+
+# Main weekly build (no publish)
 monday_all: weekly
-monday_all_pub: weekly
-	@if [ "$(PUBLISH)" = "1" ] && [ "$(CONFIRM)" = "LIVE" ]; then \
-		git add -A; \
-		git commit -m "Publish Week $(WEEK)"; \
-		git push origin main; \
-	fi
+	@echo "[OK] Weekly build complete: SEASON=$(SEASON) WEEK=$(WEEK)"
 
-# Odds fetch
-odds:
-	$(PY) scripts/fetch_odds.py > data/odds/latest.csv
+# Weekly pipeline
+weekly: $(PROPS_HTML) $(TOP_HTML) $(CONS_HTML)
 
+# ---- Steps ----
+# 0) Ensure dirs exist
+$(PROPS_DIR) $(DOCS_DIR)/props $(ODDS_DIR):
+	mkdir -p $@
 
+# 1) Odds (stdout to file, as your script expects)
+$(ODDS_CSV): scripts/fetch_odds.py | $(ODDS_DIR)
+	$(PY) scripts/fetch_odds.py > $@
 
-# Props pipeline
-props_now: data/props/props_with_model_week$(WEEK).csv docs/props/index.html docs/props/top.html docs/props/consensus.html
-	touch $(DOCS_DIR)/.nojekyll
+# 2) Fetch all player props → latest_all_props.csv
+# (Your script typically writes to $(PROPS_ALL) without args.)
+$(PROPS_ALL): scripts/fetch_all_player_props.py | $(PROPS_DIR) $(ODDS_CSV)
+	$(PY) scripts/fetch_all_player_props.py
+	@test -s $(PROPS_ALL) || (echo "[ERR] $(PROPS_ALL) not created"; exit 1)
 
-props_now_pages: docs/props/index.html docs/props/top.html docs/props/consensus.html
-	touch $(DOCS_DIR)/.nojekyll
+# 3) Build params
+$(PARAMS): scripts/make_player_prop_params.py $(PROPS_ALL) | $(PROPS_DIR)
+	$(PY) scripts/make_player_prop_params.py \
+	  --season $(SEASON) --week $(WEEK) \
+	  --out $@
 
-data/props/props_with_model_week$(WEEK).csv: data/props/params_week$(WEEK).csv
-	$(PY) scripts/make_props_edges.py --season $(SEASON) --week $(WEEK) \
-		--params_csv data/props/params_week$(WEEK).csv \
-		--out_csv $@
+# 4) Compute edges → merged CSV
+$(MERGED): scripts/make_props_edges.py $(PARAMS) $(PROPS_ALL) | $(PROPS_DIR)
+	$(PY) scripts/make_props_edges.py \
+	  --season $(SEASON) --week $(WEEK) \
+	  --props_csv $(PROPS_ALL) \
+	  --params_csv $(PARAMS) \
+	  --out $@
 
-data/props/params_week$(WEEK).csv:
-	$(PY) scripts/make_player_prop_params.py --season $(SEASON) --week $(WEEK) \
-		--out_csv $@
-
-data/props/latest_all_props.csv:
-	$(PY) scripts/fetch_all_player_props.py --season $(SEASON) --week $(WEEK) \
-		--out_csv $@
-
-# Pages
-docs/props/index.html: data/props/props_with_model_week$(WEEK).csv
+# 5) Build pages
+$(PROPS_HTML): scripts/build_props_site.py $(MERGED) | $(DOCS_DIR)/props
 	$(PY) scripts/build_props_site.py \
-		--merged_csv data/props/props_with_model_week$(WEEK).csv \
-		--out $@
+	  --merged_csv $(MERGED) \
+	  --out $@ \
+	  --title "Fourth & Value — Player Props (Week $(WEEK))" \
+	  --drop_no_scorer
 
-docs/props/top.html: data/props/props_with_model_week$(WEEK).csv
+$(TOP_HTML): scripts/build_top_picks.py $(MERGED) | $(DOCS_DIR)/props
 	$(PY) scripts/build_top_picks.py \
-		--merged_csv data/props/props_with_model_week$(WEEK).csv \
-		--out $@
+	  --merged_csv $(MERGED) \
+	  --out $@ \
+	  --title "Top Picks — Week $(WEEK)"
 
-docs/props/consensus.html: data/props/props_with_model_week$(WEEK).csv
+$(CONS_HTML): scripts/build_consensus_page.py $(MERGED) | $(DOCS_DIR)/props
 	$(PY) scripts/build_consensus_page.py \
-		--merged_csv data/props/props_with_model_week$(WEEK).csv \
-		--out $@
+	  --merged_csv $(MERGED) \
+	  --out $@ \
+	  --week $(WEEK)
 
-# Insights
-insights:
-	$(PY) scripts/make_ai_commentary.py --season $(SEASON) --week $(WEEK) \
-		--merged_csv data/props/props_with_model_week$(WEEK).csv \
-		--out_json $(DOCS_DIR)/data/ai/insights_week$(WEEK).json
-	$(PY) scripts/build_insights_page.py --season $(SEASON) --week $(WEEK) \
-		--title "Fourth & Value — Insights (Week $(WEEK))" \
-		--out $(DOCS_DIR)/props/insights.html
-	touch $(DOCS_DIR)/.nojekyll
+# Pages-only rebuild (when CSV already exists)
+props_now_pages: $(PROPS_HTML) $(TOP_HTML) $(CONS_HTML)
+	@echo "[OK] Pages rebuilt from $(MERGED)"
 
+# Local preview
+serve_preview:
+	cd $(DOCS_DIR) && $(PY) -m http.server 8010
 
-site_home:
-	@if [ -f data/edges/edges_week$(WEEK).csv ]; then \
-		$(PY) scripts/build_edges_site.py --out $(DOCS_DIR)/home_edges.html; \
+# Publish (guarded)
+publish_pages:
+	@touch $(DOCS_DIR)/.nojekyll
+	@if [ "$(PUBLISH)" = "1" ] && [ "$(CONFIRM)" = "LIVE" ]; then \
+	  git add -A; \
+	  git commit -m "Publish Week $(WEEK) pages"; \
+	  git push; \
 	else \
-		echo "[site_home] edges missing → keeping static Home"; \
+	  echo "Not publishing. Use: make monday_all_pub SEASON=$(SEASON) WEEK=$(WEEK) PUBLISH=1 CONFIRM=LIVE"; \
 	fi
-	touch $(DOCS_DIR)/.nojekyll
+
+# Monday full run + publish (opt-in)
+monday_all_pub: monday_all publish_pages
+
+# Cleanup
+clean_pages:
+	rm -f $(PROPS_HTML) $(TOP_HTML) $(CONS_HTML)
+
+clean:
+	rm -f $(PARAMS) $(MERGED)
+
+
+.FORCE:
+	$(ODDS_CSV): .FORCE scripts/fetch_odds.py | $(ODDS_DIR)
+		$(PY) scripts/fetch_odds.py > $@
+
+	$(PROPS_ALL): .FORCE scripts/fetch_all_player_props.py | $(PROPS_DIR) $(ODDS_CSV)
+		$(PY) scripts/fetch_all_player_props.py
+		@test -s $(PROPS_ALL) || (echo "[ERR] $(PROPS_ALL) not created"; exit 1)

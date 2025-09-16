@@ -498,7 +498,7 @@ button.reset {{ background:#1a1a1d; border:1px solid #2a2a2e; color:#e7e7ea; }}
 
 </head>
 <body>
-__NAV__
+
 <main class="container">
   <div class="h1">{escape(title)}</div>
 
@@ -656,7 +656,7 @@ def main():
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    
+
 
     write_with_nav_raw(
         args.out,

@@ -260,14 +260,13 @@ a.button:hover{background:#6ee7ff}
 </style>
 </head>
 <body>
-__NAV__
+
 
 
   <div class="card">
     <h1>""" + title_html + """</h1>
     <div class="small">Select <span class="badge">Bet</span> → Game → Player. Optional: Book & search. Sorted by Edge (bps). Line = sportsbook threshold.</div>
-    <p><a href="../" class="button">⬅ Back to Home</a> · <a class="linklike" href="./consensus.html">Consensus</a></p>
-
+    
     <div class="controls">
       <select id="market"><option value="">Bet (market)</option></select>
       <select id="game"><option value="">Game</option></select>
@@ -278,7 +277,6 @@ __NAV__
 
     <div class="small" style="margin-top:10px;">
       <span id="count"></span> · Tip: “No Scorer” is hidden.
-      <span style="float:right;"><a class="linklike" href="../">Back to site root</a></span>
     </div>
   </div>
 
