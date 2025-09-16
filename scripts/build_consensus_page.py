@@ -369,7 +369,7 @@ def main():
     ap.add_argument("--merged_csv", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--week", type=int, default=None)
-    ap.add_argument("--title", default=f"{BRAND} — Consensus vs Best Book")
+    ap.add_argument("--title", default=None)
     ap.add_argument("--limit", type=int, default=3000)
     args = ap.parse_args()
 
@@ -378,27 +378,23 @@ def main():
     df = read_df(args.merged_csv)
     df = df.sort_values(by="consensus_edge_bps", ascending=False).head(args.limit)
     rows = "\n".join(row_html(r) for _, r in df.iterrows())
-    title = args.title or f"{BRAND} — Consensus (Week {args.week})"
-    # 2) Build HTML from template
-    page = html_page(rows, args.title)
+    default_title = f"{BRAND} — Consensus (Week {args.week})" if args.week else f"{BRAND} — Consensus"
+    # after args = ap.parse_args() and after you compute rows
+    default_title = f"{BRAND} — Consensus (Week {args.week})" if args.week else f"{BRAND} — Consensus"
+    title = args.title or default_title
 
-    # 3) Inject the filters
-    page = inject_filters(page)   # <- this places the UI at __FILTERS__ (or before .tablewrap)
-
-    # 4) Inject nav, then write (simple path)
+    page = html_page(rows, title)          # drives <title> and H1
+    page = inject_filters(page)            # keep your filter injector
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(page, encoding="utf-8")
-
-    print(f"[consensus] wrote {args.out} with {len(df)} rows (from {len(read_df(args.merged_csv))} source rows)")
-
     write_with_nav_raw(
         out_path.as_posix(),
-        (getattr(args, "title", None) or f"Fourth & Value — Consensus (Week {args.week})"),
-        page,                     # ← this is your final HTML string
+        title,                              # pass the SAME title to the writer
+        page,
         active="Consensus",
     )
+
 
 
 
