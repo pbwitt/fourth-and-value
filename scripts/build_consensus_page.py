@@ -12,6 +12,168 @@ from site_common import (
 )
 
 # -------- helpers local to this script --------
+# --- 1) Add near your other template helpers (top of file) -------------------
+FILTERS_BLOCK = r"""
+<style>
+  .filters { display:grid; gap:10px; grid-template-columns: repeat(4, minmax(140px, 1fr)) 1fr; align-items:end; margin:12px 0 10px; }
+  .filters label { font-size:12px; color:#b7b7bb; display:block; margin-bottom:5px; }
+  .filters select, .filters input {
+    width:100%; padding:8px 10px; background:#111113; color:#e7e7ea; border:1px solid #1f1f22; border-radius:10px;
+  }
+  .filters .right { text-align:right; }
+  .filters .btn-clear {
+    padding:9px 12px; background:#18181b; border:1px solid #2a2a2f; border-radius:10px; color:#d7d7dc; cursor:pointer;
+  }
+  .filters .btn-clear:hover { background:#202024; }
+  .results-note { margin:4px 0 12px; color:#b7b7bb; font-size:12px; }
+  @media (max-width: 720px) {
+    .filters { grid-template-columns: 1fr 1fr; }
+    .filters .right { grid-column: 1 / -1; text-align:left; }
+  }
+</style>
+
+<div id="consensus-filters" class="filters" hidden>
+  <div>
+    <label for="f_game">Game</label>
+    <select id="f_game"><option value="">All games</option></select>
+  </div>
+  <div>
+    <label for="f_market">Market</label>
+    <select id="f_market"><option value="">All markets</option></select>
+  </div>
+  <div>
+    <label for="f_player">Player</label>
+    <select id="f_player"><option value="">All players</option></select>
+  </div>
+  <div>
+    <label for="f_book">Book</label>
+    <select id="f_book"><option value="">All books</option></select>
+  </div>
+  <div class="right">
+    <button class="btn-clear" id="f_clear">Clear filters</button>
+  </div>
+</div>
+<div id="consensus-results" class="results-note" hidden></div>
+
+<script>
+document.addEventListener('DOMContentLoaded',function(){
+  const table = document.querySelector('main.container .tablewrap table');
+  if (!table) return;
+
+  const tbody = table.tBodies[0];
+  const rows  = Array.from(tbody?.rows || []);
+  if (!rows.length) return;
+
+  // Column order from the Consensus page you generated:
+  // Kick | Game | Player | Market | Best book bet | Market consensus | Edge
+  const COL = { game:1, player:2, market:3, bet:4 };
+
+  function extractBook(txt){
+    const m = txt.match(/\bon\s+([a-z0-9_]+)\s*$/i);  // "... on fanduel"
+    return m ? m[1].toLowerCase() : '';
+  }
+
+  const uniq = { game:new Set(), market:new Set(), player:new Set(), book:new Set() };
+  const cache = new Map();
+
+  rows.forEach(tr => {
+    const game   = tr.cells[COL.game]?.textContent.trim() || '';
+    const player = tr.cells[COL.player]?.textContent.trim() || '';
+    const market = tr.cells[COL.market]?.textContent.trim() || '';
+    const betTxt = tr.cells[COL.bet]?.textContent.trim() || '';
+    const book   = extractBook(betTxt);
+
+    cache.set(tr, { game, market, player, book });
+
+    if (game)   uniq.game.add(game);
+    if (market) uniq.market.add(market);
+    if (player) uniq.player.add(player);
+    if (book)   uniq.book.add(book);
+  });
+
+  const $wrap   = document.getElementById('consensus-filters');
+  const $note   = document.getElementById('consensus-results');
+  const $game   = document.getElementById('f_game');
+  const $market = document.getElementById('f_market');
+  const $player = document.getElementById('f_player');
+  const $book   = document.getElementById('f_book');
+  const $clear  = document.getElementById('f_clear');
+
+  function fillSelect(sel, items) {
+    const sorted = Array.from(items).sort((a,b)=> a.localeCompare(b));
+    const frag = document.createDocumentFragment();
+    sorted.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = v;
+      frag.appendChild(opt);
+    });
+    sel.appendChild(frag);
+  }
+
+  fillSelect($game,   uniq.game);
+  fillSelect($market, uniq.market);
+  fillSelect($player, uniq.player);
+  fillSelect($book,   uniq.book);
+
+  function fmt(n){ return n.toLocaleString(); }
+
+  function applyFilters(){
+    const f = {
+      game:   $game.value,
+      market: $market.value,
+      player: $player.value,
+      book:   $book.value.toLowerCase()
+    };
+
+    let shown = 0;
+    rows.forEach(tr => {
+      const v = cache.get(tr);
+      const ok =
+        (!f.game   || v.game   === f.game) &&
+        (!f.market || v.market === f.market) &&
+        (!f.player || v.player === f.player) &&
+        (!f.book   || v.book   === f.book);
+      tr.style.display = ok ? '' : 'none';
+      if (ok) shown++;
+    });
+
+    $note.textContent = `${fmt(shown)} result${shown===1?'':'s'} shown` +
+                        (f.game||f.market||f.player||f.book ? ' (filters on)' : '');
+  }
+
+  [$game, $market, $player, $book].forEach(el => el.addEventListener('change', applyFilters));
+  $clear.addEventListener('click', () => {
+    $game.value = $market.value = $player.value = $book.value = '';
+    applyFilters();
+  });
+
+  const tablewrap = table.closest('.tablewrap');
+  tablewrap.parentNode.insertBefore($wrap, tablewrap);
+  tablewrap.parentNode.insertBefore($note, tablewrap.nextSibling);
+
+  $wrap.hidden = false;
+  $note.hidden = false;
+  applyFilters();
+});
+</script>
+"""
+
+def inject_filters(html: str) -> str:
+    """
+    Insert the filter UI before the first .tablewrap.
+    If the template contains a '__FILTERS__' marker, use that instead.
+    """
+    if "__FILTERS__" in html:
+        return html.replace("__FILTERS__", FILTERS_BLOCK)
+    # Fallback: inject before the first tablewrap div
+    needle = '<div class="tablewrap">'
+    idx = html.find(needle)
+    if idx == -1:
+        return html  # nothing to do
+    return html[:idx] + FILTERS_BLOCK + html[idx:]
+
+
 LINE_CANDIDATES = [
     "line_disp","point","line","market_line","prop_line","number","threshold","total","line_number",
     "handicap","spread","yards","receptions","receiving_yards","rushing_yards","passing_yards","prop_total"
@@ -180,10 +342,12 @@ td.cons, td.edge {{ white-space:nowrap; }}
 </style>
 </head>
 <body>
-__NAV__
+
 <main class="container">
   <div class="h1">{escape(title)}</div>
   <div class="note">Market consensus = median implied probability across books for the same bet. “Edge” shows how favorable the best book is versus that market consensus.</div>
+__FILTERS__
+
   <div class="tablewrap">
     <table>
       <thead>
@@ -210,19 +374,24 @@ def main():
     args = ap.parse_args()
 
     # 1) Build the table
+    # 1) Build the table
     df = read_df(args.merged_csv)
     df = df.sort_values(by="consensus_edge_bps", ascending=False).head(args.limit)
     rows = "\n".join(row_html(r) for _, r in df.iterrows())
-
-    # 2) Build the full page HTML (no manual nav replace)
+    title = args.title or f"{BRAND} — Consensus (Week {args.week})"
+    # 2) Build HTML from template
     page = html_page(rows, args.title)
 
-    # 3) Inject nav permanently, then write once
-    from site_common import inject_nav
-    page = inject_nav(page, active="Consensus")
+    # 3) Inject the filters
+    page = inject_filters(page)   # <- this places the UI at __FILTERS__ (or before .tablewrap)
+
+    # 4) Inject nav, then write (simple path)
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(page, encoding="utf-8")
+
+    print(f"[consensus] wrote {args.out} with {len(df)} rows (from {len(read_df(args.merged_csv))} source rows)")
 
     write_with_nav_raw(
         out_path.as_posix(),

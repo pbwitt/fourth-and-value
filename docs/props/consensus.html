@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Fourth & Value — Consensus vs Best Book</title>
+<title>Fourth & Value — Consensus (Week 2)</title>
 <style>
 :root { color-scheme: dark }
 * { box-sizing: border-box; }
@@ -28,14 +28,157 @@ td.cons, td.edge { white-space:nowrap; }
 <body>
   <div id="nav-root"></div>
   <script src="../nav.js?v=8"></script>
-
-
-
-
+  
 
 <main class="container">
-  <div class="h1">Fourth &amp; Value — Consensus vs Best Book</div>
+  <div class="h1">Fourth &amp; Value — Consensus (Week 2)</div>
   <div class="note">Market consensus = median implied probability across books for the same bet. “Edge” shows how favorable the best book is versus that market consensus.</div>
+
+<style>
+  .filters { display:grid; gap:10px; grid-template-columns: repeat(4, minmax(140px, 1fr)) 1fr; align-items:end; margin:12px 0 10px; }
+  .filters label { font-size:12px; color:#b7b7bb; display:block; margin-bottom:5px; }
+  .filters select, .filters input {
+    width:100%; padding:8px 10px; background:#111113; color:#e7e7ea; border:1px solid #1f1f22; border-radius:10px;
+  }
+  .filters .right { text-align:right; }
+  .filters .btn-clear {
+    padding:9px 12px; background:#18181b; border:1px solid #2a2a2f; border-radius:10px; color:#d7d7dc; cursor:pointer;
+  }
+  .filters .btn-clear:hover { background:#202024; }
+  .results-note { margin:4px 0 12px; color:#b7b7bb; font-size:12px; }
+  @media (max-width: 720px) {
+    .filters { grid-template-columns: 1fr 1fr; }
+    .filters .right { grid-column: 1 / -1; text-align:left; }
+  }
+</style>
+
+<div id="consensus-filters" class="filters" hidden>
+  <div>
+    <label for="f_game">Game</label>
+    <select id="f_game"><option value="">All games</option></select>
+  </div>
+  <div>
+    <label for="f_market">Market</label>
+    <select id="f_market"><option value="">All markets</option></select>
+  </div>
+  <div>
+    <label for="f_player">Player</label>
+    <select id="f_player"><option value="">All players</option></select>
+  </div>
+  <div>
+    <label for="f_book">Book</label>
+    <select id="f_book"><option value="">All books</option></select>
+  </div>
+  <div class="right">
+    <button class="btn-clear" id="f_clear">Clear filters</button>
+  </div>
+</div>
+<div id="consensus-results" class="results-note" hidden></div>
+
+<script>
+document.addEventListener('DOMContentLoaded',function(){
+  const table = document.querySelector('main.container .tablewrap table');
+  if (!table) return;
+
+  const tbody = table.tBodies[0];
+  const rows  = Array.from(tbody?.rows || []);
+  if (!rows.length) return;
+
+  // Column order from the Consensus page you generated:
+  // Kick | Game | Player | Market | Best book bet | Market consensus | Edge
+  const COL = { game:1, player:2, market:3, bet:4 };
+
+  function extractBook(txt){
+    const m = txt.match(/\bon\s+([a-z0-9_]+)\s*$/i);  // "... on fanduel"
+    return m ? m[1].toLowerCase() : '';
+  }
+
+  const uniq = { game:new Set(), market:new Set(), player:new Set(), book:new Set() };
+  const cache = new Map();
+
+  rows.forEach(tr => {
+    const game   = tr.cells[COL.game]?.textContent.trim() || '';
+    const player = tr.cells[COL.player]?.textContent.trim() || '';
+    const market = tr.cells[COL.market]?.textContent.trim() || '';
+    const betTxt = tr.cells[COL.bet]?.textContent.trim() || '';
+    const book   = extractBook(betTxt);
+
+    cache.set(tr, { game, market, player, book });
+
+    if (game)   uniq.game.add(game);
+    if (market) uniq.market.add(market);
+    if (player) uniq.player.add(player);
+    if (book)   uniq.book.add(book);
+  });
+
+  const $wrap   = document.getElementById('consensus-filters');
+  const $note   = document.getElementById('consensus-results');
+  const $game   = document.getElementById('f_game');
+  const $market = document.getElementById('f_market');
+  const $player = document.getElementById('f_player');
+  const $book   = document.getElementById('f_book');
+  const $clear  = document.getElementById('f_clear');
+
+  function fillSelect(sel, items) {
+    const sorted = Array.from(items).sort((a,b)=> a.localeCompare(b));
+    const frag = document.createDocumentFragment();
+    sorted.forEach(v => {
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = v;
+      frag.appendChild(opt);
+    });
+    sel.appendChild(frag);
+  }
+
+  fillSelect($game,   uniq.game);
+  fillSelect($market, uniq.market);
+  fillSelect($player, uniq.player);
+  fillSelect($book,   uniq.book);
+
+  function fmt(n){ return n.toLocaleString(); }
+
+  function applyFilters(){
+    const f = {
+      game:   $game.value,
+      market: $market.value,
+      player: $player.value,
+      book:   $book.value.toLowerCase()
+    };
+
+    let shown = 0;
+    rows.forEach(tr => {
+      const v = cache.get(tr);
+      const ok =
+        (!f.game   || v.game   === f.game) &&
+        (!f.market || v.market === f.market) &&
+        (!f.player || v.player === f.player) &&
+        (!f.book   || v.book   === f.book);
+      tr.style.display = ok ? '' : 'none';
+      if (ok) shown++;
+    });
+
+    $note.textContent = `${fmt(shown)} result${shown===1?'':'s'} shown` +
+                        (f.game||f.market||f.player||f.book ? ' (filters on)' : '');
+  }
+
+  [$game, $market, $player, $book].forEach(el => el.addEventListener('change', applyFilters));
+  $clear.addEventListener('click', () => {
+    $game.value = $market.value = $player.value = $book.value = '';
+    applyFilters();
+  });
+
+  const tablewrap = table.closest('.tablewrap');
+  tablewrap.parentNode.insertBefore($wrap, tablewrap);
+  tablewrap.parentNode.insertBefore($note, tablewrap.nextSibling);
+
+  $wrap.hidden = false;
+  $note.hidden = false;
+  applyFilters();
+});
+</script>
+
+
   <div class="tablewrap">
     <table>
       <thead>
