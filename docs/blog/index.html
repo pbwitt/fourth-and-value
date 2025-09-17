@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Fourth & Value — Blog</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Commentary, updates, and explainers from Fourth & Value." />
+  <link rel="icon" href="../favicon.ico" />
+  <style>
+    :root { --max: 860px; --bg:#0b0b0b; --fg:#e9e9e9; --muted:#b9b9b9; --line:#222; --input:#121212; --link:#8ab4ff; }
+    html,body { margin:0; background:var(--bg); color:var(--fg); }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; line-height:1.6; }
+    a { color: var(--link); text-decoration: underline; }
+    .wrap { max-width: var(--max); margin: 0 auto; padding: 16px; }
+    h1 { margin: 8px 0 4px; }
+    .lede { margin: 0 0 16px; color: var(--muted); }
+    .toolbar { margin: 8px 0 16px; }
+    input[type="search"] {
+      width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px;
+      background:var(--input); color:var(--fg); outline: none;
+    }
+    input[type="search"]::placeholder { color:#777; }
+    .list { margin: 8px 0 24px; padding: 0; }
+    .post { list-style:none; padding: 14px 0; border-top: 1px solid var(--line); }
+    .post:first-child { border-top:0; }
+    .post h2 { font-size: 1.05rem; margin: 0 0 4px; line-height:1.35; }
+    .meta { font-size: .9rem; color: var(--muted); margin-bottom: 6px; }
+    .excerpt { margin: 0; color: #d6d6d6; }
+    .empty { display:none; color: var(--muted); padding: 24px 0; }
+    .back { display:inline-block; margin-top: 20px; color: var(--link); }
+    /* Post pages */
+    article h2, article h3 { margin-top: 1.4em; }
+    code, pre { background:#0f0f0f; border:1px solid var(--line); border-radius:8px; color:#e6e6e6; }
+    pre { padding:12px; overflow:auto; }
+  </style>
+
+</head>
+<body>
+  <div id="nav-root"></div>
+  <script src="../nav.js?v=6"></script>
+
+  <main class="wrap">
+    <h1>Blog</h1>
+    <p class="lede">Commentary, updates, and explainers from Fourth &amp; Value.</p>
+
+    <div class="toolbar">
+      <input id="q" type="search" placeholder="Search titles & excerpts…" aria-label="Search blog" />
+    </div>
+
+
+
+    <ul id="posts" class="list">
+      <li class="post"
+    data-title="How sportsbooks make money (and why we devig)"
+    data-excerpt="Books bake in a fee called the vig. We remove it (devig) to compare fair market % to our model %.">
+  <h2><a href="./how-books-make-money.html">How sportsbooks make money (and why we devig)</a></h2>
+  <div class="meta">Sep 17, 2025 • 6 min read</div>
+  <p class="excerpt">Sportsbooks don’t predict the future — they charge a fee (vig). This post shows how vig works, how to devig to get fair probabilities, and why our tables use Market % vs Model %.</p>
+</li>
+
+      
+    <div id="empty" class="empty">No posts match your search.</div>
+
+    <a class="back" href="../index.html">← Back to Home</a>
+  </main>
+
+  <script>
+    (function(){
+      const q = document.getElementById('q');
+      const posts = Array.from(document.querySelectorAll('#posts .post'));
+      const empty = document.getElementById('empty');
+      function norm(s){ return (s||"").toLowerCase().trim(); }
+      function apply(){
+        const term = norm(q.value);
+        let shown = 0;
+        posts.forEach(li=>{
+          const t = norm(li.dataset.title);
+          const e = norm(li.dataset.excerpt);
+          const on = !term || t.includes(term) || e.includes(term);
+          li.style.display = on ? "" : "none";
+          if (on) shown++;
+        });
+        empty.style.display = shown ? "none" : "";
+      }
+      q.addEventListener('input', apply);
+      apply();
+    })();
+  </script>
+</body>
+</html>
