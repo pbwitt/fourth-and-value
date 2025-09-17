@@ -29,6 +29,58 @@ from __future__ import annotations
 
 from common_markets import standardize_input, apply_priors_if_missing
 
+# --- add near the top of the script (imports) ---
+from pathlib import Path
+from datetime import datetime, timezone
+import os
+
+# absolute base for historical snapshots
+HIST_DIR = Path("/Users/pwitt/fourth-and-value/data/preds_historical")
+
+# one run timestamp for the whole script
+RUN_TS = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def snapshot_props_with_model(df, season, week, *, base_dir=HIST_DIR, run_ts=RUN_TS, fmt="csv"):
+    """
+    Write an immutable, timestamped backup of the final predictions.
+    - Adds a `snapshot_ts` column (UTC ISO-like).
+    - Writes atomically (tmp -> rename).
+    - Updates a convenience 'latest' symlink.
+    """
+    out_dir = base_dir / str(int(season)) / f"week{int(week):02d}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    df2 = df.copy()
+    df2["snapshot_ts"] = run_ts  # keep the run time inside the file
+
+    if fmt == "parquet":
+        tmp = out_dir / f"props_with_model_week{int(week):02d}_{run_ts}.parquet.tmp"
+        final = out_dir / f"props_with_model_week{int(week):02d}_{run_ts}.parquet"
+        df2.to_parquet(tmp, index=False)
+        latest = out_dir / "latest.parquet"
+    else:
+        tmp = out_dir / f"props_with_model_week{int(week):02d}_{run_ts}.csv.tmp"
+        final = out_dir / f"props_with_model_week{int(week):02d}_{run_ts}.csv"
+        df2.to_csv(tmp, index=False)
+        latest = out_dir / "latest.csv"
+
+    os.replace(tmp, final)  # atomic
+    try:
+        if latest.exists() or latest.is_symlink():
+            latest.unlink()
+        # relative symlink so moving the folder preserves linkage
+        os.symlink(final.name, latest)
+    except Exception:
+        # symlink can fail on some filesystems — ignore
+        pass
+
+    print(f"[snapshot] wrote {final}")
+
+
+
+
+
 
 
 

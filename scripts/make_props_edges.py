@@ -24,12 +24,54 @@ import logging
 import math
 import re
 from typing import Iterable, List
-
 import numpy as np
-import pandas as pd
-
-# Shared normalizer (you added this module)
+import pandas as pd# Shared normalizer (you added this module)
 from common_markets import standardize_input
+
+from pathlib import Path
+from datetime import datetime, timezone
+import os
+
+HIST_DIR = Path("/Users/pwitt/fourth-and-value/data/preds_historical")
+RUN_TS = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+def snapshot_props_with_model(df, season, week, *, base_dir=HIST_DIR, run_ts=RUN_TS, fmt="csv"):
+    """
+    Write an immutable, timestamped backup of the final predictions.
+    - Adds a `snapshot_ts` column (UTC ISO-like).
+    - Writes atomically (tmp -> rename).
+    - Updates a convenience 'latest' symlink.
+    """
+    out_dir = base_dir / str(int(season)) / f"week{int(week):02d}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    df2 = df.copy()
+    df2["snapshot_ts"] = run_ts  # keep the run time inside the file
+
+    if fmt == "parquet":
+        tmp = out_dir / f"props_with_model_week{int(week):02d}_{run_ts}.parquet.tmp"
+        final = out_dir / f"props_with_model_week{int(week):02d}_{run_ts}.parquet"
+        df2.to_parquet(tmp, index=False)
+        latest = out_dir / "latest.parquet"
+    else:
+        tmp = out_dir / f"props_with_model_week{int(week):02d}_{run_ts}.csv.tmp"
+        final = out_dir / f"props_with_model_week{int(week):02d}_{run_ts}.csv"
+        df2.to_csv(tmp, index=False)
+        latest = out_dir / "latest.csv"
+
+    os.replace(tmp, final)  # atomic
+    try:
+        if latest.exists() or latest.is_symlink():
+            latest.unlink()
+        # relative symlink so moving the folder preserves linkage
+        os.symlink(final.name, latest)
+    except Exception:
+        # symlink can fail on some filesystems — ignore
+        pass
+
+    print(f"[snapshot] wrote {final}")
+
+
 
 # ---------------------- CLI ----------------------
 def parse_args():
@@ -328,6 +370,25 @@ def main():
                [c for c in merged.columns if c not in out_cols_priority]
 
     merged.to_csv(args.out, index=False)
+
+    # ensure folder exists
+    out_dir = "/Users/pwitt/fourth-and-value/data/preds_historical"
+    os.makedirs(out_dir, exist_ok=True)
+
+    # pick up week from argparse/env/df (in that order)
+    week = (getattr(args, "week", None)
+            or os.getenv("WEEK")
+            or (str(int(merged["week"].max())) if "week" in merged.columns and merged["week"].notna().any() else "unknown"))
+
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    out_path = f"{out_dir}/props_with_model_week{week}_{stamp}.csv"
+
+    merged.to_csv(out_path, index=False)
+    print(f"[backup] wrote {out_path}")
+
+
+
+
     logging.info(f"[merge] wrote {args.out} with {len(merged):,} rows")
 
 

@@ -82,6 +82,7 @@ $(CONS_HTML): scripts/build_consensus_page.py $(MERGED) | $(DOCS_DIR)/props
 	  --merged_csv $(MERGED) \
 	  --out $@ \
 	  --week $(WEEK)
+		
 
 # Pages-only rebuild (when CSV already exists)
 props_now_pages: $(PROPS_HTML) $(TOP_HTML) $(CONS_HTML)
