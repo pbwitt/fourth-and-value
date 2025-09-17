@@ -121,6 +121,7 @@
     // Hide Consensus on mobile only:
     { href: `${base}/props/consensus.html`, label: 'Consensus', hideOnMobile: true },
     { href: `${base}/methods.html`,      label: 'Methods' },
+    { href: `${base}/blog/`, label: "Blog" },
   ];
 
   const here = location.pathname.replace(/\/index\.html$/, '/');

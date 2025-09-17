@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Fourth & Value — How Sportsbooks Make Money (and Why We Devig)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Sportsbooks don’t predict the future—they charge a fee called vig. Here’s why we remove it (devig) to show true probabilities." />
+  <link rel="icon" href="../favicon.ico" />
+  <style>
+    :root { --max: 860px; --bg:#0b0b0b; --fg:#e9e9e9; --muted:#b9b9b9; --line:#222; --input:#121212; --link:#8ab4ff; }
+    html,body { margin:0; background:var(--bg); color:var(--fg); }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; line-height:1.65; }
+    a { color: var(--link); text-decoration: underline; }
+    .wrap { max-width: var(--max); margin: 0 auto; padding: 16px; }
+    h1 { margin: 8px 0 4px; }
+    .meta { font-size:.9rem; color: var(--muted); margin: 6px 0 18px; }
+    article h2, article h3 { margin-top: 1.4em; }
+    code, pre { background:#0f0f0f; border:1px solid var(--line); border-radius:8px; color:#e6e6e6; }
+    pre { padding:12px; overflow:auto; }
+    .back { display:inline-block; margin-top: 28px; color: var(--link); }
+  </style>
+</head>
+<body>
+  <div id="nav-root"></div>
+  <script src="../nav.js?v=6"></script>
+
+  <main class="wrap">
+    <article>
+      <header>
+        <h1>How Sportsbooks Make Money (and Why We Devig)</h1>
+        <div class="meta"><time datetime="2025-09-17">Sep 17, 2025</time> • 6 min read</div>
+      </header>
+
+      <p>Sportsbooks aren’t crystal balls. They don’t know the outcome of a game any more than you do. What they do know is how to set prices in a way that guarantees a profit over the long run. That profit comes from a built-in fee called the <em>vig</em> (short for “vigorish,” also called the “juice”).</p>
+
+      <h2>What is the Vig?</h2>
+      <p>The vig is the sportsbook’s commission. It’s why a standard point spread or total bet is often priced at <strong>-110</strong> instead of true “even odds” (+100).</p>
+
+      <p>Take a coin flip — 50/50 in reality. If a sportsbook priced both sides fairly, you’d see +100 on heads and +100 on tails. Bet $100, win $100. But that wouldn’t make them money. Instead, they list both at -110:</p>
+
+      <pre><code>Heads:  -110  (implies ~52.38%)
+Tails:  -110  (implies ~52.38%)</code></pre>
+
+      <p>Do the math: 52.38% + 52.38% = 104.76%. That extra 4.76% is the vig. It ensures that no matter how the bets split, the house takes a slice.</p>
+
+      <h2>Why Raw Odds Don’t Tell the Whole Story</h2>
+      <p>Those -110 prices make it look like each side is more likely than it really is. In truth, the game is still a 50/50 coin flip — the book just built in a margin. If you read raw odds as probabilities, you’ll overestimate every outcome slightly.</p>
+
+      <h2>What Does “Devigging” Mean?</h2>
+      <p>To level the playing field, we <strong>devig</strong> the odds. Devigging means stripping out the sportsbook’s margin to reveal the underlying probabilities the odds imply.</p>
+
+      <p>In the coin flip example:</p>
+
+      <pre><code>Raw odds:
+  -110 = 52.38% each side
+
+Sum = 104.76% (includes vig)
+
+Devigged odds:
+  52.38 / 104.76 = 50.0% each side
+</code></pre>
+
+      <p>Now you’re back to reality: 50% vs 50%.</p>
+
+      <h2>Why We Show Market % on Fourth &amp; Value</h2>
+      <p>If you’ve looked at our <a href="../props/index.html">Player Props</a> tables, you’ll see two key columns:</p>
+
+      <ul>
+        <li><strong>Market %</strong> — the devigged, fair probability implied by the sportsbook’s line.</li>
+        <li><strong>Model %</strong> — our own estimate of the true probability.</li>
+      </ul>
+
+      <p>Without devigging, you’d be comparing apples to oranges — our “fair” model vs the book’s “padded” prices. By removing vig, we can show a cleaner head-to-head comparison.</p>
+
+      <h2>Takeaway</h2>
+      <p>The vig is how sportsbooks keep the lights on. But once you understand it, you can strip it away and see the real picture. That’s why we always devig — and why our tables focus on <em>Market % vs Model %</em>.</p>
+
+      <p>Mastering this concept is step one in betting smarter. In our next fundamentals post, we’ll dive into what we mean by <strong>edge (in basis points)</strong> and why it’s the most important column on the site.</p>
+
+      <a class="back" href="./index.html">← Back to Blog</a>
+    </article>
+  </main>
+</body>
+</html>
