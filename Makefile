@@ -82,7 +82,7 @@ $(CONS_HTML): scripts/build_consensus_page.py $(MERGED) | $(DOCS_DIR)/props
 	  --merged_csv $(MERGED) \
 	  --out $@ \
 	  --week $(WEEK)
-		
+
 
 # Pages-only rebuild (when CSV already exists)
 props_now_pages: $(PROPS_HTML) $(TOP_HTML) $(CONS_HTML)
@@ -121,3 +121,79 @@ clean:
 	$(PROPS_ALL): .FORCE scripts/fetch_all_player_props.py | $(PROPS_DIR) $(ODDS_CSV)
 		$(PY) scripts/fetch_all_player_props.py
 		@test -s $(PROPS_ALL) || (echo "[ERR] $(PROPS_ALL) not created"; exit 1)
+
+
+		# --- Game predictions (baseline) ---
+
+
+game_preds:
+	python3 scripts/make_game_preds.py --season $(SEASON) --week $(WEEK)
+
+game_page:
+	python3 scripts/build_game_page.py --season $(SEASON) --week $(WEEK) \
+		--csv data/games/model_preds_week$(WEEK).csv \
+		--out docs/games/index.html
+
+schedule:
+	python3 scripts/fetch_schedule.py --season $(SEASON)
+
+	# ===== Props quick-refresh (canonical) =====
+.PHONY: props_now props_now_pages props_now_pub publish_pages
+
+# Load .env for API keys (reuse existing if you already have ENV_LOADER)
+ENV_LOADER = set -a; [ -f .env ] && . ./.env; set +a
+
+# Full props refresh: fetch → params → edges → pages
+props_now:
+	@echo "[props_now] fetch → params → edges → pages (SEASON=$(SEASON) WEEK=$(WEEK))"
+	@$(ENV_LOADER); python3 scripts/fetch_all_player_props.py \
+		--sport americanfootball_nfl \
+		--out data/props/latest_all_props.csv
+	@python3 scripts/make_player_prop_params.py --season $(SEASON) --week $(WEEK)
+	@python3 scripts/make_props_edges.py --season $(SEASON) --week $(WEEK) \
+		--props_csv data/props/latest_all_props.csv \
+		--out data/props/props_with_model_week$(WEEK).csv
+	@python3 scripts/build_props_site.py       --season $(SEASON) --week $(WEEK)
+	@python3 scripts/build_top_picks.py        --season $(SEASON) --week $(WEEK)
+	@python3 scripts/build_consensus_page.py   --season $(SEASON) --week $(WEEK)
+	@touch docs/.nojekyll
+	@echo "[props_now] done."
+
+# Pages-only rebuild (when CSV already exists)
+props_now_pages:
+	@echo "[pages-only] props/top/consensus (SEASON=$(SEASON) WEEK=$(WEEK))"
+	@python3 scripts/build_props_site.py       --season $(SEASON) --week $(WEEK)
+	@python3 scripts/build_top_picks.py        --season $(SEASON) --week $(WEEK)
+	@python3 scripts/build_consensus_page.py   --season $(SEASON) --week $(WEEK)
+	@touch docs/.nojekyll
+
+# Minimal publisher (guards) — use if you don't already have publish_pages
+publish_pages:
+	@if [ "$(PUBLISH)" = "1" ] && [ "$(CONFIRM)" = "LIVE" ]; then \
+		echo "[publish] pushing docs/ to origin..."; \
+		git add -A docs && git commit -m "publish pages (SEASON=$(SEASON) WEEK=$(WEEK))" || true; \
+		git push; \
+	else \
+		echo "Not publishing. Use: make $@ PUBLISH=1 CONFIRM=LIVE"; \
+	fi
+
+# Convenience wrapper: build props now, then publish pages
+props_now_pub:
+	$(MAKE) props_now SEASON=$(SEASON) WEEK=$(WEEK)
+	$(MAKE) publish_pages PUBLISH=1 CONFIRM=LIVE
+# ===========================================
+# --- Consensus (data + page) ---
+CONS_CSV := data/props/consensus_week$(WEEK).csv
+
+make_consensus:
+	python scripts/make_consensus.py \
+	  --merged_csv data/props/latest_all_props.csv \
+	  --out_csv $(CONS_CSV) \
+	  --week $(WEEK)
+
+consensus_page: make_consensus
+	python -m scripts.build_consensus_page \
+	  --merged_csv data/props/latest_all_props.csv \
+	  --out docs/props/consensus.html \
+	  --week $(WEEK) \
+	  --title "Fourth & Value — Consensus (Week $(WEEK))"

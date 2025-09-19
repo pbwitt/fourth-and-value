@@ -2,14 +2,35 @@
 import argparse, pandas as pd, numpy as np, re, math
 from html import escape
 from pathlib import Path
-from site_common import inject_nav
-from site_common import write_with_nav_raw
- # add this
-# shared helpers
-from site_common import (
-    nav_html, pretty_market, fmt_odds_american, fmt_pct,
-    american_to_prob, kickoff_et, BRAND
-)
+
+
+# Works both as: `python -m scripts.build_consensus_page` (repo root)
+# and:           `cd scripts && python build_consensus_page.py`
+try:
+    from scripts.site_common import (
+        inject_nav,
+        write_with_nav_raw,
+        nav_html,
+        pretty_market,
+        fmt_odds_american,
+        fmt_pct,
+        american_to_prob,
+        kickoff_et,
+        BRAND,
+    )
+except ModuleNotFoundError:
+    from site_common import (
+        inject_nav,
+        write_with_nav_raw,
+        nav_html,
+        pretty_market,
+        fmt_odds_american,
+        fmt_pct,
+        american_to_prob,
+        kickoff_et,
+        BRAND,
+    )
+
 
 # -------- helpers local to this script --------
 # --- 1) Add near your other template helpers (top of file) -------------------
@@ -375,9 +396,28 @@ def main():
 
     # 1) Build the table
     # 1) Build the table
-    df = read_df(args.merged_csv)
-    df = df.sort_values(by="consensus_edge_bps", ascending=False).head(args.limit)
+    # 1) Build the table (from precomputed consensus)
+ # add once at top if not already imported
+
+    from pathlib import Path
+
+
+    root = Path(__file__).resolve().parents[1]  # repo root (one up from scripts/)
+    consensus_path = root / f"data/props/consensus_week{args.week}.csv"
+    if not consensus_path.exists():
+        raise FileNotFoundError(
+            f"Consensus CSV not found at {consensus_path}. "
+            f"Run make_consensus.py for week {args.week} first."
+        )
+
+    df = pd.read_csv(consensus_path)
+    print(f"[consensus_page] loaded {len(df)} rows from {consensus_path}")
+
+    # sort for display: highest book_count then highest consensus_prob
+    df = df.sort_values(by=["book_count", "consensus_prob"], ascending=[False, False])
+
     rows = "\n".join(row_html(r) for _, r in df.iterrows())
+
     default_title = f"{BRAND} — Consensus (Week {args.week})" if args.week else f"{BRAND} — Consensus"
     # after args = ap.parse_args() and after you compute rows
     default_title = f"{BRAND} — Consensus (Week {args.week})" if args.week else f"{BRAND} — Consensus"
