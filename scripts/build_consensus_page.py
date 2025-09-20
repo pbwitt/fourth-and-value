@@ -1,445 +1,875 @@
 #!/usr/bin/env python3
-import argparse, pandas as pd, numpy as np, re, math
-from html import escape
+"""
+Build Consensus Page (Overview + Value tabs)
+
+- Overview: consensus lines + probs per player/market
+- Value: per-book props with model vs market comparison
+- Shared filters: Game, Market, Book, Player (text)
+- Hides rows missing model_prob or mkt_prob
+"""
+
+import argparse
+import pandas as pd
 from pathlib import Path
 
 
-# Works both as: `python -m scripts.build_consensus_page` (repo root)
-# and:           `cd scripts && python build_consensus_page.py`
-try:
-    from scripts.site_common import (
-        inject_nav,
-        write_with_nav_raw,
-        nav_html,
-        pretty_market,
-        fmt_odds_american,
-        fmt_pct,
-        american_to_prob,
-        kickoff_et,
-        BRAND,
-    )
-except ModuleNotFoundError:
-    from site_common import (
-        inject_nav,
-        write_with_nav_raw,
-        nav_html,
-        pretty_market,
-        fmt_odds_american,
-        fmt_pct,
-        american_to_prob,
-        kickoff_et,
-        BRAND,
-    )
+from scripts.site_common import (
+    pretty_market,
+    write_with_nav_raw,
+)
 
-
-# -------- helpers local to this script --------
-# --- 1) Add near your other template helpers (top of file) -------------------
-FILTERS_BLOCK = r"""
-<style>
-  .filters { display:grid; gap:10px; grid-template-columns: repeat(4, minmax(140px, 1fr)) 1fr; align-items:end; margin:12px 0 10px; }
-  .filters label { font-size:12px; color:#b7b7bb; display:block; margin-bottom:5px; }
-  .filters select, .filters input {
-    width:100%; padding:8px 10px; background:#111113; color:#e7e7ea; border:1px solid #1f1f22; border-radius:10px;
-  }
-  .filters .right { text-align:right; }
-  .filters .btn-clear {
-    padding:9px 12px; background:#18181b; border:1px solid #2a2a2f; border-radius:10px; color:#d7d7dc; cursor:pointer;
-  }
-  .filters .btn-clear:hover { background:#202024; }
-  .results-note { margin:4px 0 12px; color:#b7b7bb; font-size:12px; }
-  @media (max-width: 720px) {
-    .filters { grid-template-columns: 1fr 1fr; }
-    .filters .right { grid-column: 1 / -1; text-align:left; }
-  }
-</style>
-
-<div id="consensus-filters" class="filters" hidden>
-  <div>
-    <label for="f_game">Game</label>
-    <select id="f_game"><option value="">All games</option></select>
-  </div>
-  <div>
-    <label for="f_market">Market</label>
-    <select id="f_market"><option value="">All markets</option></select>
-  </div>
-  <div>
-    <label for="f_player">Player</label>
-    <select id="f_player"><option value="">All players</option></select>
-  </div>
-  <div>
-    <label for="f_book">Book</label>
-    <select id="f_book"><option value="">All books</option></select>
-  </div>
-  <div class="right">
-    <button class="btn-clear" id="f_clear">Clear filters</button>
-  </div>
-</div>
-<div id="consensus-results" class="results-note" hidden></div>
-
+TABS_JS = """
 <script>
-document.addEventListener('DOMContentLoaded',function(){
-  const table = document.querySelector('main.container .tablewrap table');
-  if (!table) return;
-
-  const tbody = table.tBodies[0];
-  const rows  = Array.from(tbody?.rows || []);
-  if (!rows.length) return;
-
-  // Column order from the Consensus page you generated:
-  // Kick | Game | Player | Market | Best book bet | Market consensus | Edge
-  const COL = { game:1, player:2, market:3, bet:4 };
-
-  function extractBook(txt){
-    const m = txt.match(/\bon\s+([a-z0-9_]+)\s*$/i);  // "... on fanduel"
-    return m ? m[1].toLowerCase() : '';
-  }
-
-  const uniq = { game:new Set(), market:new Set(), player:new Set(), book:new Set() };
-  const cache = new Map();
-
-  rows.forEach(tr => {
-    const game   = tr.cells[COL.game]?.textContent.trim() || '';
-    const player = tr.cells[COL.player]?.textContent.trim() || '';
-    const market = tr.cells[COL.market]?.textContent.trim() || '';
-    const betTxt = tr.cells[COL.bet]?.textContent.trim() || '';
-    const book   = extractBook(betTxt);
-
-    cache.set(tr, { game, market, player, book });
-
-    if (game)   uniq.game.add(game);
-    if (market) uniq.market.add(market);
-    if (player) uniq.player.add(player);
-    if (book)   uniq.book.add(book);
+function showTab(id){
+  document.querySelectorAll('.tab-section').forEach(el => el.style.display = 'none');
+  const el = document.getElementById(id);
+  if (el) el.style.display = '';
+  // highlight active tab
+  document.querySelectorAll('.fv-tabs a').forEach(a => {
+    if (a.getAttribute('href') === '#' + id) a.classList.add('active');
+    else a.classList.remove('active');
   });
-
-  const $wrap   = document.getElementById('consensus-filters');
-  const $note   = document.getElementById('consensus-results');
-  const $game   = document.getElementById('f_game');
-  const $market = document.getElementById('f_market');
-  const $player = document.getElementById('f_player');
-  const $book   = document.getElementById('f_book');
-  const $clear  = document.getElementById('f_clear');
-
-  function fillSelect(sel, items) {
-    const sorted = Array.from(items).sort((a,b)=> a.localeCompare(b));
-    const frag = document.createDocumentFragment();
-    sorted.forEach(v => {
-      const opt = document.createElement('option');
-      opt.value = v;
-      opt.textContent = v;
-      frag.appendChild(opt);
+}
+document.addEventListener('DOMContentLoaded', function(){
+  // click handlers
+  document.querySelectorAll('.fv-tabs a').forEach(a => {
+    a.addEventListener('click', function(e){
+      e.preventDefault();
+      const id = this.getAttribute('href').slice(1);
+      history.replaceState(null, '', '#' + id);
+      showTab(id);
     });
-    sel.appendChild(frag);
-  }
-
-  fillSelect($game,   uniq.game);
-  fillSelect($market, uniq.market);
-  fillSelect($player, uniq.player);
-  fillSelect($book,   uniq.book);
-
-  function fmt(n){ return n.toLocaleString(); }
-
-  function applyFilters(){
-    const f = {
-      game:   $game.value,
-      market: $market.value,
-      player: $player.value,
-      book:   $book.value.toLowerCase()
-    };
-
-    let shown = 0;
-    rows.forEach(tr => {
-      const v = cache.get(tr);
-      const ok =
-        (!f.game   || v.game   === f.game) &&
-        (!f.market || v.market === f.market) &&
-        (!f.player || v.player === f.player) &&
-        (!f.book   || v.book   === f.book);
-      tr.style.display = ok ? '' : 'none';
-      if (ok) shown++;
-    });
-
-    $note.textContent = `${fmt(shown)} result${shown===1?'':'s'} shown` +
-                        (f.game||f.market||f.player||f.book ? ' (filters on)' : '');
-  }
-
-  [$game, $market, $player, $book].forEach(el => el.addEventListener('change', applyFilters));
-  $clear.addEventListener('click', () => {
-    $game.value = $market.value = $player.value = $book.value = '';
-    applyFilters();
   });
-
-  const tablewrap = table.closest('.tablewrap');
-  tablewrap.parentNode.insertBefore($wrap, tablewrap);
-  tablewrap.parentNode.insertBefore($note, tablewrap.nextSibling);
-
-  $wrap.hidden = false;
-  $note.hidden = false;
-  applyFilters();
+  // initial tab: hash or overview
+  const initial = (location.hash || '#overview').slice(1);
+  showTab(initial);
 });
 </script>
 """
 
-def inject_filters(html: str) -> str:
+
+
+TABS_CSS = """
+<style>
+/* Tabs header */
+.fv-tabs { list-style: none; padding: 0; margin: 0 0 10px 0; display: flex; gap: 14px; }
+.fv-tabs li { display: inline; }
+.fv-tabs a { text-decoration: none; font-weight: 600; }
+.fv-tabs a:hover { text-decoration: underline; }
+
+/* Filter bar */
+.fv-filter-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 8px 0 10px; }
+.fv-filter-bar label { font-size: 0.95rem; display: inline-flex; align-items: center; gap: 6px; }
+.fv-filter-bar select, .fv-filter-bar input { padding: 4px 6px; }
+
+/* Tables */
+.consensus-table { border-collapse: collapse; width: 100%; margin: 6px 0 24px; }
+.consensus-table th, .consensus-table td { border: 1px solid rgba(255,255,255,0.15); padding: 6px 8px; }
+.consensus-table th { text-align: left; }
+.consensus-table td.odds_disp,
+.consensus-table td.edge_bps_disp,
+.consensus-table td.fair_odds_disp,
+.consensus-table td.ev_per_100_disp,
+.consensus-table td.mkt_prob_disp,
+.consensus-table td.model_prob_disp,
+.consensus-table td.line_disp,
+.consensus-table td.cons_line_disp { text-align: right; white-space: nowrap; }
+
+/* Keep it theme-agnostic: inherit your page colors */
+</style>
+"""
+
+
+# === CONSENSUS HELPERS (add once, near imports) ===
+import math
+import numpy as np
+import pandas as pd
+
+PRETTY_MAP = {
+    "rush_yds": "Rush Yds",
+    "rec_yds": "Recv Yds",
+    "reception_yds": "Recv Yds",
+    "pass_yds": "Pass Yds",
+    "pass_tds": "Pass TDs",
+    "pass_ints": "Pass INTs",
+    "rush_attempts": "Rush Att",
+    "pass_attempts": "Pass Att",
+    "pass_completions": "Pass Comp",
+    "anytime_td": "Anytime Td",
+    "first_td": "Player 1St Td",
+}
+
+OU_MARKETS = {
+    "rush_yds","rec_yds","reception_yds","pass_yds",
+    "pass_tds","pass_ints","rush_attempts","pass_attempts","pass_completions"
+}
+
+def american_odds_to_prob(odds):
+    if pd.isna(odds):
+        return np.nan
+    try:
+        o = float(odds)
+    except Exception:
+        return np.nan
+    if o > 0:
+        return 100.0 / (o + 100.0)
+    else:
+        return (-o) / ((-o) + 100.0)
+
+def prob_to_american_odds(p):
+    if pd.isna(p) or p <= 0 or p >= 1:
+        return np.nan
+    # Fair American odds
+    if p >= 0.5:
+        # negative odds
+        return -int(round(p * 100 / (1 - p)))
+    else:
+        # positive odds
+        return int(round((1 - p) * 100 / p))
+
+def expected_value_per_100(p, odds):
+    """EV on a $100 stake (not including stake return)."""
+    if pd.isna(p) or pd.isna(odds):
+        return np.nan
+    o = float(odds)
+    # profit if win (per $100)
+    win_profit = o if o > 0 else 10000.0 / (-o)
+    return p * win_profit - (1 - p) * 100.0
+
+def pretty_market(m):
+    if pd.isna(m):
+        return m
+    return PRETTY_MAP.get(str(m), str(m).replace("_"," ").title())
+
+def derive_side(row):
+    if row.get("market_std") in OU_MARKETS:
+        p = row.get("model_prob")
+        if pd.notna(p):
+            return "Over" if float(p) >= 0.5 else "Under"
+    if row.get("market_std") == "anytime_td":
+        return row.get("side") or "Yes"
+    return row.get("side")
+
+def harmonize_columns(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+
+    # Unify naming: line / price / book / market / side / player
+    if "line" not in df.columns and "point" in df.columns:
+        df["line"] = df["point"]
+    if "odds" not in df.columns and "price" in df.columns:
+        df["odds"] = df["price"]
+    if "price" not in df.columns and "odds" in df.columns:
+        df["price"] = df["odds"]
+
+    if "book" not in df.columns:
+        for cand in ["bookmaker_title","bookmaker","book_name"]:
+            if cand in df.columns:
+                df["book"] = df[cand]
+                break
+
+    if "market" not in df.columns and "market_std" in df.columns:
+        df["market"] = df["market_std"]
+
+    # prefer player display name
+    if "player" not in df.columns and "name" in df.columns:
+        df["player"] = df["name"]
+
+    # pretty label
+    if "market_disp" not in df.columns:
+        df["market_disp"] = df["market"].map(pretty_market) if "market" in df.columns else df.get("market_std", np.nan).map(pretty_market)
+
+    # side
+    if "side" not in df.columns:
+        df["side"] = np.nan
+    df["side"] = df.apply(derive_side, axis=1)
+
+    # kick ET passthrough (if present)
+    if "kick_et" not in df.columns and "kickoff" in df.columns:
+        df["kick_et"] = df["kickoff"]
+
+    # market prob from price
+    if "mkt_prob" not in df.columns:
+        df["mkt_prob"] = df["price"].map(american_odds_to_prob) if "price" in df.columns else df["odds"].map(american_odds_to_prob)
+
+    # safe numeric
+    for c in ["line","price","odds","model_prob","mkt_prob"]:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce")
+
+    # friendly displays
+    df["line_disp"] = df["line"].where(df["line"].notna(), "—") if "line" in df.columns else "—"
+    df["mkt_prob_disp"] = (df["mkt_prob"]*100).round(1).map(lambda x: f"{x:.1f}%" if pd.notna(x) else "—")
+    if "model_prob" in df.columns:
+        df["model_prob_disp"] = (df["model_prob"]*100).round(1).map(lambda x: f"{x:.1f}%" if pd.notna(x) else "—")
+    if "odds" in df.columns:
+        df["odds"] = df["odds"].round(0)
+
+    return df
+def build_overview_df(df: pd.DataFrame) -> pd.DataFrame:
+    # group by player × market_std (and game if available)
+    keys = [k for k in ["player", "name_std", "market_std"] if k in df.columns]
+    if "game" in df.columns:
+        keys.append("game")
+
+    if not keys:
+        # nothing to group by; return empty frame with expected columns
+        return pd.DataFrame(columns=[
+            "market_std","game","player","market_disp",
+            "mkt_prob","mkt_prob_disp","book_count",
+            "cons_line","cons_line_disp",
+        ])
+
+    grouped = df.groupby(keys, dropna=False)
+
+    # Build named aggregation dict only for cols that exist
+    agg_dict = {}
+    if "line" in df.columns:
+        agg_dict["cons_line"] = ("line", "median")
+    if "mkt_prob" in df.columns:
+        agg_dict["mkt_prob"] = ("mkt_prob", "median")
+    if "book" in df.columns:
+        agg_dict["book_count"] = ("book", "nunique")
+
+    g = grouped.agg(**agg_dict).reset_index()
+
+    # If we couldn't compute book_count (no 'book' col), fallback to group size
+    if "book_count" not in g.columns:
+        g["book_count"] = grouped.size().values
+
+    # Ensure 'game' column exists for display
+    if "game" not in g.columns:
+        g["game"] = df.get("game", np.nan)
+
+    # Friendly market label
+    if "market_std" in g.columns:
+        g["market_disp"] = g["market_std"].map(pretty_market)
+    elif "market" in g.columns:
+        g["market_disp"] = g["market"].map(pretty_market)
+    else:
+        g["market_disp"] = np.nan
+
+    # Displays
+    if "cons_line" in g.columns:
+        g["cons_line_disp"] = g["cons_line"].where(g["cons_line"].notna(), "—")
+    else:
+        g["cons_line"] = np.nan
+        g["cons_line_disp"] = "—"
+
+    if "mkt_prob" in g.columns:
+        g["mkt_prob_disp"] = (g["mkt_prob"] * 100).round(1).map(
+            lambda x: f"{x:.1f}%" if pd.notna(x) else "—"
+        )
+    else:
+        g["mkt_prob"] = np.nan
+        g["mkt_prob_disp"] = "—"
+
+    # Keep one name column
+    if "player" not in g.columns and "name_std" in g.columns:
+        g["player"] = g["name_std"]
+
+    cols = [
+        "market_std","game","player","market_disp",
+        "mkt_prob","mkt_prob_disp","book_count",
+        "cons_line","cons_line_disp",
+    ]
+    return g[[c for c in cols if c in g.columns]].sort_values(
+        [c for c in ["game","player","market_std"] if c in g.columns]
+    ).reset_index(drop=True)
+
+def build_value_df(df: pd.DataFrame, overview_df: pd.DataFrame) -> pd.DataFrame:
+    # join consensus line for context
+    on_keys = []
+    if "player" in df.columns:
+        on_keys.append("player")
+    elif "name_std" in df.columns:
+        on_keys.append("name_std")
+    if "market_std" in df.columns:
+        on_keys.append("market_std")
+
+    left = df.copy()
+    right_cols = [c for c in ["player","name_std","market_std"] if c in overview_df.columns]
+    right = overview_df[right_cols + [c for c in ["cons_line","cons_line_disp"] if c in overview_df.columns]].drop_duplicates()
+
+    merged = left.merge(right, how="left", on=[k for k in on_keys if k in left.columns]) if on_keys else left
+
+    # core calcs (raw)
+    if "model_prob" in merged.columns and "mkt_prob" in merged.columns:
+        merged["edge_bps"] = (merged["model_prob"] - merged["mkt_prob"]) * 10000.0
+    else:
+        merged["edge_bps"] = np.nan
+
+    if "model_prob" in merged.columns:
+        merged["fair_odds"] = merged["model_prob"].map(prob_to_american_odds)
+        merged["ev_per_100"] = merged.apply(
+            lambda r: expected_value_per_100(r.get("model_prob"), r.get("odds")), axis=1
+        )
+    else:
+        merged["fair_odds"] = np.nan
+        merged["ev_per_100"] = np.nan
+
+    # friendly market label
+    if "market_disp" not in merged.columns and "market_std" in merged.columns:
+        merged["market_disp"] = merged["market_std"].map(pretty_market)
+
+    # displays (formatted)
+    merged["line_disp"] = merged["line"].where(merged["line"].notna(), "—") if "line" in merged.columns else "—"
+
+    def pct_disp(s):
+        return s.map(lambda x: f"{round(x*100,1):.1f}%" if pd.notna(x) else "—")
+
+    merged["mkt_prob_disp"]   = pct_disp(merged["mkt_prob"])   if "mkt_prob"   in merged.columns else "—"
+    merged["model_prob_disp"] = pct_disp(merged["model_prob"]) if "model_prob" in merged.columns else "—"
+
+    def signed_odds(x):
+        if pd.isna(x): return "—"
+        x = int(round(x))
+        return f"+{x}" if x > 0 else str(x)
+
+    merged["odds_disp"] = merged["odds"].map(signed_odds) if "odds" in merged.columns else "—"
+    merged["fair_odds_disp"] = merged["fair_odds"].map(signed_odds)
+
+    def bps_disp(x):
+        if pd.isna(x): return "—"
+        v = int(round(x))
+        return f"{v}"
+
+    merged["edge_bps_disp"] = merged["edge_bps"].map(bps_disp)
+
+    def ev_disp(x):
+        if pd.isna(x): return "—"
+        return f"${x:,.1f}"
+
+    merged["ev_per_100_disp"] = merged["ev_per_100"].map(ev_disp)
+
+    # tidy order
+    cols = [
+        "game","player","market_disp","side","book",
+        "line_disp","odds_disp","mkt_prob_disp","model_prob_disp","edge_bps_disp",
+        "fair_odds_disp","ev_per_100_disp","cons_line_disp","kick_et"
+    ]
+    return merged[[c for c in cols if c in merged.columns]].sort_values(
+        ["game","player","market_disp","book","line_disp"]
+    ).reset_index(drop=True)
+
+
+def html_table(df: pd.DataFrame, columns, table_id: str, klass: str) -> str:
+    """Render a simple HTML table with only the selected columns (in order)."""
+    cols = [c for c in columns if c in df.columns]
+    # header
+    th = "".join(f"<th>{c}</th>" for c in cols)
+    # body
+    rows = []
+    for _, r in df.iterrows():
+        tds = "".join(f"<td class='{c}'>{'' if pd.isna(r.get(c)) else r.get(c)}</td>" for c in cols)
+        rows.append(f"<tr>{tds}</tr>")
+    tb = "\n".join(rows)
+    return f"""<table id="{table_id}" class="{klass}">
+<thead><tr>{th}</tr></thead>
+<tbody>
+{tb}
+</tbody>
+</table>"""
+
+FILTER_JS = """
+<script>
+function buildFilters(tableId){
+  const table = document.getElementById(tableId);
+  if(!table) return;
+
+  // figure columns by class name
+  function uniq(vals){ return [...new Set(vals.filter(v => v && v !== '—'))].sort(); }
+
+  const rows = Array.from(table.querySelectorAll('tbody tr'));
+  const games  = uniq(rows.map(tr => tr.querySelector('td.game')?.textContent.trim()));
+  const mkts   = uniq(rows.map(tr => tr.querySelector('td.market_disp')?.textContent.trim()));
+  const books  = uniq(rows.map(tr => tr.querySelector('td.book')?.textContent.trim()));
+  // controls
+  const wrap = document.createElement('div');
+  wrap.className = 'fv-filter-bar';
+  wrap.innerHTML = `
+    <label>Game <select id="${tableId}-f-game"><option value="">All</option></select></label>
+    <label>Market <select id="${tableId}-f-market"><option value="">All</option></select></label>
+    <label>Book <select id="${tableId}-f-book"><option value="">All</option></select></label>
+    <label>Player <input id="${tableId}-f-player" placeholder="Search player" /></label>
+  `;
+  table.parentNode.insertBefore(wrap, table);
+
+  const gSel = wrap.querySelector(`#${tableId}-f-game`);
+  const mSel = wrap.querySelector(`#${tableId}-f-market`);
+  const bSel = wrap.querySelector(`#${tableId}-f-book`);
+  const pInp = wrap.querySelector(`#${tableId}-f-player`);
+
+  games.forEach(v => { const o=document.createElement('option'); o.value=v; o.textContent=v; gSel.appendChild(o); });
+  mkts.forEach(v => { const o=document.createElement('option'); o.value=v; o.textContent=v; mSel.appendChild(o); });
+  books.forEach(v => { const o=document.createElement('option'); o.value=v; o.textContent=v; bSel.appendChild(o); });
+
+  function apply(){
+    const g = gSel.value.toLowerCase();
+    const m = mSel.value.toLowerCase();
+    const b = bSel.value.toLowerCase();
+    const p = pInp.value.toLowerCase();
+    rows.forEach(tr => {
+      const tgame   = (tr.querySelector('td.game')?.textContent||'').toLowerCase();
+      const tmarket = (tr.querySelector('td.market_disp')?.textContent||'').toLowerCase();
+      const tbook   = (tr.querySelector('td.book')?.textContent||'').toLowerCase();
+      const tplayer = (tr.querySelector('td.player')?.textContent||'').toLowerCase();
+      const ok = (!g || tgame===g) &&
+                 (!m || tmarket===m) &&
+                 (!b || tbook===b) &&
+                 (!p || tplayer.includes(p));
+      tr.style.display = ok ? '' : 'none';
+    });
+  }
+  gSel.onchange = mSel.onchange = bSel.onchange = pInp.oninput = apply;
+}
+document.addEventListener('DOMContentLoaded', function(){
+  buildFilters('overview-table');
+  buildFilters('value-table');
+});
+</script
+
+<script>
+(function(){
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+
+  const gameSel   = $('#gameFilter');
+  const mktSel    = $('#marketFilter');
+  const bookSel   = $('#bookFilter');
+  const playerInp = $('#playerFilter');
+
+  const OVERVIEW_ROWS = $$('#overviewTable tbody tr');
+  const VALUE_ROWS    = $$('#valueTable tbody tr');
+
+  // Utilities
+  const norm = (s) => (s ?? '').toString().toLowerCase();
+  const includes = (hay, ndl) => norm(hay).includes(norm(ndl));
+
+  // Rebuild options for a select from a Set<string>, try to preserve selection
+  function rebuildOptions(select, values, keepAll=true) {
+    const prev = select.value;
+    const opts = ['All', ...Array.from(values).sort()];
+    select.innerHTML = '';
+    for (const v of keepAll ? opts : Array.from(values).sort()) {
+      const op = document.createElement('option');
+      op.value = v; op.textContent = v;
+      select.appendChild(op);
+    }
+    // Restore if still present; otherwise fall back to first option
+    const wanted = values.has(prev) || (prev === 'All' && keepAll) ? prev : (keepAll ? 'All' : Array.from(values)[0] || 'All');
+    if (wanted) select.value = wanted;
+  }
+
+  // Collect current filter state
+  function state() {
+    return {
+      game:  gameSel ? gameSel.value : 'All',
+      market:mktSel  ? mktSel.value  : 'All',
+      book:  bookSel ? bookSel.value : 'All',
+      player: norm(playerInp ? playerInp.value : '')
+    };
+  }
+
+  // Core row predicate per tab
+  function matchOverviewRow(tr, s) {
+    const g = tr.dataset.game || '';
+    const m = tr.dataset.market || '';
+    const p = tr.dataset.player || '';
+    const booksCSV = tr.dataset.books || '';  // comma‐joined lowercased books
+    const hasBook = (s.book === 'All') ? true : (','+booksCSV+',').includes(','+norm(s.book)+',');
+    return (s.game === 'All'   || g === s.game)
+        && (s.market === 'All' || m === s.market)
+        && hasBook
+        && (s.player === ''     || includes(p, s.player));
+  }
+
+  function matchValueRow(tr, s) {
+    const g = tr.dataset.game || '';
+    const m = tr.dataset.market || '';
+    const p = tr.dataset.player || '';
+    const b = tr.dataset.book || '';
+    return (s.game === 'All'   || g === s.game)
+        && (s.market === 'All' || m === s.market)
+        && (s.book === 'All'   || b === norm(s.book))
+        && (s.player === ''     || includes(p, s.player));
+  }
+
+  // Repopulate dependent dropdowns from *currently visible* rows
+  function rebuildDependentOptions() {
+    const s = state();
+
+    // Use both tabs so options never "disappear" if one tab is empty
+    const rows = OVERVIEW_ROWS.concat(VALUE_ROWS);
+
+    const matchingForGame = rows.filter(tr => (s.game === 'All') || (tr.dataset.game === s.game));
+
+    const markets = new Set();
+    const books   = new Set();
+
+    for (const tr of matchingForGame) {
+      const tab = tr.dataset.tab;
+      markets.add(tr.dataset.market || '');
+      if (tab === 'overview') {
+        const csv = (tr.dataset.books || '').split(',').filter(Boolean);
+        csv.forEach(b => books.add(b));
+      } else {
+        const b = tr.dataset.book || '';
+        if (b) books.add(b);
+      }
+    }
+
+    // Build human labels from your pretty map if you have one server-side.
+    // Client side we rebuild with raw keys; your existing <option> labels are fine.
+
+    // Rebuild selects but preserve if possible
+    if (mktSel)  rebuildOptions(mktSel,  markets, true);
+    if (bookSel) rebuildOptions(bookSel, books,   true);
+  }
+
+  // Show/hide rows according to filters
+  function applyFilters({rebuild=true} = {}) {
+    const s = state();
+
+    if (rebuild) {
+      // When Game changes, clear player search to avoid hiding everything
+      if (document.activeElement === gameSel && playerInp) playerInp.value = '';
+      rebuildDependentOptions();
+    }
+
+    let anyOverview = false, anyValue = false;
+
+    for (const tr of OVERVIEW_ROWS) {
+      const ok = matchOverviewRow(tr, s);
+      tr.style.display = ok ? '' : 'none';
+      if (ok) anyOverview = true;
+    }
+
+    for (const tr of VALUE_ROWS) {
+      const ok = matchValueRow(tr, s);
+      tr.style.display = ok ? '' : 'none';
+      if (ok) anyValue = true;
+    }
+
+    // Optional: gray out tables when empty
+    $('#overviewTable')?.classList.toggle('empty', !anyOverview);
+    $('#valueTable')?.classList.toggle('empty', !anyValue);
+  }
+
+  // Wire up events
+  gameSel   && gameSel.addEventListener('change', () => applyFilters({rebuild:true}));
+  mktSel    && mktSel.addEventListener('change',  () => applyFilters({rebuild:false}));
+  bookSel   && bookSel.addEventListener('change', () => applyFilters({rebuild:false}));
+  playerInp && playerInp.addEventListener('input',() => applyFilters({rebuild:false}));
+
+  // Initial build
+  rebuildDependentOptions();
+  applyFilters({rebuild:false});
+})();
+</script>
+
+"""
+# === END HELPERS ===
+
+
+
+def tabs_shell(tabs: dict) -> str:
     """
-    Insert the filter UI before the first .tablewrap.
-    If the template contains a '__FILTERS__' marker, use that instead.
+    Build a tabbed HTML shell.
+    tabs = {"Tab Name": "<table html>", ...}
     """
-    if "__FILTERS__" in html:
-        return html.replace("__FILTERS__", FILTERS_BLOCK)
-    # Fallback: inject before the first tablewrap div
-    needle = '<div class="tablewrap">'
-    idx = html.find(needle)
-    if idx == -1:
-        return html  # nothing to do
-    return html[:idx] + FILTERS_BLOCK + html[idx:]
+    nav_html = '<ul class="tabs">' + "".join(
+        f'<li><a href="#{k.lower()}">{k}</a></li>' for k in tabs
+    ) + "</ul>"
+
+    body_html = "".join(
+        f'<div id="{k.lower()}" class="tab-content" style="display:none;">{v}</div>'
+        for k, v in tabs.items()
+    )
+
+    js = """
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const tabs = document.querySelectorAll(".tabs a");
+  const contents = document.querySelectorAll(".tab-content");
+  function showTab(hash) {
+    contents.forEach(c => c.style.display = (c.id === hash.substring(1)) ? "" : "none");
+    tabs.forEach(t => t.parentElement.classList.toggle("active", t.getAttribute("href") === hash));
+  }
+  tabs.forEach(t => {
+    t.addEventListener("click", e => {
+      e.preventDefault();
+      showTab(t.getAttribute("href"));
+    });
+  });
+  if (tabs.length > 0) showTab(tabs[0].getAttribute("href"));
+});
+</script>
+"""
+    return nav_html + body_html + js
 
 
-LINE_CANDIDATES = [
-    "line_disp","point","line","market_line","prop_line","number","threshold","total","line_number",
-    "handicap","spread","yards","receptions","receiving_yards","rushing_yards","passing_yards","prop_total"
-]
-GAME_CANDIDATES = ["game","Game","matchup","matchup_name","matchup_display"]
+def load_and_merge(merged_csv: str, week: int):
+    df = pd.read_csv(merged_csv)
 
-def _num(x):
-    with np.errstate(all="ignore"):
-        return pd.to_numeric(x, errors="coerce")
+    # Derive "side" if missing
+    if "side" not in df.columns:
+        def derive_side(r):
+            if r["market_std"] == "anytime_td":
+                return "Yes"
+            return "Over" if r.get("model_prob", 0.5) >= 0.5 else "Under"
+        df["side"] = df.apply(derive_side, axis=1)
 
-def _norm(s: str) -> str:
-    return re.sub(r"\s+", " ", str(s or "")).strip().lower()
+    # Drop rows missing key values
+    keep = df["model_prob"].notna() & df["mkt_prob"].notna()
+    df = df.loc[keep].copy()
 
-def _first_nonnull(row, cols):
-    for c in cols:
-        if c in row and pd.notna(row[c]) and str(row[c]).strip() != "":
-            return row[c]
-    return np.nan
+    # Add Game column
+    if "game" not in df.columns:
+        if {"home_team", "away_team"}.issubset(df.columns):
+            df["game"] = df["away_team"] + " @ " + df["home_team"]
+        else:
+            df["game"] = ""
 
-def _is_numeric_total_market(mkt) -> bool:
-    m = pretty_market(mkt or "").lower()
-    if not m: return False
-    if "yards" in m: return True
-    return m in {"receptions","rush attempts","pass attempts","completions","passing touchdowns","rushing attempts"}
-
-def mk_line_disp(r):
-    # keep if already nice
-    if "line_disp" in r and str(r["line_disp"]).strip():
-        return str(r["line_disp"]).strip()
-    raw_line = _first_nonnull(r, LINE_CANDIDATES)
-    line_txt = ""
-    if pd.notna(raw_line):
-        try: line_txt = f"{float(raw_line):g}"
-        except Exception: line_txt = str(raw_line).strip()
-    side_raw = str(r.get("name") or r.get("side") or "").strip()  # Over/Under/Yes/No
-    side = side_raw
-    # totals: Yes/No → Over/Under
-    if line_txt and _is_numeric_total_market(r.get("market")):
-        if side_raw.lower() == "yes": side = "Over"
-        elif side_raw.lower() == "no": side = "Under"
-    # Anytime TD special "No Scorer"
-    mkt_lbl = pretty_market(r.get("market","")).lower()
-    player  = str(r.get("player","")).strip().lower()
-    if ("anytime td" in mkt_lbl or "anytime touchdown" in mkt_lbl) and player in {"no scorer","no td scorer","no touchdown scorer"}:
-        return "No Scorer"
-    # assemble
-    if side and line_txt: return f"{side} {line_txt}"
-    return side or line_txt or ""
-
-def kickoff_col(df):
-    if "kick_et" in df.columns: return "kick_et"
-    if "commence_time" in df.columns: return "commence_time"
-    return None
-
-def read_df(path):
-    df = pd.read_csv(path)
-
-    # normalize
-    if "book" not in df.columns and "bookmaker" in df.columns:
-        df["book"] = df["bookmaker"]
-
-    for col in ["price"]:
-        if col in df.columns: df[col] = _num(df[col])
-
-    # kickoff
-    kc = kickoff_col(df)
-    if kc == "commence_time": df["kick_et"] = df["commence_time"]
-
-    # ensure presence
-    for col in ["player","market","book","home_team","away_team","name"]:
-        if col not in df.columns: df[col] = np.nan
-    df["name"] = df["name"].fillna("")
-
-    # line display & game label
-    df["line_disp"] = df.apply(mk_line_disp, axis=1)
-
-    def mk_game(row):
-        for c in GAME_CANDIDATES:
-            if c in df.columns:
-                v = row.get(c)
-                if pd.notna(v) and str(v).strip(): return str(v).strip()
-        away = str(row.get("away_team") or "").strip()
-        home = str(row.get("home_team") or "").strip()
-        return f"{away} vs {home}" if away and home else (away or home or "")
-    df["game_disp"] = df.apply(mk_game, axis=1)
-
-    # implied prob from book price
-    df["imp_prob"] = df["price"].apply(american_to_prob) if "price" in df.columns else np.nan
-
-    # consensus prob by (player, market, game, line_disp)
-    key = ["player","market","game_disp","line_disp"]
-    grp = df.groupby(key, dropna=False)["imp_prob"].median().rename("consensus_prob")
-    df = df.merge(grp, on=key, how="left")
-
-    # edge vs consensus (positive if book is better than consensus)
-    df["consensus_edge_bps"] = 10000.0 * (df["consensus_prob"] - df["imp_prob"])
-
-    # best book per bet (max edge)
-    df["_edge_sort"] = df["consensus_edge_bps"].astype(float).where(df["consensus_edge_bps"].notna(), -1e15)
-    df = (df.sort_values(key + ["_edge_sort"], ascending=[True,True,True,True,False])
-            .drop_duplicates(subset=key, keep="first")
-            .drop(columns=["_edge_sort"])
-            .copy())
-
-    # normalized attrs for filters if you add later
-    df["_mkt_norm"]  = df["market"].apply(lambda m: _norm(pretty_market(m)))
-    df["_game_norm"] = df["game_disp"].apply(_norm)
-    df["_book_norm"] = df["book"].apply(_norm)
+    # Pretty market names
+    df["market_disp"] = df["market_std"].apply(pretty_market)
 
     return df
 
-# -------- rendering --------
-def row_html(r):
-    time = kickoff_et(r.get("kick_et",""))
-    game = str(r.get("game_disp",""))
-    player = str(r.get("player",""))
-    market = pretty_market(r.get("market",""))
-    bet = []
-    ld = str(r.get("line_disp","")).strip()
-    if ld: bet.append(ld)
-    odds = fmt_odds_american(r.get("price"))
-    if odds: bet.append(f"@ {odds}")
-    book = str(r.get("book",""))
-    if book: bet.append(f"on {book}")
-    bet_txt = " ".join(bet)
 
-    cons_p = fmt_pct(r.get("consensus_prob"))
-    edge   = r.get("consensus_edge_bps")
-    edge_txt = "" if (edge is None or (isinstance(edge,float) and math.isnan(edge))) else f"{edge:,.0f} bps"
+def make_overview_table(df: pd.DataFrame) -> str:
+    """Consensus overview by player × market"""
+    agg_dict = {
+        "game": ("game", "first"),
+        "player": ("player", "first"),
+        "market_disp": ("market_disp", "first"),
+        "mkt_prob": ("mkt_prob", "median"),
+        "book_count": ("bookmaker", "nunique"),
+    }
 
-    return f"""<tr>
-      <td>{escape(str(time))}</td>
-      <td class="game">{escape(game)}</td>
-      <td class="player">{escape(player)}</td>
-      <td>{escape(market)}</td>
-      <td class="bet">{escape(bet_txt)}</td>
-      <td class="cons">{escape(cons_p)}</td>
-      <td class="edge">{escape(edge_txt)}</td>
-    </tr>"""
+    if "market_cons_line" in df.columns:
+        agg_dict["cons_line"] = ("market_cons_line", "first")
+    elif "line" in df.columns:
+        agg_dict["cons_line"] = ("line", "median")
 
-def html_page(rows_html, title):
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>{escape(title)}</title>
-<link rel="icon" href="data:,">
-<style>
-:root {{ color-scheme: dark }}
-* {{ box-sizing: border-box; }}
-body {{ margin:0; background:#0b0b0c; color:#e7e7ea; font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Inter,Roboto,Ubuntu,Helvetica,Arial,sans-serif; }}
-.container {{ max-width: 1200px; margin: 0 auto; padding: 18px 16px 32px; }}
-.h1 {{ font-size: clamp(22px,3.5vw,28px); font-weight:900; color:#fff; margin: 4px 0 10px; }}
+    sub = df.groupby(["game", "player", "market_std"], as_index=False).agg(**agg_dict)
 
-.tablewrap {{ overflow:auto; border:1px solid #1f1f22; border-radius:14px; }}
-table {{ width:100%; border-collapse: collapse; min-width: 900px; }}
-thead th {{ text-align:left; font-weight:700; font-size:12px; color:#b7b7bb; padding:10px 12px; background:#111113; position:sticky; top:0; }}
-tbody td {{ border-top:1px solid #1f1f22; padding:10px 12px; font-size:13px; }}
-tbody tr:hover {{ background:#0f0f11; }}
-td.game {{ color:#c8c8cd; }}
-td.player {{ font-weight:700; color:#fff; }}
-td.bet {{ color:#e3e3e6; }}
-td.cons, td.edge {{ white-space:nowrap; }}
+    # Format
+    if "cons_line" in sub.columns:
+        sub["cons_line"] = sub["cons_line"].map(
+            lambda x: f"{x:.1f}" if pd.notna(x) else "—"
+        )
+    else:
+        sub["cons_line"] = "—"
 
-.note {{ margin:10px 0 16px; color:#b7b7bb; font-size:13px; }}
-</style>
-</head>
-<body>
+    sub["mkt_prob"] = sub["mkt_prob"].map(
+        lambda x: f"{x:.1%}" if pd.notna(x) else "—"
+    )
 
-<main class="container">
-  <div class="h1">{escape(title)}</div>
-  <div class="note">Market consensus = median implied probability across books for the same bet. “Edge” shows how favorable the best book is versus that market consensus.</div>
-__FILTERS__
+    html = sub.to_html(
+        classes="sortable filterable",
+        escape=False,
+        index=False,
+        table_id="overview-table",
+    )
+    return html
 
-  <div class="tablewrap">
-    <table>
-      <thead>
-        <tr><th>Kick</th><th>Game</th><th>Player</th><th>Market</th><th>Best book bet</th><th>Market consensus</th><th>Edge</th></tr>
-      </thead>
-      <tbody>
-        {rows_html}
-      </tbody>
-    </table>
-  </div>
-</main>
-</body>
-</html>
+
+def make_value_table(df: pd.DataFrame) -> str:
+    """Per-book value view with model vs market"""
+
+    # Define possible columns in order
+    cols = [
+        "game",
+        "player",
+        "market_disp",
+        "side",
+        "line",              # may or may not exist
+        "odds",
+        "bookmaker_title",
+        "model_prob",
+        "mkt_prob",
+        "edge_bps",
+    ]
+    # Keep only those actually present
+    cols = [c for c in cols if c in df.columns]
+    sub = df[cols].copy()
+
+    # Format only if column exists
+    if "line" in sub.columns:
+        sub["line"] = sub["line"].fillna("—")
+    if "odds" in sub.columns:
+        sub["odds"] = sub["odds"].fillna("—")
+    if "model_prob" in sub.columns:
+        sub["model_prob"] = sub["model_prob"].map(
+            lambda x: f"{x:.1%}" if pd.notna(x) else "—"
+        )
+    if "mkt_prob" in sub.columns:
+        sub["mkt_prob"] = sub["mkt_prob"].map(
+            lambda x: f"{x:.1%}" if pd.notna(x) else "—"
+        )
+    if "edge_bps" in sub.columns:
+        sub["edge_bps"] = sub["edge_bps"].map(
+            lambda x: f"{x:.0f}" if pd.notna(x) else "—"
+        )
+
+    html = sub.to_html(
+        classes="sortable filterable",
+        escape=False,
+        index=False,
+        table_id="value-table",
+    )
+    return html
+
+
+def inject_filters_js() -> str:
+    """Shared filters: Game, Market, Book (dropdowns), Player (text)"""
+    return """
+<script>
+function injectFilters() {
+  const controls = `
+    <div id="filters" style="margin:10px 0;">
+      <label>Game <select id="filter-game"><option value="">All</option></select></label>
+      <label>Market <select id="filter-market"><option value="">All</option></select></label>
+      <label>Book <select id="filter-book"><option value="">All</option></select></label>
+      <label>Player <input type="text" id="filter-player" placeholder="Search player"></label>
+    </div>`;
+  document.querySelector('#overview-table').insertAdjacentHTML('beforebegin', controls);
+
+  function getUnique(colId) {
+    const vals = new Set();
+    document.querySelectorAll('#overview-table tbody tr').forEach(tr => {
+      const td = tr.querySelector(`td:nth-child(${colId})`);
+      if (td) vals.add(td.innerText.trim());
+    });
+    return Array.from(vals).sort();
+  }
+
+  // Populate dropdowns (Game=1st col, Market=3rd, Book ~ Value tab col 7)
+  for (const val of getUnique(1)) {
+    document.querySelector('#filter-game').insertAdjacentHTML('beforeend', `<option>${val}</option>`);
+  }
+  for (const val of getUnique(3)) {
+    document.querySelector('#filter-market').insertAdjacentHTML('beforeend', `<option>${val}</option>`);
+  }
+
+  // Book options from Value table col 7
+  const books = new Set();
+  document.querySelectorAll('#value-table tbody tr').forEach(tr => {
+    const td = tr.querySelector('td:nth-child(7)');
+    if (td) books.add(td.innerText.trim());
+  });
+  for (const val of Array.from(books).sort()) {
+    document.querySelector('#filter-book').insertAdjacentHTML('beforeend', `<option>${val}</option>`);
+  }
+
+  function applyFilters() {
+    const g = document.querySelector('#filter-game').value.toLowerCase();
+    const m = document.querySelector('#filter-market').value.toLowerCase();
+    const b = document.querySelector('#filter-book').value.toLowerCase();
+    const p = document.querySelector('#filter-player').value.toLowerCase();
+
+    function rowMatch(tr, cols) {
+      const tds = tr.querySelectorAll('td');
+      return (!g || tds[0].innerText.toLowerCase().includes(g)) &&
+             (!m || tds[2].innerText.toLowerCase().includes(m)) &&
+             (!p || tds[1].innerText.toLowerCase().includes(p)) &&
+             (!b || (tds.length >= 7 && tds[6].innerText.toLowerCase().includes(b)));
+    }
+
+    document.querySelectorAll('#overview-table tbody tr').forEach(tr => {
+      tr.style.display = rowMatch(tr) ? '' : 'none';
+    });
+    document.querySelectorAll('#value-table tbody tr').forEach(tr => {
+      tr.style.display = rowMatch(tr) ? '' : 'none';
+    });
+  }
+
+  ['#filter-game','#filter-market','#filter-book','#filter-player'].forEach(sel => {
+    document.querySelector(sel).addEventListener('input', applyFilters);
+    document.querySelector(sel).addEventListener('change', applyFilters);
+  });
+}
+document.addEventListener('DOMContentLoaded', injectFilters);
+</script>
 """
-# ... after you finish assembling the final HTML into `html`
+
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--merged_csv", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--week", type=int, default=None)
+    ap.add_argument("--season", type=int, default=2025)
+    ap.add_argument("--week", type=int, required=True)
     ap.add_argument("--title", default=None)
-    ap.add_argument("--limit", type=int, default=3000)
     args = ap.parse_args()
 
-    # 1) Build the table
-    # 1) Build the table
-    # 1) Build the table (from precomputed consensus)
- # add once at top if not already imported
-
-    from pathlib import Path
-
-
-    root = Path(__file__).resolve().parents[1]  # repo root (one up from scripts/)
-    consensus_path = root / f"data/props/consensus_week{args.week}.csv"
-    if not consensus_path.exists():
-        raise FileNotFoundError(
-            f"Consensus CSV not found at {consensus_path}. "
-            f"Run make_consensus.py for week {args.week} first."
-        )
-
-    df = pd.read_csv(consensus_path)
-    print(f"[consensus_page] loaded {len(df)} rows from {consensus_path}")
-
-    # sort for display: highest book_count then highest consensus_prob
-    df = df.sort_values(by=["book_count", "consensus_prob"], ascending=[False, False])
-
-    rows = "\n".join(row_html(r) for _, r in df.iterrows())
-
-    default_title = f"{BRAND} — Consensus (Week {args.week})" if args.week else f"{BRAND} — Consensus"
-    # after args = ap.parse_args() and after you compute rows
-    default_title = f"{BRAND} — Consensus (Week {args.week})" if args.week else f"{BRAND} — Consensus"
-    title = args.title or default_title
-
-    page = html_page(rows, title)          # drives <title> and H1
-    page = inject_filters(page)            # keep your filter injector
-
     out_path = Path(args.out)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    write_with_nav_raw(
-        out_path.as_posix(),
-        title,                              # pass the SAME title to the writer
-        page,
-        active="Consensus",
+
+    # Load + harmonize (keep your helper if you like, then normalize)
+    try:
+        merged = load_and_merge(args.merged_csv, args.week)
+    except Exception:
+        # Fallback if load_and_merge isn’t available/necessary
+        merged = pd.read_csv(args.merged_csv)
+
+    merged = harmonize_columns(merged)
+
+    # Build Overview + Value DataFrames
+    overview_df = build_overview_df(merged)
+    value_df    = build_value_df(merged, overview_df)
+
+    # Column orders for display
+    overview_cols = [
+        "market_std","game","player","market_disp",
+        "mkt_prob_disp","book_count","cons_line_disp",
+    ]
+
+    value_cols = [
+    "game","player","market_disp","side","book",
+    "line_disp","odds_disp","mkt_prob_disp","model_prob_disp","edge_bps_disp",
+    "fair_odds_disp","ev_per_100_disp","cons_line_disp","kick_et",
+    ]
+
+
+    # Render tables with stable ids/classes (for filters + CSS)
+    html_overview = html_table(
+        overview_df, overview_cols, table_id="overview-table",
+        klass="props-table consensus-table"
+    )
+    html_value = html_table(
+        value_df, value_cols, table_id="value-table",
+        klass="props-table consensus-table"
     )
 
+    # Simple two-tab shell; IDs match filter JS expectations
+    tabs_html = f"""
+    <ul class="fv-tabs">
+      <li><a href="#overview">Overview</a></li>
+      <li><a href="#value">Value</a></li>
+    </ul>
+
+    <div id="overview" class="tab-section">
+      {html_overview}
+    </div>
+
+    <div id="value" class="tab-section" style="display:none">
+      {html_value}
+    </div>
+    """
+
+
+    # Append inline filter JS that targets both tables by id
+    page = TABS_CSS + tabs_html + FILTER_JS + TABS_JS
 
 
 
+    title = args.title or f"Fourth & Value — Consensus (Week {args.week}, {args.season})"
 
-    print(f"[consensus] wrote {args.out} with {len(df)} rows (from {len(read_df(args.merged_csv))} source rows)")
+    print("[consensus] overview_df:", list(overview_df.columns), "rows:", len(overview_df))
+    print("[consensus] value_df:",    list(value_df.columns),    "rows:", len(value_df))
+
+    write_with_nav_raw(out_path.as_posix(), title, page, active="Consensus")
+
 
 if __name__ == "__main__":
     main()
