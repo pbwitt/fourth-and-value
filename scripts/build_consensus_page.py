@@ -46,6 +46,10 @@ TABS_CSS = """
 .consensus-table th { text-align: left; }
 .consensus-table td { vertical-align: middle; }
 .consensus-table td.num { text-align: right; white-space: nowrap; }
+
+/* best book highlight */
+.best-book { color: #0a7d32; font-weight: 700; }
+.best-price { font-variant-numeric: tabular-nums; }
 </style>
 """
 
@@ -415,6 +419,32 @@ def best_price_row(group: pd.DataFrame) -> Optional[pd.Series]:
     return candidates.iloc[0]
 
 
+def collect_best_book_ties(group: pd.DataFrame, best_row: Optional[pd.Series]) -> list[str]:
+    if best_row is None:
+        return []
+    try:
+        best_odds = float(best_row.get("odds"))
+    except (TypeError, ValueError):
+        return []
+    if math.isnan(best_odds):
+        return []
+    best_book = canonical_str(best_row.get("book_display", ""))
+    ties: set[str] = set()
+    for _, candidate in group.iterrows():
+        cand_book = canonical_str(candidate.get("book_display", ""))
+        if not cand_book or cand_book == best_book:
+            continue
+        try:
+            cand_odds = float(candidate.get("odds"))
+        except (TypeError, ValueError):
+            continue
+        if math.isnan(cand_odds):
+            continue
+        if cand_odds == best_odds:
+            ties.add(cand_book)
+    return sorted(ties)
+
+
 def aggregate_overview(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return pd.DataFrame(
@@ -454,6 +484,10 @@ def aggregate_overview(df: pd.DataFrame) -> pd.DataFrame:
             book_count = len(group)
 
         best_row = best_price_row(group)
+        best_book = canonical_str(best_row.get("book_display", "")) if best_row is not None else ""
+        best_book_key = canonical_lower(best_row.get("book_key", "")) if best_row is not None else ""
+        best_book_ties = collect_best_book_ties(group, best_row)
+
         best_price_value = best_row.get("odds") if best_row is not None else float("nan")
         best_price_disp = fmt_odds_dash(best_price_value)
         if best_price_disp == DISPLAY_DASH and not math.isnan(cons_prob):
@@ -476,6 +510,9 @@ def aggregate_overview(df: pd.DataFrame) -> pd.DataFrame:
                 "cons_line_disp": fmt_line(cons_line),
                 "cons_prob_disp": fmt_pct_dash(cons_prob),
                 "best_price_disp": best_price_disp,
+                "best_book": best_book,
+                "best_book_key": best_book_key,
+                "best_book_ties": tuple(best_book_ties),
                 "book_count_disp": str(int(book_count)) if not math.isnan(book_count) else DISPLAY_DASH,
                 "game_display": group["game_display"].iloc[0],
                 "market_key": group["market_key"].iloc[0],
@@ -501,7 +538,10 @@ def aggregate_value(df: pd.DataFrame, overview: pd.DataFrame) -> pd.DataFrame:
                 "cons_prob_disp",
                 "model_line_disp",
                 "model_prob_disp",
-                "best_book_price_disp",
+                "best_price_disp",
+                "best_book",
+                "best_book_key",
+                "best_book_ties",
                 "edge_bps_disp",
                 "ev_disp",
                 "game_display",
@@ -540,8 +580,9 @@ def aggregate_value(df: pd.DataFrame, overview: pd.DataFrame) -> pd.DataFrame:
             best_row = group.iloc[0]
 
         best_odds = best_row.get("odds")
-        best_book = best_row.get("book_display", "")
-        best_book_key = best_row.get("book_key", "")
+        best_book = canonical_str(best_row.get("book_display", ""))
+        best_book_key = canonical_lower(best_row.get("book_key", ""))
+        best_book_ties = collect_best_book_ties(group, best_row)
         best_edge = best_row.get("edge_bps")
         if pd.isna(best_edge) and {"model_prob", "mkt_prob"}.issubset(best_row.index):
             mp = best_row.get("model_prob")
@@ -579,7 +620,10 @@ def aggregate_value(df: pd.DataFrame, overview: pd.DataFrame) -> pd.DataFrame:
                 "cons_prob_disp": cons_prob_disp,
                 "model_line_disp": fmt_line(model_line_val),
                 "model_prob_disp": fmt_pct_dash(model_prob_val),
-                "best_book_price_disp": f"{best_book} ({fmt_odds_dash(best_odds)})" if best_book else fmt_odds_dash(best_odds),
+                "best_price_disp": fmt_odds_dash(best_odds),
+                "best_book": best_book,
+                "best_book_key": best_book_key,
+                "best_book_ties": tuple(best_book_ties),
                 "edge_bps_disp": fmt_edge_bps(best_edge),
                 "ev_disp": fmt_ev(best_ev),
                 "game_display": best_row.get("game_display", ""),
@@ -626,16 +670,40 @@ def display_value(value: Optional[object]) -> str:
     return s if s else DISPLAY_DASH
 
 
+def make_book_price_cell(
+    book: Optional[str], price_disp: Optional[str], ties: Optional[Sequence[str]] = None
+) -> str:
+    book_name = canonical_str(book)
+    price_text = canonical_str(price_disp) or DISPLAY_DASH
+
+    also: list[str] = []
+    if ties:
+        also = sorted({canonical_str(t) for t in ties if canonical_str(t) and canonical_str(t) != book_name})
+    title_attr = f' title="Also: {escape(", ".join(also))}"' if also else ""
+
+    if book_name:
+        parts = [f'<span class="best-book"{title_attr}>{escape(book_name)}</span>']
+        if price_text:
+            parts.append(f'<span class="best-price mono">({escape(price_text)})</span>')
+        return " ".join(parts).strip()
+
+    if price_text and price_text != DISPLAY_DASH:
+        return f'<span class="best-price mono">{escape(price_text)}</span>'
+
+    return DISPLAY_DASH
+
+
 def render_overview_table(df: pd.DataFrame) -> str:
+    book_field = "__book_price__"
     columns = [
-        ("Player", "player_display", False),
-        ("Market", "market_label", False),
-        ("Cons. Line", "cons_line_disp", True),
-        ("Impl. %", "cons_prob_disp", True),
-        ("Best Price", "best_price_disp", True),
-        ("#Books", "book_count_disp", True),
+        ("Player", "player_display", False, "player"),
+        ("Market", "market_label", False, "market"),
+        ("Cons. Line", "cons_line_disp", True, "line"),
+        ("Impl. %", "cons_prob_disp", True, "prob"),
+        ("Book / Price", book_field, False, "price"),
+        ("#Books", "book_count_disp", True, "books"),
     ]
-    header = "".join(f"<th>{escape(label)}</th>" for label, _, _ in columns)
+    header = "".join(f"<th>{escape(label)}</th>" for label, _, _, _ in columns)
     rows_html: list[str] = []
     for row in df.itertuples(index=False):
         attrs = {
@@ -649,10 +717,28 @@ def render_overview_table(df: pd.DataFrame) -> str:
             "data-book-labels": getattr(row, "book_labels", ""),
         }
         cells: list[str] = []
-        for label, field, is_num in columns:
-            value = display_value(getattr(row, field, DISPLAY_DASH))
-            cell_class = " class=\"num\"" if is_num else ""
-            cells.append(f"<td{cell_class}>{escape(value)}</td>")
+        for label, field, is_num, css_class in columns:
+            class_parts: list[str] = []
+            if css_class:
+                class_parts.append(css_class)
+            if is_num:
+                class_parts.append("num")
+            class_attr = ""
+            if class_parts:
+                class_attr = f' class="{" ".join(class_parts)}"'
+            if field == book_field:
+                ties = getattr(row, "best_book_ties", ())
+                if isinstance(ties, float) and math.isnan(ties):
+                    ties = ()
+                value_html = make_book_price_cell(
+                    getattr(row, "best_book", ""),
+                    getattr(row, "best_price_disp", DISPLAY_DASH),
+                    ties,
+                )
+                cells.append(f"<td{class_attr}>{value_html}</td>")
+            else:
+                value = display_value(getattr(row, field, DISPLAY_DASH))
+                cells.append(f"<td{class_attr}>{escape(value)}</td>")
         rows_html.append(f"<tr{html_attrs(attrs)}>{''.join(cells)}</tr>")
     body = "\n".join(rows_html)
     return (
@@ -664,18 +750,19 @@ def render_overview_table(df: pd.DataFrame) -> str:
 
 
 def render_value_table(df: pd.DataFrame) -> str:
+    book_field = "__book_price__"
     columns = [
-        ("Player", "player_display", False),
-        ("Market", "market_label", False),
-        ("Market Cons. Line", "cons_line_disp", True),
-        ("Impl. %", "cons_prob_disp", True),
-        ("Model Line (μ/P50)", "model_line_disp", True),
-        ("Model Prob %", "model_prob_disp", True),
-        ("Best Book/Price", "best_book_price_disp", False),
-        ("Edge (bps)", "edge_bps_disp", True),
-        ("EV/$100", "ev_disp", True),
+        ("Player", "player_display", False, "player"),
+        ("Market", "market_label", False, "market"),
+        ("Market Cons. Line", "cons_line_disp", True, "line"),
+        ("Impl. %", "cons_prob_disp", True, "prob"),
+        ("Model Line (μ/P50)", "model_line_disp", True, "model-line"),
+        ("Model Prob %", "model_prob_disp", True, "model-prob"),
+        ("Book / Price", book_field, False, "price"),
+        ("Edge (bps)", "edge_bps_disp", True, "edge"),
+        ("EV/$100", "ev_disp", True, "ev"),
     ]
-    header = "".join(f"<th>{escape(label)}</th>" for label, _, _ in columns)
+    header = "".join(f"<th>{escape(label)}</th>" for label, _, _, _ in columns)
     rows_html: list[str] = []
     for row in df.itertuples(index=False):
         attrs = {
@@ -689,10 +776,28 @@ def render_value_table(df: pd.DataFrame) -> str:
             "data-book-label": getattr(row, "book_display", ""),
         }
         cells: list[str] = []
-        for label, field, is_num in columns:
-            value = display_value(getattr(row, field, DISPLAY_DASH))
-            cell_class = " class=\"num\"" if is_num else ""
-            cells.append(f"<td{cell_class}>{escape(value)}</td>")
+        for label, field, is_num, css_class in columns:
+            class_parts: list[str] = []
+            if css_class:
+                class_parts.append(css_class)
+            if is_num:
+                class_parts.append("num")
+            class_attr = ""
+            if class_parts:
+                class_attr = f' class="{" ".join(class_parts)}"'
+            if field == book_field:
+                ties = getattr(row, "best_book_ties", ())
+                if isinstance(ties, float) and math.isnan(ties):
+                    ties = ()
+                value_html = make_book_price_cell(
+                    getattr(row, "best_book", ""),
+                    getattr(row, "best_price_disp", DISPLAY_DASH),
+                    ties,
+                )
+                cells.append(f"<td{class_attr}>{value_html}</td>")
+            else:
+                value = display_value(getattr(row, field, DISPLAY_DASH))
+                cells.append(f"<td{class_attr}>{escape(value)}</td>")
         rows_html.append(f"<tr{html_attrs(attrs)}>{''.join(cells)}</tr>")
     body = "\n".join(rows_html)
     return (
