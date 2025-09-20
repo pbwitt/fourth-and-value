@@ -65,21 +65,78 @@ def main():
     df["mkt_prob"] = df["price"].apply(american_to_prob)
 
     # --- group across books ---
-    grouped = (
+    # implied probability from American odds already computed as df["mkt_prob"]
+
+# For "best book": choose the book with the most favorable price for the bettor.
+# We use the *most positive* edge vs consensus prob. To compute that, we need consensus first,
+# then scan books inside each group.
+
+    base = (
         df.groupby(["player", "market_std", "side"], dropna=False)
         .agg(
             book_count=("bookmaker", "nunique"),
             consensus_prob=("mkt_prob", "mean"),
             consensus_line=("point", "mean"),
+            # helpful for display
+            game=("game", "first"),
+            commence_time=("commence_time", "first"),
         )
         .reset_index()
     )
 
-    # convert back to consensus odds
+# join back per-book rows so we can pick the best book against consensus
+    cols_keep = [
+        "player", "market_std", "side",
+        "bookmaker", "bookmaker_title", "price", "mkt_prob", "point"
+    ]
+    per_book = df[cols_keep].copy()
+
+    merged = per_book.merge(
+        base[["player", "market_std", "side", "consensus_prob"]],
+        on=["player", "market_std", "side"],
+        how="left",
+    )
+
+    # compute edge vs consensus at the per-book level
+    merged["edge_bps_tmp"] = (merged["mkt_prob"] - merged["consensus_prob"]) * 10_000
+
+    # pick the single best row per (player, market_std, side)
+    idx = (
+        merged.groupby(["player", "market_std", "side"], dropna=False)["edge_bps_tmp"]
+        .idxmax()
+    )
+    best = merged.loc[idx, [
+        "player", "market_std", "side",
+        "bookmaker", "bookmaker_title", "price", "mkt_prob", "edge_bps_tmp"
+    ]].rename(columns={
+        "bookmaker": "best_bookmaker",
+        "bookmaker_title": "best_bookmaker_title",
+        "price": "best_price",
+        "mkt_prob": "best_prob",
+        "edge_bps_tmp": "edge_bps",
+    })
+
+    # final table
+    grouped = base.merge(best, on=["player", "market_std", "side"], how="left")
+
+    # back-convert consensus prob → American odds
     grouped["consensus_odds"] = grouped["consensus_prob"].apply(prob_to_american)
 
     # attach week
     grouped["week"] = args.week
+
+    # tidy column order (nice for downstream rendering)
+    out_cols = [
+        "player", "market_std", "side",
+        "game", "commence_time",
+        "book_count",
+        "consensus_line", "consensus_prob", "consensus_odds",
+        "best_bookmaker_title", "best_bookmaker", "best_price", "best_prob", "edge_bps",
+        "week",
+    ]
+    # keep only those that exist (some markets may lack lines)
+    grouped = grouped[[c for c in out_cols if c in grouped.columns]]
+
 
     # --- write out ---
     out_path = Path(args.out_csv)
