@@ -88,7 +88,25 @@ def pretty_market(m: str) -> str:
     return PRETTY_MAP.get(m_std, m_std.replace("_", " ").title())
 
 # --- Player name normalization (for merge fallbacks)
+
 _name_clean_re = re.compile(r"[^a-z0-9]+")
+
+
+def std_name(s: str) -> str:
+    """
+    Normalize player names to a compressed key:
+      - lowercase
+      - strip non-alphanumeric
+      - no spaces/hyphens
+    Examples:
+      "Kyler Murray" -> "kylermurray"
+      "Jaxon Smith-Njigba" -> "jaxonsmithnjigba"
+    """
+    if s is None:
+        return ""
+    text = unicodedata.normalize("NFKD", str(s))
+    text = text.encode("ascii", "ignore").decode("ascii").lower()
+    return _name_clean_re.sub("", text)
 
 def std_player_name(s: Optional[str]) -> Optional[str]:
     """Lowercase, strip accents/punct/spaces for safer merges."""

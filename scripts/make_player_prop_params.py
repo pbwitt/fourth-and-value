@@ -27,7 +27,44 @@ Usage:
 """
 from __future__ import annotations
 
-from common_markets import standardize_input, apply_priors_if_missing
+# --- shared normalizers / priors -------------------------------------------
+try:
+    from scripts.common_markets import (
+        standardize_input,
+        apply_priors_if_missing,
+        std_name,
+        std_player_name,
+        ensure_param_schema,
+        PRIORS,
+        std_market,
+        MODELED_MARKETS,
+    )
+except ModuleNotFoundError:
+    try:
+        from common_markets import (
+            standardize_input,
+            apply_priors_if_missing,
+            std_name,
+            std_player_name,
+            ensure_param_schema,
+            PRIORS,
+            std_market,
+            MODELED_MARKETS,
+        )
+    except ModuleNotFoundError:
+        import sys, os
+
+        sys.path.append(os.path.dirname(__file__))
+        from common_markets import (
+            standardize_input,
+            apply_priors_if_missing,
+            std_name,
+            std_player_name,
+            ensure_param_schema,
+            PRIORS,
+            std_market,
+            MODELED_MARKETS,
+        )
 
 # --- add near the top of the script (imports) ---
 from pathlib import Path
@@ -103,8 +140,6 @@ def load_weekly_logs_or_fallback(season: int, week: int):
         import nfl_data_py as nfl
     except Exception:
         nfl = None
-
-    from common_markets import std_player_name
 
     def _finalize(df: pd.DataFrame, source: str) -> pd.DataFrame:
         if df is None or len(df) == 0:
@@ -220,10 +255,6 @@ def load_props(path: str) -> pd.DataFrame:
     return pd.read_csv(path, low_memory=False)
 
 import os, sys, numpy as np, pandas as pd
-sys.path.append(os.path.dirname(__file__))
-from common_markets import (
-    standardize_input, ensure_param_schema, apply_priors_if_missing, PRIORS
-)
 
 
 
@@ -327,42 +358,57 @@ def robust_std(s: pd.Series) -> float:
 # -----------------------------
 # Data loading
 # -----------------------------
-def load_props_candidates(props_csv: str) -> pd.DataFrame:
-    """
-    Read the fetched props (latest_all_props.csv or equivalent) and return
-    unique (player, market_std) rows we need to parameterize.
-    """
-    if not os.path.exists(props_csv):
-        raise FileNotFoundError(f"props_csv not found: {props_csv}")
+from pathlib import Path
+import pandas as pd
 
-    raw = pd.read_csv(props_csv, low_memory=False)
-    raw.columns = [c.strip().lower() for c in raw.columns]
+def load_props_candidates(props_csv: str | None) -> pd.DataFrame:
+    # Prefer explicit path if provided, otherwise use sane fallbacks
+    candidates = []
+    if props_csv:
+        candidates.append(Path(props_csv))
+    candidates += [
+        Path("data/props/latest_all_props.csv"),
+        Path("data/props/latest_all_props_clean.csv"),
+    ]
 
-    # normalize possible column names
-    player_col = "player"
-    if "player_name" in raw.columns and "player" not in raw.columns:
-        raw["player"] = raw["player_name"]
+    chosen = None
+    for p in candidates:
+        if p and p.exists():
+            chosen = p
+            break
 
-    if "market" not in raw.columns:
-        raise ValueError("Expected a 'market' column in props CSV.")
+    if chosen is None:
+        raise FileNotFoundError(
+            f"[params] Could not find props CSV. Tried: {', '.join(map(str, candidates))}"
+        )
 
-    # standardize markets
+    df = pd.read_csv(chosen)
 
+    # Minimal column normalization used downstream
+    if "market" not in df.columns and "market_std" in df.columns:
+        df["market"] = df["market_std"]
 
-    # use only markets we know how to parameterize
-    mask = raw["market_std"].isin(NORMAL_MARKETS | POISSON_MARKETS)
-    df = raw.loc[mask, [player_col, "market_std"]].dropna().copy()
-    df[player_col] = df[player_col].astype(str)
+    # Ensure we have a displayable player field (fixes the earlier ValueError pattern too)
+    name_cols = [c for c in ("player","name","player_name","Name") if c in df.columns]
+    if name_cols:
+        df["player_display"] = pd.concat([df[c].astype(str) for c in name_cols], axis=1).bfill(axis=1).iloc[:, 0]
+    else:
+        df["player_display"] = ""
 
-    # dedupe
-    df = df.drop_duplicates(ignore_index=True)
-    df["player_key"] = df[player_col].map(slugify)
-    df["name_std"]   = df[player_col].map(name_std_str)
+    # Best-effort normalized join key
+    if "name_std" not in df.columns:
+        df["name_std"] = (
+            df["player_display"].astype(str).str.lower().str.replace(r"[^a-z0-9]+", "", regex=True)
+        )
 
-    # keep a 'player' column name stable
-    df.rename(columns={player_col: "player"}, inplace=True)
+    # Normalize market_std if missing
+    if "market_std" not in df.columns and "market" in df.columns:
+        df["market_std"] = (
+            df["market"].astype(str).str.lower().str.replace(r"\s+", "_", regex=True)
+        )
 
     return df
+
 
 
 def fetch_recent_game_logs(season: int) -> Optional[pd.DataFrame]:
@@ -644,7 +690,6 @@ def main():
     props = load_props(args.props_csv)
 
     # 1) Normalize market labels on the board to canonical names
-    from common_markets import std_market, MODELED_MARKETS
     pcol = "market_std" if "market_std" in props.columns else "market"
     props["market_std"] = props[pcol].map(std_market)
 
@@ -681,8 +726,6 @@ def main():
     logging.info(f"Loading props from {props_csv}")
     props = load_props(props_csv)
 
-    from common_markets import std_market, MODELED_MARKETS
-
     # normalize book labels → canonical (e.g., player_reception_yds → recv_yds)
     pcol = "market_std" if "market_std" in props.columns else "market"
     props["market_std"] = props[pcol].map(std_market)
@@ -708,7 +751,6 @@ def main():
 
 
     # tidy columns order
-    from common_markets import ensure_param_schema, apply_priors_if_missing
     params = ensure_param_schema(params)
     params = apply_priors_if_missing(params)
 
@@ -728,8 +770,6 @@ def main():
     os.makedirs(os.path.dirname(out_csv), exist_ok=True)
 
     # --- ensure join keys exist in params (permanent fix) ---
-    from common_markets import std_player_name
-
     df = params  # or: df = out   <-- use whatever your params DataFrame is named
 
     # Ensure 'player' exists (fallbacks if your builder used a different column)
@@ -739,17 +779,36 @@ def main():
                 df['player'] = df[c]
                 break
 
-    # name_std from player text
-    if 'name_std' not in df.columns:
-        df['name_std'] = df['player'].map(std_player_name)
+    # Build a readable name_std before compressing for joins
+    if 'name_std' in df.columns:
+        name_vals = df['name_std'].fillna('').astype(str)
     else:
-        df['name_std'] = df['name_std'].fillna(df['player'].map(std_player_name))
+        name_vals = pd.Series('', index=df.index)
 
-    # player_key = existing or fallback to name_std
+    fallback_cols = ('player', 'player_name', 'name')
+    missing_mask = name_vals.eq('')
+    for col in fallback_cols:
+        if not missing_mask.any():
+            break
+        if col in df.columns:
+            fill = df.loc[missing_mask, col].fillna('').astype(str)
+            name_vals.loc[missing_mask] = fill
+            missing_mask = name_vals.eq('')
+
+    name_vals = name_vals.map(name_std_str)
+    df['name_std_spaced'] = name_vals
+    df['name_std'] = df['name_std_spaced'].map(std_name)
+
+    # player_key = existing or fallback to compressed name_std
     if 'player_key' not in df.columns:
         df['player_key'] = df['name_std']
     else:
-        df['player_key'] = df['player_key'].fillna(df['name_std'])
+        missing_key = df['player_key'].isna() | (df['player_key'] == '')
+        df.loc[missing_key, 'player_key'] = df.loc[missing_key, 'name_std']
+
+    distinct_before = df['name_std_spaced'].nunique(dropna=True)
+    distinct_after = df['name_std'].nunique(dropna=True)
+    print(f"[params] name_std distinct (spaced→compressed): {distinct_before} → {distinct_after}")
 
     # put it back if you used another variable name
     params = df  # or: out = df

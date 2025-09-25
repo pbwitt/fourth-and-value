@@ -19,14 +19,72 @@ Usage:
     --params_csv data/props/params_week2.csv \
     --out       data/props/props_with_model_week2.csv
 """
+
+
 import argparse
 import logging
 import math
 import re
 from typing import Iterable, List
+
 import numpy as np
-import pandas as pd# Shared normalizer (you added this module)
-from common_markets import standardize_input
+import pandas as pd  # Shared normalizer (you added this module)
+
+# --- imports near the top ---
+# bad (remove this):
+# from common_markets import standardize_input, std_market, std_name
+
+# good (handles both `python -m scripts.make_props_edges` and `python scripts/make_props_edges.py`)
+try:
+    from scripts.common_markets import standardize_input, std_market
+except ModuleNotFoundError:
+    try:
+        from common_markets import standardize_input, std_market  # fallback if run directly
+    except ModuleNotFoundError:
+        import sys, os
+        sys.path.append(os.path.dirname(__file__))  # last-ditch: add scripts/ to path
+        from common_markets import standardize_input, std_market
+
+
+def std_name(s: str) -> str:
+    if pd.isna(s):
+        return ""
+    s = re.sub(r"[^a-z0-9]+", " ", str(s).lower()).strip()
+    s = re.sub(r"\s+", " ", s)
+    return s
+
+
+def slug_no_space(s: str) -> str:
+    # compressed key for last-ditch joins, e.g. "kyler murray" -> "kylermurray"
+    return re.sub(r"\s+", "", std_name(s))
+
+
+def normalize_side(row: pd.Series) -> str:
+    mkt = str(row.get("market_std", ""))
+    for col in ("side", "selection", "outcome", "label", "bet", "pick"):
+        v = str(row.get(col, "")).strip().lower()
+        if v in ("over", "under", "yes", "no"):
+            if "anytime_td" in mkt:
+                return (
+                    "Yes"
+                    if v == "yes"
+                    else "No" if v == "no" else "Over" if v == "over" else "Under"
+                )
+            return "Over" if v == "over" else ("Under" if v == "under" else ("Yes" if v == "yes" else "No"))
+    p = row.get("model_prob", np.nan)
+    if isinstance(p, (int, float)) and not pd.isna(p) and "anytime_td" not in mkt:
+        return "Over" if float(p) >= 0.5 else "Under"
+    if "anytime_td" in mkt:
+        return "Yes"
+    return ""
+
+
+def _get_series(df: pd.DataFrame, *columns: str) -> pd.Series:
+    for col in columns:
+        if col in df.columns:
+            return df[col]
+    return pd.Series("", index=df.index)
+
 
 from pathlib import Path
 from datetime import datetime, timezone
@@ -283,31 +341,111 @@ def main():
     logging.info(f"[merge] loading params from {args.params_csv}")
     params = standardize_input(load_params(args.params_csv))
 
-    # ---------------- Primary merge ----------------
-    join_keys = [k for k in ("player_key","market_std") if k in props.columns and k in params.columns]
-    if "player_key" not in join_keys:
-        join_keys = [k for k in ("name_std","market_std") if k in props.columns and k in params.columns]
-    merged = props.merge(params[join_keys + ["mu","sigma","lam"]].drop_duplicates(), on=join_keys, how="left")
+    # --- Normalize merge keys --------------------------------------------------
+    props["market_std"] = _get_series(props, "market_std", "market").apply(std_market)
+    params["market_std"] = _get_series(params, "market_std", "market").apply(std_market)
 
-    # aligned fallback stays the same but without point_key
-    need = merged[["mu","sigma","lam"]].isna().all(axis=1)
-    alt_keys = [k for k in ("name_std","market_std") if k in merged.columns and k in params.columns]
-    if need.any() and set(alt_keys) == {"name_std","market_std"}:
-        alt = merged.loc[need, alt_keys].merge(params[alt_keys + ["mu","sigma","lam"]].drop_duplicates(), on=alt_keys, how="left")
-        for col in ("mu","sigma","lam"):
-            sel = need & merged[col].isna()
-            merged.loc[sel, col] = alt[col].values
+    props_name_src = _get_series(props, "player", "name")
+    props["name_std"] = props_name_src.fillna("").apply(std_name)
+    props["name_slug"] = props["name_std"].apply(slug_no_space)
 
+    params_name_src = _get_series(params, "player", "name")
+    params["name_std"] = params_name_src.fillna("").apply(std_name)
+    params["name_slug"] = params["name_std"].apply(slug_no_space)
 
-    merged = props.merge(
-        params[join_keys + ["mu", "sigma", "lam"]].drop_duplicates(),
-        on=join_keys,
-        how="left",
+    props["side"] = props.apply(normalize_side, axis=1)
+    props["side"] = props["side"].astype(str).str.title().replace(
+        {"Yes": "Yes", "No": "No", "Over": "Over", "Under": "Under"}
     )
+
+    if "side" in params.columns:
+        params["side"] = params["side"].astype(str).str.title()
+    else:
+        params["side"] = ""
+
+        # --- Normalize market + side consistently on BOTH frames -------------------
+    try:
+        # if you have the shared mapper, use it
+        from scripts.common_markets import std_market
+    except Exception:
+        ALIAS = {
+            "reception_yds": "recv_yds",
+            "receiving_yards": "recv_yds",
+            "rush_att": "rush_attempts",
+            "pass_tds": "pass_tds",         # keep stable even if sources vary
+            "pass_interceptions": "pass_ints",
+        }
+        def std_market(s: str) -> str:
+            s = str(s or "").strip().lower().replace(" ", "_")
+            return ALIAS.get(s, s)
+
+    def norm_side(s):
+        if s is None: return ""
+        s = str(s).strip().lower()
+        return {"o":"Over","over":"Over","u":"Under","under":"Under","y":"Yes","yes":"Yes","n":"No","no":"No"}.get(s, s.title())
+
+    for df in (props, params):
+        if "market_std" not in df.columns and "market" in df.columns:
+            df["market_std"] = df["market"].map(std_market)
+        else:
+            df["market_std"] = df["market_std"].map(std_market)
+        if "side" in df.columns:
+            df["side"] = df["side"].map(norm_side)
+
+
+    # ---------------- Merge params ----------------
+    # === Begin params merge (no line in keys) ==================================
+# We intentionally do NOT join on line/point_key. Params are per (player, market).
+    key_sets = []
+
+    # Strongest keys first
+    if all(k in props.columns and k in params.columns for k in ("player_key", "market_std")):
+        key_sets.append(["player_key", "market_std"])
+
+    # Fallbacks (names) — still without line
+    if all(k in props.columns and k in params.columns for k in ("name_std", "market_std")):
+        key_sets.append(["name_std", "market_std"])
+    if all(k in props.columns and k in params.columns for k in ("name_slug", "market_std")):
+        key_sets.append(["name_slug", "market_std"])
+
+    def _merge_on(keys):
+        return props.merge(params, how="left", on=keys, suffixes=("", "_param"), indicator=True)
+
+    best = None
+    best_hr = -1.0
+    for keys in key_sets:
+        cand = _merge_on(keys)
+        hr = cand["_merge"].eq("both").mean() if "_merge" in cand.columns else 0.0
+        if hr > best_hr:
+            best, best_hr = cand, hr
+
+    tmp = best if best is not None else props.copy()
+    merge_hit_rate = best_hr if best is not None else 0.0
+    logging.info(f"[merge] param merge hit rate: {merge_hit_rate:.2%}")
+
+
+# === End params merge =======================================================
+
+
+    for col in ("mu", "sigma", "lam", "model_prob", "model_line"):
+        param_col = f"{col}_param"
+        if col in tmp.columns and param_col in tmp.columns:
+            tmp[col] = np.where(tmp[col].isna(), tmp[param_col], tmp[col])
+
+    drop_cols = [c for c in tmp.columns if c.endswith("_param")]
+    if "_merge" in tmp.columns:
+        drop_cols.append("_merge")
+    merged = tmp.drop(columns=drop_cols, errors="ignore")
 
     # ---- normalize side + point BEFORE computing model_prob ----
 # many feeds put "Over 65.5" / "UNDER" / "Yes" in various columns; normalize to {over, under, yes, no}
+    if "side" in merged.columns:
+        merged["side"] = merged["side"].astype(str).str.title()
+
     merged["name"] = merged.get("name", "").astype(str).str.strip().str.lower()
+    if "side" in merged.columns:
+        empty = merged["name"].isin(["", "nan", "none", "null"])
+        merged.loc[empty, "name"] = merged.loc[empty, "side"].astype(str).str.strip().str.lower()
 
     # if there are alternate side columns, use them to fill missing
     for alt in ("selection", "bet_selection", "bet_side", "over_under"):
@@ -323,24 +461,6 @@ def main():
 
     # ensure numeric threshold for O/U markets
     merged["point"] = pd.to_numeric(merged.get("point", np.nan), errors="coerce")
-
-
-    # ---------------- Fallback fill (ALIGNED) ----------------
-    # Identify rows that still have no model params after the primary merge
-    need = merged[["mu", "sigma", "lam"]].isna().all(axis=1)
-
-    # Try a name_std-based fallback (still aligned to merged, NOT props)
-    alt_keys = [k for k in ("name_std", "market_std", "point_key")
-                if k in merged.columns and k in params.columns]
-    if need.any() and set(alt_keys) == {"name_std", "market_std", "point_key"}:
-        alt = merged.loc[need, alt_keys].merge(
-            params[alt_keys + ["mu", "sigma", "lam"]].drop_duplicates(),
-            on=alt_keys, how="left"
-        )
-        for col in ("mu", "sigma", "lam"):
-            sel = need & merged[col].isna()
-            merged.loc[sel, col] = alt[col].values
-
     # ---------------- Probabilities & edges ----------------
     # Market implied prob from American price
     merged["mkt_prob"] = merged["price"].map(american_to_prob)

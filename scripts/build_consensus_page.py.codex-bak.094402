@@ -1,0 +1,1241 @@
+#!/usr/bin/env python3
+"""Build the consensus props page with Overview and Value tabs."""
+
+from __future__ import annotations
+
+import argparse
+import math
+import re
+from html import escape
+from pathlib import Path
+from typing import Optional, Sequence
+
+import numpy as np
+import pandas as pd
+
+from site_common import (
+    BRAND,
+    american_to_prob,
+    fmt_odds_american,
+    fmt_pct,
+    kickoff_et,
+    pretty_market,
+    write_with_nav_raw,
+)
+
+DISPLAY_DASH = "—"
+MODEL_LINE_CANDIDATES: Sequence[str] = (
+    "model_line",
+    "model_mu",
+    "model_p50",
+    "mu",
+)
+
+
+def std_name(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(s).lower())
+
+TABS_CSS = """
+<style>
+.fv-tabs { list-style: none; padding: 0; margin: 0 0 10px 0; display: flex; gap: 14px; }
+.fv-tabs li { display: inline; }
+.fv-tabs a { text-decoration: none; font-weight: 600; color: inherit; }
+.fv-tabs a.active { text-decoration: underline; }
+.fv-tabs a:hover { text-decoration: underline; }
+
+.fv-filter-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 8px 0 16px; }
+.fv-filter-bar label { font-size: 0.95rem; display: inline-flex; align-items: center; gap: 6px; }
+.fv-filter-bar select, .fv-filter-bar input { padding: 4px 6px; }
+
+.consensus-table { border-collapse: collapse; width: 100%; margin: 6px 0 24px; }
+.consensus-table th, .consensus-table td { border: 1px solid rgba(255,255,255,0.15); padding: 6px 8px; }
+.consensus-table th { text-align: left; }
+.consensus-table td { vertical-align: middle; }
+.consensus-table td.num,
+.consensus-table td.books,
+.consensus-table td.pct,
+.consensus-table td.prob,
+.consensus-table td.line,
+.consensus-table td.model_line,
+.consensus-table td.book_line,
+.consensus-table td.cons_line,
+.consensus-table td.model_prob,
+.consensus-table td.bps,
+.consensus-table td.money,
+.consensus-table td.odds { text-align: right; white-space: nowrap; }
+
+/* best book highlight */
+.best-book { color: #111; font-weight: 700; }
+.best-price { font-variant-numeric: tabular-nums; }
+.booklink, .booklink:visited { color: #111 !important; text-decoration: none; font-weight: 700; }
+</style>
+"""
+
+TABS_CSS += """
+<style>
+  .filters{display:flex;gap:16px;align-items:center;margin:8px 0 12px;flex-wrap:wrap}
+  .filters select,.filters input[type=text]{padding:4px 6px}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:6px 8px;border-bottom:1px solid #eee}
+  th{font-weight:600;text-align:left}
+  td.num,td.books,td.pct,td.prob,td.line,td.model_line,td.book_line,td.cons_line,td.model_prob,td.bps,td.money,td.odds{text-align:right;white-space:nowrap}
+  td.player,td.market{white-space:nowrap}
+  .bookcell a{font-weight:700;text-decoration:none}
+  .muted{color:#777}
+</style>
+"""
+
+TABS_CSS += """
+<style>
+.tbl td.model_line, .tbl td.book_line, .tbl td.cons_line,
+.tbl td.prob, .tbl td.edgepos, .tbl td.edgeneg, .tbl td.edge0, .tbl td.ev {
+  text-align: right; white-space: nowrap;
+}
+.tbl td.edgepos { color: #0a0; font-variant-numeric: tabular-nums; }
+.tbl td.edgeneg { color: #b00020; font-variant-numeric: tabular-nums; }
+.tbl td.edge0   { color: #777; font-variant-numeric: tabular-nums; }
+.tbl td.book { color: #111; }
+.tbl td.book a,
+.tbl td.book .booklink { color: #111 !important; text-decoration: none; }
+.tbl td.book a:hover { text-decoration: underline; }
+/* ensure legacy spans remain black */
+.tbl td.book .best-book { color: #111; font-weight: 700; }
+</style>
+"""
+
+TABS_JS = """
+<script>
+function showTab(id) {
+  document.querySelectorAll('.tab-section').forEach(el => el.style.display = 'none');
+  const el = document.getElementById(id);
+  if (el) el.style.display = '';
+  document.querySelectorAll('.fv-tabs a').forEach(a => {
+    if (a.getAttribute('href') === '#' + id) a.classList.add('active');
+    else a.classList.remove('active');
+  });
+}
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.fv-tabs a').forEach(a => {
+    a.addEventListener('click', function(evt) {
+      evt.preventDefault();
+      const id = this.getAttribute('href').slice(1);
+      history.replaceState(null, '', '#' + id);
+      showTab(id);
+    });
+  });
+  const initial = (location.hash || '#overview').slice(1);
+  showTab(initial);
+});
+</script>
+"""
+
+FILTER_BAR_HTML = """
+<div class="filters fv-filter-bar" id="fv-filter-bar">
+  <label>Game <select id="filter-game"><option value="">All</option></select></label>
+  <label>Market <select id="filter-market"><option value="">All</option></select></label>
+  <label>Book <select id="filter-book"><option value="">All</option></select></label>
+  <label>Player <input type="text" id="filter-player" placeholder="Search player" /></label>
+</div>
+"""
+
+FILTER_JS = """
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const gameSel = document.getElementById('filter-game');
+  const marketSel = document.getElementById('filter-market');
+  const bookSel = document.getElementById('filter-book');
+  const playerInput = document.getElementById('filter-player');
+  if (!gameSel || !marketSel || !bookSel || !playerInput) return;
+
+  const rows = Array.from(document.querySelectorAll('table.consensus-table tbody tr'));
+  const bookEntries = new Map();
+  const marketEntries = new Map();
+  const gameEntries = new Set();
+
+  function addBook(key, label) {
+    if (!key) return;
+    if (!bookEntries.has(key)) {
+      bookEntries.set(key, label || key);
+    }
+  }
+
+  rows.forEach(row => {
+    const game = row.dataset.game || '';
+    if (game) gameEntries.add(game);
+    const marketKey = row.dataset.market || '';
+    const marketLabel = row.dataset.marketLabel || marketKey;
+    if (marketKey) marketEntries.set(marketKey, marketLabel);
+
+    if (row.dataset.book) {
+      addBook(row.dataset.book, row.dataset.bookLabel || row.dataset.book);
+    }
+    const bookList = row.dataset.books ? row.dataset.books.split(',') : [];
+    const bookLabelList = row.dataset.bookLabels ? row.dataset.bookLabels.split('|') : [];
+    bookList.forEach((key, idx) => {
+      const label = bookLabelList[idx] || bookLabelList[0] || key;
+      addBook(key, label);
+    });
+  });
+
+  function populateSelect(select, entries) {
+    const items = Array.from(entries.entries());
+    items.sort((a, b) => a[1].localeCompare(b[1]));
+    items.forEach(([value, label]) => {
+      const opt = document.createElement('option');
+      opt.value = value;
+      opt.textContent = label || value || '—';
+      select.appendChild(opt);
+    });
+  }
+
+  populateSelect(gameSel, new Map(Array.from(gameEntries).map(v => [v, v])));
+  populateSelect(marketSel, marketEntries);
+  populateSelect(bookSel, bookEntries);
+
+  function matches(row, state) {
+    const game = row.dataset.game || '';
+    const market = row.dataset.market || '';
+    const player = row.dataset.player || '';
+    const book = row.dataset.book || '';
+    const books = row.dataset.books || '';
+
+    if (state.game && game !== state.game) return false;
+    if (state.market && market !== state.market) return false;
+    if (state.player && !player.includes(state.player)) return false;
+    if (state.book) {
+      if (book) {
+        if (book !== state.book) return false;
+      } else if (books) {
+        if (!("," + books + ",").includes("," + state.book + ",")) return false;
+      } else {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function applyFilters() {
+    const state = {
+      game: gameSel.value,
+      market: marketSel.value,
+      book: bookSel.value,
+      player: playerInput.value.trim().toLowerCase(),
+    };
+
+    rows.forEach(row => {
+      row.style.display = matches(row, state) ? '' : 'none';
+    });
+  }
+
+  gameSel.addEventListener('change', applyFilters);
+  marketSel.addEventListener('change', applyFilters);
+  bookSel.addEventListener('change', applyFilters);
+  playerInput.addEventListener('input', applyFilters);
+});
+</script>
+"""
+
+def prob_to_american(prob: float) -> float:
+    try:
+        p = float(prob)
+    except (TypeError, ValueError):
+        return float("nan")
+    if not (0 < p < 1):
+        return float("nan")
+    if p >= 0.5:
+        return -round(p * 100.0 / (1.0 - p))
+    return round((1.0 - p) * 100.0 / p)
+
+
+def expected_value_per_100(prob: float, odds: float) -> float:
+    try:
+        p = float(prob)
+        o = float(odds)
+    except (TypeError, ValueError):
+        return float("nan")
+    if not (0 <= p <= 1):
+        return float("nan")
+    if math.isnan(p) or math.isnan(o):
+        return float("nan")
+    win_profit = o if o > 0 else 10000.0 / (-o)
+    return p * win_profit - (1.0 - p) * 100.0
+
+def _pick_col(df: pd.DataFrame, *candidates: str) -> Optional[str]:
+    for col in candidates:
+        if col in df.columns:
+            return col
+    return None
+
+
+def _fmt_line(value: object) -> str:
+    try:
+        if pd.isna(value):  # type: ignore[arg-type]
+            return DISPLAY_DASH
+    except Exception:
+        pass
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        text = canonical_str(value)
+        return text if text else DISPLAY_DASH
+    if math.isnan(f):
+        return DISPLAY_DASH
+    if float(f).is_integer():
+        return f"{int(f)}"
+    return f"{f:.1f}"
+
+
+def _fmt_pct_or_dash(value: object) -> str:
+    try:
+        if pd.isna(value):  # type: ignore[arg-type]
+            return DISPLAY_DASH
+    except Exception:
+        pass
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return DISPLAY_DASH
+    if math.isnan(v):
+        return DISPLAY_DASH
+    return fmt_pct(v)
+
+
+def _market_with_side(row: pd.Series) -> str:
+    base = row.get("market")
+    ms = row.get("market_std", base)
+    label = pretty_market(ms if pd.isna(base) or base == "" else base)
+    side = str(row.get("side", "")).strip()
+    if not side or side.lower() == "nan":
+        return label
+    return f"{label} — {side.title()}"
+
+
+def canonical_str(value: Optional[str]) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def canonical_lower(value: Optional[str]) -> str:
+    return canonical_str(value).lower()
+
+
+def normalize_side(raw: Optional[str], market_std: Optional[str] = None) -> str:
+    s = canonical_lower(raw)
+    if not s:
+        if market_std and str(market_std).lower() in {"anytime_td", "first_td", "last_td"}:
+            return "Yes"
+        return ""
+    if "over" in s:
+        return "Over"
+    if "under" in s:
+        return "Under"
+    if "yes" in s:
+        return "Yes"
+    if "no" in s:
+        return "No"
+    return s.title()
+
+
+def choose_player(row: pd.Series) -> str:
+    for col in ("player", "name", "name_std"):
+        if col in row and canonical_str(row[col]):
+            return canonical_str(row[col])
+    return ""
+
+
+def choose_book(row: pd.Series) -> str:
+    for col in ("book", "bookmaker_title", "bookmaker", "book_name"):
+        if col in row and canonical_str(row[col]):
+            return canonical_str(row[col])
+    return ""
+
+
+def choose_market_key(row: pd.Series) -> str:
+    for col in ("market_std", "market"):
+        if col in row and canonical_str(row[col]):
+            return canonical_str(row[col])
+    return ""
+
+
+def choose_model_line(series: pd.Series) -> float:
+    for col in MODEL_LINE_CANDIDATES:
+        if col in series and pd.notna(series[col]):
+            try:
+                return float(series[col])
+            except (TypeError, ValueError):
+                continue
+    return float("nan")
+
+
+def ensure_columns(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    if "line" not in df.columns:
+        for alt in ("point", "threshold", "points"):
+            if alt in df.columns:
+                df["line"] = df[alt]
+                break
+    if "price" not in df.columns and "odds" in df.columns:
+        df["price"] = df["odds"]
+    if "odds" not in df.columns and "price" in df.columns:
+        df["odds"] = df["price"]
+    if "book" not in df.columns:
+        for alt in ("bookmaker_title", "bookmaker", "book_name"):
+            if alt in df.columns:
+                df["book"] = df[alt]
+                break
+    if "market" not in df.columns and "market_std" in df.columns:
+        df["market"] = df["market_std"]
+    if "player" not in df.columns:
+        for alt in ("name", "name_std"):
+            if alt in df.columns:
+                df["player"] = df[alt]
+                break
+    if "game" not in df.columns and {"away_team", "home_team"}.issubset(df.columns):
+        df["game"] = df[["away_team", "home_team"]].agg(
+            lambda s: f"{canonical_str(s['away_team'])} @ {canonical_str(s['home_team'])}", axis=1
+        )
+    if "kickoff_et" not in df.columns:
+        for alt in ("kickoff", "commence_time", "commence", "start_time"):
+            if alt in df.columns:
+                df["kickoff_et"] = df[alt].map(kickoff_et)
+                break
+    return df
+
+
+def harmonize(df: pd.DataFrame) -> pd.DataFrame:
+    df = ensure_columns(df)
+
+    numeric_cols = [
+        "line",
+        "price",
+        "odds",
+        "mkt_prob",
+        "edge_bps",
+    ] + [c for c in MODEL_LINE_CANDIDATES if c in df.columns and c != "model_line"]
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    if "mkt_prob" not in df.columns and "odds" in df.columns:
+        df["mkt_prob"] = df["odds"].map(american_to_prob)
+    model_prob_numeric = None
+    if "model_prob" in df.columns:
+        model_prob_numeric = pd.to_numeric(df["model_prob"], errors="coerce")
+        df["_model_prob_numeric"] = model_prob_numeric
+    if (
+        "edge_bps" not in df.columns
+        and model_prob_numeric is not None
+        and "mkt_prob" in df.columns
+    ):
+        df["edge_bps"] = (model_prob_numeric - df["mkt_prob"]) * 10000.0
+
+    df["player_display"] = df.apply(choose_player, axis=1)
+    df["player_key"] = df["player_display"].str.lower()
+
+    df["book_display"] = df.apply(choose_book, axis=1)
+    df["book_key"] = df["book_display"].str.lower()
+
+    df["market_key"] = df.apply(choose_market_key, axis=1)
+    df["market_disp_base"] = df["market_key"].map(pretty_market)
+
+    df["side"] = df.apply(lambda r: normalize_side(r.get("side"), r.get("market_key")), axis=1)
+    df["side_key"] = df["side"].str.lower()
+
+    if "game" in df.columns:
+        df["game_display"] = df["game"].fillna("")
+    else:
+        df["game_display"] = ""
+
+    return df
+
+
+def best_price_row(group: pd.DataFrame) -> Optional[pd.Series]:
+    if group.empty:
+        return None
+    candidates = group.copy()
+    if "edge_bps" in candidates.columns and candidates["edge_bps"].notna().any():
+        candidates = candidates.sort_values(["edge_bps"], ascending=False)
+    elif {"model_prob", "mkt_prob"}.issubset(candidates.columns):
+        model_probs = pd.to_numeric(candidates["model_prob"], errors="coerce")
+        mkt_probs = pd.to_numeric(candidates["mkt_prob"], errors="coerce")
+        diff = (model_probs - mkt_probs).fillna(float("nan"))
+        candidates = candidates.assign(_diff=diff).sort_values(["_diff"], ascending=False)
+    elif "odds" in candidates.columns:
+        candidates = candidates.sort_values(["odds"], ascending=False)
+    return candidates.iloc[0]
+
+
+def collect_best_book_ties(group: pd.DataFrame, best_row: Optional[pd.Series]) -> list[str]:
+    if best_row is None:
+        return []
+    try:
+        best_odds = float(best_row.get("odds"))
+    except (TypeError, ValueError):
+        return []
+    if math.isnan(best_odds):
+        return []
+    best_book = canonical_str(best_row.get("book_display", ""))
+    ties: set[str] = set()
+    for _, candidate in group.iterrows():
+        cand_book = canonical_str(candidate.get("book_display", ""))
+        if not cand_book or cand_book == best_book:
+            continue
+        try:
+            cand_odds = float(candidate.get("odds"))
+        except (TypeError, ValueError):
+            continue
+        if math.isnan(cand_odds):
+            continue
+        if cand_odds == best_odds:
+            ties.add(cand_book)
+    return sorted(ties)
+
+
+def first_value(frame: pd.DataFrame, column: str, default: object = "") -> object:
+    if column in frame.columns and len(frame[column]) > 0:
+        return frame[column].iloc[0]
+    return default
+
+
+def aggregate_overview(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return pd.DataFrame(
+            columns=[
+                "player",
+                "player_key",
+                "market",
+                "market_std",
+                "side",
+                "side_key",
+                "game_display",
+                "books",
+                "book_labels",
+                "book_count",
+                "model_line",
+                "mu",
+                "P50",
+                "line",
+                "consensus_line",
+                "consensus_prob",
+            ]
+        )
+
+    group_cols = [c for c in ("game_display", "player_key", "market_key", "side_key", "point_key") if c in df.columns]
+    if not group_cols:
+        group_cols = [c for c in ("player_key", "market_key") if c in df.columns]
+
+    rows: list[dict[str, object]] = []
+
+    for _, group in df.groupby(group_cols, dropna=False):
+        group = group.copy()
+        line_col = _pick_col(group, "line", "point", "median", "P50")
+        if line_col:
+            group[line_col] = pd.to_numeric(group[line_col], errors="coerce")
+            cons_line = float(group[line_col].median())
+        else:
+            cons_line = float("nan")
+
+        group["mkt_prob"] = pd.to_numeric(group.get("mkt_prob"), errors="coerce")
+        cons_prob = float(group["mkt_prob"].median()) if "mkt_prob" in group else float("nan")
+
+        if "book_key" in group.columns:
+            book_series = group["book_key"].astype(str).str.strip()
+            book_count = int(book_series[book_series != ""].nunique())
+        else:
+            book_count = len(group)
+
+        best_row = best_price_row(group)
+        if best_row is not None:
+            model_line_val = choose_model_line(best_row)
+            mu_val = best_row.get("mu", np.nan)
+            p50_val = best_row.get("P50", best_row.get("median", np.nan))
+            book_line_val = float(best_row.get(line_col)) if line_col else float("nan")
+        else:
+            model_line_val = float("nan")
+            mu_val = np.nan
+            p50_val = np.nan
+            book_line_val = float("nan")
+
+        books_sorted = sorted(
+            {
+                (
+                    canonical_lower(row.get("book_key", "")),
+                    canonical_str(row.get("book_display", "")),
+                )
+                for _, row in group.iterrows()
+                if canonical_str(row.get("book_key", ""))
+            }
+        )
+        book_keys = ",".join(key for key, _ in books_sorted)
+        book_labels = "|".join(label for _, label in books_sorted)
+
+        rows.append(
+            {
+                "player": canonical_str(first_value(group, "player_display", first_value(group, "player", ""))),
+                "player_key": canonical_lower(first_value(group, "player_key", "")),
+                "market": canonical_str(first_value(group, "market", first_value(group, "market_disp_base", ""))),
+                "market_std": canonical_str(first_value(group, "market_key", "")),
+                "market_key": canonical_str(first_value(group, "market_key", "")),
+                "market_disp_base": canonical_str(first_value(group, "market_disp_base", "")),
+                "side": canonical_str(first_value(group, "side", "")),
+                "side_key": canonical_lower(first_value(group, "side_key", "")),
+                "game_display": canonical_str(first_value(group, "game_display", "")),
+                "point_key": canonical_str(first_value(group, "point_key", "")),
+                "point": first_value(group, "point", np.nan),
+                "books": book_keys,
+                "book_labels": book_labels,
+                "book_count": book_count,
+                "book_cnt": book_count,
+                "model_line": model_line_val,
+                "mu": mu_val,
+                "P50": p50_val,
+                "line": book_line_val,
+                "line_disp": book_line_val,
+                "consensus_line": cons_line,
+                "cons_line_disp": cons_line,
+                "consensus_prob": cons_prob,
+                "market_cons_prob": cons_prob,
+            }
+        )
+
+    out = pd.DataFrame(rows)
+    return out.sort_values(["player", "market", "side"]).reset_index(drop=True)
+
+
+def aggregate_value(df: pd.DataFrame, overview: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return pd.DataFrame(
+            columns=[
+                "player",
+                "player_key",
+                "market",
+                "market_std",
+                "side",
+                "side_key",
+                "game_display",
+                "book",
+                "book_key",
+                "bookmaker_title",
+                "price",
+                "odds",
+                "line",
+                "model_line",
+                "mu",
+                "P50",
+                "consensus_line",
+                "consensus_prob",
+                "model_prob",
+                "edge_bps",
+                "ev_per_100",
+                "best_book_ties",
+                "market_disp_base",
+                "point_key",
+            ]
+        )
+
+    overview_index_cols = [c for c in ("player_key", "market_std", "side_key", "point_key") if c in overview.columns]
+    overview_lookup = overview.set_index(overview_index_cols) if overview_index_cols else None
+
+    group_cols = [c for c in ("game_display", "player_key", "market_key", "side_key", "point_key") if c in df.columns]
+    if not group_cols:
+        group_cols = [c for c in ("player_key", "market_key", "side_key") if c in df.columns]
+
+    rows: list[dict[str, object]] = []
+
+    for _, group in df.groupby(group_cols, dropna=False):
+        group = group.copy()
+        line_col = _pick_col(group, "line", "point", "median", "P50")
+        price_col = _pick_col(group, "price", "odds", "american_odds")
+
+        if line_col:
+            group[line_col] = pd.to_numeric(group[line_col], errors="coerce")
+        if price_col:
+            group[price_col] = pd.to_numeric(group[price_col], errors="coerce")
+        if "odds" in group.columns:
+            group["odds"] = pd.to_numeric(group["odds"], errors="coerce")
+        if "edge_bps" in group.columns:
+            group["edge_bps"] = pd.to_numeric(group["edge_bps"], errors="coerce")
+
+        best_row = best_price_row(group)
+        if best_row is None:
+            continue
+
+        ties = collect_best_book_ties(group, best_row)
+        model_prob_val = best_row.get("model_prob")
+        try:
+            model_prob_val = float(model_prob_val)
+        except (TypeError, ValueError):
+            model_prob_val = float("nan")
+        if math.isnan(model_prob_val):
+            continue
+
+        price_value = float(best_row.get(price_col)) if price_col else float("nan")
+        if math.isnan(price_value) and "odds" in best_row:
+            try:
+                price_value = float(best_row.get("odds"))
+            except (TypeError, ValueError):
+                price_value = float("nan")
+
+        line_value = float(best_row.get(line_col)) if line_col else float("nan")
+        model_line_val = choose_model_line(best_row)
+        mu_val = best_row.get("mu", np.nan)
+        p50_val = best_row.get("P50", best_row.get("median", np.nan))
+
+        edge_val = best_row.get("edge_bps")
+        try:
+            edge_val = float(edge_val)
+        except (TypeError, ValueError):
+            edge_val = float("nan")
+
+        ev_val = best_row.get("ev_per_100")
+        try:
+            ev_val = float(ev_val)
+        except (TypeError, ValueError):
+            ev_val = float("nan")
+        if math.isnan(ev_val):
+            ev_val = expected_value_per_100(model_prob_val, price_value)
+
+        lookup_key = None
+        if overview_lookup is not None:
+            key_parts = []
+            for col in overview_index_cols:
+                if col == "player_key":
+                    key_parts.append(canonical_lower(best_row.get("player_key", "")))
+                elif col == "market_std":
+                    key_parts.append(canonical_str(best_row.get("market_key", "")))
+                elif col == "side_key":
+                    key_parts.append(canonical_lower(best_row.get("side_key", "")))
+                elif col == "point_key":
+                    key_parts.append(canonical_str(best_row.get("point_key", "")))
+                else:
+                    key_parts.append(canonical_str(best_row.get(col, "")))
+            lookup_key = tuple(key_parts)
+
+        cons_line = float("nan")
+        cons_prob = float("nan")
+        if overview_lookup is not None and lookup_key is not None and lookup_key in overview_lookup.index:
+            ov_row = overview_lookup.loc[lookup_key]
+            if isinstance(ov_row, pd.DataFrame):
+                ov_row = ov_row.iloc[0]
+            cons_line = ov_row.get("consensus_line", float("nan"))
+            cons_prob = ov_row.get("consensus_prob", float("nan"))
+
+        rows.append(
+            {
+                "player": canonical_str(best_row.get("player_display", best_row.get("player", ""))),
+                "player_key": canonical_lower(best_row.get("player_key", "")),
+                "market": canonical_str(best_row.get("market", best_row.get("market_disp_base", ""))),
+                "market_std": canonical_str(best_row.get("market_key", "")),
+                "market_key": canonical_str(best_row.get("market_key", "")),
+                "market_disp_base": canonical_str(best_row.get("market_disp_base", "")),
+                "side": canonical_str(best_row.get("side", "")),
+                "side_key": canonical_lower(best_row.get("side_key", "")),
+                "game_display": canonical_str(best_row.get("game_display", "")),
+                "book": canonical_str(best_row.get("book_display", best_row.get("book", ""))),
+                "book_label": canonical_str(best_row.get("book_display", "")),
+                "book_key": canonical_lower(best_row.get("book_key", "")),
+                "bookmaker_title": canonical_str(best_row.get("bookmaker_title", best_row.get("book", ""))),
+                "price": price_value,
+                "odds": price_value,
+                "line": line_value,
+                "line_disp": line_value,
+                "model_line": model_line_val,
+                "mu": mu_val,
+                "P50": p50_val,
+                "consensus_line": cons_line,
+                "cons_line_disp": cons_line,
+                "consensus_prob": cons_prob,
+                "market_cons_prob": cons_prob,
+                "model_prob": model_prob_val,
+                "edge_bps": edge_val,
+                "ev_per_100": ev_val,
+                "best_book_ties": tuple(ties),
+                "point_key": canonical_str(best_row.get("point_key", "")),
+                "Book / Price": make_book_price_cell(
+                    canonical_str(best_row.get("book_display", "")),
+                    fmt_odds_american(price_value) if not math.isnan(price_value) else DISPLAY_DASH,
+                    ties,
+                ),
+            }
+        )
+
+    if not rows:
+        return pd.DataFrame(
+            columns=[
+                "player",
+                "market",
+                "side",
+                "book",
+                "price",
+                "model_prob",
+                "edge_bps",
+            ]
+        )
+
+    out = pd.DataFrame(rows)
+    return out.sort_values(["player", "market", "side", "book"]).reset_index(drop=True)
+
+
+def build_overview_df(merged: pd.DataFrame) -> pd.DataFrame:
+    df = merged.copy()
+
+    line_col = _pick_col(df, "line_disp", "line", "median", "P50")
+    cons_line = _pick_col(df, "cons_line_disp", "consensus_line", "market_cons_line", "consensus_line_disp")
+    model_mu = _pick_col(df, "model_line", "mu", "P50")
+    cons_prob = _pick_col(df, "consensus_prob", "cons_prob", "market_cons_prob")
+    book_ct = _pick_col(df, "book_count", "books", "book_cnt")
+
+    df["market"] = df.apply(_market_with_side, axis=1)
+    df["market_label"] = df["market"]
+
+    def fmt_model(row: pd.Series) -> str:
+        mu_val = row.get("mu")
+        p50_val = row.get("P50")
+        try:
+            mu_nan = pd.isna(mu_val)
+        except Exception:
+            mu_nan = False
+        try:
+            p50_nan = pd.isna(p50_val)
+        except Exception:
+            p50_nan = False
+        if not mu_nan and not p50_nan:
+            mu_txt = _fmt_line(mu_val)
+            p50_txt = _fmt_line(p50_val)
+            if mu_txt != DISPLAY_DASH and p50_txt != DISPLAY_DASH and mu_txt != p50_txt:
+                return f"{mu_txt}/{p50_txt}"
+        if model_mu:
+            return _fmt_line(row.get(model_mu))
+        return DISPLAY_DASH
+
+    df["Model Line (μ/P50)"] = df.apply(fmt_model, axis=1)
+    df["Book Line"] = df[line_col].apply(_fmt_line) if line_col else DISPLAY_DASH
+    df["Market Cons. Line"] = df[cons_line].apply(_fmt_line) if cons_line else DISPLAY_DASH
+    df["Impl. %"] = df[cons_prob].apply(_fmt_pct_or_dash) if cons_prob else DISPLAY_DASH
+
+    if book_ct:
+        df["Book Count"] = df[book_ct].fillna(0).astype(int)
+    else:
+        df["Book Count"] = 0
+
+    ordered = [
+        "player",
+        "market",
+        "Model Line (μ/P50)",
+        "Book Line",
+        "Market Cons. Line",
+        "Impl. %",
+        "Book Count",
+    ]
+    ordered += [c for c in df.columns if c not in ordered]
+    return df[ordered]
+
+
+def build_value_df(df: pd.DataFrame) -> pd.DataFrame:
+    import pandas as pd
+    from site_common import pretty_market, fmt_odds_american, fmt_pct
+
+    keep = [c for c in [
+        "game","kick_et","name","name_std","player_key",
+        "market","market_std","side",
+        "bookmaker_title","price","point",
+        "model_line","model_prob",
+        "consensus_line","consensus_prob",
+        "edge_bps","ev_per_100"
+    ] if c in df.columns]
+    out = df.loc[:, keep].copy()
+
+    if "market" not in out and "market_std" in out:
+        out["market"] = out["market_std"].map(pretty_market)
+    if "name" not in out and "name_std" in out:
+        out["name"] = out["name_std"].str.replace(
+            r"(^| )([a-z])", lambda m: m.group(0).upper(), regex=True
+        )
+
+    out["book_line"] = out.get("point", None)
+    out["book_price_disp"] = out["price"].map(lambda x: fmt_odds_american(x) if pd.notna(x) else "—")
+    out["model_prob_disp"] = out["model_prob"].map(lambda x: fmt_pct(x) if pd.notna(x) else "—")
+
+    cols = [c for c in [
+        "name","market","bookmaker_title","book_price_disp",
+        "model_line","book_line","consensus_line","model_prob_disp",
+        "edge_bps","ev_per_100"
+    ] if c in out.columns]
+    return out[cols]
+
+
+def attr_value(value: Optional[object]) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, float) and math.isnan(value):
+        return ""
+    return str(value)
+
+
+def html_attrs(attrs: dict) -> str:
+    parts: list[str] = []
+    for key, value in attrs.items():
+        val = attr_value(value)
+        if val == "" and key not in {"data-books", "data-book-labels"}:
+            continue
+        parts.append(f' {key}="{escape(val, quote=True)}"')
+    return "".join(parts)
+
+
+def make_book_price_cell(
+    book: Optional[str], price_disp: Optional[str], ties: Optional[Sequence[str]] = None
+) -> str:
+    book_name = canonical_str(book)
+    price_text = canonical_str(price_disp) or DISPLAY_DASH
+
+    also: list[str] = []
+    if ties:
+        also = sorted({canonical_str(t) for t in ties if canonical_str(t) and canonical_str(t) != book_name})
+    title_attr = f' title="Also: {escape(", ".join(also))}"' if also else ""
+
+    if book_name:
+        inner = escape(book_name)
+        if price_text and price_text != DISPLAY_DASH:
+            inner = (
+                f"{inner} "
+                f"<span class=\"best-price mono odds\">({escape(price_text)})</span>"
+            )
+        return f'<span class="booklink"{title_attr}>{inner}</span>'
+
+    if price_text and price_text != DISPLAY_DASH:
+        return f'<span class="best-price mono odds">{escape(price_text)}</span>'
+
+    return DISPLAY_DASH
+
+
+def make_overview_table(df: pd.DataFrame) -> str:
+    cols = [
+        "Player",
+        "Market",
+        "Model Line (μ/P50)",
+        "Book Line",
+        "Market Cons. Line",
+        "Impl. %",
+        "Book Count",
+    ]
+    head = ''.join(f"<th>{escape(c)}</th>" for c in cols)
+    rows = []
+    for row in df.to_dict('records'):
+        attrs = {
+            'data-tab': 'overview',
+            'data-game': row.get('game_display', ''),
+            'data-market': row.get('market_key', row.get('market_std', '')),
+            'data-market-label': row.get('market_label', row.get('market', '')),
+            'data-player': row.get('player_key', ''),
+            'data-side': row.get('side_key', ''),
+            'data-books': row.get('books', ''),
+            'data-book-labels': row.get('book_labels', ''),
+        }
+        player_text = canonical_str(row.get('player', ''))
+        market_text = canonical_str(row.get('market', ''))
+        book_count_val = row.get('Book Count', DISPLAY_DASH)
+        if isinstance(book_count_val, str):
+            book_count_text = book_count_val or DISPLAY_DASH
+        else:
+            try:
+                book_count_text = DISPLAY_DASH if pd.isna(book_count_val) else str(int(book_count_val))
+            except Exception:
+                book_count_text = DISPLAY_DASH
+
+        values = [
+            escape(player_text) if player_text else DISPLAY_DASH,
+            escape(market_text) if market_text else DISPLAY_DASH,
+            str(row.get('Model Line (μ/P50)', DISPLAY_DASH) or DISPLAY_DASH),
+            str(row.get('Book Line', DISPLAY_DASH) or DISPLAY_DASH),
+            str(row.get('Market Cons. Line', DISPLAY_DASH) or DISPLAY_DASH),
+            str(row.get('Impl. %', DISPLAY_DASH) or DISPLAY_DASH),
+            book_count_text,
+        ]
+        classes = ['player', 'market', 'model_line', 'book_line', 'cons_line', 'prob', 'books']
+        cells = [f"<td class='{cls}'>{val}</td>" for cls, val in zip(classes, values)]
+        rows.append(f"<tr{html_attrs(attrs)}>{''.join(cells)}</tr>")
+    body = ''.join(rows)
+    return (
+        "<table id=\"overview-table\" class=\"consensus-table props-table tbl overview\">"
+        f"<thead><tr>{head}</tr></thead>"
+        f"<tbody>{body}</tbody>"
+        "</table>"
+    )
+
+
+def make_value_table(df: pd.DataFrame) -> str:
+    cols = [
+        "Player",
+        "Market",
+        "Book / Price",
+        "Model Line (μ/P50)",
+        "Book Line",
+        "Market Cons. Line",
+        "Model Prob %",
+        "Edge (bps)",
+        "EV/$100",
+    ]
+    head = ''.join(f"<th>{escape(c)}</th>" for c in cols)
+    rows = []
+    for row in df.to_dict('records'):
+        attrs = {
+            'data-tab': 'value',
+            'data-game': row.get('game_display', ''),
+            'data-market': row.get('market_key', row.get('market_std', '')),
+            'data-market-label': row.get('market_label', row.get('market', '')),
+            'data-player': row.get('player_key', ''),
+            'data-side': row.get('side_key', ''),
+            'data-book': row.get('book_key', ''),
+            'data-book-label': row.get('book_label', row.get('book', '')),
+        }
+        edge_raw = row.get('_edge_raw', np.nan)
+        try:
+            edge_raw = float(edge_raw)
+        except (TypeError, ValueError):
+            edge_raw = float('nan')
+        if math.isnan(edge_raw):
+            edge_cls = 'edge0'
+        elif edge_raw > 0:
+            edge_cls = 'edgepos'
+        elif edge_raw < 0:
+            edge_cls = 'edgeneg'
+        else:
+            edge_cls = 'edge0'
+        player_text = canonical_str(row.get('player', ''))
+        market_text = canonical_str(row.get('market', ''))
+        book_val = row.get('Book / Price', DISPLAY_DASH) or DISPLAY_DASH
+        cells_info = [
+            ('player', player_text or DISPLAY_DASH),
+            ('market', market_text or DISPLAY_DASH),
+            ('book', book_val),
+            ('model_line', row.get('Model Line (μ/P50)', DISPLAY_DASH) or DISPLAY_DASH),
+            ('book_line', row.get('Book Line', DISPLAY_DASH) or DISPLAY_DASH),
+            ('cons_line', row.get('Market Cons. Line', DISPLAY_DASH) or DISPLAY_DASH),
+            ('model_prob', row.get('Model Prob %', DISPLAY_DASH) or DISPLAY_DASH),
+            (edge_cls, row.get('Edge (bps)', DISPLAY_DASH) or DISPLAY_DASH),
+            ('ev', row.get('EV/$100', DISPLAY_DASH) or DISPLAY_DASH),
+        ]
+        cells = []
+        for cls, val in cells_info:
+            if cls == 'book':
+                cells.append(f"<td class='{cls}'>{val}</td>")
+            else:
+                text = str(val)
+                if cls in {'player', 'market'}:
+                    text = escape(text)
+                cells.append(f"<td class='{cls}'>{text}</td>")
+        rows.append(f"<tr{html_attrs(attrs)}>{''.join(cells)}</tr>")
+    body = ''.join(rows)
+    return (
+        "<table id=\"value-table\" class=\"consensus-table props-table tbl value\">"
+        f"<thead><tr>{head}</tr></thead>"
+        f"<tbody>{body}</tbody>"
+        "</table>"
+    )
+
+def build_tabs_html(overview_html: str, value_html: str) -> str:
+    tabs = f"""
+<ul class=\"fv-tabs\">
+  <li><a href=\"#overview\">Overview</a></li>
+  <li><a href=\"#value\">Value</a></li>
+</ul>
+<div id=\"overview\" class=\"tab-section\">
+  {overview_html}
+</div>
+<div id=\"value\" class=\"tab-section\" style=\"display:none\">
+  {value_html}
+</div>
+"""
+    return TABS_CSS + FILTER_BAR_HTML + tabs + FILTER_JS + TABS_JS
+
+
+def build_tables(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, str, str]:
+    overview_source = aggregate_overview(df)
+    overview_display = build_overview_df(overview_source)
+    value_display = build_value_df(df)
+
+    try:
+        chk = (
+            df.dropna(subset=["model_prob"])
+            .groupby(["market_std", "name_std"])["model_prob"].std()
+            .fillna(0)
+        )
+        const_cnt = (chk < 1e-6).sum()
+        print(f"[consensus] value variance check — constant player×market std count: {const_cnt}")
+    except Exception as _e:
+        pass
+
+    # preserve attributes needed for filtering/metadata
+    overview_attrs = [
+        "player_key",
+        "market_key",
+        "market_std",
+        "market_disp_base",
+        "side_key",
+        "game_display",
+        "books",
+        "book_labels",
+        "point_key",
+        "consensus_prob",
+    ]
+    for col in overview_attrs:
+        if col in overview_source.columns and col not in overview_display.columns:
+            overview_display[col] = overview_source[col]
+
+    value_display = value_display.copy()
+
+    meta_map = {
+        "player_key": "player_key",
+        "market_key": "market_key",
+        "market_std": "market_std",
+        "market_disp_base": "market_disp_base",
+        "side_key": "side_key",
+        "side": "side",
+        "game_display": "game_display",
+        "book_key": "book_key",
+        "book_label": "book_display",
+        "book": "book_display",
+        "best_book_ties": "best_book_ties",
+        "price": "price",
+        "odds": "odds",
+        "consensus_prob": "consensus_prob",
+        "consensus_line": "consensus_line",
+        "point_key": "point_key",
+    }
+    for target, source in meta_map.items():
+        if source in df.columns and target not in value_display.columns:
+            value_display[target] = df.loc[value_display.index, source]
+
+    if "player" not in value_display.columns:
+        base_player = "name" if "name" in value_display.columns else None
+        if base_player:
+            value_display["player"] = value_display[base_player]
+    if "market_label" not in value_display.columns:
+        if "market" in value_display.columns:
+            value_display["market_label"] = value_display["market"]
+
+    value_display["book_cell"] = value_display.apply(
+        lambda row: make_book_price_cell(
+            row.get("bookmaker_title"),
+            row.get("book_price_disp"),
+            row.get("best_book_ties"),
+        ),
+        axis=1,
+    )
+
+    if "model_line" in value_display.columns:
+        value_display["model_line_disp"] = value_display["model_line"].map(_fmt_line)
+    else:
+        value_display["model_line_disp"] = DISPLAY_DASH
+    if "book_line" in value_display.columns:
+        value_display["book_line_disp"] = value_display["book_line"].map(_fmt_line)
+    else:
+        value_display["book_line_disp"] = DISPLAY_DASH
+    if "consensus_line" in value_display.columns:
+        value_display["consensus_line_disp"] = value_display["consensus_line"].map(_fmt_line)
+    else:
+        value_display["consensus_line_disp"] = DISPLAY_DASH
+
+    if "model_prob_disp" not in value_display.columns and "model_prob" in value_display.columns:
+        value_display["model_prob_disp"] = value_display["model_prob"].map(
+            lambda x: fmt_pct(x) if pd.notna(x) else DISPLAY_DASH
+        )
+
+    if "edge_bps" in value_display.columns:
+        edge_raw = pd.to_numeric(value_display["edge_bps"], errors="coerce")
+    else:
+        edge_raw = pd.Series(np.nan, index=value_display.index)
+    value_display["_edge_raw"] = edge_raw
+    value_display["edge_bps_disp"] = edge_raw.apply(
+        lambda x: DISPLAY_DASH if pd.isna(x) else f"{int(round(float(x))):+d}"
+    )
+
+    if "ev_per_100" in value_display.columns:
+        value_display["ev_disp"] = value_display["ev_per_100"].apply(
+            lambda x: DISPLAY_DASH if pd.isna(x) else f"${float(x):,.0f}"
+        )
+    else:
+        value_display["ev_disp"] = DISPLAY_DASH
+
+    value_display["Book / Price"] = value_display["book_cell"]
+    value_display["Model Line (μ/P50)"] = value_display.get("model_line_disp", DISPLAY_DASH)
+    value_display["Book Line"] = value_display.get("book_line_disp", DISPLAY_DASH)
+    value_display["Market Cons. Line"] = value_display.get("consensus_line_disp", DISPLAY_DASH)
+    value_display["Model Prob %"] = value_display.get("model_prob_disp", DISPLAY_DASH)
+    value_display["Edge (bps)"] = value_display.get("edge_bps_disp", DISPLAY_DASH)
+    value_display["EV/$100"] = value_display.get("ev_disp", DISPLAY_DASH)
+
+    overview_html = make_overview_table(overview_display)
+    value_html = make_value_table(value_display)
+    return overview_display, value_display, overview_html, value_html
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description="Build the consensus props page")
+    ap.add_argument("--merged_csv", required=True)
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--week", type=int, required=True)
+    ap.add_argument("--season", type=int, default=None)
+    ap.add_argument("--title", default=None)
+    ap.add_argument("--verbose", action="store_true")
+    args = ap.parse_args()
+
+    merged_path = Path(args.merged_csv)
+    df = pd.read_csv(merged_path, low_memory=False)
+
+    name_series = None
+    for col in ("name_std", "name", "player"):
+        if col in df.columns:
+            name_series = df[col]
+            break
+    if name_series is not None:
+        df["key_name"] = name_series.map(std_name)
+    else:
+        df["key_name"] = ""
+
+    if "side" in df.columns:
+        df["side"] = df.apply(
+            lambda r: normalize_side(r.get("side"), r.get("market_std")),
+            axis=1,
+        )
+
+    cons_path = Path(f"data/props/consensus_week{args.week}.csv")
+    if cons_path.exists():
+        cons = pd.read_csv(cons_path, low_memory=False)
+        cons["key_name"] = cons["player"].map(std_name)
+        if "side" in cons.columns:
+            cons["side"] = cons["side"].str.title()
+        df = df.merge(
+            cons.rename(
+                columns={
+                    "consensus_prob": "consensus_prob",
+                    "consensus_line": "consensus_line",
+                    "odds": "consensus_odds",
+                    "player": "cons_player",
+                }
+            ),
+            on=["key_name", "market_std", "side"],
+            how="left",
+        )
+
+    df = harmonize(df)
+
+    overview_df, value_df, overview_html, value_html = build_tables(df)
+    page_html = build_tabs_html(overview_html, value_html)
+
+    if args.season is not None:
+        default_title = f"{BRAND} — Consensus (Week {args.week}, {args.season})"
+    else:
+        default_title = f"{BRAND} — Consensus (Week {args.week})"
+    title = args.title or default_title
+
+    if args.verbose:
+        print(f"[consensus] overview rows: {len(overview_df)}")
+        print(f"[consensus] value rows: {len(value_df)}")
+
+    out_path = Path(args.out)
+    write_with_nav_raw(out_path.as_posix(), title, page_html, active="Consensus")
+
+
+if __name__ == "__main__":
+    main()
