@@ -29,6 +29,77 @@ from typing import Iterable, List
 
 import numpy as np
 import pandas as pd  # Shared normalizer (you added this module)
+# --- market alias normalization (local fallback if common_markets missing) ---
+import re
+# === Market normalization (must be defined before use) =======================
+# Try to use the shared canonical normalizer; fall back to a local mapper.
+# === Market normalization (single source of truth) ==========================
+try:
+    from scripts.common_markets import std_market as _std_market  # preferred
+except Exception:
+    _std_market = None
+
+_MARKET_ALIAS = {
+    "player_receiving_yds":"recv_yds","receiving_yards":"recv_yds","reception_yds":"recv_yds",
+    "player_rushing_yds":"rush_yds","rushing_yards":"rush_yds",
+    "player_passing_yds":"pass_yds","passing_yards":"pass_yds",
+    "player_receptions":"receptions","receptions":"receptions",
+    "rushing_attempts":"rush_attempts","rush_att":"rush_attempts",
+    "pass_attempts":"pass_attempts","completions":"pass_completions","pass_cmp":"pass_completions",
+    "player_passing_tds":"pass_tds","passing_tds":"pass_tds",
+    "player_interceptions":"pass_interceptions","interceptions":"pass_interceptions",
+    "player_anytime_td":"anytime_td","anytime_touchdown":"anytime_td","anytime_td":"anytime_td",
+}
+
+def _std_local_market(x):
+    s = str(x or "").strip().lower()
+    if not s: return s
+    s = s.replace("player_", "").replace(" ", "_").replace("-", "_").replace("__", "_")
+    return _MARKET_ALIAS.get(s, s)
+
+def canon_market(x):
+    """Canonicalize market names; use shared normalizer if present, else local map."""
+    if _std_market:
+        try:
+            return _std_market(x)
+        except Exception:
+            pass
+    return _std_local_market(x)
+# ===========================================================================>
+
+
+def _dead_std_market(x):
+    """
+    Canonicalize market names across sources.
+    Prefers scripts.common_markets.std_market; falls back to the local mapper.
+    """
+    if _std_market:
+        try:
+            return _std_market(x)
+        except Exception:
+            # fall through to local if shared impl errors on a weird token
+            pass
+    return _std_local_market(x)
+# ============================================================================#
+
+
+
+
+
+
+try:
+    from scripts.common_markets import std_market  # preferred, if available
+except Exception:
+    ALIAS = {
+        "reception_yds": "recv_yds",
+        "receiving_yards": "recv_yds",
+        "rush_att": "rush_attempts",
+        "interceptions": "pass_interceptions",  # fixes 'interceptions' bucket
+    }
+    def _dead_std_market(s: str) -> str:
+        s = str(s or "").strip().lower()
+        s = re.sub(r"\s+", "_", s)
+        return ALIAS.get(s, s)
 
 # --- imports near the top ---
 # bad (remove this):
@@ -342,8 +413,8 @@ def main():
     params = standardize_input(load_params(args.params_csv))
 
     # --- Normalize merge keys --------------------------------------------------
-    props["market_std"] = _get_series(props, "market_std", "market").apply(std_market)
-    params["market_std"] = _get_series(params, "market_std", "market").apply(std_market)
+    props["market_std"] = _get_series(props, "market_std", "market").apply(canon_market)
+    params["market_std"] = _get_series(params, "market_std", "market").apply(canon_market)
 
     props_name_src = _get_series(props, "player", "name")
     props["name_std"] = props_name_src.fillna("").apply(std_name)
@@ -375,7 +446,7 @@ def main():
             "pass_tds": "pass_tds",         # keep stable even if sources vary
             "pass_interceptions": "pass_ints",
         }
-        def std_market(s: str) -> str:
+        def _dead_std_market(s: str) -> str:
             s = str(s or "").strip().lower().replace(" ", "_")
             return ALIAS.get(s, s)
 
@@ -386,9 +457,9 @@ def main():
 
     for df in (props, params):
         if "market_std" not in df.columns and "market" in df.columns:
-            df["market_std"] = df["market"].map(std_market)
+            df["market_std"] = df["market"].map(canon_market)
         else:
-            df["market_std"] = df["market_std"].map(std_market)
+            df["market_std"] = df["market_std"].map(canon_market)
         if "side" in df.columns:
             df["side"] = df["side"].map(norm_side)
 
