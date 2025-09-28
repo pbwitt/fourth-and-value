@@ -13,14 +13,15 @@ import re
 import pandas as pd
 
 from site_common import (
-    BRAND,
-    american_to_prob,
+    write_with_nav_raw,
+    pretty_market,
     fmt_odds_american,
     fmt_pct,
     kickoff_et,
-    pretty_market,
-    write_with_nav_raw,
+    american_to_prob,
+    prob_to_american, BRAND
 )
+
 
 DISPLAY_DASH = "—"
 MODEL_LINE_CANDIDATES: Sequence[str] = (
@@ -252,16 +253,22 @@ def canonical_str(v):
     return str(v)
 
 
-def prob_to_american(prob: float) -> float:
+def american_to_prob(odds):
+    """
+    Convert American odds to implied probability.
+    Returns float in [0,1], or None if odds invalid.
+    """
     try:
-        p = float(prob)
-    except (TypeError, ValueError):
-        return float("nan")
-    if not (0 < p < 1):
-        return float("nan")
-    if p >= 0.5:
-        return -round(p * 100.0 / (1.0 - p))
-    return round((1.0 - p) * 100.0 / p)
+        o = float(odds)
+    except Exception:
+        return None
+    if o > 0:
+        return 100.0 / (o + 100.0)
+    elif o < 0:
+        return -o / (-o + 100.0)
+    else:
+        return None
+
 
 
 def expected_value_per_100(prob: float, odds: float) -> float:
@@ -946,7 +953,8 @@ def main() -> None:
         print(f"[consensus] value rows: {len(value_df)}")
 
     out_path = Path(args.out)
-    write_with_nav_raw(out_path.as_posix(), title, page_html, active="Consensus")
+    write_with_nav_raw(out_path.as_posix(), page_html, active="Consensus")
+
 
 
 if __name__ == "__main__":

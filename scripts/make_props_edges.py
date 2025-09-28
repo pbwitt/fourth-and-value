@@ -48,8 +48,48 @@ _MARKET_ALIAS = {
     "pass_attempts":"pass_attempts","completions":"pass_completions","pass_cmp":"pass_completions",
     "player_passing_tds":"pass_tds","passing_tds":"pass_tds",
     "player_interceptions":"pass_interceptions","interceptions":"pass_interceptions",
-    "player_anytime_td":"anytime_td","anytime_touchdown":"anytime_td","anytime_td":"anytime_td",
+    "player_anytime_td":"anytime_td","anytime_touchdown":"anytime_td","anytime_td":"anytime_td",# yards (short forms)
+    "player_rush_yds": "rush_yds",
+    "player_reception_yds": "recv_yds",
+    "player_pass_yds": "pass_yds",
+
+    # attempts / completions (short forms)
+    "player_rush_attempts": "rush_attempts",
+    "player_pass_attempts": "pass_attempts",
+    "player_pass_completions": "pass_completions",
+
+    # TDs / interceptions (short forms)
+    "player_pass_tds": "pass_tds",
+    "player_pass_interceptions": "pass_interceptions",
+
+    # normalize but (for now) unmodeled
+    "player_1st_td": "first_td",
+    "player_last_td": "last_td",
+    "player_reception_longest": "reception_longest",
+    "player_rush_longest": "rush_longest",
+
 }
+
+
+def _key_str(x):
+    # Normalize merge keys to string-or-None (never float)
+    import math
+    if x is None:
+        return None
+    try:
+        # pandas NA/NaN handling
+        if x != x:  # NaN check without importing numpy
+            return None
+    except Exception:
+        pass
+    # Integers/floats → canonical string (avoid "12.0")
+    if isinstance(x, (int,)):
+        return str(x)
+    if isinstance(x, float):
+        return str(int(x)) if float(x).is_integer() else str(x)
+    s = str(x).strip()
+    return s or None
+
 
 def _std_local_market(x):
     s = str(x or "").strip().lower()
@@ -82,6 +122,317 @@ def _dead_std_market(x):
     return _std_local_market(x)
 # ============================================================================#
 
+# ---------- NORMALIZERS ----------
+def std_name(s: str) -> str:
+    import re
+    s = (str(s) if s is not None else "").strip().lower()
+    s = re.sub(r"[^a-z0-9]+", " ", s).strip()
+    s = re.sub(r"\s+", " ", s)
+    return s
+
+def name_slug(s: str) -> str:
+    s = std_name(s)
+    parts = s.split(" ")
+    return (parts[0][0] + parts[-1]) if parts else ""
+
+
+def norm_side(side: str, market_std: str) -> str:
+    s = (str(side) if side is not None else "").strip().lower()
+    if market_std == "anytime_td":
+        return "yes" if s in ("yes", "y", "1", "true") else "no" if s in ("no", "n", "0", "false") else "yes"
+    # O/U
+    if s.startswith("o"): return "over"
+    if s.startswith("u"): return "under"
+    return s or "over"
+
+def derive_side_row(row) -> str:
+    # Try explicit fields first; fall back to inferring from the odds row text
+    s = row.get("side") or row.get("bet") or row.get("outcome_name")
+    s = (str(s) if s is not None else "")
+    m = row.get("market_std")
+    return norm_side(s, m)
+
+# ---------- PRICE / PROB HELPERS ----------
+def price_to_prob_american(price) -> float:
+    try:
+        p = float(price)
+    except Exception:
+        return float("nan")
+    if p > 0:
+        return 100.0 / (p + 100.0)
+    else:
+        return -p / (-p + 100.0)
+
+def prob_to_american(p) -> float:
+    if p is None or p != p or p <= 0 or p >= 1:
+        return float("nan")
+    return (100.0 * p / (1.0 - p)) if p >= 0.5 else (-100.0 * (1.0 - p) / p)
+
+def edge_bps(model_p: float, market_p: float) -> float:
+    if any((model_p is None, market_p is None)): return float("nan")
+    if (model_p != model_p) or (market_p != market_p): return float("nan")
+    return (model_p - market_p) * 1e4
+
+# ---------- DISTRIBUTIONS ----------
+from math import erf, sqrt, exp
+
+
+
+def poisson_cdf(k, lam):
+    if lam is None or lam < 0: return float("nan")
+    # CDF up to k inclusive; for “Under” we’ll use floor(point), etc.
+    # simple summation (k is tiny: TDs, INTs)
+    k = int(k)
+    s = 0.0
+    term = exp(-lam)
+    s += term
+    for i in range(1, k + 1):
+        term *= lam / i
+        s += term
+    return s
+
+def ou_prob(point, mu, sigma, side: str) -> float:
+    if side == "over":
+        # P(X > point) = 1 - CDF(point)
+        return 1.0 - normal_cdf(point, mu, sigma)
+    else:
+        # P(X < point) = CDF(point)
+        return normal_cdf(point, mu, sigma)
+
+def poisson_ou_prob(point, lam, side: str) -> float:
+    # Treat “Under point” as P(X < point) ~= P(X <= floor(point - 1e-9))
+    # and “Over” as 1 - CDF(floor(point))
+    from math import floor
+    k = floor(point + 1e-9)
+    c = poisson_cdf(k, lam)
+    return (1.0 - c) if side == "over" else c
+
+# ---------- CORE MERGE ----------
+def prepare_and_merge(props: "pd.DataFrame", params: "pd.DataFrame") -> "pd.DataFrame":
+    import pandas as pd
+    # Normalize keys on both frames
+    for df, src in ((props, "props"), (params, "params")):
+        if "market_std" in df:
+            df["market_std"] = df["market_std"].apply(canon_market)
+        elif "market" in df:
+            df["market_std"] = df["market"].apply(canon_market)
+        else:
+            raise RuntimeError(f"[{src}] missing market/market_std")
+
+        # Names
+        name_col = "player" if "player" in df else ("name" if "name" in df else None)
+        if name_col is None:
+            raise RuntimeError(f"[{src}] missing player/name column")
+        df["name"] = df[name_col]
+        df["name_std"] = df["name"].map(std_name)
+        df["name_slug"] = df["name"].map(name_slug)
+
+        # Coerce player_key to string-or-None on BOTH frames to avoid float/object merge errors
+        # ensure column exists on both frames
+        for df in (props, params):
+            if "player_key" not in df.columns:
+                df["player_key"] = pd.NA
+
+        # coerce to uniform string-or-None to avoid float/object merge errors
+        props["player_key"]  = props["player_key"].apply(_key_str)
+        params["player_key"] = params["player_key"].apply(_key_str)
+
+
+
+        # Player key if available
+        if "player_key" not in df:
+            df["player_key"] = pd.NA
+
+    # Side normalization (props only)
+    if "side" not in props:
+        props["side"] = props.apply(derive_side_row, axis=1)
+    props["side"] = props.apply(lambda r: norm_side(r["side"], r["market_std"]), axis=1)
+
+    # Never join on point/line. Use stable keys with fallbacks.
+    def _merge_on(keys):
+        cand = props.merge(params, how="left", on=keys, suffixes=("", "_param"), indicator=True)
+        return cand
+
+    # Try strictest first
+    attempts = [
+        (["player_key", "market_std"], "player_key+market"),
+        (["name_std",  "market_std"], "name_std+market"),
+        (["name_slug", "market_std"], "name_slug+market"),
+    ]
+
+    merged = None
+    for keys, label in attempts:
+        c = _merge_on(keys)
+        matched = (c["_merge"] == "both").mean()
+        if matched >= 0.90 or merged is None:  # keep best so far; accept once we’re ≥90%
+            merged = c
+        if matched >= 0.98:
+            break
+
+    # --- after merged = ( ... your merge attempts ... ) and before QC ---
+
+# Remove obvious team/defense props that we don't model
+def _is_player_like(n):
+    s = str(n).lower()
+    if not s or s == "nan":
+        return False
+    bad = (" d/st", " defense", " special teams", " team", " dst")
+    return not any(k in s for k in bad)
+
+
+def _model_prob_row(r):
+    m = r["market_std"]; side = r["side"]
+    if m in ("rush_yds","recv_yds","pass_yds","receptions","rush_attempts","pass_attempts","pass_completions"):
+        return ou_prob(r["point"], r["mu"], r["sigma"], side)
+    if m in ("pass_tds","pass_interceptions","anytime_td"):
+        # point default ~0.5 for >0 events
+        pnt = r["point"] if pd.notna(r["point"]) else 0.5
+        return poisson_ou_prob(pnt, r["lam"], side)
+    return float("nan")
+
+def _model_line_row(r):
+    m = r["market_std"]
+    if m in ("rush_yds","recv_yds","pass_yds","receptions","rush_attempts","pass_attempts","pass_completions"):
+        return r["mu"]
+    if m in ("pass_tds","pass_interceptions","anytime_td"):
+        return r["lam"]
+    return float("nan")
+
+    # ---- Modeling (after merge + side + normalization) ----
+    # Identify rows that actually have parameters
+    mask = (merged["lam"].notna()) | (merged["mu"].notna() & merged["sigma"].notna())
+    merged["_has_params"] = mask
+
+    # Compute model probability & model line ONLY where params exist
+    merged.loc[mask, "model_prob"] = merged.loc[mask].apply(_model_prob_row, axis=1)
+    merged.loc[mask, "model_line"] = merged.loc[mask].apply(_model_line_row, axis=1)
+
+    # Book side (use the canonical name expected by pages/QC)
+    merged["mkt_prob"] = merged["price"].apply(price_to_prob_american)
+
+    # Fair odds from model_prob — single assignment, NaN-safe
+    def _prob_to_american_safe(p):
+        if isinstance(p, (int, float)) and 0 < p < 1:
+            return 100.0 * p / (1.0 - p) if p >= 0.5 else -100.0 * (1.0 - p) / p
+        return np.nan
+
+    merged["fair_odds"] = merged["model_prob"].map(_prob_to_american_safe)
+
+    # Edge (basis points) — requires both model_prob and mkt_prob
+    merged["edge_bps"] = (merged["model_prob"] - merged["mkt_prob"]) * 10000.0
+
+    # ---- QC (non-blocking) ----
+    publishable = merged.loc[merged["_has_params"]].copy()
+    modeled_share = publishable["model_prob"].notna().mean() if not publishable.empty else 0.0
+    print(f"[model] modeled_share among rows with params: {modeled_share:.1%}")
+
+    # Anti-join report BEFORE dropping _merge
+    anti = merged.loc[merged["_merge"] == "left_only", ["name", "name_std", "market_std"]].copy() \
+           if "_merge" in merged.columns else pd.DataFrame()
+    if len(anti) > 0:
+        print(f"WARNING: {len(anti)} props rows failed to find params; sample:\n{anti.head(10).to_string(index=False)}")
+
+    merged.drop(columns=["_merge"], inplace=True, errors="ignore")
+
+    by_mkt = (
+        merged.assign(_had_params = merged["lam"].notna() | (merged["mu"].notna() & merged["sigma"].notna()))
+              .groupby("market_std")["_had_params"].mean()
+              .sort_values(ascending=True)
+    )
+    print("[coverage] share with params by market:\n", by_mkt.to_string())
+
+    # Ensure expected columns exist (don’t hard-fail; pages will hide blanks)
+    for col in ("mu", "sigma", "lam", "point", "price"):
+        if col not in merged:
+            merged[col] = pd.NA
+
+
+    # Compute model_prob / fair_odds / edge
+    # Ensure columns
+    for col in ("mu", "sigma", "lam"):
+        if col not in merged:
+            merged[col] = pd.NA
+
+    # Point, price
+    if "point" not in merged:
+        merged["point"] = pd.NA
+    if "price" not in merged:
+        merged["price"] = pd.NA
+
+    # Model probability by market family
+    def _model_prob_row(r):
+        m = r["market_std"]
+        side = r["side"]
+        if m in ("rush_yds", "recv_yds", "pass_yds", "receptions", "rush_attempts", "pass_attempts", "pass_completions"):
+            return ou_prob(r["point"], r["mu"], r["sigma"], side)
+        if m in ("pass_tds", "pass_interceptions", "anytime_td"):
+            return poisson_ou_prob(r["point"] if pd.notna(r["point"]) else 0.5, r["lam"], side)
+        return float("nan")
+
+    merged["model_prob"] = merged.apply(_model_prob_row, axis=1)
+
+    # Model line (50th percentile) for OU normals; for Poisson show λ as "model_line" when usable
+    def _model_line_row(r):
+        m = r["market_std"]
+        if m in ("rush_yds", "recv_yds", "pass_yds", "receptions", "rush_attempts", "pass_attempts", "pass_completions"):
+            return r["mu"]
+        if m in ("pass_tds", "pass_interceptions", "anytime_td"):
+            return r["lam"]
+        return float("nan")
+
+    merged["model_line"] = merged.apply(_model_line_row, axis=1)
+
+    # Market implied prob from American odds
+    merged["market_prob"] = merged["price"].apply(price_to_prob_american)
+
+    # Fair odds from model prob
+    merged["fair_odds"] = merged["model_prob"].apply(prob_to_american)
+
+    # Edge in bps
+    merged["edge_bps"] = merged.apply(lambda r: edge_bps(r["model_prob"], r["market_prob"]), axis=1)
+
+    # Display helpers
+    def _fmt_american(x):
+        try:
+            v = float(x)
+        except Exception:
+            return "—"
+        if v != v: return "—"
+        return f"{int(v) if abs(v) >= 1 else round(v, 2)}"
+
+    merged["book_price_disp"] = merged["price"].apply(_fmt_american)
+
+    # Required output columns union
+    desired_cols = [
+        "game", "game_id", "commence_time", "home_team", "away_team",
+        "bookmaker", "bookmaker_title", "market_std", "market", "player", "name",
+        "side", "point", "price", "book_price_disp",
+        "model_prob", "market_prob", "edge_bps", "fair_odds", "model_line",
+        "mu", "sigma", "lam", "name_std", "name_slug", "player_key",
+    ]
+    for dc in desired_cols:
+        if dc not in merged:
+            merged[dc] = pd.NA
+
+    # QC: hard checks (fail fast)
+    import numpy as np
+    if merged["market_std"].isna().mean() > 0.05:
+        raise RuntimeError("props: >5% markets unmapped to canonical set")
+    if (merged["model_prob"].notna().mean() < 0.4):  # at least 40% modeled initially
+        raise RuntimeError("merge/model: too few rows have model_prob — check params join and market aliases")
+
+    # Optional de-dup (same book/game/market/player/point rows)
+    dedupe_keys = ["bookmaker", "game_id", "market_std", "name_std", "point", "side"]
+    before = len(merged)
+    merged = (merged
+              .sort_values(by=["edge_bps"], ascending=False)
+              .drop_duplicates(subset=dedupe_keys, keep="first"))
+    after = len(merged)
+    if before != after:
+        rate = (before - after) / max(before, 1) * 100
+        print(f"[dedupe] removed {before - after} duplicates ({rate:.2f}%) on {dedupe_keys}")
+
+    return merged
 
 
 
@@ -117,12 +468,7 @@ except ModuleNotFoundError:
         from common_markets import standardize_input, std_market
 
 
-def std_name(s: str) -> str:
-    if pd.isna(s):
-        return ""
-    s = re.sub(r"[^a-z0-9]+", " ", str(s).lower()).strip()
-    s = re.sub(r"\s+", " ", s)
-    return s
+
 
 
 def slug_no_space(s: str) -> str:
@@ -413,26 +759,8 @@ def main():
     params = standardize_input(load_params(args.params_csv))
 
     # --- Normalize merge keys --------------------------------------------------
-    props["market_std"] = _get_series(props, "market_std", "market").apply(canon_market)
-    params["market_std"] = _get_series(params, "market_std", "market").apply(canon_market)
+    merged = prepare_and_merge(props, params)
 
-    props_name_src = _get_series(props, "player", "name")
-    props["name_std"] = props_name_src.fillna("").apply(std_name)
-    props["name_slug"] = props["name_std"].apply(slug_no_space)
-
-    params_name_src = _get_series(params, "player", "name")
-    params["name_std"] = params_name_src.fillna("").apply(std_name)
-    params["name_slug"] = params["name_std"].apply(slug_no_space)
-
-    props["side"] = props.apply(normalize_side, axis=1)
-    props["side"] = props["side"].astype(str).str.title().replace(
-        {"Yes": "Yes", "No": "No", "Over": "Over", "Under": "Under"}
-    )
-
-    if "side" in params.columns:
-        params["side"] = params["side"].astype(str).str.title()
-    else:
-        params["side"] = ""
 
         # --- Normalize market + side consistently on BOTH frames -------------------
     try:
@@ -479,20 +807,14 @@ def main():
     if all(k in props.columns and k in params.columns for k in ("name_slug", "market_std")):
         key_sets.append(["name_slug", "market_std"])
 
-    def _merge_on(keys):
-        return props.merge(params, how="left", on=keys, suffixes=("", "_param"), indicator=True)
 
     best = None
     best_hr = -1.0
-    for keys in key_sets:
-        cand = _merge_on(keys)
-        hr = cand["_merge"].eq("both").mean() if "_merge" in cand.columns else 0.0
-        if hr > best_hr:
-            best, best_hr = cand, hr
+
 
     tmp = best if best is not None else props.copy()
     merge_hit_rate = best_hr if best is not None else 0.0
-    logging.info(f"[merge] param merge hit rate: {merge_hit_rate:.2%}")
+    #logging.info(f"[merge] param merge hit rate: {merge_hit_rate:.2%}")
 
 
 # === End params merge =======================================================
@@ -554,7 +876,7 @@ def main():
         "season", "week", "game", "player", "name_std", "player_key",
         "book", "market_std", "name", "point", "point_key", "price",
         "mkt_prob", "model_prob", "edge_bps",
-        "mu", "sigma", "lam",
+        "mu", "sigma", "lam",'fair_odds'
     ]
     # maintain any others too
     out_cols = [c for c in out_cols_priority if c in merged.columns] + \
@@ -574,13 +896,12 @@ def main():
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_path = f"{out_dir}/props_with_model_week{week}_{stamp}.csv"
 
-    merged.to_csv(out_path, index=False)
-    print(f"[backup] wrote {out_path}")
 
 
 
 
-    logging.info(f"[merge] wrote {args.out} with {len(merged):,} rows")
+
+
 
 
 if __name__ == "__main__":

@@ -197,3 +197,25 @@ consensus_page: make_consensus
 	  --out docs/props/consensus.html \
 	  --week $(WEEK) \
 	  --title "Fourth & Value — Consensus (Week $(WEEK))"
+
+
+qc_props:
+	python -m scripts.qc_props --week $(WEEK)
+
+fetch_stats:
+	@mkdir -p data/nflverse
+	curl -L -o data/nflverse/stats_player_week_$(SEASON).parquet \
+		  "https://github.com/nflverse/nflverse-data/releases/download/stats_player/stats_player_week_$(SEASON).parquet"
+
+
+
+			# in your pipeline:
+			# make make_player_prop_params  ->  make qc_props  ->  make make_props_edges
+qc:
+	python qc_datapull.py
+				python - <<'PY'
+	import json; r=json.load(open("data/qc/run_qc_week4.json"))
+	f=r.get("signals",{}).get("fatal",[])
+	assert not f, f"FATAL QC issues: {f}"
+	print("QC PASS")
+	PY

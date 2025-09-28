@@ -109,11 +109,16 @@ def _ev_per_100(prob, american_odds):
     return f"${ev:.2f}" if ev >= 0 else f"-${abs(ev):.2f}"
 
 
-from site_common import write_with_nav_raw, pretty_market, fmt_odds_american, fmt_pct, kickoff_et, BRAND
-fmt_odds = fmt_odds_american
-to_kick_et = kickoff_et
-        # big render cap; UI defaults to Top N=10 so this won't overwhelm the page
-CARD_LIMIT = 25000
+
+
+
+
+try:
+    from site_common import write_with_nav_raw, pretty_market, fmt_odds_american, fmt_pct, kickoff_et, BRAND
+    fmt_odds = fmt_odds_american
+    to_kick_et = kickoff_et
+    # big render cap; UI defaults to Top N=10 so this won't overwhelm the page
+    CARD_LIMIT = 25000
 
 # columns we’ll scan for the numeric line if line_disp is missing
 LINE_CANDIDATES = [

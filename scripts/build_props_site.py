@@ -3,8 +3,12 @@ import argparse, json
 import pandas as pd
 import numpy as np
 from html import escape
-from site_common import nav_html, pretty_market, fmt_odds, fmt_pct, to_kick_et, inject_nav, write_with_nav_raw
 from pathlib import Path
+from site_common import pretty_market, fmt_odds_american, fmt_pct, kickoff_et, write_with_nav_raw
+# compatibility aliases for older code:
+fmt_odds = fmt_odds_american
+to_kick_et = kickoff_et
+
 # ---------- helpers ----------
 def fmt_odds(o):
     if pd.isna(o): return ""
@@ -14,10 +18,6 @@ def fmt_odds(o):
     except Exception:
         return str(o)
 
-from site_common import (
-    nav_html, pretty_market,
-    fmt_odds, to_kick_et
-)
 
 
 def prob_to_american(p):
@@ -63,7 +63,6 @@ def kickoff_et_series(commence_series):
     return pd.Series(out, index=commence_series.index)
 # ---- Row helpers + renderer (PLACE THIS BELOW TEMPLATE) ----
 import math, html
-from site_common import to_kick_et  # you already import this at the top
 
 def _fmt_point(v):
     try:
@@ -266,7 +265,7 @@ a.button:hover{background:#6ee7ff}
   <div class="card">
     <h1>""" + title_html + """</h1>
     <div class="small">Select <span class="badge">Bet</span> → Game → Player. Optional: Book & search. Sorted by Edge (bps). Line = sportsbook threshold.</div>
-    
+
     <div class="controls">
       <select id="market"><option value="">Bet (market)</option></select>
       <select id="game"><option value="">Game</option></select>
@@ -379,12 +378,8 @@ hydrateSelectors(); render();
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    write_with_nav_raw(
-        out_path.as_posix(),
-        (getattr(args, "title", None) or f"Fourth & Value — Player Props (Week {args.week})"),
-        html,
-        active="Props",
-    )
+    write_with_nav_raw(args.out, html, active="Props")
+
 
 
 

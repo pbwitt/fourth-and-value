@@ -1,822 +1,438 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-make_player_prop_params.py
+make_player_prop_params.py — clean, fail‑fast drop‑in
+-----------------------------------------------------
+Builds per‑player parameter estimates for player‑prop markets using nflverse
+weekly stats up to (season, week-1) and the current props dump. Designed to
+maximize coverage *without* relying on game_id in stats and to avoid silent
+fallbacks.
 
-Build per-player, per-market distribution parameters for edges calculation.
+Outputs one row per (player × market_std) *present in props* with:
+  - mu, sigma for Normal markets (yards, receptions, attempts, completions)
+  - lam for Poisson markets (TDs, interceptions, anytime_td)
+  - n_games used, plus basic identifiers
 
-Outputs:
-  data/props/params_week{WEEK}.csv with columns:
-    - season, week
-    - player, player_key, name_std
-    - team (if available), position (best-effort), gsis_id (if resolved)
-    - market_std
-    - mu, sigma, lam  (mu/sigma for Normal OU markets; lam for Poisson markets)
-    - dist            ("normal" or "poisson")
+Markets supported (canonical keys):
+  rush_yds, recv_yds, pass_yds, receptions,
+  rush_attempts, pass_attempts, pass_completions,
+  pass_tds, pass_interceptions, anytime_td
 
-Key guarantees (coverage):
-  - rush_attempts: always provide mu & sigma (fallback from carries/stats; final fallback defaults)
-  - anytime_td:    always provide lam = rushing_tds + receiving_tds (fallback defaults)
+Usage (example):
+  python -m make_player_prop_params \
 
-Dependencies:
-  - pandas, numpy
-  - nfl_data_py (optional but strongly recommended; falls back to priors if unavailable)
+    --season 2025 --week 4 \
 
-Usage:
-  python scripts/make_player_prop_params.py --season 2025 --week 2
-  # optional: --props_csv data/props/latest_all_props.csv --out data/props/params_week2.csv
+    --props_csv data/props/latest_all_props.csv \
+
+    --stats_parquet data/nflverse/stats_player_week_2025.parquet \
+
+    --out data/props/params_week4.csv \
+
+    --zero_prior_report data/props/zero_prior_week4.csv
+
+Notes
+-----
+* No reliance on game_id from stats; we only trust game_id from props.
+* No silent fallbacks; if a required stats column is missing for a market
+  that appears in props, we fail fast with a clear error message.
+* Name joining: prefer player_key when available; otherwise std_name.
 """
-from __future__ import annotations
-
-# --- shared normalizers / priors -------------------------------------------
-try:
-    from scripts.common_markets import (
-        standardize_input,
-        apply_priors_if_missing,
-        std_name,
-        std_player_name,
-        ensure_param_schema,
-        PRIORS,
-        std_market,
-        MODELED_MARKETS,
-    )
-except ModuleNotFoundError:
-    try:
-        from common_markets import (
-            standardize_input,
-            apply_priors_if_missing,
-            std_name,
-            std_player_name,
-            ensure_param_schema,
-            PRIORS,
-            std_market,
-            MODELED_MARKETS,
-        )
-    except ModuleNotFoundError:
-        import sys, os
-
-        sys.path.append(os.path.dirname(__file__))
-        from common_markets import (
-            standardize_input,
-            apply_priors_if_missing,
-            std_name,
-            std_player_name,
-            ensure_param_schema,
-            PRIORS,
-            std_market,
-            MODELED_MARKETS,
-        )
-
-# --- add near the top of the script (imports) ---
-from pathlib import Path
-from datetime import datetime, timezone
-import os
-
-# absolute base for historical snapshots
-HIST_DIR = Path("/Users/pwitt/fourth-and-value/data/preds_historical")
-
-# one run timestamp for the whole script
-RUN_TS = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-
-
-def snapshot_props_with_model(df, season, week, *, base_dir=HIST_DIR, run_ts=RUN_TS, fmt="csv"):
-    """
-    Write an immutable, timestamped backup of the final predictions.
-    - Adds a `snapshot_ts` column (UTC ISO-like).
-    - Writes atomically (tmp -> rename).
-    - Updates a convenience 'latest' symlink.
-    """
-    out_dir = base_dir / str(int(season)) / f"week{int(week):02d}"
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    df2 = df.copy()
-    df2["snapshot_ts"] = run_ts  # keep the run time inside the file
-
-    if fmt == "parquet":
-        tmp = out_dir / f"props_with_model_week{int(week):02d}_{run_ts}.parquet.tmp"
-        final = out_dir / f"props_with_model_week{int(week):02d}_{run_ts}.parquet"
-        df2.to_parquet(tmp, index=False)
-        latest = out_dir / "latest.parquet"
-    else:
-        tmp = out_dir / f"props_with_model_week{int(week):02d}_{run_ts}.csv.tmp"
-        final = out_dir / f"props_with_model_week{int(week):02d}_{run_ts}.csv"
-        df2.to_csv(tmp, index=False)
-        latest = out_dir / "latest.csv"
-
-    os.replace(tmp, final)  # atomic
-    try:
-        if latest.exists() or latest.is_symlink():
-            latest.unlink()
-        # relative symlink so moving the folder preserves linkage
-        os.symlink(final.name, latest)
-    except Exception:
-        # symlink can fail on some filesystems — ignore
-        pass
-
-    print(f"[snapshot] wrote {final}")
-
-
-
-
-
-
-
-
-def load_weekly_logs_or_fallback(season: int, week: int):
-    """
-    Return per-player weekly logs for (season, weeks < week).
-    1) Try nfl.import_weekly_data (official weekly parquet)
-    2) If missing/empty, aggregate from PBP.
-
-    Output columns include (when available):
-      season, week, player, recent_team,
-      passing_yards, attempts, completions, passing_tds, interceptions,
-      rushing_yards, rush_attempts, rushing_tds,
-      receiving_yards, receptions, receiving_tds,
-      name_std, _source in {"weekly","pbp_agg"}
-    """
-    import pandas as pd
-    import numpy as np
-    try:
-        import nfl_data_py as nfl
-    except Exception:
-        nfl = None
-
-    def _finalize(df: pd.DataFrame, source: str) -> pd.DataFrame:
-        if df is None or len(df) == 0:
-            return pd.DataFrame()
-        # numeric week + filter to current season and weeks < current week
-        if "week" in df.columns:
-            df["week"] = pd.to_numeric(df["week"], errors="coerce")
-        df = df[(df.get("season") == season) & (df.get("week") < week)].copy()
-        if len(df) == 0:
-            return df
-        # ensure a team column
-        if "recent_team" not in df.columns:
-            if "posteam" in df.columns:
-                df["recent_team"] = df["posteam"]
-            elif "team" in df.columns:
-                df["recent_team"] = df["team"]
-        # normalize name key
-        name_col = "player" if "player" in df.columns else ("player_name" if "player_name" in df.columns else None)
-        if name_col:
-            df["name_std"] = df[name_col].map(std_player_name)
-        df["_source"] = source
-        return df
-
-    # ---- 1) Weekly parquet path
-    if nfl is not None:
-        try:
-            weekly = nfl.import_weekly_data([season], downcast=True)
-            weekly = _finalize(weekly, "weekly")
-            if len(weekly) > 0:
-                return weekly
-        except Exception:
-            pass  # fall back to PBP
-
-    # ---- 2) PBP aggregate fallback
-    if nfl is None:
-        raise RuntimeError("nfl_data_py unavailable; cannot load logs.")
-
-    pbp = nfl.import_pbp_data([season], downcast=True)
-    pbp["week"] = pd.to_numeric(pbp["week"], errors="coerce")
-    pbp = pbp[pbp["week"] < week].copy()
-    if len(pbp) == 0:
-        return pd.DataFrame()
-
-    # Flags (handle naming diffs across versions)
-    pass_attempt   = pbp["pass_attempt"] if "pass_attempt" in pbp.columns else pbp.get("pass", 0)
-    complete_pass  = pbp["complete_pass"] if "complete_pass" in pbp.columns else 0
-    rush_attempt   = pbp["rush_attempt"] if "rush_attempt" in pbp.columns else pbp.get("rush", 0)
-    yards_gained   = pbp["yards_gained"] if "yards_gained" in pbp.columns else 0
-
-    # Yard totals if not provided
-    if "passing_yards" not in pbp.columns:
-        pbp["passing_yards"] = yards_gained.where(pass_attempt == 1, 0)
-    if "rushing_yards" not in pbp.columns:
-        pbp["rushing_yards"] = yards_gained.where(rush_attempt == 1, 0)
-    if "receiving_yards" not in pbp.columns:
-        pbp["receiving_yards"] = yards_gained.where(pass_attempt == 1, 0)
-
-    # TDs / INTs (robust to column names)
-    pbp["passing_tds"]   = pbp.get("pass_touchdown",    0)
-    pbp["interceptions"] = pbp.get("interception",      0)
-    pbp["rushing_tds"]   = pbp.get("rush_touchdown",    0)
-    pbp["receiving_tds"] = pbp.get("rec_touchdown", pbp.get("receiving_touchdown", 0))
-
-    frames = []
-
-    # Passers
-    if "passer_player_name" in pbp.columns:
-        t = pbp[["season","week","posteam","passer_player_name",
-                 "passing_yards","passing_tds","interceptions"]].copy()
-        t["attempts"]    = pass_attempt
-        t["completions"] = complete_pass
-        t = t.rename(columns={"posteam":"recent_team","passer_player_name":"player"})
-        frames.append(t)
-
-    # Rushers
-    if "rusher_player_name" in pbp.columns:
-        t = pbp[["season","week","posteam","rusher_player_name",
-                 "rushing_yards","rushing_tds"]].copy()
-        t["rush_attempts"] = rush_attempt
-        t = t.rename(columns={"posteam":"recent_team","rusher_player_name":"player"})
-        frames.append(t)
-
-    # Receivers (receptions = completed passes credited to a receiver)
-    if "receiver_player_name" in pbp.columns:
-        t = pbp[["season","week","posteam","receiver_player_name",
-                 "receiving_yards","receiving_tds"]].copy()
-        t["receptions"] = complete_pass.where(pbp["receiver_player_name"].notna(), 0)
-        t = t.rename(columns={"posteam":"recent_team","receiver_player_name":"player"})
-        frames.append(t)
-
-    if not frames:
-        return pd.DataFrame()
-
-    weekly = pd.concat(frames, ignore_index=True)
-
-    agg_cols = [c for c in [
-        "passing_yards","attempts","completions","passing_tds","interceptions",
-        "rushing_yards","rush_attempts","rushing_tds",
-        "receiving_yards","receptions","receiving_tds"
-    ] if c in weekly.columns]
-
-    weekly = (weekly
-              .groupby(["season","week","player","recent_team"], as_index=False)
-              .agg({c: "sum" for c in agg_cols}))
-
-    # finalize + tag source
-    weekly["name_std"] = weekly["player"].map(std_player_name)
-    weekly["_source"]  = "pbp_agg"
-    return _finalize(weekly, "pbp_agg")
-
-
-def load_props(path: str) -> pd.DataFrame:
-    return pd.read_csv(path, low_memory=False)
-
-import os, sys, numpy as np, pandas as pd
-
-
-
-
-
-import argparse, logging, os, sys, math
-from typing import Dict, Tuple, Optional
+import argparse
+import sys
+import math
+from datetime import datetime
+from typing import Dict, List, Tuple, Optional, Iterable
 
 import numpy as np
 import pandas as pd
 
-# --- import market normalizer (works whether you're running from repo root or scripts/)
-# nfl_data_py is preferred; if missing, we'll degrade gracefully
-try:
-    import nfl_data_py as nfl
-    NFL_OK = True
-except Exception:
-    NFL_OK = False
-
 
 # -----------------------------
-# Config / Priors
+# Canonical market mapping
 # -----------------------------
+
+ALIAS_MARKET: Dict[str, str] = {
+    # yards
+    "player_rushing_yards": "rush_yds",
+    "rush_yds": "rush_yds",
+    "rushing_yards": "rush_yds",
+    "player_receiving_yards": "recv_yds",
+    "reception_yds": "recv_yds",
+    "receiving_yards": "recv_yds",
+    "recv_yds": "recv_yds",
+    "player_passing_yards": "pass_yds",
+    "passing_yards": "pass_yds",
+    "pass_yds": "pass_yds",
+
+    # receptions
+    "player_receptions": "receptions",
+    "receptions": "receptions",
+
+    # attempts / completions
+    "player_rushing_attempts": "rush_attempts",
+    "rushing_attempts": "rush_attempts",
+    "rush_attempts": "rush_attempts",
+    "carries": "rush_attempts",
+
+    "player_passing_attempts": "pass_attempts",
+    "passing_attempts": "pass_attempts",
+    "attempts": "pass_attempts",
+    "pass_attempts": "pass_attempts",
+
+    "player_passing_completions": "pass_completions",
+    "passing_completions": "pass_completions",
+    "completions": "pass_completions",
+    "pass_completions": "pass_completions",
+
+    # scoring / turnovers
+    "player_passing_tds": "pass_tds",
+    "passing_tds": "pass_tds",
+    "pass_tds": "pass_tds",
+
+    "player_interceptions": "pass_interceptions",
+    "interceptions": "pass_interceptions",
+    "passing_interceptions": "pass_interceptions",
+    "pass_interceptions": "pass_interceptions",
+
+    "player_anytime_td": "anytime_td",
+    "anytime_td": "anytime_td",
+    # yards (short forms)
+    "player_rush_yds": "rush_yds",
+    "player_reception_yds": "recv_yds",
+    "player_pass_yds": "pass_yds",
+
+    # attempts / completions (short forms)
+    "player_rush_attempts": "rush_attempts",
+    "player_pass_attempts": "pass_attempts",
+    "player_pass_completions": "pass_completions",
+
+    # TDs / interceptions (short forms)
+    "player_pass_tds": "pass_tds",
+    "player_pass_interceptions": "pass_interceptions",
+
+    # normalize but (for now) unmodeled
+    "player_1st_td": "first_td",
+    "player_last_td": "last_td",
+    "player_reception_longest": "reception_longest",
+    "player_rush_longest": "rush_longest",
+
+
+
+
+
+
+
+}
+
 NORMAL_MARKETS = {
-    "rush_yds",
-    "recv_yds",
+    "rush_yds", "recv_yds", "pass_yds",
     "receptions",
-    "pass_yds",
-    "rush_attempts",
+    "rush_attempts", "pass_attempts", "pass_completions",
 }
-
-POISSON_MARKETS = {
-    "anytime_td",
-    "pass_tds",
-    "pass_interceptions",
-}
-
-# conservative league-wide fallback priors (per game)
-PRIORS = {
-    "rush_yds":          {"mu": 30.0, "sigma": 22.0},
-    "recv_yds":          {"mu": 35.0, "sigma": 25.0},
-    "receptions":        {"mu": 2.8,  "sigma": 2.0},
-    "pass_yds":          {"mu": 225.0,"sigma": 55.0},
-    "rush_attempts":     {"mu": 8.0,  "sigma": 4.0},
-    "anytime_td":        {"lam": 0.25},
-    "pass_tds":          {"lam": 1.4},
-    "pass_interceptions":{"lam": 0.8},
-}
-
-# minimal sample size before trusting player-specific numbers
-MIN_GAMES_STRICT = 4       # prefer at least this many games for strong trust
-MIN_GAMES_LOOSE  = 2       # if <strict but >=loose, still use but add shrinkage
-WINDOW_GAMES     = 17      # lookback window (last N games) across seasons
+POISSON_MARKETS = {"pass_tds", "pass_interceptions", "anytime_td"}
+SUPPORTED_MARKETS = NORMAL_MARKETS | POISSON_MARKETS
 
 
 # -----------------------------
 # Helpers
 # -----------------------------
-def slugify(s: str) -> str:
-    s = (s or "").strip().lower()
-    # cheap, safe slug (ASCII-ish)
-    out = []
-    prev_dash = False
-    for ch in s:
-        if ch.isalnum():
-            out.append(ch)
-            prev_dash = False
-        else:
-            if not prev_dash:
-                out.append("-")
-                prev_dash = True
-    slug = "".join(out).strip("-")
-    return slug or "unknown"
 
-def name_std_text(s: str) -> str:
-    s = (s or "").lower()
-    return "".join(ch if ch.isalnum() or ch == " " else " " for ch in s).split()
-    # returns list of tokens; we'll join with single space:
-def name_std_str(s: str) -> str:
-    return " ".join(name_std_text(s))
+def fail(msg: str) -> None:
+    print(f"[ERROR] {msg}", file=sys.stderr)
+    sys.exit(1)
 
-def ensure_cols(df: pd.DataFrame, cols: Dict[str, float]) -> pd.DataFrame:
-    for c, val in cols.items():
-        if c not in df.columns:
-            df[c] = val
-    return df
 
-def robust_std(s: pd.Series) -> float:
-    # avoid zero sigma; use IQR-based fallback if needed
-    s = pd.to_numeric(s, errors="coerce").dropna()
-    if s.empty:
-        return np.nan
-    st = float(np.std(s, ddof=1)) if len(s) > 1 else 0.0
-    if st <= 1e-6:
-        q75, q25 = np.percentile(s, [75, 25])
-        iqr = q75 - q25
-        st = float(iqr / 1.349) if iqr > 0 else 0.0
-    return max(st, 0.5)  # floor for sanity
+def info(msg: str) -> None:
+    print(f"[info] {msg}")
+
+
+def std_name(s: Optional[str]) -> str:
+    s = (str(s) if s is not None else "").strip().lower()
+    s = "".join(ch if ch.isalnum() else " " for ch in s)
+    s = " ".join(s.split())
+    return s
+
+
+def name_loose(s: Optional[str]) -> str:
+    """Loose key: first initial + last name (for emergency joins)."""
+    t = std_name(s)
+    if not t:
+        return ""
+    parts = t.split()
+    if not parts:
+        return ""
+    first_initial = parts[0][0] if parts[0] else ""
+    last = parts[-1] if len(parts) > 1 else ""
+    return (first_initial + last).strip()
+
+
+def canon_market(x: Optional[str]) -> str:
+    if x is None:
+        return ""
+    s = str(x).strip().lower().replace(" ", "_")
+    return ALIAS_MARKET.get(s, s)
+
+
+def choose_first_present(df: pd.DataFrame, candidates: Iterable[str]) -> Optional[str]:
+    for c in candidates:
+        if c in df.columns:
+            return c
+    return None
+
+
+# Required stats columns by canonical market
+STATS_COLS: Dict[str, List[str]] = {
+    "rush_yds": ["rushing_yards"],
+    "recv_yds": ["receiving_yards"],
+    "pass_yds": ["passing_yards"],
+    "receptions": ["receptions"],
+    "rush_attempts": ["rushing_attempts", "carries"],
+    "pass_attempts": ["passing_attempts", "attempts"],
+    "pass_completions": ["passing_completions", "completions"],
+    "pass_tds": ["passing_tds"],
+    "pass_interceptions": ["interceptions", "passing_interceptions"],
+    # anytime_td = rushing_tds + receiving_tds (needs both)
+    "anytime_td": ["rushing_tds", "receiving_tds"],
+}
 
 
 # -----------------------------
-# Data loading
+# Core logic
 # -----------------------------
-from pathlib import Path
-import pandas as pd
 
-def load_props_candidates(props_csv: str | None) -> pd.DataFrame:
-    # Prefer explicit path if provided, otherwise use sane fallbacks
-    candidates = []
-    if props_csv:
-        candidates.append(Path(props_csv))
-    candidates += [
-        Path("data/props/latest_all_props.csv"),
-        Path("data/props/latest_all_props_clean.csv"),
-    ]
+def load_props(path: str) -> pd.DataFrame:
+    info(f"Loading props from {path}")
+    df = pd.read_csv(path, low_memory=False)
+    if not any(c in df.columns for c in ["player", "name"]):
+        fail("props missing a player name column (expected 'player' or 'name').")
+    if "market" not in df.columns:
+        fail("props missing 'market' column.")
 
-    chosen = None
-    for p in candidates:
-        if p and p.exists():
-            chosen = p
-            break
+    df["market_std"] = df["market"].apply(canon_market)
+    # normalize name fields
+    name_src = "player" if "player" in df.columns else "name"
+    df["player_display_name"] = df[name_src].astype(str)
+    df["name_std"] = df["player_display_name"].map(std_name)
+    df["name_loose"] = df["player_display_name"].map(name_loose)
 
-    if chosen is None:
-        raise FileNotFoundError(
-            f"[params] Could not find props CSV. Tried: {', '.join(map(str, candidates))}"
-        )
-
-    df = pd.read_csv(chosen)
-
-    # Minimal column normalization used downstream
-    if "market" not in df.columns and "market_std" in df.columns:
-        df["market"] = df["market_std"]
-
-    # Ensure we have a displayable player field (fixes the earlier ValueError pattern too)
-    name_cols = [c for c in ("player","name","player_name","Name") if c in df.columns]
-    if name_cols:
-        df["player_display"] = pd.concat([df[c].astype(str) for c in name_cols], axis=1).bfill(axis=1).iloc[:, 0]
-    else:
-        df["player_display"] = ""
-
-    # Best-effort normalized join key
-    if "name_std" not in df.columns:
-        df["name_std"] = (
-            df["player_display"].astype(str).str.lower().str.replace(r"[^a-z0-9]+", "", regex=True)
-        )
-
-    # Normalize market_std if missing
-    if "market_std" not in df.columns and "market" in df.columns:
-        df["market_std"] = (
-            df["market"].astype(str).str.lower().str.replace(r"\s+", "_", regex=True)
-        )
+    # carry player_key if present
+    if "player_key" not in df.columns:
+        df["player_key"] = pd.NA
 
     return df
 
 
+def slice_stats(stats_path: str, season: int, week: int) -> pd.DataFrame:
+    info(f"Loading weekly stats from {stats_path}")
+    stats = pd.read_parquet(stats_path) if stats_path.lower().endswith(".parquet") else pd.read_csv(stats_path, low_memory=False)
 
-def fetch_recent_game_logs(season: int) -> Optional[pd.DataFrame]:
-    """
-    Load weekly player logs for `season` from local nflverse parquet fetched earlier.
-    Fail-fast if missing instead of silently falling back.
-    """
-    from pathlib import Path
-    p = Path(f"data/weekly_player_stats_{season}.parquet")
-    if not p.exists():
-        logging.error(f"Missing weekly parquet for season {season}: {p} (run weekly_stats first)")
-        return None
+    # Required columns
+    for c in ["season", "week"]:
+        if c not in stats.columns:
+            fail(f"weekly stats missing required column '{c}'")
 
-    weekly = pd.read_parquet(p)
-    weekly = weekly.loc[weekly.get("season").astype(int) == int(season)].copy()
+    # Use completed weeks only: weeks 1 .. (week-1)
+    if week <= 1:
+        fail(f"weekly stats empty for season={season}, weeks < {week} (no prior weeks).")
+    stats = stats.loc[(stats["season"] == season) & (stats["week"] >= 1) & (stats["week"] < week)].copy()
+    if stats.empty:
+        fail(f"weekly stats empty for season={season}, weeks < {week}")
 
-    weekly.columns = [c.lower() for c in weekly.columns]
+    # Visibility: show counts by week
+    by_week = (stats.groupby("week").size().rename("rows").reset_index())
+    info("[stats] rows by week after filter:\n" + by_week.to_string(index=False))
 
-    needed = [
-        "player_name","recent_team","position","gsis_id","season","week",
-        "rushing_yards","rushing_attempts","rushing_tds",
-        "receptions","receiving_yards","receiving_tds",
-        "passing_yards","passing_tds","interceptions"
-    ]
-    for c in needed:
-        if c not in weekly.columns:
-            weekly[c] = np.nan
+    # Name columns
+    name_src = choose_first_present(stats, ["player_display_name", "player_name", "name"])
+    if not name_src:
+        fail("weekly stats missing player name col (player_display_name/player_name/name)")
+    stats["player_display_name"] = stats[name_src].astype(str)
+    stats["name_std"]   = stats["player_display_name"].map(std_name)
+    stats["name_loose"] = stats["player_display_name"].map(name_loose)
 
-    weekly["player"] = weekly["player_name"].fillna("")
+    # Ensure some ID if available
+    if "player_id" not in stats.columns:
+        stats["player_id"] = pd.NA
 
-    keep = list(dict.fromkeys(["player","season","week"] + needed))
-    have = [c for c in keep if c in weekly.columns]
-    weekly = weekly[have]
-
-    tail = (
-        weekly.sort_values(["player","season","week"])
-              .groupby("player", group_keys=False)[have]
-              .apply(lambda g: g.tail(WINDOW_GAMES))
-              .reset_index(drop=True)
-    )
-
-    tail["name_std"] = tail["player"].astype(str).map(name_std_str)
-    tail["player_key"] = tail["player"].astype(str).map(slugify)
-    return tail
+    return stats
 
 
 
+def build_params(props: pd.DataFrame, stats: pd.DataFrame, season: int, week: int) -> pd.DataFrame:
+    # Determine which markets we actually need to compute
+    needed_markets = sorted(set(props["market_std"]).intersection(SUPPORTED_MARKETS))
+    if not needed_markets:
+        fail("No supported markets found in props after canonicalization.")
 
-
-# -----------------------------
-# Parameter building
-# -----------------------------
-def _agg_mu_sigma(s: pd.Series) -> Tuple[float, float]:
-    mu = float(pd.to_numeric(s, errors="coerce").dropna().mean()) if len(s.dropna()) else np.nan
-    sg = robust_std(s)
-    return mu, sg
-
-def build_params(cands, logs, season, week):
-    """
-    Board-driven param builder.
-    - Emits a row for every (player, market_std) present on the props board.
-    - Normal markets -> dist='normal', fills mu/sigma from logs if available, else PRIORS.
-    - Poisson markets -> dist='poisson', fills lam from logs if available, else PRIORS (and mirrors to mu).
-    - Adds used_logs=1 per row only if that player has any logs; else 0.
-    - Includes team/position/gsis_id if we can infer them from logs; else NaN.
-    """
-    import numpy as np
-    import pandas as pd
-
-    # Expect these to exist at module scope in this file
-    # NORMAL_MARKETS, POISSON_MARKETS, PRIORS
-
-    # --- player universe from the board (not from logs) ---
-    player_idx = pd.Index(cands["player"].dropna().unique(), name="player")
-
-    # columns to carry through from the board
-    keep_cols = [c for c in ["season","week","player","player_key","name_std","market_std"] if c in cands.columns]
-
-    # --- helpers ---
-    def const_series(val):
-        return pd.Series(val, index=player_idx, dtype="float64")
-
-    def pick_col(df, candidates):
-        if df is None or getattr(df, "empty", True):
-            return None
-        for c in candidates:
-            if c in df.columns:
-                return c
-        return None
-
-    # infer team/position/gsis_id and per-player log presence
-    team_map = {}
-    pos_map  = {}
-    gsis_map = {}
-    used_logs_map = {}
-    if logs is not None and not logs.empty:
-        grp = logs.groupby("player", dropna=False)
-        # choose best-available columns
-        team_col = pick_col(logs, ["recent_team", "team", "posteam", "recent_team_x"])
-        pos_col  = pick_col(logs, ["position", "pos"])
-        gsis_col = pick_col(logs, ["gsis_id", "player_id", "player_gsis_id", "id"])
-        if team_col:
-            team_map = grp[team_col].last().to_dict()
-        if pos_col:
-            pos_map = grp[pos_col].last().to_dict()
-        if gsis_col:
-            gsis_map = grp[gsis_col].last().to_dict()
-        used_logs_map = grp.size().to_dict()
-    # fallback lambdas
-    g_used = lambda p: 1 if used_logs_map.get(p, 0) > 0 else 0
-    g_team = lambda p: team_map.get(p, np.nan)
-    g_pos  = lambda p: pos_map.get(p,  np.nan)
-    g_gsis = lambda p: gsis_map.get(p, np.nan)
-
-    # --- which log columns feed each market ---
-    LOG_COLS_NORMAL = {
-        "rush_yds":         ["rushing_yards"],
-        "recv_yds":         ["receiving_yards"],
-        "receptions":       ["receptions"],
-        "pass_yds":         ["passing_yards"],
-        "pass_attempts":    ["passing_attempts", "attempts"],
-        "pass_completions": ["passing_completions", "completions"],
-        "rush_attempts":    ["rushing_attempts"],
-    }
-    LOG_COLS_POISSON = {
-        "pass_tds":            ["passing_tds"],
-        "pass_interceptions":  ["interceptions"],
-        # anytime_td handled via rushing_tds + receiving_tds
-    }
-
-    # --- precompute per-player μ/σ for Normal markets ---
-    mu_map, sg_map = {}, {}
-    if logs is not None and not logs.empty:
-        grp = logs.groupby("player", dropna=False)
-
-    for mkt, cand_cols in LOG_COLS_NORMAL.items():
-        mu0 = float(PRIORS.get(mkt, {}).get("mu", np.nan))
-        sg0 = float(PRIORS.get(mkt, {}).get("sigma", np.nan))
-        if logs is None or getattr(logs, "empty", True):
-            mu, sg = const_series(mu0), const_series(sg0)
+    # Verify stats columns for all markets present in props
+    # (anytime_td needs both rushing_tds and receiving_tds)
+    for m in needed_markets:
+        cols = STATS_COLS[m]
+        if m == "anytime_td":
+            missing = [c for c in cols if c not in stats.columns]
+            if missing:
+                fail(f"weekly stats missing columns for anytime_td: {missing}")
         else:
-            col = pick_col(logs, cand_cols)
-            if col is None:
-                mu, sg = const_series(mu0), const_series(sg0)
-            else:
-                g = grp[col]
-                mu = g.mean().reindex(player_idx).astype("float64").fillna(mu0)
-                sd = g.std(ddof=1).reindex(player_idx).astype("float64")
-                sg = sd.fillna(sg0)
-        mu_map[mkt], sg_map[mkt] = mu, sg
+            if choose_first_present(stats, cols) is None:
+                fail(f"weekly stats missing any of columns {cols} for market '{m}'")
 
-    # --- precompute per-player λ for Poisson markets ---
-    def lam_from(cols, prior_key, default_val=None):
-        base = PRIORS.get(prior_key, {}).get("lam", np.nan) if default_val is None else float(default_val)
-        if logs is None or getattr(logs, "empty", True):
-            return const_series(base)
-        col = pick_col(logs, cols)
-        if col is None:
-            return const_series(base)
-        s = grp[col].mean().reindex(player_idx).astype("float64")
-        return s.fillna(base)
+    # Candidate players = unique names/ids present in props
+    cand = (props[["player_key", "player_display_name", "name_std", "name_loose"]]
+            .drop_duplicates()
+            .reset_index(drop=True))
 
-    lam_any = float(PRIORS.get("anytime_td", {}).get("lam", 0.5))
-    rtd  = lam_from(["rushing_tds"],  "anytime_td", default_val=lam_any/2.0)
-    rctd = lam_from(["receiving_tds"],"anytime_td", default_val=lam_any/2.0)
-    ptd  = lam_from(LOG_COLS_POISSON["pass_tds"], "pass_tds")
-    ints = lam_from(LOG_COLS_POISSON["pass_interceptions"], "pass_interceptions")
-
-    def lam_for(mkt):
-        if mkt == "anytime_td":         return (rtd + rctd).clip(lower=0.01, upper=5.0)
-        if mkt == "pass_tds":           return ptd.clip(lower=0.01, upper=5.0)
-        if mkt == "pass_interceptions": return ints.clip(lower=0.01, upper=5.0)
-        return const_series(np.nan)
-
-    # --- assemble rows per market from the board (safe: .assign + concat) ---
     rows = []
-    present = sorted(cands["market_std"].dropna().unique())
-    for mkt in present:
-        want = cands.loc[cands["market_std"] == mkt, keep_cols].drop_duplicates()
-        if want.empty:
-            continue
-
-        # attach per-player meta if requested by your file's schema
-        want = want.assign(
-            team     = want["player"].map(g_team)  if "team"     in getattr(cands, "columns", []) or True else np.nan,
-            position = want["player"].map(g_pos)   if "position" in getattr(cands, "columns", []) or True else np.nan,
-            gsis_id  = want["player"].map(g_gsis)  if "gsis_id"  in getattr(cands, "columns", []) or True else np.nan,
-        )
-
-        if mkt in LOG_COLS_NORMAL:
-            mu = mu_map[mkt]
-            sg = sg_map[mkt]
-            rows.append(
-                want.assign(
-                    dist      = "normal",
-                    mu        = want["player"].map(mu),
-                    sigma     = want["player"].map(sg),
-                    lam       = np.nan,
-                    used_logs = want["player"].map(lambda p: g_used(p)),
-                )
-            )
-        elif mkt in POISSON_MARKETS:
-            lam = lam_for(mkt)
-            rows.append(
-                want.assign(
-                    dist      = "poisson",
-                    mu        = want["player"].map(lam),  # legacy compat
-                    sigma     = np.nan,
-                    lam       = want["player"].map(lam),
-                    used_logs = want["player"].map(lambda p: g_used(p)),
-                )
-            )
+    # For each market, get the per-game series from stats and aggregate per player
+    for m in needed_markets:
+        if m == "anytime_td":
+            if "rushing_tds" not in stats.columns or "receiving_tds" not in stats.columns:
+                fail("weekly stats missing rushing_tds or receiving_tds needed for anytime_td")
+            series = stats["rushing_tds"].fillna(0) + stats["receiving_tds"].fillna(0)
         else:
-            # unmodeled (longest, 1st/last TD) — skip
-            continue
+            col = choose_first_present(stats, STATS_COLS[m])
+            if col is None:
+                fail(f"weekly stats missing columns for {m}")
+            series = stats[col]
 
-    params = (
-        pd.concat(rows, ignore_index=True)
-        if rows else pd.DataFrame(columns=keep_cols + ["team","position","gsis_id","dist","mu","sigma","lam","used_logs"])
-    )
+        temp = stats[["player_id", "player_display_name", "name_std", "name_loose"]].copy()
+        temp["market_std"] = m
+        temp["value"] = series.astype(float)
 
-    # back-compat: some downstream code expects 'market'
-    if "market" not in params.columns and "market_std" in params.columns:
-        params["market"] = params["market_std"]
+        agg = (
+            temp.groupby(["player_id", "name_std", "name_loose", "market_std"], dropna=False)["value"]
+                .agg(n_games="count", mean="mean", var=lambda x: float(np.var(x, ddof=1)) if len(x) > 1 else np.nan)
+                .reset_index()
+        )
+        rows.append(agg)
 
-    # ensure types
-    for col in ["mu","sigma","lam"]:
-        if col in params.columns:
-            params[col] = pd.to_numeric(params[col], errors="coerce")
+    long_agg = pd.concat(rows, ignore_index=True)
 
-    # attach season/week if missing
-    if "season" not in params.columns:
-        params["season"] = season
-    if "week" not in params.columns:
-        params["week"] = week
+    # Join to candidates (props players) on name_std (primary)
+    merged = cand.merge(long_agg, on=["name_std"], how="left", suffixes=("", "_stats"))
 
-    return params
+    # Compute mu/sigma/lam by market type
+    merged["mu"] = np.where(merged["market_std"].isin(list(NORMAL_MARKETS)),
+                            merged["mean"], np.nan)
+    # sigma requires at least 2 games
+    merged["sigma"] = np.where(merged["market_std"].isin(list(NORMAL_MARKETS)),
+                               np.where(merged["n_games"] > 1, np.sqrt(merged["var"]), np.nan),
+                               np.nan)
+    merged["lam"] = np.where(merged["market_std"].isin(list(POISSON_MARKETS)),
+                             merged["mean"], np.nan)
 
+    merged["season"] = season
+    merged["week"] = week
+    merged["built_at"] = datetime.utcnow().isoformat(timespec="seconds") + "Z"
 
+    out_cols = [
+        "player_key", "player_display_name", "name_std", "name_loose",
+        "market_std", "n_games", "mu", "sigma", "lam",
+        "season", "week", "built_at",
+    ]
+    out = merged[out_cols].drop_duplicates().reset_index(drop=True)
+    # Keep only rows where we computed at least one parameter
+    out = out.loc[out[["mu", "lam"]].notna().any(axis=1)].copy()
+    return out
 
-
-
-# -----------------------------
-# Main
-# -----------------------------
-def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Build player prop params (μ/σ/λ) by market.")
-    p.add_argument("--season", type=int, required=True)
-    p.add_argument("--week", type=int, required=True)
-    p.add_argument("--props_csv", type=str, default="data/props/latest_all_props.csv",
-                   help="Fetched props CSV used to enumerate (player, market) pairs.")
-    p.add_argument("--out", type=str, default=None,
-                   help="Output CSV path (default: data/props/params_week{WEEK}.csv)")
-    p.add_argument("--loglevel", type=str, default="INFO")
-    return p.parse_args()
 
 def main():
-    args = parse_args()
-    logging.basicConfig(level=getattr(logging, args.loglevel.upper(), logging.INFO),
-                        format="%(levelname)s:%(message)s")
+    ap = argparse.ArgumentParser(description="Build per‑player params from weekly stats + props (fail‑fast, no game_id dependency in stats).")
+    ap.add_argument("--season", type=int, required=True)
+    ap.add_argument("--week", type=int, required=True)
+    ap.add_argument("--props_csv", type=str, required=True)
+    ap.add_argument("--stats_parquet", type=str, required=True, help="Path to nflverse weekly stats parquet (preferred) or CSV.")
+    ap.add_argument("--out", type=str, required=True)
+    ap.add_argument("--zero_prior_report", type=str, default=None,
+                    help="Optional CSV path: list players from props with zero prior‑week history this season.")
+    args = ap.parse_args()
 
-    season, week = args.season, args.week
-    out_path = args.out or f"data/props/params_week{week}.csv"
+    # --- parse + train window ---
+    season = int(args.season)
+    week   = int(args.week)
 
-    logging.info(f"Building params for season={season}, week={week}")
+    # We model Week N using completed weeks only (1..N-1)
+    if week <= 1:
+        fail(f"Week {week} has no prior weeks; pass week >= 2.")
+    train_to_week = week  # note: slice_stats uses "< week" so passing W=4 yields weeks 1..3
 
+    info(f"[run] season={season} week={week} (training on weeks < {train_to_week})")
 
-
-
-
-
-    cands = load_props_candidates(args.props_csv)
-
-    # Ensure we have a props path
-    if not getattr(args, "props_csv", None):
-        args.props_csv = "data/props/latest_all_props.csv"
-
-    logging.info(f"Loading props from {args.props_csv}")
+    # --- load inputs ---
     props = load_props(args.props_csv)
+    stats = slice_stats(args.stats_parquet, season, train_to_week)
 
-    # 1) Normalize market labels on the board to canonical names
-    pcol = "market_std" if "market_std" in props.columns else "market"
-    props["market_std"] = props[pcol].map(std_market)
-
-    # 2) Filter to modeled markets only (drop longest/1st/last TD, etc.)
-    props = props[props["market_std"].isin(MODELED_MARKETS)].copy()
-    if props.empty:
-        raise SystemExit("No modeled props found after normalization/filtering.")
-
-    # 3) Build the candidate set from the (now-normalized) board
-    keep_cols = [c for c in ["player","player_key","name_std","market_std"] if c in props.columns]
-    cands = (
-        props.loc[:, keep_cols]
-             .dropna(subset=["player","market_std"])
-             .drop_duplicates()
-             .copy()
-    )
-    cands["season"] = args.season
-    cands["week"]   = args.week
-    logging.info(f"Candidates: {cands[['player','market_std']].drop_duplicates().shape[0]} "
-                 "unique (player, market_std) pairs.")
+    info(f"[props] rows={len(props)}; columns={list(props.columns)[:8]}...")
+    info(f"[stats] rows={len(stats)} after filter")
 
 
 
 
 
-    logging.info(f"Candidates: {len(cands)} unique (player, market_std) pairs.")
-
-    logs = fetch_recent_game_logs(season)
 
 
+    # Optional: report players with zero prior weeks (by name_std)
+    if args.zero_prior_report:
+        present_names = set(stats["name_std"].unique())
+        zero_prior = (
+            props.loc[~props["name_std"].isin(present_names), ["player_key", "player_display_name", "name_std"]]
+            .drop_duplicates()
+            .reset_index(drop=True)
+        )
+        zero_prior.to_csv(args.zero_prior_report, index=False)
+        info(f"Wrote zero‑prior report: {args.zero_prior_report} (rows={len(zero_prior)})")
 
-        # --- PROPS → cands (board-driven) ---
-    props_csv = getattr(args, "props_csv", None) or "data/props/latest_all_props.csv"
-    logging.info(f"Loading props from {props_csv}")
-    props = load_props(props_csv)
+        # --- build params ---
+    out = build_params(props, stats, season, week)
 
-    # normalize book labels → canonical (e.g., player_reception_yds → recv_yds)
-    pcol = "market_std" if "market_std" in props.columns else "market"
-    props["market_std"] = props[pcol].map(std_market)
+    # --- Guardrails: MU clamp + SIGMA floor (before write) ---
 
-    # keep only modeled markets (drop longest / 1st / last TD, etc.)
-    props = props[props["market_std"].isin(MODELED_MARKETS)].copy()
-    if props.empty:
-        raise SystemExit("No modeled props found after normalization/filtering.")
+    # 1) μ clamp: no negative means for OU markets
+    if "mu" in out.columns:
+        out["mu"] = pd.to_numeric(out["mu"], errors="coerce").fillna(0.0)
+        out["mu"] = out["mu"].clip(lower=0.0)
+        assert (out["mu"] >= 0).all(), "[params] mu clamp failed: found mu<0 after clamp"
+        info(f"[params] mu clamp applied; negatives now {(out['mu']<0).sum()} rows")
 
-    keep_cols = [c for c in ["player","player_key","name_std","market_std"] if c in props.columns]
-    cands = (
-        props.loc[:, keep_cols]
-             .dropna(subset=["player","market_std"])
-             .drop_duplicates()
-             .copy()
-    )
-    cands["season"] = args.season
-    cands["week"]   = args.week
-    logging.info(f"Candidates: {cands[['player','market_std']].drop_duplicates().shape[0]} "
-                 "unique (player, market_std) pairs.")
+    # 2) σ floor: only for Normal markets (market-aware floors)
+    if "sigma" in out.columns and "market_std" in out.columns:
+        NORMAL_MARKETS = {
+            "rush_yds", "recv_yds", "pass_yds",
+            "receptions",
+            "rush_attempts", "pass_attempts", "pass_completions",
+        }
 
-    params = build_params(cands, logs, args.season, args.week)
+        # conservative per-market minimums; tweak later as needed
+        sigma_min_map = {
+            "rush_yds":         3.0,
+            "recv_yds":         4.0,
+            "pass_yds":        12.0,
+            "receptions":       1.2,
+            "rush_attempts":    1.8,
+            "pass_attempts":    4.0,
+            "pass_completions": 3.0,
+        }
+        GLOBAL_SIGMA_FLOOR = 2.0  # fallback if a Normal market slips through unmapped
+        EPS = 1e-6                # numerical guard
 
+        out["sigma"] = pd.to_numeric(out["sigma"], errors="coerce").fillna(0.0)
+        is_normal = out["market_std"].isin(NORMAL_MARKETS)
+        floors = out["market_std"].map(sigma_min_map).fillna(GLOBAL_SIGMA_FLOOR)
 
-    # tidy columns order
-    params = ensure_param_schema(params)
-    params = apply_priors_if_missing(params)
+        before_bad = int((is_normal & (out["sigma"] <= 0)).sum())
+        out.loc[is_normal, "sigma"] = np.where(
+            out.loc[is_normal, "sigma"] > 0,
+            out.loc[is_normal, "sigma"],
+            floors.loc[is_normal]
+        )
+        out.loc[is_normal, "sigma"] = out.loc[is_normal, "sigma"].clip(lower=EPS)
+        after_bad = int((is_normal & (out["sigma"] <= 0)).sum())
+        info(f"[params] sigma floor applied; fixed {before_bad - after_bad} rows in Normal markets")
+        assert after_bad == 0, "[params] sigma floor failed: found sigma<=0 after floor in Normal markets"
 
-    # Back-compat: some downstream code expects 'market'
-    if "market" not in params.columns:
-        params["market"] = params["market_std"]
-
-    # Final tidy + write
-    cols = ["season","week","player","player_key","name_std","market_std","market",
-        "dist","mu","sigma","lam","used_logs"]
-    params = params[[c for c in cols if c in params.columns]].copy()
-    params = standardize_input(params)           # adds market_std/name/point/name_std
-    params = apply_priors_if_missing(params)     # fills missing mu/sigma/lam using PRIORS
-
-
-    out_csv = args.out or f"data/props/params_week{args.week}.csv"
-    os.makedirs(os.path.dirname(out_csv), exist_ok=True)
-
-    # --- ensure join keys exist in params (permanent fix) ---
-    df = params  # or: df = out   <-- use whatever your params DataFrame is named
-
-    # Ensure 'player' exists (fallbacks if your builder used a different column)
-    if 'player' not in df.columns:
-        for c in ('player_name','athlete','athlete_name','name'):
-            if c in df.columns:
-                df['player'] = df[c]
-                break
-
-    # Build a readable name_std before compressing for joins
-    if 'name_std' in df.columns:
-        name_vals = df['name_std'].fillna('').astype(str)
-    else:
-        name_vals = pd.Series('', index=df.index)
-
-    fallback_cols = ('player', 'player_name', 'name')
-    missing_mask = name_vals.eq('')
-    for col in fallback_cols:
-        if not missing_mask.any():
-            break
-        if col in df.columns:
-            fill = df.loc[missing_mask, col].fillna('').astype(str)
-            name_vals.loc[missing_mask] = fill
-            missing_mask = name_vals.eq('')
-
-    name_vals = name_vals.map(name_std_str)
-    df['name_std_spaced'] = name_vals
-    df['name_std'] = df['name_std_spaced'].map(std_name)
-
-    # player_key = existing or fallback to compressed name_std
-    if 'player_key' not in df.columns:
-        df['player_key'] = df['name_std']
-    else:
-        missing_key = df['player_key'].isna() | (df['player_key'] == '')
-        df.loc[missing_key, 'player_key'] = df.loc[missing_key, 'name_std']
-
-    distinct_before = df['name_std_spaced'].nunique(dropna=True)
-    distinct_after = df['name_std'].nunique(dropna=True)
-    print(f"[params] name_std distinct (spaced→compressed): {distinct_before} → {distinct_after}")
-
-    # put it back if you used another variable name
-    params = df  # or: out = df
-
-    params.to_csv(out_csv, index=False)
-    logging.info("params written: %s", out_csv)
-
-
+    # --- write ---
+    out.to_csv(args.out, index=False)
+    info(f"Wrote params: {args.out} (rows={len(out)})")
 
 
 
