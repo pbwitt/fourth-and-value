@@ -188,6 +188,27 @@ def american_to_prob(o):
     if math.isnan(v): return float("nan")
     return 100.0/(v+100.0) if v > 0 else (-v)/((-v)+100.0)
 
+def prob_to_american(p):
+    """
+    Convert implied probability (0–1) to American odds.
+    Returns int odds (e.g. +150, -120), or None if invalid.
+    Clamps extreme probabilities to avoid mathematical overflow.
+    """
+    try:
+        v = float(p)
+    except Exception:
+        return None
+    if math.isnan(v):
+        return None
+    # Clamp to safe range: (0.01, 0.99) to prevent extreme odds
+    # 0.01 → +9900, 0.99 → -9900 (reasonable max odds)
+    v = max(min(v, 0.99), 0.01)
+    # Underdog (prob < 0.5) → positive odds
+    if v < 0.5:
+        return int(round(100 * (1 - v) / v))
+    # Favorite (prob > 0.5) → negative odds
+    return int(round(-v * 100 / (1 - v)))
+
 def fmt_pct(x):
     """Accepts 0–1 or 0–100 and returns '74.1%' style string; '' if invalid."""
     try:

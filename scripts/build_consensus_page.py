@@ -1,405 +1,705 @@
 #!/usr/bin/env python3
-import argparse, pandas as pd, numpy as np, re, math
+"""Build the consensus props page with Overview and Value tabs."""
+
+from __future__ import annotations
+
+import argparse
+import math
 from html import escape
 from pathlib import Path
-from site_common import inject_nav
-from site_common import write_with_nav_raw
- # add this
-# shared helpers
+from typing import Optional, Sequence
+import re
+
+import pandas as pd
+
 from site_common import (
-    nav_html, pretty_market, fmt_odds_american, fmt_pct,
-    american_to_prob, kickoff_et, BRAND
+    write_with_nav_raw,
+    pretty_market,
+    fmt_odds_american,
+    fmt_pct,
+    kickoff_et,
+    american_to_prob,
+    prob_to_american, BRAND
 )
 
-# -------- helpers local to this script --------
-# --- 1) Add near your other template helpers (top of file) -------------------
-FILTERS_BLOCK = r"""
+
+DISPLAY_DASH = "—"
+MODEL_LINE_CANDIDATES: Sequence[str] = (
+    "model_line",
+    "model_mu",
+    "model_p50",
+    "mu",
+)
+
+TABS_CSS = """
 <style>
-  .filters { display:grid; gap:10px; grid-template-columns: repeat(4, minmax(140px, 1fr)) 1fr; align-items:end; margin:12px 0 10px; }
-  .filters label { font-size:12px; color:#b7b7bb; display:block; margin-bottom:5px; }
-  .filters select, .filters input {
-    width:100%; padding:8px 10px; background:#111113; color:#e7e7ea; border:1px solid #1f1f22; border-radius:10px;
-  }
-  .filters .right { text-align:right; }
-  .filters .btn-clear {
-    padding:9px 12px; background:#18181b; border:1px solid #2a2a2f; border-radius:10px; color:#d7d7dc; cursor:pointer;
-  }
-  .filters .btn-clear:hover { background:#202024; }
-  .results-note { margin:4px 0 12px; color:#b7b7bb; font-size:12px; }
-  @media (max-width: 720px) {
-    .filters { grid-template-columns: 1fr 1fr; }
-    .filters .right { grid-column: 1 / -1; text-align:left; }
-  }
+:root {
+  --bg:#0b0b10;
+  --card:#14141c;
+  --muted:#9aa0a6;
+  --text:#e8eaed;
+  --border:#23232e;
+}
+
+body {
+  margin: 0;
+  padding: 24px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+}
+
+.small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.card {
+  background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0));
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.02), 0 12px 40px rgba(0,0,0,.35);
+}
+
+.fv-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 0 0 16px 0;
+}
+
+.fv-filter-bar label {
+  font-size: 14px;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+}
+
+.fv-filter-bar select, .fv-filter-bar input {
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  min-width: 110px;
+  outline: none;
+}
+
+.fv-filter-bar select:focus, .fv-filter-bar input:focus {
+  border-color: #6ee7ff;
+  box-shadow: 0 0 0 3px rgba(110,231,255,.15);
+}
+
+.table-wrap {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+table.consensus-table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 1000px;
+  background: var(--card);
+  color: var(--text);
+}
+
+table.consensus-table th,
+table.consensus-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+table.consensus-table th {
+  text-align: left;
+  position: sticky;
+  top: 0;
+  background: var(--card);
+  z-index: 1;
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: .2px;
+  font-weight: 600;
+}
+
+table.consensus-table td {
+  text-align: left;
+}
+
+table.consensus-table td.right {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+}
+
+table.consensus-table tr:hover td {
+  background: rgba(255,255,255,.02);
+}
+
+table.consensus-table .edge-strong td {
+  font-weight: 600;
+}
+
+table.consensus-table a {
+  color: inherit;
+  text-decoration: none;
+}
+
 </style>
 
-<div id="consensus-filters" class="filters" hidden>
-  <div>
-    <label for="f_game">Game</label>
-    <select id="f_game"><option value="">All games</option></select>
-  </div>
-  <div>
-    <label for="f_market">Market</label>
-    <select id="f_market"><option value="">All markets</option></select>
-  </div>
-  <div>
-    <label for="f_player">Player</label>
-    <select id="f_player"><option value="">All players</option></select>
-  </div>
-  <div>
-    <label for="f_book">Book</label>
-    <select id="f_book"><option value="">All books</option></select>
-  </div>
-  <div class="right">
-    <button class="btn-clear" id="f_clear">Clear filters</button>
-  </div>
-</div>
-<div id="consensus-results" class="results-note" hidden></div>
+"""
 
+TABS_JS = """
 <script>
-document.addEventListener('DOMContentLoaded',function(){
-  const table = document.querySelector('main.container .tablewrap table');
-  if (!table) return;
-
-  const tbody = table.tBodies[0];
-  const rows  = Array.from(tbody?.rows || []);
-  if (!rows.length) return;
-
-  // Column order from the Consensus page you generated:
-  // Kick | Game | Player | Market | Best book bet | Market consensus | Edge
-  const COL = { game:1, player:2, market:3, bet:4 };
-
-  function extractBook(txt){
-    const m = txt.match(/\bon\s+([a-z0-9_]+)\s*$/i);  // "... on fanduel"
-    return m ? m[1].toLowerCase() : '';
-  }
-
-  const uniq = { game:new Set(), market:new Set(), player:new Set(), book:new Set() };
-  const cache = new Map();
-
-  rows.forEach(tr => {
-    const game   = tr.cells[COL.game]?.textContent.trim() || '';
-    const player = tr.cells[COL.player]?.textContent.trim() || '';
-    const market = tr.cells[COL.market]?.textContent.trim() || '';
-    const betTxt = tr.cells[COL.bet]?.textContent.trim() || '';
-    const book   = extractBook(betTxt);
-
-    cache.set(tr, { game, market, player, book });
-
-    if (game)   uniq.game.add(game);
-    if (market) uniq.market.add(market);
-    if (player) uniq.player.add(player);
-    if (book)   uniq.book.add(book);
+function showTab(id) {
+  document.querySelectorAll('.tab-section').forEach(el => el.style.display = 'none');
+  const el = document.getElementById(id);
+  if (el) el.style.display = '';
+  document.querySelectorAll('.fv-tabs a').forEach(a => {
+    if (a.getAttribute('href') === '#' + id) a.classList.add('active');
+    else a.classList.remove('active');
   });
-
-  const $wrap   = document.getElementById('consensus-filters');
-  const $note   = document.getElementById('consensus-results');
-  const $game   = document.getElementById('f_game');
-  const $market = document.getElementById('f_market');
-  const $player = document.getElementById('f_player');
-  const $book   = document.getElementById('f_book');
-  const $clear  = document.getElementById('f_clear');
-
-  function fillSelect(sel, items) {
-    const sorted = Array.from(items).sort((a,b)=> a.localeCompare(b));
-    const frag = document.createDocumentFragment();
-    sorted.forEach(v => {
-      const opt = document.createElement('option');
-      opt.value = v;
-      opt.textContent = v;
-      frag.appendChild(opt);
+}
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.fv-tabs a').forEach(a => {
+    a.addEventListener('click', function(evt) {
+      evt.preventDefault();
+      const id = this.getAttribute('href').slice(1);
+      history.replaceState(null, '', '#' + id);
+      showTab(id);
     });
-    sel.appendChild(frag);
-  }
-
-  fillSelect($game,   uniq.game);
-  fillSelect($market, uniq.market);
-  fillSelect($player, uniq.player);
-  fillSelect($book,   uniq.book);
-
-  function fmt(n){ return n.toLocaleString(); }
-
-  function applyFilters(){
-    const f = {
-      game:   $game.value,
-      market: $market.value,
-      player: $player.value,
-      book:   $book.value.toLowerCase()
-    };
-
-    let shown = 0;
-    rows.forEach(tr => {
-      const v = cache.get(tr);
-      const ok =
-        (!f.game   || v.game   === f.game) &&
-        (!f.market || v.market === f.market) &&
-        (!f.player || v.player === f.player) &&
-        (!f.book   || v.book   === f.book);
-      tr.style.display = ok ? '' : 'none';
-      if (ok) shown++;
-    });
-
-    $note.textContent = `${fmt(shown)} result${shown===1?'':'s'} shown` +
-                        (f.game||f.market||f.player||f.book ? ' (filters on)' : '');
-  }
-
-  [$game, $market, $player, $book].forEach(el => el.addEventListener('change', applyFilters));
-  $clear.addEventListener('click', () => {
-    $game.value = $market.value = $player.value = $book.value = '';
-    applyFilters();
   });
+  const initial = (location.hash || '#overview').slice(1);
 
-  const tablewrap = table.closest('.tablewrap');
-  tablewrap.parentNode.insertBefore($wrap, tablewrap);
-  tablewrap.parentNode.insertBefore($note, tablewrap.nextSibling);
+  // after you compute tabs & sections
+const sections = document.querySelectorAll('.tab-section');
+const tabs = document.querySelectorAll('.fv-tabs a');
 
-  $wrap.hidden = false;
-  $note.hidden = false;
-  applyFilters();
+function show(hash) {
+  sections.forEach(s => s.classList.remove('active'));
+  const sec = document.querySelector(hash);
+  if (sec) sec.classList.add('active');
+  tabs.forEach(a => a.classList.toggle('active', a.getAttribute('href') === hash));
+}
+
+// init: if nothing is active (single-tab case), activate the first section
+const currentActive = document.querySelector('.tab-section.active');
+if (!currentActive && sections.length) {
+  sections[0].classList.add('active');
+  const firstHash = '#' + sections[0].id;
+  tabs.forEach(a => a.classList.toggle('active', a.getAttribute('href') === firstHash));
+}
+
+  showTab(initial);
 });
 </script>
 """
 
-def inject_filters(html: str) -> str:
+FILTER_BAR_HTML = """
+<div class="small" style="margin-bottom:16px;">Select Game → Market → Book → Player filters below. Consensus line = median across books; Market % = de-vigged implied probability.</div>
+
+<div class="fv-filter-bar" id="fv-filter-bar">
+  <label>Game <select id="filter-game"><option value="">All</option></select></label>
+  <label>Market <select id="filter-market"><option value="">All</option></select></label>
+  <label>Book <select id="filter-book"><option value="">All</option></select></label>
+  <label>Player <input type="text" id="filter-player" placeholder="Search player" /></label>
+</div>
+"""
+
+FILTER_JS = """
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const gameSel = document.getElementById('filter-game');
+  const marketSel = document.getElementById('filter-market');
+  const bookSel = document.getElementById('filter-book');
+  const playerInput = document.getElementById('filter-player');
+  if (!gameSel || !marketSel || !bookSel || !playerInput) return;
+
+  const rows = Array.from(document.querySelectorAll('table.consensus-table tbody tr'));
+  const bookEntries = new Map();
+  const marketEntries = new Map();
+  const gameEntries = new Set();
+
+  function addBook(key, label) {
+    if (!key) return;
+    if (!bookEntries.has(key)) {
+      bookEntries.set(key, label || key);
+    }
+  }
+
+  rows.forEach(row => {
+    const game = row.dataset.game || '';
+    if (game) gameEntries.add(game);
+    const marketKey = row.dataset.market || '';
+    const marketLabel = row.dataset.marketLabel || marketKey;
+    if (marketKey) marketEntries.set(marketKey, marketLabel);
+
+    if (row.dataset.book) {
+      addBook(row.dataset.book, row.dataset.bookLabel || row.dataset.book);
+    }
+    const bookList = row.dataset.books ? row.dataset.books.split(',') : [];
+    const bookLabelList = row.dataset.bookLabels ? row.dataset.bookLabels.split('|') : [];
+    bookList.forEach((key, idx) => {
+      const label = bookLabelList[idx] || key;
+      addBook(key.trim(), label.trim());
+    });
+  });
+
+  function fillSelect(sel, entries) {
+    const opts = Array.from(entries instanceof Map ? entries.entries() : Array.from(entries).map(v => [v,v]));
+    opts.sort((a,b) => a[1].localeCompare(b[1]));
+    opts.forEach(([key, label]) => {
+      const opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = label;
+      sel.appendChild(opt);
+    });
+  }
+
+  fillSelect(gameSel, gameEntries);
+  fillSelect(marketSel, marketEntries);
+  fillSelect(bookSel, bookEntries);
+
+  function applyFilters() {
+    const gameVal = gameSel.value.toLowerCase();
+    const marketVal = marketSel.value.toLowerCase();
+    const bookVal = bookSel.value.toLowerCase();
+    const playerVal = playerInput.value.toLowerCase();
+
+    let visible = 0;
+    rows.forEach(row => {
+      const game = (row.dataset.game || '').toLowerCase();
+      const market = (row.dataset.market || '').toLowerCase();
+      const player = (row.dataset.player || '').toLowerCase();
+      const bookData = (row.dataset.book || '').toLowerCase();
+      const booksData = (row.dataset.books || '').toLowerCase();
+
+      const gameMatch = !gameVal || game === gameVal;
+      const marketMatch = !marketVal || market === marketVal;
+      const playerMatch = !playerVal || player.includes(playerVal);
+      const bookMatch = !bookVal || bookData === bookVal || booksData.includes(bookVal);
+
+      if (gameMatch && marketMatch && playerMatch && bookMatch) {
+        row.style.display = '';
+        visible++;
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  }
+
+  gameSel.addEventListener('change', applyFilters);
+  marketSel.addEventListener('change', applyFilters);
+  bookSel.addEventListener('change', applyFilters);
+  playerInput.addEventListener('input', applyFilters);
+});
+</script>
+"""
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Data harmonization & display helpers
+# ─────────────────────────────────────────────────────────────────────
+
+def canonical_str(x) -> str:
+    """Make NaN/None → empty string, else str."""
+    if x is None or (isinstance(x, float) and math.isnan(x)):
+        return ""
+    return str(x).strip()
+
+
+def display_value(x) -> str:
+    """Format cell value: NaN → DISPLAY_DASH, numeric → formatted, else str."""
+    if x is None or (isinstance(x, float) and math.isnan(x)):
+        return DISPLAY_DASH
+    if isinstance(x, (int, float)):
+        if math.isnan(x):
+            return DISPLAY_DASH
+        # Integers or floats with .0
+        if isinstance(x, int) or x == int(x):
+            return str(int(x))
+        return f"{x:.2f}"
+    return str(x).strip()
+
+
+def fmt_line(val):
+    """Format a line/point value for display."""
+    if val is None or (isinstance(val, float) and math.isnan(val)):
+        return DISPLAY_DASH
+    try:
+        f = float(val)
+        if f == int(f):
+            return str(int(f))
+        return f"{f:.1f}"
+    except:
+        return str(val)
+
+
+def fmt_edge_bps(val):
+    """Format edge in basis points."""
+    if val is None or (isinstance(val, float) and math.isnan(val)):
+        return DISPLAY_DASH
+    try:
+        return f"{int(val):+d}"
+    except:
+        return DISPLAY_DASH
+
+
+def fmt_odds_dash(val):
+    """Format odds with DISPLAY_DASH fallback."""
+    if val is None or (isinstance(val, float) and math.isnan(val)):
+        return DISPLAY_DASH
+    s = fmt_odds_american(val)
+    return s if s else DISPLAY_DASH
+
+
+def norm_key(s) -> str:
+    """Normalize a string for use as a data attribute key."""
+    if not s:
+        return ""
+    return re.sub(r"\s+", " ", str(s)).strip().lower()
+
+
+def choose_player(row: pd.Series) -> str:
+    """Pick best available player name from row."""
+    for col in ["name_std", "player_name", "player"]:
+        if col in row.index:
+            val = row[col]
+            if val is not None and not (isinstance(val, float) and math.isnan(val)):
+                s = str(val).strip()
+                if s and s.lower() not in {"nan", "none", ""}:
+                    return s
+    return ""
+
+
+def harmonize(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Insert the filter UI before the first .tablewrap.
-    If the template contains a '__FILTERS__' marker, use that instead.
+    Harmonize column names and add display columns.
     """
-    if "__FILTERS__" in html:
-        return html.replace("__FILTERS__", FILTERS_BLOCK)
-    # Fallback: inject before the first tablewrap div
-    needle = '<div class="tablewrap">'
-    idx = html.find(needle)
-    if idx == -1:
-        return html  # nothing to do
-    return html[:idx] + FILTERS_BLOCK + html[idx:]
+    df = df.copy()
 
+    # Alias columns
+    if "bookmaker_title" in df.columns and "bookmaker" not in df.columns:
+        df["bookmaker"] = df["bookmaker_title"]
+    if "player" not in df.columns and "name_std" in df.columns:
+        df["player"] = df["name_std"]
+    if "market" not in df.columns and "market_std" in df.columns:
+        df["market"] = df["market_std"]
 
-LINE_CANDIDATES = [
-    "line_disp","point","line","market_line","prop_line","number","threshold","total","line_number",
-    "handicap","spread","yards","receptions","receiving_yards","rushing_yards","passing_yards","prop_total"
-]
-GAME_CANDIDATES = ["game","Game","matchup","matchup_name","matchup_display"]
+    # Display columns
+    if "model_prob" in df.columns:
+        df["model_prob_disp"] = df["model_prob"].apply(fmt_pct)
+    if "consensus_prob" in df.columns:
+        df["consensus_prob_disp"] = df["consensus_prob"].apply(fmt_pct)
+    if "price" in df.columns:
+        df["book_price_disp"] = df["price"].apply(fmt_odds_american)
 
-def _num(x):
-    with np.errstate(all="ignore"):
-        return pd.to_numeric(x, errors="coerce")
+    # Game display
+    def make_game(row):
+        for c in ["game", "game_display", "matchup"]:
+            if c in row.index and pd.notna(row[c]):
+                return str(row[c]).strip()
+        away = str(row.get("away_team", "")).strip()
+        home = str(row.get("home_team", "")).strip()
+        if away and home:
+            return f"{away} @ {home}"
+        return away or home or ""
 
-def _norm(s: str) -> str:
-    return re.sub(r"\s+", " ", str(s or "")).strip().lower()
+    df["game"] = df.apply(make_game, axis=1)
 
-def _first_nonnull(row, cols):
-    for c in cols:
-        if c in row and pd.notna(row[c]) and str(row[c]).strip() != "":
-            return row[c]
-    return np.nan
-
-def _is_numeric_total_market(mkt) -> bool:
-    m = pretty_market(mkt or "").lower()
-    if not m: return False
-    if "yards" in m: return True
-    return m in {"receptions","rush attempts","pass attempts","completions","passing touchdowns","rushing attempts"}
-
-def mk_line_disp(r):
-    # keep if already nice
-    if "line_disp" in r and str(r["line_disp"]).strip():
-        return str(r["line_disp"]).strip()
-    raw_line = _first_nonnull(r, LINE_CANDIDATES)
-    line_txt = ""
-    if pd.notna(raw_line):
-        try: line_txt = f"{float(raw_line):g}"
-        except Exception: line_txt = str(raw_line).strip()
-    side_raw = str(r.get("name") or r.get("side") or "").strip()  # Over/Under/Yes/No
-    side = side_raw
-    # totals: Yes/No → Over/Under
-    if line_txt and _is_numeric_total_market(r.get("market")):
-        if side_raw.lower() == "yes": side = "Over"
-        elif side_raw.lower() == "no": side = "Under"
-    # Anytime TD special "No Scorer"
-    mkt_lbl = pretty_market(r.get("market","")).lower()
-    player  = str(r.get("player","")).strip().lower()
-    if ("anytime td" in mkt_lbl or "anytime touchdown" in mkt_lbl) and player in {"no scorer","no td scorer","no touchdown scorer"}:
-        return "No Scorer"
-    # assemble
-    if side and line_txt: return f"{side} {line_txt}"
-    return side or line_txt or ""
-
-def kickoff_col(df):
-    if "kick_et" in df.columns: return "kick_et"
-    if "commence_time" in df.columns: return "commence_time"
-    return None
-
-def read_df(path):
-    df = pd.read_csv(path)
-
-    # normalize
-    if "book" not in df.columns and "bookmaker" in df.columns:
-        df["book"] = df["bookmaker"]
-
-    for col in ["price"]:
-        if col in df.columns: df[col] = _num(df[col])
-
-    # kickoff
-    kc = kickoff_col(df)
-    if kc == "commence_time": df["kick_et"] = df["commence_time"]
-
-    # ensure presence
-    for col in ["player","market","book","home_team","away_team","name"]:
-        if col not in df.columns: df[col] = np.nan
-    df["name"] = df["name"].fillna("")
-
-    # line display & game label
-    df["line_disp"] = df.apply(mk_line_disp, axis=1)
-
-    def mk_game(row):
-        for c in GAME_CANDIDATES:
-            if c in df.columns:
-                v = row.get(c)
-                if pd.notna(v) and str(v).strip(): return str(v).strip()
-        away = str(row.get("away_team") or "").strip()
-        home = str(row.get("home_team") or "").strip()
-        return f"{away} vs {home}" if away and home else (away or home or "")
-    df["game_disp"] = df.apply(mk_game, axis=1)
-
-    # implied prob from book price
-    df["imp_prob"] = df["price"].apply(american_to_prob) if "price" in df.columns else np.nan
-
-    # consensus prob by (player, market, game, line_disp)
-    key = ["player","market","game_disp","line_disp"]
-    grp = df.groupby(key, dropna=False)["imp_prob"].median().rename("consensus_prob")
-    df = df.merge(grp, on=key, how="left")
-
-    # edge vs consensus (positive if book is better than consensus)
-    df["consensus_edge_bps"] = 10000.0 * (df["consensus_prob"] - df["imp_prob"])
-
-    # best book per bet (max edge)
-    df["_edge_sort"] = df["consensus_edge_bps"].astype(float).where(df["consensus_edge_bps"].notna(), -1e15)
-    df = (df.sort_values(key + ["_edge_sort"], ascending=[True,True,True,True,False])
-            .drop_duplicates(subset=key, keep="first")
-            .drop(columns=["_edge_sort"])
-            .copy())
-
-    # normalized attrs for filters if you add later
-    df["_mkt_norm"]  = df["market"].apply(lambda m: _norm(pretty_market(m)))
-    df["_game_norm"] = df["game_disp"].apply(_norm)
-    df["_book_norm"] = df["book"].apply(_norm)
+    # Kickoff
+    if "commence_time" in df.columns and "kick_et" not in df.columns:
+        df["kick_et"] = df["commence_time"].apply(kickoff_et)
 
     return df
 
-# -------- rendering --------
-def row_html(r):
-    time = kickoff_et(r.get("kick_et",""))
-    game = str(r.get("game_disp",""))
-    player = str(r.get("player",""))
-    market = pretty_market(r.get("market",""))
-    bet = []
-    ld = str(r.get("line_disp","")).strip()
-    if ld: bet.append(ld)
-    odds = fmt_odds_american(r.get("price"))
-    if odds: bet.append(f"@ {odds}")
-    book = str(r.get("book",""))
-    if book: bet.append(f"on {book}")
-    bet_txt = " ".join(bet)
 
-    cons_p = fmt_pct(r.get("consensus_prob"))
-    edge   = r.get("consensus_edge_bps")
-    edge_txt = "" if (edge is None or (isinstance(edge,float) and math.isnan(edge))) else f"{edge:,.0f} bps"
+# ─────────────────────────────────────────────────────────────────────
+# Build dataframes for each tab
+# ─────────────────────────────────────────────────────────────────────
 
-    return f"""<tr>
-      <td>{escape(str(time))}</td>
-      <td class="game">{escape(game)}</td>
-      <td class="player">{escape(player)}</td>
-      <td>{escape(market)}</td>
-      <td class="bet">{escape(bet_txt)}</td>
-      <td class="cons">{escape(cons_p)}</td>
-      <td class="edge">{escape(edge_txt)}</td>
-    </tr>"""
+def build_overview_df(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Build Overview tab: all props, one row per (player, market, side, book).
+    """
+    return df.copy()
 
-def html_page(rows_html, title):
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>{escape(title)}</title>
-<link rel="icon" href="data:,">
-<style>
-:root {{ color-scheme: dark }}
-* {{ box-sizing: border-box; }}
-body {{ margin:0; background:#0b0b0c; color:#e7e7ea; font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Inter,Roboto,Ubuntu,Helvetica,Arial,sans-serif; }}
-.container {{ max-width: 1200px; margin: 0 auto; padding: 18px 16px 32px; }}
-.h1 {{ font-size: clamp(22px,3.5vw,28px); font-weight:900; color:#fff; margin: 4px 0 10px; }}
 
-.tablewrap {{ overflow:auto; border:1px solid #1f1f22; border-radius:14px; }}
-table {{ width:100%; border-collapse: collapse; min-width: 900px; }}
-thead th {{ text-align:left; font-weight:700; font-size:12px; color:#b7b7bb; padding:10px 12px; background:#111113; position:sticky; top:0; }}
-tbody td {{ border-top:1px solid #1f1f22; padding:10px 12px; font-size:13px; }}
-tbody tr:hover {{ background:#0f0f11; }}
-td.game {{ color:#c8c8cd; }}
-td.player {{ font-weight:700; color:#fff; }}
-td.bet {{ color:#e3e3e6; }}
-td.cons, td.edge {{ white-space:nowrap; }}
+def build_value_df(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Build Value tab: filter to rows with edge_bps and sort by edge desc.
+    """
+    value = df.copy()
+    if "edge_bps" in value.columns:
+        value = value[value["edge_bps"].notna()].copy()
+        value = value.sort_values("edge_bps", ascending=False)
+    return value
 
-.note {{ margin:10px 0 16px; color:#b7b7bb; font-size:13px; }}
-</style>
-</head>
-<body>
 
-<main class="container">
-  <div class="h1">{escape(title)}</div>
-  <div class="note">Market consensus = median implied probability across books for the same bet. “Edge” shows how favorable the best book is versus that market consensus.</div>
-__FILTERS__
+# ─────────────────────────────────────────────────────────────────────
+# HTML table renderers
+# ─────────────────────────────────────────────────────────────────────
 
-  <div class="tablewrap">
-    <table>
-      <thead>
-        <tr><th>Kick</th><th>Game</th><th>Player</th><th>Market</th><th>Best book bet</th><th>Market consensus</th><th>Edge</th></tr>
-      </thead>
-      <tbody>
-        {rows_html}
-      </tbody>
-    </table>
-  </div>
-</main>
-</body>
-</html>
-"""
-# ... after you finish assembling the final HTML into `html`
+def html_attrs(d: dict) -> str:
+    """Convert dict to HTML attributes string."""
+    parts = []
+    for k, v in d.items():
+        if v is not None:
+            parts.append(f'{k}="{escape(str(v))}"')
+    return " " + " ".join(parts) if parts else ""
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--merged_csv", required=True)
-    ap.add_argument("--out", required=True)
-    ap.add_argument("--week", type=int, default=None)
-    ap.add_argument("--title", default=None)
-    ap.add_argument("--limit", type=int, default=3000)
-    args = ap.parse_args()
 
-    # 1) Build the table
-    # 1) Build the table
-    df = read_df(args.merged_csv)
-    df = df.sort_values(by="consensus_edge_bps", ascending=False).head(args.limit)
-    rows = "\n".join(row_html(r) for _, r in df.iterrows())
-    default_title = f"{BRAND} — Consensus (Week {args.week})" if args.week else f"{BRAND} — Consensus"
-    # after args = ap.parse_args() and after you compute rows
-    default_title = f"{BRAND} — Consensus (Week {args.week})" if args.week else f"{BRAND} — Consensus"
-    title = args.title or default_title
+def _cell_value(row_dict: dict, accessor):
+    """Extract cell value via accessor (callable or key)."""
+    if callable(accessor):
+        return accessor(row_dict)
+    return row_dict.get(accessor)
 
-    page = html_page(rows, title)          # drives <title> and H1
-    page = inject_filters(page)            # keep your filter injector
 
-    out_path = Path(args.out)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    write_with_nav_raw(
-        out_path.as_posix(),
-        title,                              # pass the SAME title to the writer
-        page,
-        active="Consensus",
+def render_overview_table(df: pd.DataFrame) -> str:
+    """
+    Render the Overview table (all props).
+    Columns: Game, Player, Market, Side, Line, Book/Price, Model %, Market %, Edge, Fair Odds, Kick
+    """
+    def book_cell(row: dict) -> str:
+        book = canonical_str(row.get("bookmaker_title")) or canonical_str(row.get("bookmaker"))
+        price = canonical_str(row.get("book_price_disp"))
+        if price and price != DISPLAY_DASH and not str(price).startswith("("):
+            price = f"({price})"
+        text = " ".join(part for part in (book, price) if part)
+        return text if text else DISPLAY_DASH
+
+    columns = [
+        ("Game",   lambda r: canonical_str(r.get("game")) or canonical_str(r.get("game_display")), False, "game"),
+        ("Player", lambda r: choose_player(pd.Series(r)), False, "player"),
+        ("Market", lambda r: canonical_str(r.get("market")), False, "market"),
+        ("Side",   lambda r: canonical_str(r.get("side")).title(), False, "side"),
+        ("Line",   lambda r: fmt_line(
+            r.get("book_line") if r.get("book_line") is not None else r.get("line")
+        ), True, "line"),
+        ("Book / Price", book_cell, False, "price"),
+        ("Model %",  lambda r: canonical_str(r.get("model_prob_disp")) or DISPLAY_DASH, True, "model-pct"),
+        ("Market %", lambda r: canonical_str(r.get("consensus_prob_disp")) or DISPLAY_DASH, True, "mkt-pct"),
+        ("Edge (bps)", lambda r: fmt_edge_bps(r.get("edge_bps")), True, "edge"),
+        ("Fair Odds",  lambda r: fmt_odds_dash(prob_to_american(r.get("model_prob"))), True, "fair-odds"),
+    ]
+
+    header = "".join(f"<th>{escape(label)}</th>" for label, _, _, _ in columns)
+    rows_html: list[str] = []
+    for _, row in df.iterrows():
+        row_dict = row.to_dict()
+        tds: list[str] = []
+        for label, accessor, is_num, key in columns:
+            raw = _cell_value(row_dict, accessor)
+            value = display_value(raw)
+            cls = "num" if is_num else ""
+            is_html_cell = accessor is book_cell or (isinstance(value, str) and value.startswith("<"))
+            if is_html_cell:
+                tds.append(f'<td class="{cls}">{value}</td>')
+            else:
+                tds.append(f'<td class="{cls}">{escape(value)}</td>')
+
+        # Optional: style "big edge" rows
+        row_attrs = {}
+        ebps = row_dict.get("edge_bps")
+        if isinstance(ebps, (int, float)) and abs(ebps) >= 1500:
+            row_attrs["class"] = "edge-strong"
+
+        rows_html.append(f"<tr{html_attrs(row_attrs)}>{''.join(tds)}</tr>")
+
+    body = "\n".join(rows_html)
+    return (
+        '<table class="consensus-table">'
+        f"<thead><tr>{header}</tr></thead>"
+        f"<tbody>{body}</tbody>"
+        "</table>"
     )
 
 
+def render_value_table(df: pd.DataFrame) -> str:
+    def book_cell(row: dict) -> str:
+        book = canonical_str(row.get("bookmaker_title")) or canonical_str(row.get("bookmaker"))
+        price = canonical_str(row.get("book_price_disp"))
+        if price and price != DISPLAY_DASH and not str(price).startswith("("):
+            price = f"({price})"
+        text = " ".join(part for part in (book, price) if part)
+        return text if text else DISPLAY_DASH
+
+    columns = [
+        ("Game",   lambda r: canonical_str(r.get("game")) or canonical_str(r.get("game_display")), False, "game"),
+        ("Player", lambda r: choose_player(pd.Series(r)), False, "player"),
+        ("Market", lambda r: canonical_str(r.get("market")), False, "market"),
+        ("Side",   lambda r: canonical_str(r.get("side")).title(), False, "side"),
+
+        # ✅ Model vs Book vs Consensus Lines
+        ("Model Line",        lambda r: fmt_line(r.get("model_line")), True,  "model-line"),
+        ("Book Line",         lambda r: fmt_line(r.get("book_line") if r.get("book_line") is not None else r.get("line")), True, "book-line"),
+        ("Market Cons. Line", lambda r: fmt_line(r.get("consensus_line")), True, "cons-line"),
+
+        ("Book / Price", book_cell, False, "price"),
+        ("Model %",   lambda r: canonical_str(r.get("model_prob_disp")) or DISPLAY_DASH, True, "model-pct"),
+        ("Market %",  lambda r: canonical_str(r.get("consensus_prob_disp")) or DISPLAY_DASH, True, "mkt-pct"),
+        ("Edge (bps)", lambda r: fmt_edge_bps(r.get("edge_bps")), True, "edge"),
+        ("Fair Odds",  lambda r: fmt_odds_dash(prob_to_american(r.get("model_prob"))), True, "fair-odds"),
+    ]
+
+    header = "".join(f"<th>{escape(label)}</th>" for label, _, _, _ in columns)
+    rows_html: list[str] = []
+
+    for _, row in df.iterrows():
+        row_dict = row.to_dict()
+        display_player = choose_player(pd.Series(row_dict))
+
+        # ✅ Row attributes for filters
+        row_attrs = {
+            "data-game":   norm_key(row_dict.get("game") or row_dict.get("game_display")),
+            "data-market": norm_key(row_dict.get("market_std") or row_dict.get("market")),
+            "data-book":   norm_key(row_dict.get("bookmaker_title")),
+            "data-player": norm_key(display_player),
+        }
+
+        cells: list[str] = []
+        for _, accessor, right_align, css_class in columns:
+            if callable(accessor):
+                try:
+                    value = accessor(row_dict)
+                except TypeError:
+                    value = accessor(pd.Series(row_dict))
+            else:
+                value = row_dict.get(accessor)
+
+            is_html_cell = isinstance(value, str) and value.startswith("<")
+            class_parts: list[str] = []
+            if css_class:
+                class_parts.append(css_class)
+            if right_align:
+                class_parts.append("right")
+            class_attr = f' class="{ " ".join(class_parts) }"' if class_parts else ""
+            cell_html = value if is_html_cell else escape(canonical_str(value))
+            cells.append(f"<td{class_attr}>{cell_html}</td>")
+
+        # Optional highlight for large edges
+        ebps = row_dict.get("edge_bps")
+        if isinstance(ebps, (int, float)) and abs(ebps) >= 1500:
+            row_attrs["class"] = (row_attrs.get("class", "") + " edge-strong").strip()
+
+        rows_html.append(f"<tr{html_attrs(row_attrs)}>{''.join(cells)}</tr>")
+
+    body = "\n".join(rows_html)
+
+    # ✅ Restore the original hook that your filter JS expects
+    return (
+        '<table id="props-table" class="consensus-table props-table">'
+        f"<thead><tr>{header}</tr></thead>"
+        f"<tbody>{body}</tbody>"
+        "</table>"
+    )
+
+
+def build_tabs_html(overview_html: str, value_html: str, season: int = None, week: int = None) -> str:
+    # Value-only (no tabs). Include CSS, wrap filters and table in cards.
+    week_header = ""
+    if week:
+        if season:
+            week_header = f'<h1 style="margin:0 0 12px;font-size:22px;font-weight:700;letter-spacing:.2px;color:#fff;">Week {week}, {season}</h1>'
+        else:
+            week_header = f'<h1 style="margin:0 0 12px;font-size:22px;font-weight:700;letter-spacing:.2px;color:#fff;">Week {week}</h1>'
+
+    return f"""{TABS_CSS}
+<div class="card">
+{week_header}{FILTER_BAR_HTML}
+</div>
+
+<div class="card table-wrap">
+{value_html}
+</div>
+
+{FILTER_JS}
+"""
 
 
 
-    print(f"[consensus] wrote {args.out} with {len(df)} rows (from {len(read_df(args.merged_csv))} source rows)")
+def build_tables(df):
+    """
+    For tonight: only build the Value table. Overview is disabled to avoid
+    renderer dependencies (book_cell etc.). Returns empty overview.
+    """
+    value_df = build_value_df(df)
+    value_html = render_value_table(value_df)
+
+    # Empty overview (kept for return signature compatibility)
+    overview_df = df.iloc[0:0].copy()
+    overview_html = ""
+
+    return overview_df, value_df, overview_html, value_html
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description="Build the consensus props page")
+    ap.add_argument("--merged_csv", required=True)
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--week", type=int, required=True)
+    ap.add_argument("--season", type=int, default=None)
+    ap.add_argument("--title", default=None)
+    ap.add_argument("--verbose", action="store_true")
+    args = ap.parse_args()
+
+    merged_path = Path(args.merged_csv)
+    df = pd.read_csv(merged_path)
+
+    # Load consensus CSV and join (no normalization - exact match on join keys)
+    consensus_path = merged_path.parent / f"consensus_week{args.week}.csv"
+    if consensus_path.exists():
+        consensus = pd.read_csv(consensus_path)
+        # Strip whitespace only (no case changes)
+        for col in ["name_std", "market_std"]:
+            if col in df.columns:
+                df[col] = df[col].astype(str).str.strip()
+            if col in consensus.columns:
+                consensus[col] = consensus[col].astype(str).str.strip()
+
+        # Join on name_std and market_std only (props CSV doesn't have 'side')
+        df = df.merge(
+            consensus[["name_std", "market_std", "consensus_line", "consensus_prob", "book_count"]],
+            on=["name_std", "market_std"],
+            how="left",
+            suffixes=("", "_cons")
+        )
+
+        # Acceptance check: print join stats
+        match_rate = df["consensus_prob"].notna().mean()
+        print(f"[consensus join] non-null Market % rows: {match_rate:.1%}")
+
+        # Spot-check: McCaffrey rows
+        mccaffrey = df[df["name_std"].str.contains("mccaffrey", case=False, na=False)]
+        if not mccaffrey.empty:
+            print("\n[spot-check] McCaffrey rows (first 6):")
+            print(mccaffrey[["market_std", "point", "price", "consensus_line", "consensus_prob"]].head(6).to_string())
+    else:
+        print(f"[warning] Consensus file not found: {consensus_path}")
+
+    df = harmonize(df)
+
+    overview_df, value_df, overview_html, value_html = build_tables(df)
+    page_html = build_tabs_html(overview_html, value_html, season=args.season, week=args.week)
+
+    if args.season is not None:
+        default_title = f"{BRAND} — Consensus (Week {args.week}, {args.season})"
+    else:
+        default_title = f"{BRAND} — Consensus (Week {args.week})"
+    title = args.title or default_title
+
+    if args.verbose:
+        print(f"[consensus] overview rows: {len(overview_df)}")
+        print(f"[consensus] value rows: {len(value_df)}")
+
+    out_path = Path(args.out)
+    write_with_nav_raw(out_path.as_posix(), title, page_html, active="Consensus")
+
+
 
 if __name__ == "__main__":
     main()

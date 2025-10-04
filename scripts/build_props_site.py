@@ -124,6 +124,8 @@ def main():
     ap.add_argument("--merged_csv", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--title", default="NFL-2025 — Player Props")
+    ap.add_argument("--season", type=int, help="Season year for header")
+    ap.add_argument("--week", type=int, help="Week number for header")
     ap.add_argument("--min_prob", type=float, default=0.01, help="Drop rows with model_prob < this (unless --show_unmodeled)")
     ap.add_argument("--limit", type=int, default=3000, help="Max rows to render")
     ap.add_argument("--drop_no_scorer", action="store_true", default=True, help="Hide 'No Scorer' rows")
@@ -227,6 +229,14 @@ def main():
 
     title_html = escape(args.title)
 
+    # Week header (prominent h1)
+    week_header = ""
+    if args.week:
+        if args.season:
+            week_header = f'<h1 style="margin:0 0 8px;font-size:22px;font-weight:700;letter-spacing:.2px;color:#fff;">Week {args.week}, {args.season}</h1>'
+        else:
+            week_header = f'<h1 style="margin:0 0 8px;font-size:22px;font-weight:700;letter-spacing:.2px;color:#fff;">Week {args.week}</h1>'
+
     # -------- HTML shell (your client-side renderer) --------
     html = """<!doctype html>
 <html>
@@ -261,7 +271,7 @@ a.button:hover{background:#6ee7ff}
 </head>
 <body>
 
-
+""" + week_header + """
 
   <div class="card">
     <h1>""" + title_html + """</h1>
