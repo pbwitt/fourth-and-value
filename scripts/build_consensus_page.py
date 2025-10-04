@@ -33,53 +33,120 @@ MODEL_LINE_CANDIDATES: Sequence[str] = (
 
 TABS_CSS = """
 <style>
-/* Respect global site theme (dark). Do NOT reset body/table colors here. */
-/* Keep only component-specific rules. */
+:root {
+  --bg:#0b0b10;
+  --card:#14141c;
+  --muted:#9aa0a6;
+  --text:#e8eaed;
+  --border:#23232e;
+}
 
-.fv-tabs { list-style: none; padding: 0; margin: 0 0 10px 0; display: flex; gap: 14px; }
-.fv-tabs li { display: inline; }
-.fv-tabs a { text-decoration: none; font-weight: 600; color: inherit; }
-.fv-tabs a.active { text-decoration: underline; }
-.fv-tabs a:hover { text-decoration: underline; }
+body {
+  margin: 0;
+  padding: 24px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+}
 
-.fv-filter-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 8px 0 16px; }
-.fv-filter-bar label { font-size: 0.95rem; display: inline-flex; align-items: center; gap: 6px; }
-.fv-filter-bar select, .fv-filter-bar input { padding: 4px 6px; }
+.small {
+  color: var(--muted);
+  font-size: 12px;
+}
 
-.consensus-table {
+.card {
+  background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0));
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.02), 0 12px 40px rgba(0,0,0,.35);
+}
+
+.fv-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 0 0 16px 0;
+}
+
+.fv-filter-bar label {
+  font-size: 14px;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+}
+
+.fv-filter-bar select, .fv-filter-bar input {
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  min-width: 110px;
+  outline: none;
+}
+
+.fv-filter-bar select:focus, .fv-filter-bar input:focus {
+  border-color: #6ee7ff;
+  box-shadow: 0 0 0 3px rgba(110,231,255,.15);
+}
+
+.table-wrap {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+table.consensus-table {
   border-collapse: collapse;
   width: 100%;
-  margin: 6px 0 24px;
-  background: #0f1418;           /* dark panel */
-  color: #e5e7eb;                /* default text on dark */
+  min-width: 1000px;
+  background: var(--card);
+  color: var(--text);
 }
 
-.consensus-table th {
-  padding: 12px 10px;
+table.consensus-table th,
+table.consensus-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+table.consensus-table th {
   text-align: left;
-  font-weight: 700;
-  color: #cbd5e1;                /* header text */
-  border-bottom: 1px solid #1e293b;
+  position: sticky;
+  top: 0;
+  background: var(--card);
+  z-index: 1;
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: .2px;
+  font-weight: 600;
 }
 
-.consensus-table td {
-  padding: 10px;
-  color: #e5e7eb;                /* body text */
-  border-bottom: 1px solid #1f2937;
+table.consensus-table td {
+  text-align: left;
 }
 
-.consensus-table .right { text-align: right; }
+table.consensus-table td.right {
+  text-align: right !important;
+  font-variant-numeric: tabular-nums;
+}
 
-/* Links should inherit light text on dark */
-.consensus-table a { color: inherit; text-decoration: none; }
+table.consensus-table tr:hover td {
+  background: rgba(255,255,255,.02);
+}
 
+table.consensus-table .edge-strong td {
+  font-weight: 600;
+}
 
-/* Keep Book/Price text black per spec */
-.booklink, .booklink { color: inherit !important; font-weight: 600; }
-
-/* Nice numeric rendering for best price text if present */
-.best-price { font-variant-numeric: tabular-nums; }
-.edge-strong td { font-weight: 600; }
+table.consensus-table a {
+  color: inherit;
+  text-decoration: none;
+}
 
 </style>
 
@@ -132,6 +199,8 @@ if (!currentActive && sections.length) {
 """
 
 FILTER_BAR_HTML = """
+<div class="small" style="margin-bottom:16px;">Select Game → Market → Book → Player filters below. Consensus line = median across books; Market % = de-vigged implied probability.</div>
+
 <div class="fv-filter-bar" id="fv-filter-bar">
   <label>Game <select id="filter-game"><option value="">All</option></select></label>
   <label>Market <select id="filter-market"><option value="">All</option></select></label>
@@ -848,7 +917,6 @@ def render_value_table(df: pd.DataFrame) -> str:
         ("Market %",  lambda r: canonical_str(r.get("consensus_prob_disp")) or DISPLAY_DASH, True, "mkt-pct"),
         ("Edge (bps)", lambda r: fmt_edge_bps(r.get("edge_bps")), True, "edge"),
         ("Fair Odds",  lambda r: fmt_odds_dash(prob_to_american(r.get("model_prob"))), True, "fair-odds"),
-        ("Kick (ET)",  lambda r: canonical_str(r.get("kick_et") or r.get("kickoff_et")) or DISPLAY_DASH, False, "kick"),
     ]
 
     header = "".join(f"<th>{escape(label)}</th>" for label, _, _, _ in columns)
@@ -904,9 +972,26 @@ def render_value_table(df: pd.DataFrame) -> str:
     )
 
 
-def build_tabs_html(overview_html: str, value_html: str) -> str:
-    # Value-only (no tabs). Keep the filter bar + the table, nothing else.
-    return FILTER_BAR_HTML + value_html + FILTER_JS
+def build_tabs_html(overview_html: str, value_html: str, season: int = None, week: int = None) -> str:
+    # Value-only (no tabs). Include CSS, wrap filters and table in cards.
+    week_header = ""
+    if week:
+        if season:
+            week_header = f'<h1 style="margin:0 0 12px;font-size:22px;font-weight:700;letter-spacing:.2px;color:#fff;">Week {week}, {season}</h1>'
+        else:
+            week_header = f'<h1 style="margin:0 0 12px;font-size:22px;font-weight:700;letter-spacing:.2px;color:#fff;">Week {week}</h1>'
+
+    return f"""{TABS_CSS}
+<div class="card">
+{week_header}{FILTER_BAR_HTML}
+</div>
+
+<div class="card table-wrap">
+{value_html}
+</div>
+
+{FILTER_JS}
+"""
 
 
 
@@ -937,10 +1022,42 @@ def main() -> None:
 
     merged_path = Path(args.merged_csv)
     df = pd.read_csv(merged_path)
+
+    # Load consensus CSV and join (no normalization - exact match on join keys)
+    consensus_path = merged_path.parent / f"consensus_week{args.week}.csv"
+    if consensus_path.exists():
+        consensus = pd.read_csv(consensus_path)
+        # Strip whitespace only (no case changes)
+        for col in ["name_std", "market_std", "side"]:
+            if col in df.columns:
+                df[col] = df[col].astype(str).str.strip()
+            if col in consensus.columns:
+                consensus[col] = consensus[col].astype(str).str.strip()
+
+        # Join on exact keys
+        df = df.merge(
+            consensus[["name_std", "market_std", "side", "consensus_line", "consensus_prob", "book_count"]],
+            on=["name_std", "market_std", "side"],
+            how="left",
+            suffixes=("", "_cons")
+        )
+
+        # Acceptance check: print join stats
+        match_rate = df["consensus_prob"].notna().mean()
+        print(f"[consensus join] non-null Market % rows: {match_rate:.1%}")
+
+        # Spot-check: McCaffrey rows
+        mccaffrey = df[df["name_std"].str.contains("mccaffrey", case=False, na=False)]
+        if not mccaffrey.empty:
+            print("\n[spot-check] McCaffrey rows (first 6):")
+            print(mccaffrey[["market_std", "side", "point", "price", "consensus_line", "consensus_prob"]].head(6).to_string())
+    else:
+        print(f"[warning] Consensus file not found: {consensus_path}")
+
     df = harmonize(df)
 
     overview_df, value_df, overview_html, value_html = build_tables(df)
-    page_html = build_tabs_html(overview_html, value_html)
+    page_html = build_tabs_html(overview_html, value_html, season=args.season, week=args.week)
 
     if args.season is not None:
         default_title = f"{BRAND} — Consensus (Week {args.week}, {args.season})"

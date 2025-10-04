@@ -342,8 +342,7 @@ def render_html(title: str, items: List[Dict[str, Any]]) -> str:
   <div id="nav-root"></div>
 
   <div class="wrap">
-    <h1>{html.escape(title)}</h1>
-    <p class="muted">AI-assisted commentary per game. Choose a matchup to view just that game’s summary. Total picks: {total_picks}.</p>
+    <p class="muted">AI-assisted commentary per game. Choose a matchup to view just that game's summary. Total picks: {total_picks}.</p>
 
     {sections_html}
   </div>

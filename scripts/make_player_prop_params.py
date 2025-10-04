@@ -1,439 +1,297 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-make_player_prop_params.py — clean, fail‑fast drop‑in
------------------------------------------------------
-Builds per‑player parameter estimates for player‑prop markets using nflverse
-weekly stats up to (season, week-1) and the current props dump. Designed to
-maximize coverage *without* relying on game_id in stats and to avoid silent
-fallbacks.
+"""Build player-level parameters for prop markets from weekly stats."""
 
-Outputs one row per (player × market_std) *present in props* with:
-  - mu, sigma for Normal markets (yards, receptions, attempts, completions)
-  - lam for Poisson markets (TDs, interceptions, anytime_td)
-  - n_games used, plus basic identifiers
-
-Markets supported (canonical keys):
-  rush_yds, recv_yds, pass_yds, receptions,
-  rush_attempts, pass_attempts, pass_completions,
-  pass_tds, pass_interceptions, anytime_td
-
-Usage (example):
-  python -m make_player_prop_params \
-
-    --season 2025 --week 4 \
-
-    --props_csv data/props/latest_all_props.csv \
-
-    --stats_parquet data/nflverse/stats_player_week_2025.parquet \
-
-    --out data/props/params_week4.csv \
-
-    --zero_prior_report data/props/zero_prior_week4.csv
-
-Notes
------
-* No reliance on game_id from stats; we only trust game_id from props.
-* No silent fallbacks; if a required stats column is missing for a market
-  that appears in props, we fail fast with a clear error message.
-* Name joining: prefer player_key when available; otherwise std_name.
-"""
 import argparse
-import sys
-import math
+import logging
 from datetime import datetime
-from typing import Dict, List, Tuple, Optional, Iterable
+from typing import Dict, Iterable, List, Optional, Sequence
 
 import numpy as np
 import pandas as pd
 
-
-# -----------------------------
-# Canonical market mapping
-# -----------------------------
-
-ALIAS_MARKET: Dict[str, str] = {
-    # yards
+MARKET_ALIAS: Dict[str, str] = {
     "player_rushing_yards": "rush_yds",
-    "rush_yds": "rush_yds",
+    "player_rush_yds": "rush_yds",
     "rushing_yards": "rush_yds",
+    "rush_yards": "rush_yds",
     "player_receiving_yards": "recv_yds",
-    "reception_yds": "recv_yds",
+    "player_reception_yds": "recv_yds",
     "receiving_yards": "recv_yds",
-    "recv_yds": "recv_yds",
+    "reception_yds": "recv_yds",
     "player_passing_yards": "pass_yds",
+    "player_pass_yds": "pass_yds",
     "passing_yards": "pass_yds",
-    "pass_yds": "pass_yds",
-
-    # receptions
+    "pass_yards": "pass_yds",
     "player_receptions": "receptions",
     "receptions": "receptions",
-
-    # attempts / completions
     "player_rushing_attempts": "rush_attempts",
+    "player_rush_attempts": "rush_attempts",
     "rushing_attempts": "rush_attempts",
     "rush_attempts": "rush_attempts",
     "carries": "rush_attempts",
-
     "player_passing_attempts": "pass_attempts",
+    "player_pass_attempts": "pass_attempts",
     "passing_attempts": "pass_attempts",
     "attempts": "pass_attempts",
     "pass_attempts": "pass_attempts",
-
     "player_passing_completions": "pass_completions",
+    "player_pass_completions": "pass_completions",
     "passing_completions": "pass_completions",
     "completions": "pass_completions",
-    "pass_completions": "pass_completions",
-
-    # scoring / turnovers
     "player_passing_tds": "pass_tds",
+    "player_pass_tds": "pass_tds",
     "passing_tds": "pass_tds",
     "pass_tds": "pass_tds",
-
+    "player_pass_interceptions": "pass_interceptions",
     "player_interceptions": "pass_interceptions",
-    "interceptions": "pass_interceptions",
     "passing_interceptions": "pass_interceptions",
-    "pass_interceptions": "pass_interceptions",
-
+    "interceptions": "pass_interceptions",
     "player_anytime_td": "anytime_td",
     "anytime_td": "anytime_td",
-    # yards (short forms)
-    "player_rush_yds": "rush_yds",
-    "player_reception_yds": "recv_yds",
-    "player_pass_yds": "pass_yds",
-
-    # attempts / completions (short forms)
-    "player_rush_attempts": "rush_attempts",
-    "player_pass_attempts": "pass_attempts",
-    "player_pass_completions": "pass_completions",
-
-    # TDs / interceptions (short forms)
-    "player_pass_tds": "pass_tds",
-    "player_pass_interceptions": "pass_interceptions",
-
-    # normalize but (for now) unmodeled
-    "player_1st_td": "first_td",
-    "player_last_td": "last_td",
-    "player_reception_longest": "reception_longest",
-    "player_rush_longest": "rush_longest",
-
-
-
-
-
-
-
 }
 
 NORMAL_MARKETS = {
-    "rush_yds", "recv_yds", "pass_yds",
+    "rush_yds",
+    "recv_yds",
+    "pass_yds",
     "receptions",
-    "rush_attempts", "pass_attempts", "pass_completions",
+    "rush_attempts",
+    "pass_attempts",
+    "pass_completions",
 }
 POISSON_MARKETS = {"pass_tds", "pass_interceptions", "anytime_td"}
 SUPPORTED_MARKETS = NORMAL_MARKETS | POISSON_MARKETS
 
-
-# -----------------------------
-# Helpers
-# -----------------------------
-
-def fail(msg: str) -> None:
-    print(f"[ERROR] {msg}", file=sys.stderr)
-    sys.exit(1)
-
-
-def info(msg: str) -> None:
-    print(f"[info] {msg}")
-
-
-def std_name(s: Optional[str]) -> str:
-    s = (str(s) if s is not None else "").strip().lower()
-    s = "".join(ch if ch.isalnum() else " " for ch in s)
-    s = " ".join(s.split())
-    return s
-
-
-def name_loose(s: Optional[str]) -> str:
-    """Loose key: first initial + last name (for emergency joins)."""
-    t = std_name(s)
-    if not t:
-        return ""
-    parts = t.split()
-    if not parts:
-        return ""
-    first_initial = parts[0][0] if parts[0] else ""
-    last = parts[-1] if len(parts) > 1 else ""
-    return (first_initial + last).strip()
-
-
-def canon_market(x: Optional[str]) -> str:
-    if x is None:
-        return ""
-    s = str(x).strip().lower().replace(" ", "_")
-    return ALIAS_MARKET.get(s, s)
-
-
-def choose_first_present(df: pd.DataFrame, candidates: Iterable[str]) -> Optional[str]:
-    for c in candidates:
-        if c in df.columns:
-            return c
-    return None
-
-
-# Required stats columns by canonical market
 STATS_COLS: Dict[str, List[str]] = {
-    "rush_yds": ["rushing_yards"],
-    "recv_yds": ["receiving_yards"],
-    "pass_yds": ["passing_yards"],
+    "rush_yds": ["rushing_yards", "rush_yds"],
+    "recv_yds": ["receiving_yards", "recv_yds"],
+    "pass_yds": ["passing_yards", "pass_yds"],
     "receptions": ["receptions"],
-    "rush_attempts": ["rushing_attempts", "carries"],
-    "pass_attempts": ["passing_attempts", "attempts"],
-    "pass_completions": ["passing_completions", "completions"],
-    "pass_tds": ["passing_tds"],
-    "pass_interceptions": ["interceptions", "passing_interceptions"],
-    # anytime_td = rushing_tds + receiving_tds (needs both)
+    "rush_attempts": ["rushing_attempts", "carries", "rush_attempts"],
+    "pass_attempts": ["passing_attempts", "attempts", "pass_attempts"],
+    "pass_completions": ["passing_completions", "completions", "pass_completions"],
+    "pass_tds": ["passing_tds", "pass_tds"],
+    "pass_interceptions": ["interceptions", "passing_interceptions", "pass_interceptions"],
     "anytime_td": ["rushing_tds", "receiving_tds"],
 }
 
 
-# -----------------------------
-# Core logic
-# -----------------------------
+def std_name(raw: Optional[str]) -> str:
+    s = (str(raw) if raw is not None else "").strip().lower()
+    s = "".join(ch if ch.isalnum() else " " for ch in s)
+    return " ".join(s.split())
+
+
+_std = std_name
+
+
+def canon_market(raw: Optional[str]) -> str:
+    s = str(raw or "").strip().lower().replace("-", "_").replace(" ", "_")
+    s = s.replace("player_", "").replace("__", "_")
+    return MARKET_ALIAS.get(s, s)
+
+
+def choose_first(df: pd.DataFrame, columns: Sequence[str]) -> Optional[str]:
+    for col in columns:
+        if col in df.columns:
+            return col
+    return None
+
 
 def load_props(path: str) -> pd.DataFrame:
-    info(f"Loading props from {path}")
-    df = pd.read_csv(path, low_memory=False)
-    if not any(c in df.columns for c in ["player", "name"]):
-        fail("props missing a player name column (expected 'player' or 'name').")
-    if "market" not in df.columns:
-        fail("props missing 'market' column.")
+    logging.info("[load] props: %s", path)
+    props = pd.read_csv(path, low_memory=False)
+    market_col = choose_first(props, ("market_std", "market", "market_name", "market_title"))
+    if market_col is None:
+        raise ValueError("props missing market column")
+    props["market_std"] = props[market_col].apply(canon_market)
 
-    df["market_std"] = df["market"].apply(canon_market)
-    # normalize name fields
-    name_src = "player" if "player" in df.columns else "name"
-    df["player_display_name"] = df[name_src].astype(str)
-    df["name_std"] = df["player_display_name"].map(std_name)
-    df["name_loose"] = df["player_display_name"].map(name_loose)
+    name_col = choose_first(props, ("name_std", "player", "player_name", "player_display_name", "name"))
+    if name_col is None:
+        raise ValueError("props missing player name column")
+    props["player_display_name"] = props[name_col].astype(str)
+    props["name_std"] = props["player_display_name"].map(_std)
 
-    # carry player_key if present
-    if "player_key" not in df.columns:
-        df["player_key"] = pd.NA
-
-    return df
+    needed = props[props["market_std"].isin(SUPPORTED_MARKETS)].copy()
+    keep_cols = [c for c in ["player_key", "player_display_name", "name_std", "market_std"] if c in needed.columns]
+    return needed[keep_cols].drop_duplicates().reset_index(drop=True)
 
 
-def slice_stats(stats_path: str, season: int, week: int) -> pd.DataFrame:
-    info(f"Loading weekly stats from {stats_path}")
-    stats = pd.read_parquet(stats_path) if stats_path.lower().endswith(".parquet") else pd.read_csv(stats_path, low_memory=False)
+def load_stats(path: str, season: int, week_upper: int) -> pd.DataFrame:
+    logging.info("[load] weekly stats: %s", path)
+    if path.lower().endswith(".parquet"):
+        stats = pd.read_parquet(path)
+    else:
+        stats = pd.read_csv(path, low_memory=False)
 
-    # Required columns
-    for c in ["season", "week"]:
-        if c not in stats.columns:
-            fail(f"weekly stats missing required column '{c}'")
+    for required in ("season", "week"):
+        if required not in stats.columns:
+            raise ValueError(f"weekly stats missing '{required}' column")
 
-    # Use completed weeks only: weeks 1 .. (week-1)
-    if week <= 1:
-        fail(f"weekly stats empty for season={season}, weeks < {week} (no prior weeks).")
-    stats = stats.loc[(stats["season"] == season) & (stats["week"] >= 1) & (stats["week"] < week)].copy()
+    stats = stats.loc[(stats["season"] == season) & (stats["week"] >= 1) & (stats["week"] < week_upper)].copy()
     if stats.empty:
-        fail(f"weekly stats empty for season={season}, weeks < {week}")
+        raise ValueError(f"weekly stats empty for season={season} weeks< {week_upper}")
 
-    # Visibility: show counts by week
-    by_week = (stats.groupby("week").size().rename("rows").reset_index())
-    info("[stats] rows by week after filter:\n" + by_week.to_string(index=False))
+    name_col = choose_first(stats, ("player_display_name", "player_name", "name"))
+    if name_col is None:
+        raise ValueError("weekly stats missing player name column")
+    stats["player_display_name"] = stats[name_col].astype(str)
+    stats["name_std"] = stats["player_display_name"].map(_std)
 
-    # Name columns
-    name_src = choose_first_present(stats, ["player_display_name", "player_name", "name"])
-    if not name_src:
-        fail("weekly stats missing player name col (player_display_name/player_name/name)")
-    stats["player_display_name"] = stats[name_src].astype(str)
-    stats["name_std"]   = stats["player_display_name"].map(std_name)
-    stats["name_loose"] = stats["player_display_name"].map(name_loose)
-
-    # Ensure some ID if available
-    if "player_id" not in stats.columns:
-        stats["player_id"] = pd.NA
-
+    logging.info("[stats] rows after filter: %d", len(stats))
     return stats
 
 
+def pick_stats_series(stats: pd.DataFrame, market: str) -> pd.Series:
+    if market == "anytime_td":
+        missing = [c for c in ("rushing_tds", "receiving_tds") if c not in stats.columns]
+        if missing:
+            raise ValueError(f"weekly stats missing columns for anytime_td: {missing}")
+        return stats["rushing_tds"].fillna(0) + stats["receiving_tds"].fillna(0)
 
-def build_params(props: pd.DataFrame, stats: pd.DataFrame, season: int, week: int) -> pd.DataFrame:
-    # Determine which markets we actually need to compute
-    needed_markets = sorted(set(props["market_std"]).intersection(SUPPORTED_MARKETS))
-    if not needed_markets:
-        fail("No supported markets found in props after canonicalization.")
+    candidates = STATS_COLS.get(market, [])
+    for col in candidates:
+        if col in stats.columns:
+            return stats[col]
+    raise ValueError(f"weekly stats missing columns for market '{market}' (expected one of {candidates})")
 
-    # Verify stats columns for all markets present in props
-    # (anytime_td needs both rushing_tds and receiving_tds)
-    for m in needed_markets:
-        cols = STATS_COLS[m]
-        if m == "anytime_td":
-            missing = [c for c in cols if c not in stats.columns]
-            if missing:
-                fail(f"weekly stats missing columns for anytime_td: {missing}")
-        else:
-            if choose_first_present(stats, cols) is None:
-                fail(f"weekly stats missing any of columns {cols} for market '{m}'")
 
-    # Candidate players = unique names/ids present in props
-    cand = (props[["player_key", "player_display_name", "name_std", "name_loose"]]
-            .drop_duplicates()
-            .reset_index(drop=True))
-
-    rows = []
-    # For each market, get the per-game series from stats and aggregate per player
-    for m in needed_markets:
-        if m == "anytime_td":
-            if "rushing_tds" not in stats.columns or "receiving_tds" not in stats.columns:
-                fail("weekly stats missing rushing_tds or receiving_tds needed for anytime_td")
-            series = stats["rushing_tds"].fillna(0) + stats["receiving_tds"].fillna(0)
-        else:
-            col = choose_first_present(stats, STATS_COLS[m])
-            if col is None:
-                fail(f"weekly stats missing columns for {m}")
-            series = stats[col]
-
-        temp = stats[["player_id", "player_display_name", "name_std", "name_loose"]].copy()
-        temp["market_std"] = m
-        temp["value"] = series.astype(float)
+def aggregate_stats(stats: pd.DataFrame, markets: Iterable[str]) -> pd.DataFrame:
+    frames: List[pd.DataFrame] = []
+    for market in markets:
+        series = pick_stats_series(stats, market).astype(float)
+        temp = stats[["name_std"]].copy()
+        temp["market_std"] = market
+        temp["value"] = series
 
         agg = (
-            temp.groupby(["player_id", "name_std", "name_loose", "market_std"], dropna=False)["value"]
-                .agg(n_games="count", mean="mean", var=lambda x: float(np.var(x, ddof=1)) if len(x) > 1 else np.nan)
-                .reset_index()
+            temp.groupby(["name_std", "market_std"], dropna=False)["value"]
+            .agg(
+                n_games="count",
+                mean="mean",
+                var=lambda x: float(np.var(x, ddof=1)) if len(x) > 1 else float("nan"),
+            )
+            .reset_index()
         )
-        rows.append(agg)
+        frames.append(agg)
 
-    long_agg = pd.concat(rows, ignore_index=True)
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
-    # Join to candidates (props players) on name_std (primary)
-    merged = cand.merge(long_agg, on=["name_std"], how="left", suffixes=("", "_stats"))
 
-    # Compute mu/sigma/lam by market type
-    merged["mu"] = np.where(merged["market_std"].isin(list(NORMAL_MARKETS)),
-                            merged["mean"], np.nan)
-    # sigma requires at least 2 games
-    merged["sigma"] = np.where(merged["market_std"].isin(list(NORMAL_MARKETS)),
-                               np.where(merged["n_games"] > 1, np.sqrt(merged["var"]), np.nan),
-                               np.nan)
-    merged["lam"] = np.where(merged["market_std"].isin(list(POISSON_MARKETS)),
-                             merged["mean"], np.nan)
+def build_params(props: pd.DataFrame, stats: pd.DataFrame, season: int, week: int) -> pd.DataFrame:
+    needed_markets = sorted(props["market_std"].unique())
+    if not needed_markets:
+        raise ValueError("no supported markets present in props")
+
+    stats_agg = aggregate_stats(stats, needed_markets)
+    if stats_agg.empty:
+        logging.warning("[params] stats aggregation empty; returning empty frame")
+        return pd.DataFrame(columns=["name_std", "market_std", "mu", "sigma", "lam", "n_games", "season", "week", "built_at"])
+
+    merged = props.merge(stats_agg, on=["name_std", "market_std"], how="left", suffixes=("", "_stats"))
+
+    merged["mu"] = np.where(
+        merged["market_std"].isin(list(NORMAL_MARKETS)), merged["mean"], np.nan
+    )
+    merged["sigma"] = np.where(
+        merged["market_std"].isin(list(NORMAL_MARKETS)),
+        np.sqrt(merged["var"]),
+        np.nan,
+    )
+    merged.loc[merged["sigma"] <= 0, "sigma"] = np.nan
+
+    merged["lam"] = np.where(
+        merged["market_std"].isin(list(POISSON_MARKETS)), merged["mean"], np.nan
+    )
 
     merged["season"] = season
     merged["week"] = week
     merged["built_at"] = datetime.utcnow().isoformat(timespec="seconds") + "Z"
 
-    out_cols = [
-        "player_key", "player_display_name", "name_std", "name_loose",
-        "market_std", "n_games", "mu", "sigma", "lam",
-        "season", "week", "built_at",
-    ]
-    out = merged[out_cols].drop_duplicates().reset_index(drop=True)
-    # Keep only rows where we computed at least one parameter
-    out = out.loc[out[["mu", "lam"]].notna().any(axis=1)].copy()
+    cols = [c for c in [
+        "player_key",
+        "player_display_name",
+        "name_std",
+        "market_std",
+        "n_games",
+        "mu",
+        "sigma",
+        "lam",
+        "season",
+        "week",
+        "built_at",
+    ] if c in merged.columns]
+
+    out = merged[cols].drop_duplicates().reset_index(drop=True)
+
+    out["mu"] = pd.to_numeric(out["mu"], errors="coerce").clip(lower=0.0)
+    if "sigma" in out.columns:
+        out["sigma"] = pd.to_numeric(out["sigma"], errors="coerce").clip(lower=1e-6)
+    out["lam"] = pd.to_numeric(out["lam"], errors="coerce").clip(lower=0.0)
+
+    if "n_games" in out.columns:
+        out["n_games"] = pd.to_numeric(out["n_games"], errors="coerce").round().astype("Int64")
+
     return out
 
 
-def main():
-    ap = argparse.ArgumentParser(description="Build per‑player params from weekly stats + props (fail‑fast, no game_id dependency in stats).")
-    ap.add_argument("--season", type=int, required=True)
-    ap.add_argument("--week", type=int, required=True)
-    ap.add_argument("--props_csv", type=str, required=True)
-    ap.add_argument("--stats_parquet", type=str, required=True, help="Path to nflverse weekly stats parquet (preferred) or CSV.")
-    ap.add_argument("--out", type=str, required=True)
-    ap.add_argument("--zero_prior_report", type=str, default=None,
-                    help="Optional CSV path: list players from props with zero prior‑week history this season.")
-    args = ap.parse_args()
+def log_market_coverage(params: pd.DataFrame) -> None:
+    if params.empty:
+        logging.info("[coverage] no params to report")
+        return
 
-    # --- parse + train window ---
-    season = int(args.season)
-    week   = int(args.week)
+    rows = []
+    for market, group in params.groupby("market_std"):
+        if market in NORMAL_MARKETS:
+            valid = (group["mu"] > 0) & (group["sigma"] >= 1e-6)
+        else:
+            valid = group["lam"] > 0
+        share = float(valid.mean()) if len(group) else 0.0
+        rows.append((market, share))
+    rows.sort()
+    report = "\n".join(f"  {market}: {share:.2%}" for market, share in rows)
+    logging.info("[coverage] share with positive params by market:\n%s", report)
 
-    # We model Week N using completed weeks only (1..N-1)
-    if week <= 1:
-        fail(f"Week {week} has no prior weeks; pass week >= 2.")
-    train_to_week = week  # note: slice_stats uses "< week" so passing W=4 yields weeks 1..3
 
-    info(f"[run] season={season} week={week} (training on weeks < {train_to_week})")
+def write_zero_prior_report(props: pd.DataFrame, stats: pd.DataFrame, path: str) -> None:
+    present = set(stats["name_std"].dropna().unique())
+    missing = props.loc[~props["name_std"].isin(present), [c for c in props.columns if c in {"player_key", "player_display_name", "name_std"}]]
+    missing = missing.drop_duplicates().reset_index(drop=True)
+    missing.to_csv(path, index=False)
+    logging.info("[zero-prior] wrote %s (rows=%d)", path, len(missing))
 
-    # --- load inputs ---
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Build per-player prop parameters from weekly stats.")
+    parser.add_argument("--season", type=int, required=True)
+    parser.add_argument("--week", type=int, required=True)
+    parser.add_argument("--props_csv", required=True)
+    parser.add_argument("--stats_parquet", required=True)
+    parser.add_argument("--out", required=True)
+    parser.add_argument("--zero_prior_report")
+    parser.add_argument("--loglevel", default="INFO")
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    logging.basicConfig(level=getattr(logging, args.loglevel.upper(), logging.INFO), format="%(levelname)s %(message)s")
+
+    if args.week <= 1:
+        raise ValueError("week must be >= 2 to have prior games")
+
     props = load_props(args.props_csv)
-    stats = slice_stats(args.stats_parquet, season, train_to_week)
+    stats = load_stats(args.stats_parquet, args.season, args.week)
 
-    info(f"[props] rows={len(props)}; columns={list(props.columns)[:8]}...")
-    info(f"[stats] rows={len(stats)} after filter")
-
-
-
-
-
-
-
-    # Optional: report players with zero prior weeks (by name_std)
     if args.zero_prior_report:
-        present_names = set(stats["name_std"].unique())
-        zero_prior = (
-            props.loc[~props["name_std"].isin(present_names), ["player_key", "player_display_name", "name_std"]]
-            .drop_duplicates()
-            .reset_index(drop=True)
-        )
-        zero_prior.to_csv(args.zero_prior_report, index=False)
-        info(f"Wrote zero‑prior report: {args.zero_prior_report} (rows={len(zero_prior)})")
+        write_zero_prior_report(props, stats, args.zero_prior_report)
 
-        # --- build params ---
-    out = build_params(props, stats, season, week)
+    params = build_params(props, stats, args.season, args.week)
+    log_market_coverage(params)
 
-    # --- Guardrails: MU clamp + SIGMA floor (before write) ---
-
-    # 1) μ clamp: no negative means for OU markets
-    if "mu" in out.columns:
-        out["mu"] = pd.to_numeric(out["mu"], errors="coerce").fillna(0.0)
-        out["mu"] = out["mu"].clip(lower=0.0)
-        assert (out["mu"] >= 0).all(), "[params] mu clamp failed: found mu<0 after clamp"
-        info(f"[params] mu clamp applied; negatives now {(out['mu']<0).sum()} rows")
-
-    # 2) σ floor: only for Normal markets (market-aware floors)
-    if "sigma" in out.columns and "market_std" in out.columns:
-        NORMAL_MARKETS = {
-            "rush_yds", "recv_yds", "pass_yds",
-            "receptions",
-            "rush_attempts", "pass_attempts", "pass_completions",
-        }
-
-        # conservative per-market minimums; tweak later as needed
-        sigma_min_map = {
-            "rush_yds":         3.0,
-            "recv_yds":         4.0,
-            "pass_yds":        12.0,
-            "receptions":       1.2,
-            "rush_attempts":    1.8,
-            "pass_attempts":    4.0,
-            "pass_completions": 3.0,
-        }
-        GLOBAL_SIGMA_FLOOR = 2.0  # fallback if a Normal market slips through unmapped
-        EPS = 1e-6                # numerical guard
-
-        out["sigma"] = pd.to_numeric(out["sigma"], errors="coerce").fillna(0.0)
-        is_normal = out["market_std"].isin(NORMAL_MARKETS)
-        floors = out["market_std"].map(sigma_min_map).fillna(GLOBAL_SIGMA_FLOOR)
-
-        before_bad = int((is_normal & (out["sigma"] <= 0)).sum())
-        out.loc[is_normal, "sigma"] = np.where(
-            out.loc[is_normal, "sigma"] > 0,
-            out.loc[is_normal, "sigma"],
-            floors.loc[is_normal]
-        )
-        out.loc[is_normal, "sigma"] = out.loc[is_normal, "sigma"].clip(lower=EPS)
-        after_bad = int((is_normal & (out["sigma"] <= 0)).sum())
-        info(f"[params] sigma floor applied; fixed {before_bad - after_bad} rows in Normal markets")
-        assert after_bad == 0, "[params] sigma floor failed: found sigma<=0 after floor in Normal markets"
-
-    # --- write ---
-    out.to_csv(args.out, index=False)
-    info(f"Wrote params: {args.out} (rows={len(out)})")
-
+    params.to_csv(args.out, index=False)
+    logging.info("[out] wrote %s (rows=%d)", args.out, len(params))
 
 
 if __name__ == "__main__":

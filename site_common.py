@@ -17,22 +17,42 @@ from pathlib import Path as _Path
 
 def _nav_script_for(out_path: str) -> str:
     p = _Path(out_path)
-    rel = "../nav.js?v=6" if p.parent.name == "props" else "./nav.js?v=6"
+    import time
+    ts = int(time.time())
+    rel = f"../nav.js?v={ts}" if p.parent.name == "props" else f"./nav.js?v={ts}"
     return f'<script src="{rel}"></script>'
 
 def write_with_nav_raw(out_path: str, inner_html: str, active: str = "") -> None:
+    import re
+
+    # Check if inner_html is a full HTML document (contains <html> or <!doctype>)
+    is_full_doc = bool(re.search(r'<!doctype|<html', inner_html, re.I))
+
+    # Extract any <style> tags from the content to put in <head>
+    styles = re.findall(r"<style[^>]*>[\s\S]*?</style>", inner_html, re.I)
+    extra_head = "\n".join(styles) if styles else ""
+
+    # Remove styles from content (they'll go in head)
+    content = re.sub(r"<style[^>]*>[\s\S]*?</style>", "", inner_html, flags=re.I)
+
+    if is_full_doc:
+        # Extract body content from full HTML
+        mbody = re.search(r"<body[^>]*>(?P<b>[\s\S]*?)</body>", inner_html, re.I)
+        content = mbody.group("b") if mbody else content
+
+    # Remove any existing nav hooks to avoid duplicates
+    content = re.sub(r'<div id="nav-root"></div>\s*', '', content, flags=re.I)
+    content = re.sub(r'<script[^>]+nav\.js[^>]*></script>\s*', '', content, flags=re.I)
+
     html = f"""<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Fourth & Value</title>
-<style>
-  body {{ background:#0f1418; color:#e5e7eb; margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }}
-  a {{ color: inherit; }}
-</style>
+{extra_head}
 </head><body data-active="{active}">
   <div id="nav-root"></div>
-  {inner_html}
+  {content}
   {_nav_script_for(out_path)}
 </body></html>"""
     _Path(out_path).parent.mkdir(parents=True, exist_ok=True)
@@ -144,13 +164,17 @@ def prob_to_american(p):
     """
     Convert implied probability (0–1) to American odds.
     Returns int odds (e.g. +150, -120), or None if invalid.
+    Clamps extreme probabilities to avoid mathematical overflow.
     """
     try:
         v = float(p)
     except Exception:
         return None
-    if v <= 0 or v >= 1 or math.isnan(v):
+    if math.isnan(v):
         return None
+    # Clamp to safe range: (0.01, 0.99) to prevent extreme odds
+    # 0.01 → +9900, 0.99 → -9900 (reasonable max odds)
+    v = max(min(v, 0.99), 0.01)
     # Underdog (prob < 0.5) → positive odds
     if v < 0.5:
         return int(round(100 * (1 - v) / v))

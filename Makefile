@@ -1,5 +1,5 @@
 # ---- Config ----
-PY ?= python3
+PY ?= PYTHONPATH=. python3
 SEASON ?=
 WEEK   ?=
 
@@ -14,6 +14,7 @@ endif
 DOCS_DIR   := docs
 PROPS_DIR  := data/props
 ODDS_DIR   := data/odds
+STATS_WEEKLY := data/nflverse/stats_player_week_$(SEASON).parquet
 
 PROPS_ALL  := $(PROPS_DIR)/latest_all_props.csv
 PARAMS     := $(PROPS_DIR)/params_week$(WEEK).csv
@@ -50,9 +51,11 @@ $(PROPS_ALL): scripts/fetch_all_player_props.py | $(PROPS_DIR) $(ODDS_CSV)
 	@test -s $(PROPS_ALL) || (echo "[ERR] $(PROPS_ALL) not created"; exit 1)
 
 # 3) Build params
-$(PARAMS): scripts/make_player_prop_params.py $(PROPS_ALL) | $(PROPS_DIR)
+$(PARAMS): scripts/make_player_prop_params.py $(PROPS_ALL) $(STATS_WEEKLY) | $(PROPS_DIR)
 	$(PY) scripts/make_player_prop_params.py \
 	  --season $(SEASON) --week $(WEEK) \
+	  --props_csv $(PROPS_ALL) \
+	  --stats_parquet $(STATS_WEEKLY) \
 	  --out $@
 
 # 4) Compute edges → merged CSV
@@ -68,6 +71,8 @@ $(PROPS_HTML): scripts/build_props_site.py $(MERGED) | $(DOCS_DIR)/props
 	$(PY) scripts/build_props_site.py \
 	  --merged_csv $(MERGED) \
 	  --out $@ \
+	  --season $(SEASON) \
+	  --week $(WEEK) \
 	  --title "Fourth & Value — Player Props (Week $(WEEK))" \
 	  --drop_no_scorer
 
@@ -75,33 +80,21 @@ $(TOP_HTML): scripts/build_top_picks.py $(MERGED) | $(DOCS_DIR)/props
 	$(PY) scripts/build_top_picks.py \
 	  --merged_csv $(MERGED) \
 	  --out $@ \
+	  --season $(SEASON) \
+	  --week $(WEEK) \
 	  --title "Top Picks — Week $(WEEK)"
 
 $(CONS_HTML): scripts/build_consensus_page.py $(MERGED) | $(DOCS_DIR)/props
 	$(PY) scripts/build_consensus_page.py \
 	  --merged_csv $(MERGED) \
 	  --out $@ \
+	  --season $(SEASON) \
 	  --week $(WEEK)
 
-
-# Pages-only rebuild (when CSV already exists)
-props_now_pages: $(PROPS_HTML) $(TOP_HTML) $(CONS_HTML)
-	@echo "[OK] Pages rebuilt from $(MERGED)"
 
 # Local preview
 serve_preview:
 	cd $(DOCS_DIR) && $(PY) -m http.server 8010
-
-# Publish (guarded)
-publish_pages:
-	@touch $(DOCS_DIR)/.nojekyll
-	@if [ "$(PUBLISH)" = "1" ] && [ "$(CONFIRM)" = "LIVE" ]; then \
-	  git add -A; \
-	  git commit -m "Publish Week $(WEEK) pages"; \
-	  git push; \
-	else \
-	  echo "Not publishing. Use: make monday_all_pub SEASON=$(SEASON) WEEK=$(WEEK) PUBLISH=1 CONFIRM=LIVE"; \
-	fi
 
 # Monday full run + publish (opt-in)
 monday_all_pub: monday_all publish_pages
@@ -149,9 +142,13 @@ props_now:
 	@$(ENV_LOADER); python3 scripts/fetch_all_player_props.py \
 		--sport americanfootball_nfl \
 		--out data/props/latest_all_props.csv
-	@python3 scripts/make_player_prop_params.py --season $(SEASON) --week $(WEEK)
+	@python3 scripts/make_player_prop_params.py --season $(SEASON) --week $(WEEK) \
+		--props_csv data/props/latest_all_props.csv \
+		--stats_parquet $(STATS_WEEKLY) \
+		--out data/props/params_week$(WEEK).csv
 	@python3 scripts/make_props_edges.py --season $(SEASON) --week $(WEEK) \
 		--props_csv data/props/latest_all_props.csv \
+		--params_csv data/props/params_week$(WEEK).csv \
 		--out data/props/props_with_model_week$(WEEK).csv
 	@python3 scripts/build_props_site.py       --season $(SEASON) --week $(WEEK)
 	@python3 scripts/build_top_picks.py        --season $(SEASON) --week $(WEEK)
@@ -162,9 +159,9 @@ props_now:
 # Pages-only rebuild (when CSV already exists)
 props_now_pages:
 	@echo "[pages-only] props/top/consensus (SEASON=$(SEASON) WEEK=$(WEEK))"
-	@python3 scripts/build_props_site.py       --season $(SEASON) --week $(WEEK)
-	@python3 scripts/build_top_picks.py        --season $(SEASON) --week $(WEEK)
-	@python3 scripts/build_consensus_page.py   --season $(SEASON) --week $(WEEK)
+	@$(PY) scripts/build_props_site.py       --season $(SEASON) --week $(WEEK)
+	@$(PY) scripts/build_top_picks.py        --season $(SEASON) --week $(WEEK)
+	@$(PY) scripts/build_consensus_page.py   --season $(SEASON) --week $(WEEK)
 	@touch docs/.nojekyll
 
 # Minimal publisher (guards) — use if you don't already have publish_pages
@@ -187,14 +184,13 @@ CONS_CSV := data/props/consensus_week$(WEEK).csv
 
 make_consensus:
 	python scripts/make_consensus.py \
-	  --merged_csv data/props/latest_all_props.csv \
-	  --out_csv $(CONS_CSV) \
-	  --week $(WEEK)
+	  --in $(MERGED) \
+	  --out $(CONS_CSV)
 
 consensus_page: make_consensus
 	python -m scripts.build_consensus_page \
-	  --merged_csv data/props/latest_all_props.csv \
-	  --out docs/props/consensus.html \
+	  --merged_csv $(MERGED) \
+	  --out $(CONS_HTML) \
 	  --week $(WEEK) \
 	  --title "Fourth & Value — Consensus (Week $(WEEK))"
 

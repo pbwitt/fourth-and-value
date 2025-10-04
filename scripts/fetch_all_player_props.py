@@ -15,6 +15,10 @@ from typing import List, Dict, Any, Tuple
 from pathlib import Path
 import requests
 
+import sys, logging
+logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(levelname)s:%(message)s")
+
+
 DEFAULT_MARKETS = [
     "player_anytime_td","player_1st_td","player_last_td",
     "player_pass_yds","player_pass_tds","player_pass_attempts","player_pass_completions","player_pass_interceptions",
@@ -28,7 +32,7 @@ def chunks(seq: List[str], n: int):
         yield seq[i:i+n]
 
 def split_player_and_side(outcome: Dict[str, Any]) -> Tuple[str, str]:
-    """Return (player, side) from an outcome dict robustly."""
+    """Returns (player, side) from an outcome dict robustly."""
     name = (outcome.get("name") or "").strip()
     desc = (outcome.get("description") or "").strip()
     if name in PLAYERISH_SIDES and desc:
@@ -147,19 +151,34 @@ def main():
         if i % 10 == 0:
             print(f"[info] processed {i}/{len(events)} events ...")
 
-    out_path = Path(args.out); out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = out_path.with_suffix(out_path.suffix + ".tmp")
+
     fieldnames = [
         "game_id","commence_time","home_team","away_team","game",
         "bookmaker","bookmaker_title","market","market_std",
         "player","name","price","point"
     ]
-    with open(out_path, "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=fieldnames)
+
+    # Write to a tmp file first
+    with open(tmp_path, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         w.writeheader()
         for r in all_rows:
+            # ensure all required keys
             for k in fieldnames:
-                r.setdefault(k, "")
+                if k not in r:
+                    r[k] = ""
             w.writerow(r)
+
+    # Atomic replace
+    os.replace(tmp_path, out_path)
+
+    # IMPORTANT: status to stderr (not stdout)
+    uniq_events = len({r.get("game_id") for r in all_rows})
+    logging.info("Wrote %s with %d rows across %d events", out_path, len(all_rows), uniq_events)
+
 
     print(f"Wrote {out_path} with {len(all_rows):,} rows across {len(events):,} events")
 

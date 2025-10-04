@@ -21,8 +21,10 @@ def fmt_odds(o):
 
 
 def prob_to_american(p):
-    if p is None or (isinstance(p,float) and (np.isnan(p) or p<=0 or p>=1)): return ""
-    return int(round(-100*p/(1-p))) if p>=0.5 else int(round(100*(1-p)/p))
+    if p is None or (isinstance(p,float) and np.isnan(p)): return ""
+    # Clamp to safe range: (0.01, 0.99) to prevent extreme odds
+    v = max(min(float(p), 0.99), 0.01)
+    return int(round(-100*v/(1-v))) if v>=0.5 else int(round(100*(1-v)/v))
 
 def unit_for_market_std(market_std: str) -> str:
     if not isinstance(market_std, str): return ""
@@ -122,6 +124,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--merged_csv", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--season", type=int, default=None)
+    ap.add_argument("--week", type=int, default=None)
     ap.add_argument("--title", default="NFL-2025 — Player Props")
     ap.add_argument("--min_prob", type=float, default=0.01, help="Drop rows with model_prob < this (unless --show_unmodeled)")
     ap.add_argument("--limit", type=int, default=3000, help="Max rows to render")
@@ -159,8 +163,10 @@ def main():
             p = float(p)
         except Exception:
             return np.nan
-        if not (0 < p < 1):
+        if np.isnan(p):
             return np.nan
+        # Clamp to safe range: (0.01, 0.99) to prevent extreme odds
+        p = max(min(p, 0.99), 0.01)
         return int(round(-100*p/(1-p))) if p >= 0.5 else int(round(100*(1-p)/p))
 
     if "model_price" in df0.columns and df0["model_price"].notna().any():
@@ -226,6 +232,14 @@ def main():
 
     title_html = escape(args.title)
 
+    # Week header (prominent h1)
+    week_header = ""
+    if args.week:
+        if args.season:
+            week_header = f'<h1 style="margin:0 0 8px;font-size:22px;font-weight:700;letter-spacing:.2px;color:#fff;">Week {args.week}, {args.season}</h1>'
+        else:
+            week_header = f'<h1 style="margin:0 0 8px;font-size:22px;font-weight:700;letter-spacing:.2px;color:#fff;">Week {args.week}</h1>'
+
     # -------- HTML shell (your client-side renderer) --------
     html = """<!doctype html>
 <html>
@@ -263,7 +277,7 @@ a.button:hover{background:#6ee7ff}
 
 
   <div class="card">
-    <h1>""" + title_html + """</h1>
+    """ + week_header + """
     <div class="small">Select <span class="badge">Bet</span> → Game → Player. Optional: Book & search. Sorted by Edge (bps). Line = sportsbook threshold.</div>
 
     <div class="controls">
