@@ -524,19 +524,18 @@ button.reset {{ background:#1a1a1d; border:1px solid #2a2a2e; color:#e7e7ea; }}
     <label>Game
       <select id="gameFilter">{game_opts}</select>
     </label>
-    <div style="margin-bottom:16px;">
-      <label style="display:block;margin-bottom:4px;font-weight:600;color:#e8eaed;">My Books (Ctrl/Cmd+Click for multiple):</label>
-      <select id="bookFilter" multiple style="max-width:400px;height:100px;padding:6px;background:#14141c;color:#e8eaed;border:1px solid #23232e;border-radius:8px;font-size:13px;">{book_opts}</select>
-      <div style="margin-top:6px;font-size:12px;color:#9aa0a6;">
-        <button id="select-all-books" style="padding:6px 12px;margin-right:8px;cursor:pointer;background:#2a2a35;color:#e8eaed;border:1px solid #23232e;border-radius:6px;font-size:12px;">Select All</button>
-        <button id="clear-books" style="padding:6px 12px;cursor:pointer;background:#2a2a35;color:#e8eaed;border:1px solid #23232e;border-radius:6px;font-size:12px;">Clear All</button>
-        <span id="book-count" style="margin-left:12px;"></span>
-      </div>
-    </div>
+    <label>My Books (Ctrl/Cmd+Click)
+      <select id="bookFilter" multiple style="height:80px;">{book_opts}</select>
+    </label>
     <div style="display:flex; gap:8px;">
       <button class="badge" onclick="applyFilters()">Apply</button>
       <button class="badge reset" onclick="resetFilters()">Reset</button>
     </div>
+  </div>
+  <div style="margin:8px 0 16px 0;font-size:12px;color:#9aa0a6;">
+    <button id="select-all-books" style="padding:6px 12px;margin-right:8px;cursor:pointer;background:#2a2a35;color:#e8eaed;border:1px solid #23232e;border-radius:6px;font-size:12px;">Select All Books</button>
+    <button id="clear-books" style="padding:6px 12px;cursor:pointer;background:#2a2a35;color:#e8eaed;border:1px solid #23232e;border-radius:6px;font-size:12px;">Clear All Books</button>
+    <span id="book-count" style="margin-left:12px;"></span>
   </div>
 
   <div class="note">{consensus_note}</div>
