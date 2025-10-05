@@ -477,15 +477,38 @@ def build_value_df(df: pd.DataFrame) -> pd.DataFrame:
     if "player" in value.columns:
         value = value[value["player"].astype(str).str.lower() != "no scorer"].copy()
 
-    # Keep one row per (player, market, side) - the one with highest edge
-    if "edge_bps" in value.columns and len(value) > 0:
+    # Keep one row per (player, market, side) - the one at consensus line with best price
+    if len(value) > 0:
         group_keys = ["player", "market_std"]
         if "side" in value.columns:
             group_keys.append("side")
-        value = (value.sort_values("edge_bps", ascending=False)
-                     .groupby(group_keys, as_index=False)
-                     .first())
-        value = value.sort_values("edge_bps", ascending=False)
+
+        # For each group, find the row at consensus_line with lowest mkt_prob (best price)
+        def pick_representative(group):
+            # Filter to rows at consensus line (within 0.5 tick)
+            if "consensus_line" in group.columns and "point" in group.columns:
+                at_consensus = group[
+                    (group["point"].notna()) &
+                    (group["consensus_line"].notna()) &
+                    (abs(group["point"] - group["consensus_line"]) < 0.5)
+                ]
+                if not at_consensus.empty:
+                    group = at_consensus
+
+            # Among those, pick lowest mkt_prob (best price for bettor)
+            # Tie-break by highest edge_bps
+            if "mkt_prob" in group.columns:
+                group = group.sort_values(["mkt_prob", "edge_bps"], ascending=[True, False])
+            elif "edge_bps" in group.columns:
+                group = group.sort_values("edge_bps", ascending=False)
+
+            return group.iloc[0]
+
+        value = value.groupby(group_keys, as_index=False).apply(pick_representative).reset_index(drop=True)
+
+        # Sort by edge for display
+        if "edge_bps" in value.columns:
+            value = value.sort_values("edge_bps", ascending=False)
 
     return value
 
