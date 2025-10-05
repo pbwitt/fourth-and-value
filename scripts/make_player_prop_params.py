@@ -27,7 +27,7 @@ Usage:
 """
 from __future__ import annotations
 
-from common_markets import standardize_input, apply_priors_if_missing
+from common_markets import standardize_input, apply_priors_if_missing, std_player_name
 
 # --- add near the top of the script (imports) ---
 from pathlib import Path
@@ -103,8 +103,6 @@ def load_weekly_logs_or_fallback(season: int, week: int):
         import nfl_data_py as nfl
     except Exception:
         nfl = None
-
-    from common_markets import std_player_name
 
     def _finalize(df: pd.DataFrame, source: str) -> pd.DataFrame:
         if df is None or len(df) == 0:
@@ -554,6 +552,63 @@ def apply_defensive_adjustment(mu: float, market_std: str, def_rating: float) ->
 
     return mu * adjustment
 
+
+def load_player_adjustments() -> dict:
+    """
+    Load manual player adjustments from JSON config file.
+
+    Returns:
+        Dict mapping {name_std: {market_std: {mu_multiplier, reason}}}
+    """
+    import json
+    from pathlib import Path
+
+    adj_file = Path(__file__).parent.parent / "data" / "player_adjustments.json"
+
+    if not adj_file.exists():
+        return {}
+
+    try:
+        with open(adj_file, 'r') as f:
+            config = json.load(f)
+            return config.get("adjustments", {})
+    except Exception as e:
+        print(f"[WARN] Could not load player adjustments: {e}")
+        return {}
+
+
+def apply_player_adjustment(mu: float, name_std: str, market_std: str, adjustments: dict) -> float:
+    """
+    Apply manual player adjustment (injury, role change, etc).
+
+    Args:
+        mu: Base player expectation
+        name_std: Standardized player name
+        market_std: Market type
+        adjustments: Dict from load_player_adjustments()
+
+    Returns:
+        Adjusted mu
+
+    Example adjustment:
+        {"christianmccaffrey": {"rush_yds": {"mu_multiplier": 0.0, "reason": "Out - injury"}}}
+    """
+    if not adjustments or pd.isna(mu):
+        return mu
+
+    player_adj = adjustments.get(name_std, {})
+    market_adj = player_adj.get(market_std, {})
+
+    multiplier = market_adj.get("mu_multiplier")
+    if multiplier is not None:
+        reason = market_adj.get("reason", "manual adjustment")
+        adjusted = mu * multiplier
+        if adjusted != mu:
+            print(f"[adjustment] {name_std} {market_std}: {mu:.2f} → {adjusted:.2f} ({reason})")
+        return adjusted
+
+    return mu
+
 def build_params(cands, logs, season, week):
     """
     Board-driven param builder.
@@ -706,6 +761,16 @@ def build_params(cands, logs, season, week):
         if mkt == "pass_interceptions": return ints.clip(lower=0.01, upper=5.0)
         return const_series(np.nan)
 
+    # --- Load manual player adjustments ---
+    player_adjustments = load_player_adjustments()
+    if player_adjustments:
+        print(f"[adjustments] Loaded manual adjustments for {len(player_adjustments)} players")
+
+    # Build player → name_std mapping for adjustments
+    player_to_name_std = {}
+    if "name_std" in cands.columns and "player" in cands.columns:
+        player_to_name_std = dict(zip(cands["player"], cands["name_std"]))
+
     # --- assemble rows per market from the board (safe: .assign + concat) ---
     rows = []
     present = sorted(cands["market_std"].dropna().unique())
@@ -724,6 +789,18 @@ def build_params(cands, logs, season, week):
         if mkt in LOG_COLS_NORMAL:
             mu = mu_map[mkt]
             sg = sg_map[mkt]
+
+            # Apply manual adjustments if present
+            if player_adjustments and player_to_name_std:
+                mu_adjusted = {}
+                for player in mu.index:
+                    # Get standardized name for lookup
+                    name_std_val = player_to_name_std.get(player, player)
+                    original_mu = mu[player]
+                    adjusted_mu = apply_player_adjustment(original_mu, name_std_val, mkt, player_adjustments)
+                    mu_adjusted[player] = adjusted_mu
+                mu = pd.Series(mu_adjusted, index=mu.index)
+
             rows.append(
                 want.assign(
                     dist      = "normal",
@@ -812,6 +889,10 @@ def main():
     logging.info(f"Loading props from {args.props_csv}")
     props = load_props(args.props_csv)
 
+    # 0) Add name_std for player name standardization (needed for adjustments)
+    if "name_std" not in props.columns and "player" in props.columns:
+        props["name_std"] = props["player"].map(std_player_name)
+
     # 1) Normalize market labels on the board to canonical names
     from common_markets import std_market, MODELED_MARKETS
     pcol = "market_std" if "market_std" in props.columns else "market"
@@ -897,8 +978,6 @@ def main():
     os.makedirs(os.path.dirname(out_csv), exist_ok=True)
 
     # --- ensure join keys exist in params (permanent fix) ---
-    from common_markets import std_player_name
-
     df = params  # or: df = out   <-- use whatever your params DataFrame is named
 
     # Ensure 'player' exists (fallbacks if your builder used a different column)
