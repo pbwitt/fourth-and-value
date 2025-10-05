@@ -544,19 +544,23 @@ def build_value_df(df: pd.DataFrame) -> pd.DataFrame:
                     ]
 
                     if not valid.empty:
+                        # Directional alignment: Book, Consensus, Model all lean same direction
+                        # For OVER: Book < Consensus < Model (all suggest going over)
+                        # For UNDER: Book > Consensus > Model (all suggest going under)
+
                         if side.lower() == "over":
                             # For OVER: want book < consensus < model (all lean over)
-                            # Book line is low (easy to hit), model is confident it will go over
+                            # Book line is lowest (easy to hit), consensus agrees, model most confident
                             aligned = valid[
-                                (valid["point"] < valid["consensus_line"]) &
-                                (valid["model_line"] > valid["consensus_line"])
+                                (valid["point"] < valid["consensus_line"]) &     # Book < Consensus
+                                (valid["consensus_line"] < valid["model_line"])  # Consensus < Model
                             ]
                         else:  # under
                             # For UNDER: want book > consensus > model (all lean under)
-                            # Book line is high (easy to stay under), model is confident it will go under
+                            # Book line is highest (easy to stay under), consensus agrees, model most confident
                             aligned = valid[
-                                (valid["point"] > valid["consensus_line"]) &
-                                (valid["model_line"] < valid["consensus_line"])
+                                (valid["point"] > valid["consensus_line"]) &     # Book > Consensus
+                                (valid["consensus_line"] > valid["model_line"])  # Consensus > Model
                             ]
 
                         if not aligned.empty:
