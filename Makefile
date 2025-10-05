@@ -22,6 +22,7 @@ MERGED     := $(PROPS_DIR)/props_with_model_week$(WEEK).csv
 PROPS_HTML := $(DOCS_DIR)/props/index.html
 TOP_HTML   := $(DOCS_DIR)/props/top.html
 CONS_HTML  := $(DOCS_DIR)/props/consensus.html
+INSIGHTS_HTML := $(DOCS_DIR)/props/insights.html
 ODDS_CSV   := $(ODDS_DIR)/latest.csv
 
 # ---- Phony targets ----
@@ -32,7 +33,7 @@ monday_all: weekly
 	@echo "[OK] Weekly build complete: SEASON=$(SEASON) WEEK=$(WEEK)"
 
 # Weekly pipeline
-weekly: $(PROPS_HTML) $(TOP_HTML) $(CONS_HTML)
+weekly: $(PROPS_HTML) $(TOP_HTML) $(CONS_HTML) $(INSIGHTS_HTML)
 
 # ---- Steps ----
 # 0) Ensure dirs exist
@@ -87,10 +88,17 @@ $(CONS_HTML): scripts/build_consensus_page.py $(MERGED) | $(DOCS_DIR)/props
 	  --out $@ \
 	  --season $(SEASON) \
 	  --week $(WEEK)
-		
+
+$(INSIGHTS_HTML): scripts/build_insights_page.py | $(DOCS_DIR)/props
+	$(PY) scripts/build_insights_page.py \
+	  --season $(SEASON) \
+	  --week $(WEEK) \
+	  --title "Fourth & Value — Insights (Week $(WEEK))" \
+	  --out $@
+
 
 # Pages-only rebuild (when CSV already exists)
-props_now_pages: $(PROPS_HTML) $(TOP_HTML) $(CONS_HTML)
+props_now_pages: $(PROPS_HTML) $(TOP_HTML) $(CONS_HTML) $(INSIGHTS_HTML)
 	@echo "[OK] Pages rebuilt from $(MERGED)"
 
 # Local preview
@@ -113,7 +121,7 @@ monday_all_pub: monday_all publish_pages
 
 # Cleanup
 clean_pages:
-	rm -f $(PROPS_HTML) $(TOP_HTML) $(CONS_HTML)
+	rm -f $(PROPS_HTML) $(TOP_HTML) $(CONS_HTML) $(INSIGHTS_HTML)
 
 clean:
 	rm -f $(PARAMS) $(MERGED)
