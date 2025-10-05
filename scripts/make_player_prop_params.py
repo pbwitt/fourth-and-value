@@ -381,17 +381,34 @@ def fetch_recent_game_logs(season: int) -> Optional[pd.DataFrame]:
 
     weekly.columns = [c.lower() for c in weekly.columns]
 
+    # Alias column names to match expected schema
+    if "carries" in weekly.columns and "rushing_attempts" not in weekly.columns:
+        weekly["rushing_attempts"] = weekly["carries"]
+    if "team" in weekly.columns and "recent_team" not in weekly.columns:
+        weekly["recent_team"] = weekly["team"]
+    if "player_id" in weekly.columns and "gsis_id" not in weekly.columns:
+        weekly["gsis_id"] = weekly["player_id"]
+    if "passing_interceptions" in weekly.columns and "interceptions" not in weekly.columns:
+        weekly["interceptions"] = weekly["passing_interceptions"]
+
+    # Use player_display_name for matching (full names) instead of player_name (initials)
+    if "player_display_name" in weekly.columns:
+        weekly["player"] = weekly["player_display_name"].fillna("")
+    elif "player_name" in weekly.columns:
+        weekly["player"] = weekly["player_name"].fillna("")
+    else:
+        weekly["player"] = ""
+
     needed = [
-        "player_name","recent_team","position","gsis_id","season","week",
-        "rushing_yards","rushing_attempts","rushing_tds",
+        "recent_team","position","gsis_id","season","week",
+        "rushing_yards","rushing_attempts","rushing_tds","carries",
         "receptions","receiving_yards","receiving_tds",
-        "passing_yards","passing_tds","interceptions"
+        "passing_yards","passing_tds","interceptions",
+        "attempts","completions"
     ]
     for c in needed:
         if c not in weekly.columns:
             weekly[c] = np.nan
-
-    weekly["player"] = weekly["player_name"].fillna("")
 
     keep = list(dict.fromkeys(["player","season","week"] + needed))
     have = [c for c in keep if c in weekly.columns]
@@ -483,9 +500,9 @@ def build_params(cands, logs, season, week):
         "recv_yds":         ["receiving_yards"],
         "receptions":       ["receptions"],
         "pass_yds":         ["passing_yards"],
-        "pass_attempts":    ["passing_attempts", "attempts"],
-        "pass_completions": ["passing_completions", "completions"],
-        "rush_attempts":    ["rushing_attempts"],
+        "pass_attempts":    ["attempts", "passing_attempts"],
+        "pass_completions": ["completions", "passing_completions"],
+        "rush_attempts":    ["carries", "rushing_attempts"],
     }
     LOG_COLS_POISSON = {
         "pass_tds":            ["passing_tds"],
@@ -502,26 +519,38 @@ def build_params(cands, logs, season, week):
         mu0 = float(PRIORS.get(mkt, {}).get("mu", np.nan))
         sg0 = float(PRIORS.get(mkt, {}).get("sigma", np.nan))
         if logs is None or getattr(logs, "empty", True):
-            mu, sg = const_series(mu0), const_series(sg0)
-        else:
-            col = pick_col(logs, cand_cols)
-            if col is None:
-                mu, sg = const_series(mu0), const_series(sg0)
-            else:
-                g = grp[col]
-                mu = g.mean().reindex(player_idx).astype("float64").fillna(mu0)
-                sd = g.std(ddof=1).reindex(player_idx).astype("float64")
-                sg = sd.fillna(sg0)
+            raise ValueError(f"FATAL: No weekly stats loaded for {mkt}. Cannot build params without player data.")
+
+        col = pick_col(logs, cand_cols)
+        if col is None:
+            available_cols = [c for c in logs.columns if any(x in c.lower() for x in ['rush', 'pass', 'rec', 'attempt', 'yard', 'td'])]
+            raise ValueError(
+                f"FATAL: {mkt} - no matching column found from {cand_cols}.\n"
+                f"Available stat columns: {available_cols[:20]}\n"
+                f"Fix LOG_COLS_NORMAL mapping or update weekly stats schema."
+            )
+
+        g = grp[col]
+        mu = g.mean().reindex(player_idx).astype("float64").fillna(mu0)
+        sd = g.std(ddof=1).reindex(player_idx).astype("float64")
+        sg = sd.fillna(sg0)
         mu_map[mkt], sg_map[mkt] = mu, sg
 
     # --- precompute per-player λ for Poisson markets ---
     def lam_from(cols, prior_key, default_val=None):
         base = PRIORS.get(prior_key, {}).get("lam", np.nan) if default_val is None else float(default_val)
         if logs is None or getattr(logs, "empty", True):
-            return const_series(base)
+            raise ValueError(f"FATAL: No weekly stats loaded for Poisson market {prior_key}. Cannot build params without player data.")
+
         col = pick_col(logs, cols)
         if col is None:
-            return const_series(base)
+            available_cols = [c for c in logs.columns if 'td' in c.lower() or 'int' in c.lower()]
+            raise ValueError(
+                f"FATAL: Poisson market {prior_key} - no matching column from {cols}.\n"
+                f"Available TD/INT columns: {available_cols[:20]}\n"
+                f"Fix LOG_COLS_POISSON mapping or update weekly stats schema."
+            )
+
         s = grp[col].mean().reindex(player_idx).astype("float64")
         return s.fillna(base)
 
