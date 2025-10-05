@@ -1,114 +1,174 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <meta charset="utf-8" />
+  <title>Fourth & Value — Methods</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <style>
+    :root { --bg:#0f1418; --text:#e5e7eb; --muted:#9aa4af; --card:#131a20; --accent:#cbd5e1; }
+    html,body { margin:0; padding:0; background:var(--bg); color:var(--text); font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial; }
+    a { color:var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { max-width: 980px; margin: 48px auto; padding: 0 20px; }
+    .card { background:var(--card); border-radius:16px; padding:24px; box-shadow: 0 4px 16px rgba(0,0,0,.25); }
+    h1 { font-size: 2rem; margin: 0 0 8px; }
+    h2 { font-size: 1.25rem; margin: 28px 0 8px; }
+    h3 { font-size: 1.05rem; margin: 20px 0 6px; }
+    .updated { color: var(--muted); font-size: 0.95rem; margin-bottom: 18px; }
+    ul { margin: 8px 0 8px 1.25rem; }
+    code { background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 6px; }
+    .note { color: var(--muted); font-size: 0.95rem; }
+    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .95em; }
+    hr { border: 0; border-top: 1px solid rgba(255,255,255,.08); margin: 28px 0; }
+    .highlight { background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; padding: 12px; margin: 12px 0; border-radius: 4px; }
+  </style>
+</head>
 <body>
   <div id="nav-root"></div>
-  <script src="./nav.js?v=7"></script>
-
-
-  <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Fourth &amp; Value — Methods</title>
-  <link rel="icon" href="data:,">
-  <style>
-    :root{color-scheme:dark;
-      --bg:#0b0b0c;--card:#111113;--text:#e7e7ea;--muted:#b7b7bb;--soft:#c8c8cd;--border:#1f1f22;
-      --btn:#2a63ff;--btn-hover:#3c72ff}
-    *{box-sizing:border-box}
-    body{margin:0;background:var(--bg);color:var(--text);
-      font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Inter,Roboto,Ubuntu,Helvetica,Arial,sans-serif}
-    .wrap{max-width:900px;margin:0 auto;padding:24px 16px 48px}
-    h1{font-size:clamp(24px,4vw,34px);margin:6px 0 6px;color:#fff}
-    p.lead{color:var(--muted);margin:0 0 12px}
-    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin:12px 0}
-    .card h3{margin:0 0 6px}
-    .card p, .card li{color:#c8c8cd;line-height:1.55}
-    .btn{display:inline-block;background:var(--btn);color:#fff;padding:10px 14px;border-radius:12px;text-decoration:none;font-weight:600}
-    .btn:hover{background:var(--btn-hover)}
-    /* Optional grid helper if you want to lay out cards in columns later */
-    .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start}
-    /* Mobile-friendly horizontal scroll for any wide blocks */
-    .tablewrap,[data-scroll-x]{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  </style>
-  <link rel="icon" href="./assets/logo.svg" type="image/svg+xml">
-</head>
-
-  <!-- shared nav loader (cascades from docs/nav.html + docs/nav.js) -->
-
+  <script src="./nav.js?v=6"></script>
 
   <main class="wrap">
-    <h1>Methods (geeks only)</h1>
-    <p class="lead">How we turn raw NFL data into fair odds, probabilities, and edges.</p>
-
     <div class="card">
-      <h3>Modeling</h3>
+      <h1>Methods</h1>
+      <div class="updated">Last updated: Oct 5, 2024</div>
+
+      <p>This page describes how Fourth &amp; Value models player props and calculates "value." It's intentionally general (no week-specific numbers) so it stays accurate as we update models.</p>
+
+      <h2 id="what-we-model">1) What we model</h2>
+      <p>We focus on common player-prop markets, normalized to canonical keys (<code>market_std</code>):</p>
       <ul>
-        <li>Feature-rich player &amp; game models (usage, injuries, weather, pace, matchups).</li>
-        <li>Ensembles + calibration to produce well-behaved probabilities.</li>
-        <li>Weekly refreshes; in-week updates when markets move materially.</li>
+        <li><strong>Normal/Gaussian</strong>: <code>rush_yds</code>, <code>recv_yds</code>, <code>pass_yds</code>, <code>receptions</code>, <code>rush_attempts</code>, <code>pass_attempts</code>, <code>pass_completions</code>.</li>
+        <li><strong>Poisson</strong>: <code>anytime_td</code>, <code>pass_tds</code>, <code>pass_interceptions</code>.</li>
       </ul>
-    </div>
+      <p>We map sportsbook labels (e.g., "player_rushing_yards") to these keys so we can merge and compare across books.</p>
 
-    <div class="card">
-      <h3>Market consensus &amp; fair prices</h3>
+      <h2 id="data-sources">2) Data sources (high level)</h2>
       <ul>
-        <li>Compute implied probabilities from American odds and de-vig where appropriate.</li>
-        <li>Form a consensus (median/robust average) across books for the same bet.</li>
-        <li>Compare model vs consensus to quantify true edge.</li>
+        <li><strong>Odds (per book):</strong> Player props and prices from multiple sportsbooks via The Odds API.</li>
+        <li><strong>Player game logs:</strong> Weekly player stats from nflverse (official NFL data).</li>
+        <li><strong>Schedule &amp; kickoff:</strong> Used for display (ET) and filtering upcoming games.</li>
+        <li><strong>Defensive stats:</strong> Computed from opponent performance (yards allowed per game).</li>
       </ul>
-    </div>
 
-    <div class="card">
-      <h3>Edges &amp; EV</h3>
+      <h2 id="modeling">3) Modeling approach</h2>
+
+      <div class="highlight">
+        <strong>🆕 Recent Updates (Oct 2024):</strong> We've significantly enhanced the model with exponential weighting, rolling windows, and matchup adjustments. See details below.
+      </div>
+
+      <h3>Core methodology:</h3>
       <ul>
-        <li>Edge reported in basis points (bps): <code>10,000 × (p_model − p_price)</code>.</li>
-        <li>EV per $100 shown using model probability and book odds.</li>
+        <li><strong>Recency-weighted L4:</strong> Per player × market, we use only the <strong>last 4 games</strong> (L4) with <strong>exponential weighting</strong> (alpha=0.4). Most recent game receives ~64% of the total weight.</li>
+        <li><strong>Normal markets:</strong> Estimate mean <code>μ</code> and standard deviation <code>σ</code> → assume <em>Normal(μ,σ)</em>.</li>
+        <li><strong>Poisson markets:</strong> Estimate rate <code>λ</code> for counts (TDs, INTs) → assume <em>Poisson(λ)</em>.</li>
+        <li><strong>Sanity guards:</strong> Floor <code>σ</code> to avoid overconfidence; clamp <code>μ ≥ 0</code> on yardage/attempt stats.</li>
       </ul>
-    </div>
 
-    <div class="card">
-      <h3>Quality &amp; controls</h3>
+      <h3>Exponential weighting:</h3>
+      <p>Recent games receive exponentially more weight than older games. For a 4-game window:</p>
       <ul>
-        <li>Outlier checks, injury/news sweeps, and market sanity filters.</li>
-        <li>Transparency: show both market consensus and best book for every pick.</li>
+        <li>Oldest game (Week N-3): <strong>10.3%</strong> weight</li>
+        <li>2nd oldest (Week N-2): <strong>25.6%</strong> weight</li>
+        <li>Most recent (Week N-1): <strong>64.1%</strong> weight</li>
       </ul>
+      <p>This captures form changes, hot streaks, and role adjustments much faster than simple averages.</p>
+
+      <h3>Matchup adjustments:</h3>
+      <ul>
+        <li><strong>Opponent defensive strength:</strong> We compute defensive ratings (0.5-2.0 scale) based on yards allowed per game.</li>
+        <li><strong>Adjustment range:</strong> ±15% to player expectations
+          <ul>
+            <li>Weakest defense (0.5 rating): +15% boost to μ</li>
+            <li>Average defense (1.0 rating): No adjustment</li>
+            <li>Toughest defense (2.0 rating): -15% penalty to μ</li>
+          </ul>
+        </li>
+      </ul>
+
+      <h3>Manual adjustments (injuries/role changes):</h3>
+      <ul>
+        <li><strong>Config-driven overrides:</strong> We maintain a JSON configuration for known injuries, suspensions, or role changes.</li>
+        <li><strong>Multiplier system:</strong> Adjust player μ by any factor (0.0 = out, 0.5-0.8 = limited, 1.0+ = increased role).</li>
+        <li><strong>Transparency:</strong> All adjustments logged with reason codes.</li>
+      </ul>
+
+      <h2 id="probabilities">4) From parameters to probabilities</h2>
+      <ul>
+        <li><strong>Normal O/U:</strong> Over uses <code>P(X &gt; L)</code>; Under uses <code>P(X &lt; L)</code> where <code>X ~ Normal(μ,σ)</code> and <code>L</code> is the book's line.</li>
+        <li><strong>Poisson:</strong> "Yes" (e.g., anytime TD) uses <code>P(X ≥ 1) = 1 − e^{−λ}</code>; thresholds use the Poisson CDF.</li>
+        <li><strong>Model line (display):</strong> For Normal markets we show μ (mean) as our model line; for Poisson we show median.</li>
+      </ul>
+
+      <h2 id="edge">5) Prices, consensus, and "value"</h2>
+      <ul>
+        <li><strong>Book-implied probability:</strong> Convert American odds → implied probability for each book row.</li>
+        <li><strong>De-vig factor:</strong> We apply a 0.9524 factor (~5% vig removal) to get fair market probability.</li>
+        <li><strong>Edge (bps):</strong> <code>(model_prob − devigged_market_prob) × 10,000</code> (1% = 100 bps). Primary ranking signal.</li>
+        <li><strong>Fair odds:</strong> Invert <code>model_prob</code> to a no-vig "fair" price for quick comparison.</li>
+        <li><strong>Consensus:</strong> Aggregate de-vigged probabilities across books by <code>(name_std, market_std, side)</code>. Consensus line = median across all books.</li>
+      </ul>
+
+      <h2 id="directional-filter">6) Directional alignment filter (Consensus page)</h2>
+      <p>On the Consensus page, we only show bets where the <strong>model, consensus, and book all agree on direction</strong>:</p>
+      <ul>
+        <li><strong>For OVER bets:</strong> Book line &lt; Consensus line &lt; Model line (all lean over)</li>
+        <li><strong>For UNDER bets:</strong> Book line &gt; Consensus line &gt; Model line (all lean under)</li>
+      </ul>
+      <p>This filters for high-conviction signals where multiple data sources agree.</p>
+
+      <h2 id="display">7) What you see on the site</h2>
+      <ul>
+        <li><strong>Props:</strong> Per-book rows with Model %, Market %, Edge (bps), Fair Odds, Consensus data. Filter by game, market, player, and books you have access to.</li>
+        <li><strong>Top Picks:</strong> One card per player × market × side; ranked by edge. Shows best available book/price with copy-bet functionality.</li>
+        <li><strong>Consensus:</strong> Filtered for directional alignment. Shows model vs book vs consensus with multi-book aggregation.</li>
+      </ul>
+
+      <h2 id="example">8) Real example: How the model behaves</h2>
+      <p><strong>Player:</strong> DeMario Douglas, Receptions, Over 1.5</p>
+      <p><strong>Recent games (2024 Weeks 1-3):</strong> 2, 1, 2 receptions</p>
+
+      <p><strong>Old model (simple average):</strong></p>
+      <ul>
+        <li>μ = (2 + 1 + 2) / 3 = <strong>1.67 receptions</strong></li>
+        <li>P(Over 1.5) = <strong>61.4%</strong></li>
+      </ul>
+
+      <p><strong>New model (L4 exponential weighted):</strong></p>
+      <ul>
+        <li>μ = 2×10.3% + 1×25.6% + 2×64.1% = <strong>1.74 receptions</strong></li>
+        <li>P(Over 1.5) = <strong>71.2%</strong></li>
+      </ul>
+
+      <p>The most recent game (2 receptions) gets 64% weight, pulling the expectation up and increasing our model's confidence in the Over.</p>
+
+      <h2 id="limits">9) Known limitations</h2>
+      <ul>
+        <li><strong>Sample size:</strong> Early in the season (Weeks 1-4), we have limited data. Model confidence is lower.</li>
+        <li><strong>Defensive adjustments:</strong> Framework built but not yet fully integrated into production.</li>
+        <li><strong>Team context:</strong> We don't yet adjust for pace, game script, or team totals/spreads.</li>
+        <li><strong>Weather:</strong> No weather adjustments (particularly important for passing games).</li>
+        <li><strong>Venue effects:</strong> Home/away and dome vs outdoor not yet factored.</li>
+      </ul>
+
+      <h2 id="roadmap">10) Roadmap</h2>
+      <ul>
+        <li>✅ <strike>Exponential weighting for recent form</strike> (Oct 2024)</li>
+        <li>✅ <strike>L4 rolling window</strike> (Oct 2024)</li>
+        <li>✅ <strike>Injury/role adjustment framework</strike> (Oct 2024)</li>
+        <li>✅ <strike>Defensive matchup framework</strike> (Oct 2024)</li>
+        <li>🔄 Integrate defensive stats into production pipeline</li>
+        <li>🔄 Team context (pace, pass rate, game totals)</li>
+        <li>🔜 Usage-based priors (target share, routes, red-zone touches)</li>
+        <li>🔜 Weather and venue adjustments</li>
+        <li>🔜 Systematic calibration tracking (Brier scores, log loss)</li>
+        <li>🔜 Public post-game grading and calibration charts</li>
+        <li>🔜 Expanded markets (alt lines, first/last TD)</li>
+      </ul>
+
+      <hr />
+      <p class="note">Questions or suggestions? Find us on GitHub or reach out via the site. We're continuously improving the model and always open to feedback from sharp bettors.</p>
     </div>
-
-    <section class="card">
-      <h3>Consensus vs Best Book</h3>
-      <p>Consensus lines aggregate across books to show signal stability; the “Best Book” callout highlights the most favorable current price observed.</p>
-    </section>
-
-    <section class="card">
-      <h3>Modeling Framework for Props</h3>
-      <ol class="methods-list">
-        <li>
-          <h4>Anytime TDs → Poisson + Neural Correction</h4>
-          <p>We model touchdowns using a Poisson distribution: <code>P(X ≥ 1) = 1 − e^{-μ}</code>, where <code>μ</code> is the expected number of TDs.</p>
-          <p>Features include red-zone usage, opponent defensive splits, implied team totals, and pace of play. A neural net (MLP, 2 hidden layers, ReLU) with ~120 features predicts <code>μ</code>, constrained positive with softplus.</p>
-        </li>
-        <li>
-          <h4>Yardage &amp; Reception Props → Normal Approximation</h4>
-          <p>Yardage and reception props are modeled with a Normal distribution: <code>P(\u200bOver\, L) = 1 − Φ((L − μ) / σ)</code>.</p>
-          <p>Features (~150): rolling averages, opponent splits, injury adjustments, weather, and pace. Models: GRU for temporal player data + ensemble regressors for volatility (<code>σ</code>).</p>
-        </li>
-        <li>
-          <h4>Discrete Count Props (TDs, Attempts, INTs, Sacks)</h4>
-          <p>Poisson or Negative Binomial with CDF <code>P(X ≤ k) = \u2211_{i=0}^{k} (e^{−λ} λ^i / i!)</code>.</p>
-          <p>Features: snap %, line pressure, opponent matchup splits. Bayesian shrinkage stabilizes sparse markets like sacks.</p>
-        </li>
-        <li>
-          <h4>Neural Meta-Model</h4>
-          <p>Market-specific models feed a 3-layer fully-connected NN meta-learner, correcting systemic bookmaker biases (overshading, inflation).</p>
-        </li>
-        <li>
-          <h4>Fair Odds &amp; Edge</h4>
-          <p>Fair odds: <code>FairOdds = −100 × p/(1−p)</code> if <code>p ≥ 0.5</code>, else <code>+100 × (1−p)/p</code>.</p>
-          <p>Edge: <code>Edge = p<sub>model</sub> − p<sub>market</sub></code>, expressed in basis points: <code>10,000 × Edge</code>.</p>
-        </li>
-      </ol>
-    </section>
-
-    <section style="height:24px"></section>
   </main>
 </body>
 </html>
