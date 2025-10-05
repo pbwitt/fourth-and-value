@@ -400,7 +400,8 @@ def norm_key(s) -> str:
 
 def choose_player(row: pd.Series) -> str:
     """Pick best available player name from row."""
-    for col in ["name_std", "player_name", "player"]:
+    # Try player first (has proper capitalization), then fallback to name_std
+    for col in ["player", "player_name", "name_std"]:
         if col in row.index:
             val = row[col]
             if val is not None and not (isinstance(val, float) and math.isnan(val)):
