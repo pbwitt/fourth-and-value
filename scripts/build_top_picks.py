@@ -524,9 +524,15 @@ button.reset {{ background:#1a1a1d; border:1px solid #2a2a2e; color:#e7e7ea; }}
     <label>Game
       <select id="gameFilter">{game_opts}</select>
     </label>
-    <label>Book
-      <select id="bookFilter">{book_opts}</select>
-    </label>
+    <div style="margin-bottom:16px;">
+      <label style="display:block;margin-bottom:4px;font-weight:600;color:#e8eaed;">My Books (Ctrl/Cmd+Click for multiple):</label>
+      <select id="bookFilter" multiple style="max-width:400px;height:100px;padding:6px;background:#14141c;color:#e8eaed;border:1px solid #23232e;border-radius:8px;font-size:13px;">{book_opts}</select>
+      <div style="margin-top:6px;font-size:12px;color:#9aa0a6;">
+        <button id="select-all-books" style="padding:6px 12px;margin-right:8px;cursor:pointer;background:#2a2a35;color:#e8eaed;border:1px solid #23232e;border-radius:6px;font-size:12px;">Select All</button>
+        <button id="clear-books" style="padding:6px 12px;cursor:pointer;background:#2a2a35;color:#e8eaed;border:1px solid #23232e;border-radius:6px;font-size:12px;">Clear All</button>
+        <span id="book-count" style="margin-left:12px;"></span>
+      </div>
+    </div>
     <div style="display:flex; gap:8px;">
       <button class="badge" onclick="applyFilters()">Apply</button>
       <button class="badge reset" onclick="resetFilters()">Reset</button>
@@ -559,12 +565,27 @@ function showCard(el) {{ el.style.removeProperty('display'); }}  // let CSS deci
 function hideCard(el) {{ el.style.display = 'none'; }}
 
 
+function getSelectedBooks() {{
+  const bookFilter = document.getElementById('bookFilter');
+  return Array.from(bookFilter.selectedOptions).map(opt => opt.value.toLowerCase());
+}}
+
+function updateBookCount() {{
+  const selected = getSelectedBooks();
+  const bookCountEl = document.getElementById('book-count');
+  if (bookCountEl) {{
+    bookCountEl.textContent = selected.length === 0
+      ? 'No books selected'
+      : `${{selected.length}} book(s) selected`;
+  }}
+}}
+
 function applyFilters() {{
   const minEdge = readFloat('minEdge', 0);
   const topN    = readInt('topN', 10);
   const mv      = (document.getElementById('marketFilter')?.value || '');
   const gv      = (document.getElementById('gameFilter')?.value || '');
-  const bv      = (document.getElementById('bookFilter')?.value || '');
+  const selectedBooks = getSelectedBooks();
 
   const list  = document.getElementById('list');
   const empty = document.getElementById('empty');
@@ -584,13 +605,14 @@ function applyFilters() {{
     const okEdge = Number.isFinite(e) ? (e >= minEdge) : (minEdge <= 0);
     const okMkt  = !mv || c.dataset.market === mv;
     const okGame = !gv || c.dataset.game === gv;
-    const okBook = !bv || c.dataset.book === bv;
+    const okBook = selectedBooks.length === 0 || selectedBooks.includes((c.dataset.book || '').toLowerCase());
     const ok = okEdge && okMkt && okGame && okBook;
 
     if (ok && shown < topN) {{ showCard(c); shown++; }} else {{ hideCard(c); }}
   }});
 
   empty.style.display = shown ? 'none' : 'block';
+  updateBookCount();
 }}
 
 function resetFilters() {{
@@ -598,7 +620,9 @@ function resetFilters() {{
   document.getElementById('topN').value = 10;
   document.getElementById('marketFilter').selectedIndex = 0;
   document.getElementById('gameFilter').selectedIndex = 0;
-  document.getElementById('bookFilter').selectedIndex = 0;
+  // Select all books by default on reset
+  const bookFilter = document.getElementById('bookFilter');
+  Array.from(bookFilter.options).forEach(opt => opt.selected = true);
   applyFilters();
 }}
 
@@ -619,6 +643,32 @@ function copyCard(btn) {{
     setTimeout(() => btn.textContent = "Copy bet", 900);
   }});
 }}
+
+// Initialize book filter
+const bookFilter = document.getElementById('bookFilter');
+const selectAllBooksBtn = document.getElementById('select-all-books');
+const clearBooksBtn = document.getElementById('clear-books');
+
+// Select all books by default
+Array.from(bookFilter.options).forEach(opt => opt.selected = true);
+
+// Event listeners for Select All and Clear All buttons
+selectAllBooksBtn.addEventListener('click', (e) => {{
+  e.preventDefault();
+  Array.from(bookFilter.options).forEach(opt => opt.selected = true);
+  applyFilters();
+}});
+
+clearBooksBtn.addEventListener('click', (e) => {{
+  e.preventDefault();
+  Array.from(bookFilter.options).forEach(opt => opt.selected = false);
+  applyFilters();
+}});
+
+// Re-filter when book selection changes
+bookFilter.addEventListener('change', () => {{
+  applyFilters();
+}});
 
 applyFilters();
 </script>

@@ -208,12 +208,12 @@ FILTER_BAR_HTML = """
 </div>
 
 <div style="margin-bottom:16px;">
-  <label style="display:block;margin-bottom:4px;font-weight:600;">My Books (Ctrl/Cmd+Click for multiple):</label>
-  <select id="filter-books" multiple style="width:100%;height:120px;padding:8px;">
+  <label style="display:block;margin-bottom:4px;font-weight:600;color:#e8eaed;">My Books (Ctrl/Cmd+Click for multiple):</label>
+  <select id="filter-books" multiple style="max-width:400px;height:100px;padding:6px;background:#14141c;color:#e8eaed;border:1px solid #23232e;border-radius:8px;font-size:13px;">
   </select>
-  <div style="margin-top:4px;font-size:12px;color:#9aa0a6;">
-    <button id="select-all-books" style="padding:4px 8px;margin-right:8px;cursor:pointer;">Select All</button>
-    <button id="clear-books" style="padding:4px 8px;cursor:pointer;">Clear All</button>
+  <div style="margin-top:6px;font-size:12px;color:#9aa0a6;">
+    <button id="select-all-books" style="padding:6px 12px;margin-right:8px;cursor:pointer;background:#2a2a35;color:#e8eaed;border:1px solid #23232e;border-radius:6px;font-size:12px;">Select All</button>
+    <button id="clear-books" style="padding:6px 12px;cursor:pointer;background:#2a2a35;color:#e8eaed;border:1px solid #23232e;border-radius:6px;font-size:12px;">Clear All</button>
     <span id="book-count" style="margin-left:12px;"></span>
   </div>
 </div>
