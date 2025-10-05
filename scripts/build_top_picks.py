@@ -414,10 +414,18 @@ def _opts_from_pairs(pairs):
         out.append(f'<option value="{escape(val)}">{escape(lbl)}</option>')
     return "\n".join(out)
 
-def html_page(cards_html, title, market_pairs, game_pairs, book_pairs):
+def html_page(cards_html, title, market_pairs, game_pairs, book_pairs, week=None, season=None):
     market_opts = _opts_from_pairs(market_pairs)
     game_opts   = _opts_from_pairs(game_pairs)
     book_opts   = _opts_from_pairs(book_pairs)
+
+    # Week header
+    week_header = ""
+    if week:
+        if season:
+            week_header = f'<h1 style="margin:0 0 12px;font-size:22px;font-weight:700;letter-spacing:.2px;color:#fff;">Week {week}, {season}</h1>'
+        else:
+            week_header = f'<h1 style="margin:0 0 12px;font-size:22px;font-weight:700;letter-spacing:.2px;color:#fff;">Week {week}</h1>'
 
     consensus_note = (
         "Note: <b>market consensus</b> is the aggregated market view "
@@ -500,6 +508,7 @@ button.reset {{ background:#1a1a1d; border:1px solid #2a2a2e; color:#e7e7ea; }}
 <body>
 
 <main class="container">
+  {week_header}
   <div class="h1">{escape(title)}</div>
 
   <div class="controls">
@@ -613,6 +622,8 @@ def main():
     ap.add_argument("--merged_csv", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--title", default=f"{BRAND} — Top Picks")
+    ap.add_argument("--season", type=int, help="Season year for header")
+    ap.add_argument("--week", type=int, help="Week number for header")
     ap.add_argument("--limit", type=int, default=25000)  # render cap
     args = ap.parse_args()
 
@@ -650,7 +661,7 @@ def main():
     consensus_prob_col = df_all.attrs.get("consensus_prob_col")
     cards = "\n".join(card(r, model_prob_col, consensus_prob_col) for _, r in df.iterrows())
 
-    html = html_page(cards, args.title, market_pairs, game_pairs, book_pairs)
+    html = html_page(cards, args.title, market_pairs, game_pairs, book_pairs, week=args.week, season=args.season)
 # (no manual .replace("__NAV__", ...) needed)
 
     out_path = Path(args.out)

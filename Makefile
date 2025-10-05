@@ -68,6 +68,8 @@ $(PROPS_HTML): scripts/build_props_site.py $(MERGED) | $(DOCS_DIR)/props
 	$(PY) scripts/build_props_site.py \
 	  --merged_csv $(MERGED) \
 	  --out $@ \
+	  --season $(SEASON) \
+	  --week $(WEEK) \
 	  --title "Fourth & Value — Player Props (Week $(WEEK))" \
 	  --drop_no_scorer
 
@@ -75,12 +77,15 @@ $(TOP_HTML): scripts/build_top_picks.py $(MERGED) | $(DOCS_DIR)/props
 	$(PY) scripts/build_top_picks.py \
 	  --merged_csv $(MERGED) \
 	  --out $@ \
+	  --season $(SEASON) \
+	  --week $(WEEK) \
 	  --title "Top Picks — Week $(WEEK)"
 
 $(CONS_HTML): scripts/build_consensus_page.py $(MERGED) | $(DOCS_DIR)/props
 	$(PY) scripts/build_consensus_page.py \
 	  --merged_csv $(MERGED) \
 	  --out $@ \
+	  --season $(SEASON) \
 	  --week $(WEEK)
 		
 

@@ -388,6 +388,14 @@ def harmonize(df: pd.DataFrame) -> pd.DataFrame:
         df["player"] = df["name_std"]
     if "market" not in df.columns and "market_std" in df.columns:
         df["market"] = df["market_std"]
+    if "side" not in df.columns and "name" in df.columns:
+        df["side"] = df["name"]
+
+    # Line columns
+    if "mu" in df.columns:
+        df["model_line"] = df["mu"]
+    if "point" in df.columns:
+        df["book_line"] = df["point"]
 
     # Display columns
     if "model_prob" in df.columns:
@@ -430,12 +438,55 @@ def build_overview_df(df: pd.DataFrame) -> pd.DataFrame:
 
 def build_value_df(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Build Value tab: filter to rows with edge_bps and sort by edge desc.
+    Build Value tab: consensus picks with quality filters.
+
+    Criteria:
+    1. Consensus agreement: book_count >= 2, consensus_prob not null
+    2. Model coverage: model_prob not null
+    3. Directional edge: edge_bps >= 25 and positive
+    4. Execution: one row per (player, market, side) - keep best edge
+    5. Presentation: hide unmodeled markets, missing side, "No Scorer"
     """
     value = df.copy()
+
+    # 1. Consensus agreement
+    if "book_count" in value.columns:
+        value = value[value["book_count"] >= 2].copy()
+    if "consensus_prob" in value.columns:
+        value = value[value["consensus_prob"].notna()].copy()
+
+    # 2. Model coverage (exclude unmodeled props)
+    if "model_prob" in value.columns:
+        value = value[value["model_prob"].notna()].copy()
+
+    # 3. Directional edge
     if "edge_bps" in value.columns:
-        value = value[value["edge_bps"].notna()].copy()
+        value = value[value["edge_bps"] >= 25].copy()
+        value = value[value["edge_bps"] > 0].copy()
+
+    # 4. Exclude unmodeled markets
+    unmodeled_markets = {"first_td", "last_td", "1st_td", "rush_longest", "reception_longest"}
+    if "market_std" in value.columns:
+        value = value[~value["market_std"].isin(unmodeled_markets)].copy()
+
+    # 5. Hide missing side and "No Scorer"
+    if "side" in value.columns:
+        value = value[value["side"].notna()].copy()
+        value = value[value["side"] != "nan"].copy()
+        value = value[value["side"].str.strip() != ""].copy()
+    if "player" in value.columns:
+        value = value[value["player"].astype(str).str.lower() != "no scorer"].copy()
+
+    # Keep one row per (player, market, side) - the one with highest edge
+    if "edge_bps" in value.columns and len(value) > 0:
+        group_keys = ["player", "market_std"]
+        if "side" in value.columns:
+            group_keys.append("side")
+        value = (value.sort_values("edge_bps", ascending=False)
+                     .groupby(group_keys, as_index=False)
+                     .first())
         value = value.sort_values("edge_bps", ascending=False)
+
     return value
 
 
