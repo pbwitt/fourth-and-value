@@ -605,9 +605,19 @@ function resetFilters() {{
 function copyCard(btn) {{
   const card = btn.closest('.card');
   const t = (sel) => card.querySelector(sel)?.textContent.trim() || '';
-  const text = [t('.row.player'), t('.row.game'), t('.row.time'), t('.row.bet')].filter(Boolean).join(' | ');
-  navigator.clipboard.writeText(text);
-  btn.textContent = "Copied!"; setTimeout(()=>btn.textContent="Copy bet", 900);
+  const player = t('.player');
+  const game = t('.game');
+  const time = t('.time');
+  const bet = t('.betline')?.replace('Bet: ', '') || '';
+  const text = [player, game, time, bet].filter(Boolean).join(' | ');
+  navigator.clipboard.writeText(text).then(() => {{
+    btn.textContent = "Copied!";
+    setTimeout(() => btn.textContent = "Copy bet", 900);
+  }}).catch(err => {{
+    console.error('Copy failed:', err);
+    btn.textContent = "Copy failed";
+    setTimeout(() => btn.textContent = "Copy bet", 900);
+  }});
 }}
 
 applyFilters();
