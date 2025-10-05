@@ -199,13 +199,23 @@ if (!currentActive && sections.length) {
 """
 
 FILTER_BAR_HTML = """
-<div class="small" style="margin-bottom:16px;">Select Game → Market → Book → Player filters below. Consensus line = median across books; Market % = de-vigged implied probability. <strong>Fair Odds</strong> = model-implied fair price. <strong>Edge</strong> = Model % − Market % (basis points).</div>
+<div class="small" style="margin-bottom:16px;">Select Game → Market → Player filters below. <strong>My Books</strong>: Select only the books you have access to (multi-select with Ctrl/Cmd+Click). Consensus line = median across books; Market % = de-vigged implied probability. <strong>Fair Odds</strong> = model-implied fair price. <strong>Edge</strong> = Model % − Market % (basis points).</div>
 
 <div class="fv-filter-bar" id="fv-filter-bar">
   <label>Game <select id="filter-game"><option value="">All</option></select></label>
   <label>Market <select id="filter-market"><option value="">All</option></select></label>
-  <label>Book <select id="filter-book"><option value="">All</option></select></label>
   <label>Player <input type="text" id="filter-player" placeholder="Search player" /></label>
+</div>
+
+<div style="margin-bottom:16px;">
+  <label style="display:block;margin-bottom:4px;font-weight:600;">My Books (Ctrl/Cmd+Click for multiple):</label>
+  <select id="filter-books" multiple style="width:100%;height:120px;padding:8px;">
+  </select>
+  <div style="margin-top:4px;font-size:12px;color:#9aa0a6;">
+    <button id="select-all-books" style="padding:4px 8px;margin-right:8px;cursor:pointer;">Select All</button>
+    <button id="clear-books" style="padding:4px 8px;cursor:pointer;">Clear All</button>
+    <span id="book-count" style="margin-left:12px;"></span>
+  </div>
 </div>
 """
 
@@ -214,9 +224,13 @@ FILTER_JS = """
 document.addEventListener('DOMContentLoaded', function() {
   const gameSel = document.getElementById('filter-game');
   const marketSel = document.getElementById('filter-market');
-  const bookSel = document.getElementById('filter-book');
+  const booksMultiSel = document.getElementById('filter-books');
   const playerInput = document.getElementById('filter-player');
-  if (!gameSel || !marketSel || !bookSel || !playerInput) return;
+  const selectAllBtn = document.getElementById('select-all-books');
+  const clearBooksBtn = document.getElementById('clear-books');
+  const bookCountSpan = document.getElementById('book-count');
+
+  if (!gameSel || !marketSel || !booksMultiSel || !playerInput) return;
 
   const rows = Array.from(document.querySelectorAll('table.consensus-table tbody tr'));
   const bookEntries = new Map();
@@ -240,12 +254,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (row.dataset.book) {
       addBook(row.dataset.book, row.dataset.bookLabel || row.dataset.book);
     }
-    const bookList = row.dataset.books ? row.dataset.books.split(',') : [];
-    const bookLabelList = row.dataset.bookLabels ? row.dataset.bookLabels.split('|') : [];
-    bookList.forEach((key, idx) => {
-      const label = bookLabelList[idx] || key;
-      addBook(key.trim(), label.trim());
-    });
   });
 
   function fillSelect(sel, entries) {
@@ -261,12 +269,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
   fillSelect(gameSel, gameEntries);
   fillSelect(marketSel, marketEntries);
-  fillSelect(bookSel, bookEntries);
+  fillSelect(booksMultiSel, bookEntries);
+
+  // Select all books by default
+  Array.from(booksMultiSel.options).forEach(opt => opt.selected = true);
+  updateBookCount();
+
+  function getSelectedBooks() {
+    return Array.from(booksMultiSel.selectedOptions).map(opt => opt.value.toLowerCase());
+  }
+
+  function updateBookCount() {
+    const count = booksMultiSel.selectedOptions.length;
+    const total = booksMultiSel.options.length;
+    bookCountSpan.textContent = count === total ? 'All books selected' : `${count} of ${total} books selected`;
+  }
 
   function applyFilters() {
     const gameVal = gameSel.value.toLowerCase();
     const marketVal = marketSel.value.toLowerCase();
-    const bookVal = bookSel.value.toLowerCase();
+    const selectedBooks = getSelectedBooks();
     const playerVal = playerInput.value.toLowerCase();
 
     let visible = 0;
@@ -275,12 +297,11 @@ document.addEventListener('DOMContentLoaded', function() {
       const market = (row.dataset.market || '').toLowerCase();
       const player = (row.dataset.player || '').toLowerCase();
       const bookData = (row.dataset.book || '').toLowerCase();
-      const booksData = (row.dataset.books || '').toLowerCase();
 
       const gameMatch = !gameVal || game === gameVal;
       const marketMatch = !marketVal || market === marketVal;
       const playerMatch = !playerVal || player.includes(playerVal);
-      const bookMatch = !bookVal || bookData === bookVal || booksData.includes(bookVal);
+      const bookMatch = selectedBooks.length === 0 || selectedBooks.includes(bookData);
 
       if (gameMatch && marketMatch && playerMatch && bookMatch) {
         row.style.display = '';
@@ -293,8 +314,23 @@ document.addEventListener('DOMContentLoaded', function() {
 
   gameSel.addEventListener('change', applyFilters);
   marketSel.addEventListener('change', applyFilters);
-  bookSel.addEventListener('change', applyFilters);
+  booksMultiSel.addEventListener('change', () => {
+    updateBookCount();
+    applyFilters();
+  });
   playerInput.addEventListener('input', applyFilters);
+
+  selectAllBtn.addEventListener('click', () => {
+    Array.from(booksMultiSel.options).forEach(opt => opt.selected = true);
+    updateBookCount();
+    applyFilters();
+  });
+
+  clearBooksBtn.addEventListener('click', () => {
+    Array.from(booksMultiSel.options).forEach(opt => opt.selected = false);
+    updateBookCount();
+    applyFilters();
+  });
 });
 </script>
 """
