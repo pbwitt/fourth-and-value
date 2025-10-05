@@ -483,26 +483,57 @@ def build_value_df(df: pd.DataFrame) -> pd.DataFrame:
         if "side" in value.columns:
             group_keys.append("side")
 
-        # For each group, find the row at consensus_line with lowest mkt_prob (best price)
+        # For each group, find the row with best edge where book/model/consensus directionally align
         def pick_representative(group):
-            # Filter to rows at consensus line (within 0.5 tick)
-            if "consensus_line" in group.columns and "point" in group.columns:
-                at_consensus = group[
-                    (group["point"].notna()) &
-                    (group["consensus_line"].notna()) &
-                    (abs(group["point"] - group["consensus_line"]) < 0.5)
-                ]
-                if not at_consensus.empty:
-                    group = at_consensus
+            # Filter for directional agreement: book, consensus, model all lean same way
+            candidates = group.copy()
 
-            # Among those, pick lowest mkt_prob (best price for bettor)
-            # Tie-break by highest edge_bps
-            if "mkt_prob" in group.columns:
-                group = group.sort_values(["mkt_prob", "edge_bps"], ascending=[True, False])
-            elif "edge_bps" in group.columns:
-                group = group.sort_values("edge_bps", ascending=False)
+            has_lines = (
+                "point" in group.columns and
+                "consensus_line" in group.columns and
+                "model_line" in group.columns and
+                "side" in group.columns
+            )
 
-            return group.iloc[0]
+            if has_lines and len(candidates) > 0:
+                # Get first row to check side
+                side = candidates.iloc[0]["side"] if "side" in candidates.columns else None
+
+                if side and side.lower() in ["over", "under"]:
+                    # Filter rows with all three lines non-null
+                    valid = candidates[
+                        candidates["point"].notna() &
+                        candidates["consensus_line"].notna() &
+                        candidates["model_line"].notna()
+                    ]
+
+                    if not valid.empty:
+                        if side.lower() == "over":
+                            # For OVER: want book < consensus < model (all lean over)
+                            # Book line is low (easy to hit), model is confident it will go over
+                            aligned = valid[
+                                (valid["point"] < valid["consensus_line"]) &
+                                (valid["model_line"] > valid["consensus_line"])
+                            ]
+                        else:  # under
+                            # For UNDER: want book > consensus > model (all lean under)
+                            # Book line is high (easy to stay under), model is confident it will go under
+                            aligned = valid[
+                                (valid["point"] > valid["consensus_line"]) &
+                                (valid["model_line"] < valid["consensus_line"])
+                            ]
+
+                        if not aligned.empty:
+                            candidates = aligned
+
+            # Pick max edge_bps (best value per model)
+            # Tie-break by better price (lower mkt_prob)
+            if "edge_bps" in candidates.columns:
+                candidates = candidates.sort_values(["edge_bps", "mkt_prob"], ascending=[False, True])
+            elif "mkt_prob" in candidates.columns:
+                candidates = candidates.sort_values("mkt_prob", ascending=True)
+
+            return candidates.iloc[0]
 
         value = value.groupby(group_keys, as_index=False).apply(pick_representative).reset_index(drop=True)
 
