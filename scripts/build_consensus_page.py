@@ -565,6 +565,9 @@ def build_value_df(df: pd.DataFrame) -> pd.DataFrame:
 
                         if not aligned.empty:
                             candidates = aligned
+                        else:
+                            # No bets pass directional alignment - skip this group
+                            return None
 
             # Pick max edge_bps (best value per model)
             # Tie-break by better price (lower mkt_prob)
@@ -576,6 +579,9 @@ def build_value_df(df: pd.DataFrame) -> pd.DataFrame:
             return candidates.iloc[0]
 
         value = value.groupby(group_keys, as_index=False).apply(pick_representative).reset_index(drop=True)
+
+        # Remove None rows (groups that didn't pass directional alignment)
+        value = value.dropna(how='all')
 
         # Sort by edge for display
         if "edge_bps" in value.columns:
