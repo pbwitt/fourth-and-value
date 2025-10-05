@@ -199,7 +199,7 @@ if (!currentActive && sections.length) {
 """
 
 FILTER_BAR_HTML = """
-<div class="small" style="margin-bottom:16px;">Select Game → Market → Book → Player filters below. Consensus line = median across books; Market % = de-vigged implied probability.</div>
+<div class="small" style="margin-bottom:16px;">Select Game → Market → Book → Player filters below. Consensus line = median across books; Market % = de-vigged implied probability. <strong>Fair Odds</strong> = model-implied fair price. <strong>Edge</strong> = Model % − Market % (basis points).</div>
 
 <div class="fv-filter-bar" id="fv-filter-bar">
   <label>Game <select id="filter-game"><option value="">All</option></select></label>
