@@ -166,10 +166,12 @@ def main():
             return np.nan
         return int(round(-100*p/(1-p))) if p >= 0.5 else int(round(100*(1-p)/p))
 
-    if "model_price" in df0.columns and df0["model_price"].notna().any():
-        df0["fair_odds"] = df0["model_price"].map(fmt_odds)
-    else:
-        df0["fair_odds"] = df0["model_prob"].apply(_prob_to_american).map(fmt_odds)
+    # Fair odds = de-vigged market probability converted to odds
+    # Assumes ~4.76% vig (1/21 total overround), de-vig by scaling down mkt_prob
+    from site_common import prob_to_american as prob_to_am_safe
+    VIG_FACTOR = 0.9524  # Remove ~5% vig (1/(1+0.05))
+    df0["devig_prob"] = (df0["mkt_prob"] * VIG_FACTOR).clip(0.01, 0.99)
+    df0["fair_odds"] = df0["devig_prob"].apply(prob_to_am_safe).map(fmt_odds)
 
     # Percentages
     def _american_to_prob(o):
