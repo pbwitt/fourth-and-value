@@ -135,9 +135,34 @@ def main():
     # Load
     df0 = pd.read_csv(args.merged_csv, low_memory=False)
 
+    # Add 'side' column from 'name' if missing (BEFORE consensus join)
+    if "side" not in df0.columns and "name" in df0.columns:
+        df0["side"] = df0["name"]
+
+    # Load consensus CSV and join to get market consensus data
+    from pathlib import Path
+    consensus_path = Path(args.merged_csv).parent / f"consensus_week{args.week}.csv"
+    if consensus_path.exists():
+        consensus = pd.read_csv(consensus_path)
+        # Strip whitespace only (no case changes)
+        for col in ["name_std", "market_std", "side"]:
+            if col in df0.columns:
+                df0[col] = df0[col].astype(str).str.strip()
+            if col in consensus.columns:
+                consensus[col] = consensus[col].astype(str).str.strip()
+
+        # Join on name_std, market_std, AND side
+        df0 = df0.merge(
+            consensus[["name_std", "market_std", "side", "consensus_line", "consensus_prob", "book_count"]],
+            on=["name_std", "market_std", "side"],
+            how="left",
+            suffixes=("", "_cons")
+        )
+
     # Ensure expected cols exist
     for c in ["market_std","player","home_team","away_team","bookmaker",
-              "model_prob","model_price","price","commence_time","point","market"]:
+              "model_prob","model_price","price","commence_time","point","market",
+              "consensus_line","consensus_prob","book_count"]:
         if c not in df0.columns:
             df0[c] = np.nan
 
@@ -202,6 +227,11 @@ def main():
     # Kickoff, formatted to ET
     df0["kick_et"] = df0["commence_time"].astype(str).map(to_kick_et)
 
+    # Format consensus columns
+    df0["consensus_line_disp"] = df0["consensus_line"].apply(_fmt_point)
+    df0["consensus_pct"] = df0["consensus_prob"].map(fmt_pct)
+    df0["book_count_disp"] = df0["book_count"].apply(lambda x: str(int(x)) if pd.notna(x) else "")
+
     # Filter modeled if requested
     df = df0.copy()
     if not args.show_unmodeled and "model_prob" in df.columns:
@@ -221,6 +251,7 @@ def main():
         "market_std",
         "line_disp",
         "mkt_odds","fair_odds","mkt_pct","model_pct","edge_bps",
+        "consensus_line_disp","consensus_pct","book_count_disp",
         "kick_et"
     ]
     for c in keep:
@@ -277,7 +308,7 @@ a.button:hover{background:#6ee7ff}
 
   <div class="card">
     <h1>""" + title_html + """</h1>
-    <div class="small">Select <span class="badge">Bet</span> → Game → Player. Optional: Book & search. Sorted by Edge (bps). Line = sportsbook threshold. <strong>Fair Odds</strong> = de-vigged market price (~5% vig removed). <strong>Model %</strong> = our model's probability. <strong>Edge</strong> = Model % − Mkt % (basis points).</div>
+    <div class="small">Select <span class="badge">Bet</span> → Game → Player. Optional: Book & search. Sorted by Edge (bps). Line = sportsbook threshold. <strong>Fair Odds</strong> = de-vigged market price (~5% vig removed). <strong>Model %</strong> = our model's probability. <strong>Edge</strong> = Model % − Mkt % (basis points). <strong>Consensus Line</strong> = median line across books. <strong>Market %</strong> = de-vigged consensus probability. <strong>Books</strong> = number of books offering this prop.</div>
     
     <div class="controls">
       <select id="market"><option value="">Bet (market)</option></select>
@@ -300,7 +331,9 @@ a.button:hover{background:#6ee7ff}
           <th class="num">Line</th>
           <th class="num">Mkt Odds</th><th class="num">Fair</th>
           <th class="num">Mkt %</th><th class="num">Model %</th>
-          <th class="num">Edge (bps)</th><th>Kick (ET)</th>
+          <th class="num">Edge (bps)</th>
+          <th class="num">Consensus Line</th><th class="num">Market %</th><th class="num">Books</th>
+          <th>Kick (ET)</th>
         </tr>
       </thead>
       <tbody></tbody>
@@ -367,6 +400,9 @@ function render(){
       <td class="num" style="color:${
         (r.edge_bps==null) ? "#9aa0a6" : (r.edge_bps>0 ? "#4ade80" : "#f87171")
       }">${r.edge_bps ?? ""}</td>
+      <td class="num">${r.consensus_line_disp ?? ""}</td>
+      <td class="num">${r.consensus_pct ?? ""}</td>
+      <td class="num">${r.book_count_disp ?? ""}</td>
       <td>${r.kick_et||""}</td>
     </tr>
   `).join("");
