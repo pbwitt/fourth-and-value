@@ -701,21 +701,25 @@ def main() -> None:
     merged_path = Path(args.merged_csv)
     df = pd.read_csv(merged_path)
 
+    # Add 'side' column from 'name' if missing (BEFORE consensus join)
+    if "side" not in df.columns and "name" in df.columns:
+        df["side"] = df["name"]
+
     # Load consensus CSV and join (no normalization - exact match on join keys)
     consensus_path = merged_path.parent / f"consensus_week{args.week}.csv"
     if consensus_path.exists():
         consensus = pd.read_csv(consensus_path)
         # Strip whitespace only (no case changes)
-        for col in ["name_std", "market_std"]:
+        for col in ["name_std", "market_std", "side"]:
             if col in df.columns:
                 df[col] = df[col].astype(str).str.strip()
             if col in consensus.columns:
                 consensus[col] = consensus[col].astype(str).str.strip()
 
-        # Join on name_std and market_std only (props CSV doesn't have 'side')
+        # Join on name_std, market_std, AND side (critical for correct matching)
         df = df.merge(
-            consensus[["name_std", "market_std", "consensus_line", "consensus_prob", "book_count"]],
-            on=["name_std", "market_std"],
+            consensus[["name_std", "market_std", "side", "consensus_line", "consensus_prob", "book_count"]],
+            on=["name_std", "market_std", "side"],
             how="left",
             suffixes=("", "_cons")
         )
