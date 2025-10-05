@@ -437,6 +437,123 @@ def _agg_mu_sigma(s: pd.Series) -> Tuple[float, float]:
     sg = robust_std(s)
     return mu, sg
 
+
+def exponential_weighted_mean(values: pd.Series, alpha: float = 0.3) -> float:
+    """
+    Calculate exponentially weighted mean where recent games have more weight.
+
+    Args:
+        values: Series of historical values (ordered by time, oldest first)
+        alpha: Decay factor (0-1). Higher = more weight to recent games.
+               0.3 means most recent game gets ~30% more weight than oldest.
+
+    Returns:
+        Weighted mean
+    """
+    if len(values) == 0 or values.isna().all():
+        return np.nan
+
+    values_clean = values.dropna()
+    if len(values_clean) == 0:
+        return np.nan
+
+    # Create exponential weights: more recent = higher weight
+    n = len(values_clean)
+    weights = np.array([alpha ** (n - i - 1) for i in range(n)])
+    weights = weights / weights.sum()  # normalize to sum to 1
+
+    return float(np.average(values_clean.values, weights=weights))
+
+
+def exponential_weighted_std(values: pd.Series, alpha: float = 0.3) -> float:
+    """
+    Calculate exponentially weighted standard deviation.
+
+    Args:
+        values: Series of historical values (ordered by time, oldest first)
+        alpha: Decay factor (0-1)
+
+    Returns:
+        Weighted standard deviation
+    """
+    if len(values) <= 1 or values.isna().all():
+        return np.nan
+
+    values_clean = values.dropna()
+    if len(values_clean) <= 1:
+        return np.nan
+
+    # Calculate weighted mean first
+    wmean = exponential_weighted_mean(values_clean, alpha)
+    if np.isnan(wmean):
+        return np.nan
+
+    # Create exponential weights
+    n = len(values_clean)
+    weights = np.array([alpha ** (n - i - 1) for i in range(n)])
+    weights = weights / weights.sum()
+
+    # Weighted variance
+    variance = np.average((values_clean.values - wmean) ** 2, weights=weights)
+    return float(np.sqrt(variance))
+
+
+def rolling_window_stats(values: pd.Series, window: int = 4) -> Tuple[float, float]:
+    """
+    Calculate mean and std using only the most recent N games.
+
+    Args:
+        values: Series of historical values (ordered by time, oldest first)
+        window: Number of most recent games to use (default 4 = L4)
+
+    Returns:
+        (mean, std) of last N games
+    """
+    if len(values) == 0 or values.isna().all():
+        return np.nan, np.nan
+
+    values_clean = values.dropna()
+    if len(values_clean) == 0:
+        return np.nan, np.nan
+
+    # Take last N games
+    recent = values_clean.tail(window)
+
+    if len(recent) == 0:
+        return np.nan, np.nan
+
+    mu = float(recent.mean())
+    sigma = float(recent.std(ddof=1)) if len(recent) > 1 else np.nan
+
+    return mu, sigma
+
+
+def apply_defensive_adjustment(mu: float, market_std: str, def_rating: float) -> float:
+    """
+    Adjust player expectation based on opponent defensive strength.
+
+    Args:
+        mu: Base player expectation (mean)
+        market_std: Market type (e.g., 'pass_yds', 'rush_yds', 'receptions')
+        def_rating: Defensive rating (0.5-2.0, where 1.0 = average, 2.0 = toughest)
+
+    Returns:
+        Adjusted mu
+
+    Logic:
+        - def_rating = 0.5 (weakest defense) → multiply mu by 1.15 (+15%)
+        - def_rating = 1.0 (average defense) → multiply mu by 1.00 (no change)
+        - def_rating = 2.0 (toughest defense) → multiply mu by 0.85 (-15%)
+    """
+    if pd.isna(mu) or pd.isna(def_rating):
+        return mu
+
+    # Map def_rating (0.5-2.0) to adjustment factor (1.15-0.85)
+    # Linear interpolation: rating 0.5 → 1.15x, rating 1.0 → 1.0x, rating 2.0 → 0.85x
+    adjustment = 1.15 - (def_rating - 0.5) * 0.2  # slope = -0.2 per rating point
+
+    return mu * adjustment
+
 def build_params(cands, logs, season, week):
     """
     Board-driven param builder.
@@ -531,9 +648,32 @@ def build_params(cands, logs, season, week):
             )
 
         g = grp[col]
-        mu = g.mean().reindex(player_idx).astype("float64").fillna(mu0)
-        sd = g.std(ddof=1).reindex(player_idx).astype("float64")
-        sg = sd.fillna(sg0)
+
+        # Enhanced: Use exponential weighting + rolling window
+        # Strategy: Combine L4 rolling window with exponential weights
+        mu_vals = {}
+        sg_vals = {}
+
+        for player in player_idx:
+            if player in g.groups:
+                player_data = g.get_group(player).sort_index()  # ensure chronological order
+
+                # Use L4 (last 4 games) with exponential weighting
+                recent_data = player_data.tail(4)  # rolling window
+
+                if len(recent_data) > 0:
+                    # Apply exponential weighting to recent games (alpha=0.4 means ~40% more weight to most recent)
+                    mu_vals[player] = exponential_weighted_mean(recent_data, alpha=0.4)
+                    sg_vals[player] = exponential_weighted_std(recent_data, alpha=0.4)
+                else:
+                    mu_vals[player] = mu0
+                    sg_vals[player] = sg0
+            else:
+                mu_vals[player] = mu0
+                sg_vals[player] = sg0
+
+        mu = pd.Series(mu_vals, index=player_idx, dtype="float64").fillna(mu0)
+        sg = pd.Series(sg_vals, index=player_idx, dtype="float64").fillna(sg0)
         mu_map[mkt], sg_map[mkt] = mu, sg
 
     # --- precompute per-player λ for Poisson markets ---
