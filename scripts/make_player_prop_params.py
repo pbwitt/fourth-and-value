@@ -609,6 +609,406 @@ def apply_player_adjustment(mu: float, name_std: str, market_std: str, adjustmen
 
     return mu
 
+
+# ========================================
+# FAMILY-BASED MODELING (Multi-Market Coherence)
+# ========================================
+"""
+Fourth & Value — Multi-Market "Family" Modeling
+
+Instead of modeling each market independently, we model shared latent factors:
+  - Volume (V): attempts, targets, carries
+  - Efficiency (E): yards per carry, catch rate, yards per reception
+  - Scoring rate (S): TD probability per touch
+
+Each market is DERIVED from these latents with family-specific noise.
+This ensures coherence (e.g., realistic YPC) and surfaces value when books
+move markets independently.
+
+Families:
+  1. Rush: rush_attempts, rush_yds (derived from V_rush × YPC)
+  2. Receive: targets, receptions, recv_yds (derived from V_rec × CR × YPR)
+  3. Pass: pass_attempts, pass_completions, pass_yds (derived from V_pass × comp% × Y/C)
+  4. Score: anytime_td (derived from rush/rec scoring rates)
+"""
+
+# Sanity bounds for efficiency metrics
+YPC_MIN, YPC_MAX = 2.5, 6.5      # yards per carry (RB)
+YPR_MIN, YPR_MAX = 6.0, 18.0     # yards per reception
+COMP_PCT_MIN, COMP_PCT_MAX = 0.50, 0.75  # completion percentage
+YPC_PASS_MIN, YPC_PASS_MAX = 5.0, 12.0   # yards per completion (QB)
+CR_MIN, CR_MAX = 0.50, 0.95      # catch rate (receptions/targets)
+
+
+def estimate_rush_latents(logs: pd.DataFrame, player_idx: pd.Index, alpha: float = 0.4) -> dict:
+    """
+    Estimate RUSH family latents: Volume (carries) and Efficiency (YPC).
+
+    Returns dict with:
+      - volume_mu: Series of expected carries per player
+      - volume_sigma: Series of carry variance
+      - ypc_mu: Series of expected yards per carry
+      - ypc_sigma: Series of YPC variance
+    """
+    if logs is None or logs.empty:
+        # Fall back to priors
+        return {
+            "volume_mu": pd.Series(PRIORS["rush_attempts"]["mu"], index=player_idx),
+            "volume_sigma": pd.Series(PRIORS["rush_attempts"]["sigma"], index=player_idx),
+            "ypc_mu": pd.Series(4.2, index=player_idx),  # league average
+            "ypc_sigma": pd.Series(0.8, index=player_idx),
+        }
+
+    grp = logs.groupby("player", dropna=False)
+
+    # Pick columns
+    carries_col = None
+    yards_col = None
+    for c in ["carries", "rushing_attempts", "rush_attempts"]:
+        if c in logs.columns:
+            carries_col = c
+            break
+    for c in ["rushing_yards", "rush_yds"]:
+        if c in logs.columns:
+            yards_col = c
+            break
+
+    if not carries_col or not yards_col:
+        # Fallback
+        return {
+            "volume_mu": pd.Series(PRIORS["rush_attempts"]["mu"], index=player_idx),
+            "volume_sigma": pd.Series(PRIORS["rush_attempts"]["sigma"], index=player_idx),
+            "ypc_mu": pd.Series(4.2, index=player_idx),
+            "ypc_sigma": pd.Series(0.8, index=player_idx),
+        }
+
+    volume_mu_vals = {}
+    volume_sigma_vals = {}
+    ypc_mu_vals = {}
+    ypc_sigma_vals = {}
+
+    for player in player_idx:
+        if player in grp.groups:
+            player_data = grp.get_group(player).sort_index()
+            recent = player_data.tail(4)
+
+            if len(recent) > 0:
+                # Volume (carries)
+                volume_mu_vals[player] = exponential_weighted_mean(recent[carries_col], alpha)
+                volume_sigma_vals[player] = exponential_weighted_std(recent[carries_col], alpha)
+
+                # Efficiency (YPC) - compute per-game YPC then average
+                ypc_series = recent[yards_col] / recent[carries_col].replace(0, np.nan)
+                ypc_mu_vals[player] = exponential_weighted_mean(ypc_series.dropna(), alpha)
+                ypc_sigma_vals[player] = exponential_weighted_std(ypc_series.dropna(), alpha)
+            else:
+                volume_mu_vals[player] = PRIORS["rush_attempts"]["mu"]
+                volume_sigma_vals[player] = PRIORS["rush_attempts"]["sigma"]
+                ypc_mu_vals[player] = 4.2
+                ypc_sigma_vals[player] = 0.8
+        else:
+            volume_mu_vals[player] = PRIORS["rush_attempts"]["mu"]
+            volume_sigma_vals[player] = PRIORS["rush_attempts"]["sigma"]
+            ypc_mu_vals[player] = 4.2
+            ypc_sigma_vals[player] = 0.8
+
+    # Apply sanity bounds to YPC
+    ypc_mu_series = pd.Series(ypc_mu_vals, index=player_idx).clip(YPC_MIN, YPC_MAX).fillna(4.2)
+    ypc_sigma_series = pd.Series(ypc_sigma_vals, index=player_idx).clip(0.3, 2.0).fillna(0.8)
+
+    return {
+        "volume_mu": pd.Series(volume_mu_vals, index=player_idx).fillna(PRIORS["rush_attempts"]["mu"]),
+        "volume_sigma": pd.Series(volume_sigma_vals, index=player_idx).fillna(PRIORS["rush_attempts"]["sigma"]),
+        "ypc_mu": ypc_mu_series,
+        "ypc_sigma": ypc_sigma_series,
+    }
+
+
+def estimate_receive_latents(logs: pd.DataFrame, player_idx: pd.Index, alpha: float = 0.4) -> dict:
+    """
+    Estimate RECEIVE family latents: Volume (targets), Catch Rate, YPR.
+
+    Returns dict with:
+      - volume_mu: targets
+      - volume_sigma: target variance
+      - cr_mu: catch rate (receptions/targets)
+      - ypr_mu: yards per reception
+      - ypr_sigma: YPR variance
+    """
+    if logs is None or logs.empty:
+        return {
+            "volume_mu": pd.Series(4.0, index=player_idx),
+            "volume_sigma": pd.Series(2.0, index=player_idx),
+            "cr_mu": pd.Series(0.65, index=player_idx),
+            "ypr_mu": pd.Series(11.0, index=player_idx),
+            "ypr_sigma": pd.Series(3.0, index=player_idx),
+        }
+
+    grp = logs.groupby("player", dropna=False)
+
+    # Pick columns
+    targets_col = "targets" if "targets" in logs.columns else None
+    rec_col = "receptions" if "receptions" in logs.columns else None
+    yards_col = None
+    for c in ["receiving_yards", "recv_yds"]:
+        if c in logs.columns:
+            yards_col = c
+            break
+
+    if not rec_col or not yards_col:
+        return {
+            "volume_mu": pd.Series(4.0, index=player_idx),
+            "volume_sigma": pd.Series(2.0, index=player_idx),
+            "cr_mu": pd.Series(0.65, index=player_idx),
+            "ypr_mu": pd.Series(11.0, index=player_idx),
+            "ypr_sigma": pd.Series(3.0, index=player_idx),
+        }
+
+    volume_mu_vals = {}
+    volume_sigma_vals = {}
+    cr_mu_vals = {}
+    ypr_mu_vals = {}
+    ypr_sigma_vals = {}
+
+    for player in player_idx:
+        if player in grp.groups:
+            player_data = grp.get_group(player).sort_index()
+            recent = player_data.tail(4)
+
+            if len(recent) > 0:
+                # If we have targets, use them; otherwise estimate from receptions
+                if targets_col and targets_col in recent.columns:
+                    volume_mu_vals[player] = exponential_weighted_mean(recent[targets_col], alpha)
+                    volume_sigma_vals[player] = exponential_weighted_std(recent[targets_col], alpha)
+
+                    # Catch rate
+                    cr_series = recent[rec_col] / recent[targets_col].replace(0, np.nan)
+                    cr_mu_vals[player] = exponential_weighted_mean(cr_series.dropna(), alpha)
+                else:
+                    # No targets - estimate volume from receptions assuming 65% catch rate
+                    rec_mu = exponential_weighted_mean(recent[rec_col], alpha)
+                    volume_mu_vals[player] = rec_mu / 0.65
+                    volume_sigma_vals[player] = exponential_weighted_std(recent[rec_col], alpha) / 0.65
+                    cr_mu_vals[player] = 0.65
+
+                # YPR
+                ypr_series = recent[yards_col] / recent[rec_col].replace(0, np.nan)
+                ypr_mu_vals[player] = exponential_weighted_mean(ypr_series.dropna(), alpha)
+                ypr_sigma_vals[player] = exponential_weighted_std(ypr_series.dropna(), alpha)
+            else:
+                volume_mu_vals[player] = 4.0
+                volume_sigma_vals[player] = 2.0
+                cr_mu_vals[player] = 0.65
+                ypr_mu_vals[player] = 11.0
+                ypr_sigma_vals[player] = 3.0
+        else:
+            volume_mu_vals[player] = 4.0
+            volume_sigma_vals[player] = 2.0
+            cr_mu_vals[player] = 0.65
+            ypr_mu_vals[player] = 11.0
+            ypr_sigma_vals[player] = 3.0
+
+    # Apply sanity bounds
+    cr_mu_series = pd.Series(cr_mu_vals, index=player_idx).clip(CR_MIN, CR_MAX).fillna(0.65)
+    ypr_mu_series = pd.Series(ypr_mu_vals, index=player_idx).clip(YPR_MIN, YPR_MAX).fillna(11.0)
+    ypr_sigma_series = pd.Series(ypr_sigma_vals, index=player_idx).clip(1.0, 6.0).fillna(3.0)
+
+    return {
+        "volume_mu": pd.Series(volume_mu_vals, index=player_idx).fillna(4.0),
+        "volume_sigma": pd.Series(volume_sigma_vals, index=player_idx).fillna(2.0),
+        "cr_mu": cr_mu_series,
+        "ypr_mu": ypr_mu_series,
+        "ypr_sigma": ypr_sigma_series,
+    }
+
+
+def estimate_pass_latents(logs: pd.DataFrame, player_idx: pd.Index, alpha: float = 0.4) -> dict:
+    """
+    Estimate PASS family latents: Volume (attempts), Comp%, Yards/Completion.
+
+    Returns dict with:
+      - volume_mu: pass attempts
+      - volume_sigma: attempt variance
+      - comp_pct_mu: completion percentage
+      - ypc_mu: yards per completion
+      - ypc_sigma: Y/C variance
+    """
+    if logs is None or logs.empty:
+        return {
+            "volume_mu": pd.Series(32.0, index=player_idx),
+            "volume_sigma": pd.Series(6.0, index=player_idx),
+            "comp_pct_mu": pd.Series(0.63, index=player_idx),
+            "ypc_mu": pd.Series(7.2, index=player_idx),
+            "ypc_sigma": pd.Series(1.5, index=player_idx),
+        }
+
+    grp = logs.groupby("player", dropna=False)
+
+    # Pick columns
+    att_col = None
+    comp_col = None
+    yards_col = None
+    for c in ["attempts", "passing_attempts", "pass_attempts"]:
+        if c in logs.columns:
+            att_col = c
+            break
+    for c in ["completions", "passing_completions", "pass_completions"]:
+        if c in logs.columns:
+            comp_col = c
+            break
+    for c in ["passing_yards", "pass_yds"]:
+        if c in logs.columns:
+            yards_col = c
+            break
+
+    if not att_col or not comp_col or not yards_col:
+        return {
+            "volume_mu": pd.Series(32.0, index=player_idx),
+            "volume_sigma": pd.Series(6.0, index=player_idx),
+            "comp_pct_mu": pd.Series(0.63, index=player_idx),
+            "ypc_mu": pd.Series(7.2, index=player_idx),
+            "ypc_sigma": pd.Series(1.5, index=player_idx),
+        }
+
+    volume_mu_vals = {}
+    volume_sigma_vals = {}
+    comp_pct_vals = {}
+    ypc_mu_vals = {}
+    ypc_sigma_vals = {}
+
+    for player in player_idx:
+        if player in grp.groups:
+            player_data = grp.get_group(player).sort_index()
+            recent = player_data.tail(4)
+
+            if len(recent) > 0:
+                # Volume (attempts)
+                volume_mu_vals[player] = exponential_weighted_mean(recent[att_col], alpha)
+                volume_sigma_vals[player] = exponential_weighted_std(recent[att_col], alpha)
+
+                # Comp %
+                comp_pct_series = recent[comp_col] / recent[att_col].replace(0, np.nan)
+                comp_pct_vals[player] = exponential_weighted_mean(comp_pct_series.dropna(), alpha)
+
+                # Yards per completion
+                ypc_series = recent[yards_col] / recent[comp_col].replace(0, np.nan)
+                ypc_mu_vals[player] = exponential_weighted_mean(ypc_series.dropna(), alpha)
+                ypc_sigma_vals[player] = exponential_weighted_std(ypc_series.dropna(), alpha)
+            else:
+                volume_mu_vals[player] = 32.0
+                volume_sigma_vals[player] = 6.0
+                comp_pct_vals[player] = 0.63
+                ypc_mu_vals[player] = 7.2
+                ypc_sigma_vals[player] = 1.5
+        else:
+            volume_mu_vals[player] = 32.0
+            volume_sigma_vals[player] = 6.0
+            comp_pct_vals[player] = 0.63
+            ypc_mu_vals[player] = 7.2
+            ypc_sigma_vals[player] = 1.5
+
+    # Apply sanity bounds
+    comp_pct_series = pd.Series(comp_pct_vals, index=player_idx).clip(COMP_PCT_MIN, COMP_PCT_MAX).fillna(0.63)
+    ypc_mu_series = pd.Series(ypc_mu_vals, index=player_idx).clip(YPC_PASS_MIN, YPC_PASS_MAX).fillna(7.2)
+    ypc_sigma_series = pd.Series(ypc_sigma_vals, index=player_idx).clip(0.5, 3.0).fillna(1.5)
+
+    return {
+        "volume_mu": pd.Series(volume_mu_vals, index=player_idx).fillna(32.0),
+        "volume_sigma": pd.Series(volume_sigma_vals, index=player_idx).fillna(6.0),
+        "comp_pct_mu": comp_pct_series,
+        "ypc_mu": ypc_mu_series,
+        "ypc_sigma": ypc_sigma_series,
+    }
+
+
+def derive_market_from_latents(market_std: str, latents: dict, player_idx: pd.Index) -> tuple:
+    """
+    Derive (mu, sigma) for a specific market from family latents.
+
+    Returns: (mu_series, sigma_series)
+    """
+    # Rush family
+    if market_std == "rush_attempts":
+        return latents["rush"]["volume_mu"], latents["rush"]["volume_sigma"]
+
+    elif market_std == "rush_yds":
+        # rush_yds = rush_attempts × YPC
+        volume_mu = latents["rush"]["volume_mu"]
+        ypc_mu = latents["rush"]["ypc_mu"]
+        mu = volume_mu * ypc_mu
+
+        # Variance: Var(X*Y) ≈ E[X]²Var(Y) + E[Y]²Var(X) for independent X,Y
+        # Simplified: sigma ≈ sqrt((volume_mu * ypc_sigma)² + (ypc_mu * volume_sigma)²)
+        volume_sigma = latents["rush"]["volume_sigma"]
+        ypc_sigma = latents["rush"]["ypc_sigma"]
+        sigma = np.sqrt((volume_mu * ypc_sigma)**2 + (ypc_mu * volume_sigma)**2)
+
+        return mu, sigma.clip(lower=5.0)  # floor sigma for stability
+
+    # Receive family
+    elif market_std == "receptions":
+        # receptions = targets × catch_rate
+        volume_mu = latents["receive"]["volume_mu"]
+        cr_mu = latents["receive"]["cr_mu"]
+        mu = volume_mu * cr_mu
+
+        # Simplified variance
+        volume_sigma = latents["receive"]["volume_sigma"]
+        sigma = cr_mu * volume_sigma  # approximate
+
+        return mu, sigma.clip(lower=0.5)
+
+    elif market_std == "recv_yds":
+        # recv_yds = receptions × YPR = (targets × CR) × YPR
+        volume_mu = latents["receive"]["volume_mu"]
+        cr_mu = latents["receive"]["cr_mu"]
+        ypr_mu = latents["receive"]["ypr_mu"]
+        mu = volume_mu * cr_mu * ypr_mu
+
+        # Variance approximation
+        volume_sigma = latents["receive"]["volume_sigma"]
+        ypr_sigma = latents["receive"]["ypr_sigma"]
+        sigma = np.sqrt((volume_mu * cr_mu * ypr_sigma)**2 + (ypr_mu * cr_mu * volume_sigma)**2)
+
+        return mu, sigma.clip(lower=5.0)
+
+    # Pass family
+    elif market_std == "pass_attempts":
+        return latents["pass"]["volume_mu"], latents["pass"]["volume_sigma"]
+
+    elif market_std == "pass_completions":
+        # completions = attempts × comp%
+        volume_mu = latents["pass"]["volume_mu"]
+        comp_pct = latents["pass"]["comp_pct_mu"]
+        mu = volume_mu * comp_pct
+
+        volume_sigma = latents["pass"]["volume_sigma"]
+        sigma = comp_pct * volume_sigma
+
+        return mu, sigma.clip(lower=1.0)
+
+    elif market_std == "pass_yds":
+        # pass_yds = completions × Y/C = (attempts × comp%) × Y/C
+        volume_mu = latents["pass"]["volume_mu"]
+        comp_pct = latents["pass"]["comp_pct_mu"]
+        ypc_mu = latents["pass"]["ypc_mu"]
+        mu = volume_mu * comp_pct * ypc_mu
+
+        volume_sigma = latents["pass"]["volume_sigma"]
+        ypc_sigma = latents["pass"]["ypc_sigma"]
+        sigma = np.sqrt((volume_mu * comp_pct * ypc_sigma)**2 + (ypc_mu * comp_pct * volume_sigma)**2)
+
+        return mu, sigma.clip(lower=10.0)
+
+    # Fallback for markets not in families (shouldn't happen if called correctly)
+    else:
+        prior = PRIORS.get(market_std, {})
+        return (
+            pd.Series(prior.get("mu", 0.0), index=player_idx),
+            pd.Series(prior.get("sigma", 1.0), index=player_idx)
+        )
+
+
 def build_params(cands, logs, season, week):
     """
     Board-driven param builder.
@@ -682,54 +1082,43 @@ def build_params(cands, logs, season, week):
         # anytime_td handled via rushing_tds + receiving_tds
     }
 
-    # --- precompute per-player μ/σ for Normal markets ---
+    # ========================================
+    # FAMILY-BASED LATENT ESTIMATION
+    # ========================================
+    print("[family] Estimating latent parameters for Rush, Receive, Pass families...")
+
+    # Estimate latent parameters for each family
+    rush_latents = estimate_rush_latents(logs, player_idx, alpha=0.4)
+    receive_latents = estimate_receive_latents(logs, player_idx, alpha=0.4)
+    pass_latents = estimate_pass_latents(logs, player_idx, alpha=0.4)
+
+    # Package into dict for derive_market_from_latents
+    latents = {
+        "rush": rush_latents,
+        "receive": receive_latents,
+        "pass": pass_latents,
+    }
+
+    # Derive market params from latents (ensures coherence)
     mu_map, sg_map = {}, {}
+    family_markets = {
+        "rush_attempts", "rush_yds",
+        "receptions", "recv_yds",
+        "pass_attempts", "pass_completions", "pass_yds",
+    }
+
+    for mkt in family_markets:
+        mu, sg = derive_market_from_latents(mkt, latents, player_idx)
+        mu_map[mkt] = mu
+        sg_map[mkt] = sg
+
+    print(f"[family] Derived params for {len(mu_map)} Normal markets from latents")
+
+    # ========================================
+    # GROUP-BASED LOGIC (backward compat for any markets not in families)
+    # ========================================
     if logs is not None and not logs.empty:
         grp = logs.groupby("player", dropna=False)
-
-    for mkt, cand_cols in LOG_COLS_NORMAL.items():
-        mu0 = float(PRIORS.get(mkt, {}).get("mu", np.nan))
-        sg0 = float(PRIORS.get(mkt, {}).get("sigma", np.nan))
-        if logs is None or getattr(logs, "empty", True):
-            raise ValueError(f"FATAL: No weekly stats loaded for {mkt}. Cannot build params without player data.")
-
-        col = pick_col(logs, cand_cols)
-        if col is None:
-            available_cols = [c for c in logs.columns if any(x in c.lower() for x in ['rush', 'pass', 'rec', 'attempt', 'yard', 'td'])]
-            raise ValueError(
-                f"FATAL: {mkt} - no matching column found from {cand_cols}.\n"
-                f"Available stat columns: {available_cols[:20]}\n"
-                f"Fix LOG_COLS_NORMAL mapping or update weekly stats schema."
-            )
-
-        g = grp[col]
-
-        # Enhanced: Use exponential weighting + rolling window
-        # Strategy: Combine L4 rolling window with exponential weights
-        mu_vals = {}
-        sg_vals = {}
-
-        for player in player_idx:
-            if player in g.groups:
-                player_data = g.get_group(player).sort_index()  # ensure chronological order
-
-                # Use L4 (last 4 games) with exponential weighting
-                recent_data = player_data.tail(4)  # rolling window
-
-                if len(recent_data) > 0:
-                    # Apply exponential weighting to recent games (alpha=0.4 means ~40% more weight to most recent)
-                    mu_vals[player] = exponential_weighted_mean(recent_data, alpha=0.4)
-                    sg_vals[player] = exponential_weighted_std(recent_data, alpha=0.4)
-                else:
-                    mu_vals[player] = mu0
-                    sg_vals[player] = sg0
-            else:
-                mu_vals[player] = mu0
-                sg_vals[player] = sg0
-
-        mu = pd.Series(mu_vals, index=player_idx, dtype="float64").fillna(mu0)
-        sg = pd.Series(sg_vals, index=player_idx, dtype="float64").fillna(sg0)
-        mu_map[mkt], sg_map[mkt] = mu, sg
 
     # --- precompute per-player λ for Poisson markets ---
     def lam_from(cols, prior_key, default_val=None):
@@ -838,6 +1227,41 @@ def build_params(cands, logs, season, week):
     for col in ["mu","sigma","lam"]:
         if col in params.columns:
             params[col] = pd.to_numeric(params[col], errors="coerce")
+
+    # ========================================
+    # ADD DIAGNOSTIC COLUMNS (Family Coherence Checks)
+    # ========================================
+    print("[diagnostics] Adding family coherence diagnostic columns...")
+
+    # Create diagnostic columns for coherence checking
+    params["implied_ypc"] = np.nan
+    params["implied_ypr"] = np.nan
+    params["implied_comp_pct"] = np.nan
+    params["implied_ypc_pass"] = np.nan
+    params["implied_cr"] = np.nan
+
+    # Map player to latent metrics using vectorized operations
+    player_to_ypc = rush_latents["ypc_mu"].to_dict()
+    player_to_ypr = receive_latents["ypr_mu"].to_dict()
+    player_to_cr = receive_latents["cr_mu"].to_dict()
+    player_to_comp_pct = pass_latents["comp_pct_mu"].to_dict()
+    player_to_ypc_pass = pass_latents["ypc_mu"].to_dict()
+
+    # Apply diagnostics (vectorized for performance)
+    rush_mask = params["market_std"].isin(["rush_attempts", "rush_yds"])
+    params.loc[rush_mask, "implied_ypc"] = params.loc[rush_mask, "player"].map(player_to_ypc)
+
+    rec_mask = params["market_std"].isin(["receptions", "recv_yds"])
+    params.loc[rec_mask, "implied_ypr"] = params.loc[rec_mask, "player"].map(player_to_ypr)
+    params.loc[rec_mask, "implied_cr"] = params.loc[rec_mask, "player"].map(player_to_cr)
+
+    pass_mask = params["market_std"].isin(["pass_attempts", "pass_completions", "pass_yds"])
+    params.loc[pass_mask, "implied_comp_pct"] = params.loc[pass_mask, "player"].map(player_to_comp_pct)
+
+    pass_yds_mask = params["market_std"].isin(["pass_completions", "pass_yds"])
+    params.loc[pass_yds_mask, "implied_ypc_pass"] = params.loc[pass_yds_mask, "player"].map(player_to_ypc_pass)
+
+    print("[diagnostics] Added implied_ypc, implied_ypr, implied_cr, implied_comp_pct, implied_ypc_pass")
 
     # attach season/week if missing
     if "season" not in params.columns:
@@ -968,7 +1392,8 @@ def main():
 
     # Final tidy + write
     cols = ["season","week","player","player_key","name_std","market_std","market",
-        "dist","mu","sigma","lam","used_logs"]
+        "dist","mu","sigma","lam","used_logs",
+        "implied_ypc","implied_ypr","implied_comp_pct","implied_ypc_pass","implied_cr"]
     params = params[[c for c in cols if c in params.columns]].copy()
     params = standardize_input(params)           # adds market_std/name/point/name_std
     params = apply_priors_if_missing(params)     # fills missing mu/sigma/lam using PRIORS
