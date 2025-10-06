@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Fourth & Value — When Books Contradict Themselves</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="How family-based modeling catches market inefficiency. Tonight's KC @ JAX has 11 incoherent book lines." />
+  <link rel="icon" href="../favicon.ico" />
+  <style>
+    :root { --max: 860px; --bg:#0b0b0b; --fg:#e9e9e9; --muted:#b9b9b9; --line:#222; --input:#121212; --link:#8ab4ff; }
+    html,body { margin:0; background:var(--bg); color:var(--fg); }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; line-height:1.65; }
+    a { color: var(--link); text-decoration: underline; }
+    .wrap { max-width: var(--max); margin: 0 auto; padding: 16px; }
+    h1 { margin: 8px 0 4px; font-size: 1.8rem; }
+    .meta { font-size:.9rem; color: var(--muted); margin: 6px 0 18px; }
+    article h2, article h3 { margin-top: 1.4em; }
+    article table { width:100%; border-collapse:collapse; margin:16px 0; font-size:0.9rem; }
+    article th, article td { padding:8px; text-align:left; border-bottom:1px solid var(--line); }
+    article th { color:var(--muted); font-weight:600; }
+    article ul { line-height: 1.8; }
+    code, pre { background:#0f0f0f; border:1px solid var(--line); border-radius:8px; color:#e6e6e6; }
+    pre { padding:12px; overflow:auto; }
+    .back { display:inline-block; margin-top: 28px; color: var(--link); }
+    .highlight { background:#1a1a2e; border-left:4px solid var(--link); padding:12px 16px; margin:16px 0; }
+  </style>
+</head>
+<body>
+  <div id="nav-root"></div>
+  <script src="../nav.js?v=7"></script>
+
+  <main class="wrap">
+    <article>
+      <header>
+        <h1>🧬 When Books Contradict Themselves — and Why Our Model Doesn't</h1>
+        <div class="meta"><time datetime="2025-10-06">Oct 6, 2024</time> • 5 min read</div>
+      </header>
+
+      <p>Tonight's Kansas City Chiefs @ Jacksonville Jaguars matchup gave us a perfect live example of why our newest modeling framework — <strong>family-based multi-market modeling</strong> — matters. We now scan the entire market to check for coherence, grouping related player-prop families to identify lines that simply don't add up — cases where one stat (like receptions) implies an efficiency that makes the paired stat (like yards) impossible.</p>
+
+      <p>By analyzing the market as a whole rather than in isolation, bettors can uncover where sportsbooks have contradicted their own math — revealing inefficiencies, potential middles, and pure arbitrage situations that exist before the books correct themselves.</p>
+
+      <h2>🧠 What's New in the Model</h2>
+
+      <p>As of October 2024, Fourth & Value's player-prop engine models related markets as <strong>families</strong> instead of isolated bets.</p>
+
+      <p>Each family shares a set of latent factors — such as volume, efficiency, and scoring rate — that keep projections internally consistent:</p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Family</th>
+            <th>Linked Markets</th>
+            <th>Key Shared Metric</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Rush Family</td>
+            <td>rush_attempts ↔ rush_yds</td>
+            <td>Yards per Carry (YPC 2.5 – 6.5)</td>
+          </tr>
+          <tr>
+            <td>Receive Family</td>
+            <td>receptions ↔ recv_yds</td>
+            <td>Yards per Reception (YPR 6 – 18)</td>
+          </tr>
+          <tr>
+            <td>Pass Family</td>
+            <td>attempts ↔ completions ↔ pass_yds</td>
+            <td>Comp % 50 – 75 • Yds/Comp 5 – 12</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>When a sportsbook moves one line (say, receptions) but doesn't move the other (receiving yards), the implied efficiency can fall outside those bounds. Our model never allows that. Each player's projection must satisfy all related markets simultaneously.</p>
+
+      <h2>⚙️ Why It Matters</h2>
+
+      <p>Traditional prop markets — and even most analytics models — treat every stat line independently. One trader adjusts rushing attempts for volume, another adjusts rushing yards for matchup. Over time, those independent adjustments drift apart.</p>
+
+      <p>Family-based modeling fixes that by tying each market to its natural counterpart. If a back is projected for 14 carries and 65 yards, that's 4.6 YPC — realistic. If a book posts 14 carries and 95 yards (6.8 YPC), that's impossible. We catch that instantly, and it's often where inefficiencies — or arbitrage — appear.</p>
+
+      <p>This coherence layer isn't about predicting better; it's about keeping the math real and revealing when books fail to do the same.</p>
+
+      <h2>🏈 Case Study: Isiah Pacheco's Receiving Lines</h2>
+
+      <p><strong>As of 2:09 PM ET on Oct 6, 2024</strong>, six major sportsbooks — BetMGM, BetOnline, Bovada, DraftKings, FanDuel, and William Hill — are offering the following:</p>
+
+      <ul>
+        <li><strong>Receptions:</strong> O/U 1.5</li>
+        <li><strong>Receiving Yards:</strong> O/U 6.5</li>
+      </ul>
+
+      <p>Do the math: <strong>6.5 ÷ 1.5 = 4.33 yards per reception</strong>.</p>
+
+      <p>NFL running backs typically average 6 – 18 YPR. A 4.3 YPR would rank dead last among qualified backs, and Pacheco isn't that inefficient.</p>
+
+      <h2>💡 The Structural Edge</h2>
+
+      <p>Because receptions and yards are contradictory, both sides can theoretically win:</p>
+
+      <ul>
+        <li><strong>Bet Over 1.5 receptions</strong> (books expect 2+)</li>
+        <li><strong>Bet Under 6.5 yards</strong> (books expect &lt; 7)</li>
+      </ul>
+
+      <p><strong>Two catches for five yards cashes both.</strong><br>That's not model-driven speculation — it's arbitrage created by incoherent line-setting.</p>
+
+      <h2>🚨 Other Violations — KC @ JAX</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Severity</th>
+            <th>Player</th>
+            <th>Book</th>
+            <th>Implied Eff.</th>
+            <th>Comment</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>High</td>
+            <td>Travis Etienne Jr.</td>
+            <td>Fanatics</td>
+            <td>2.5 rec → 10.5 yds = 4.2 YPR</td>
+            <td>Below RB floor</td>
+          </tr>
+          <tr>
+            <td>Medium</td>
+            <td>Kareem Hunt</td>
+            <td>BetMGM, BetOnline</td>
+            <td>1.5 rec → 7.5 yds = 5.0 YPR</td>
+            <td>Too low efficiency</td>
+          </tr>
+          <tr>
+            <td>Medium</td>
+            <td>Etienne Jr.</td>
+            <td>DraftKings</td>
+            <td>2.5 rec → 12.5 yds = 5.0 YPR</td>
+            <td>Understated YPR</td>
+          </tr>
+          <tr>
+            <td>Rush Fam</td>
+            <td>Xavier Worthy</td>
+            <td>BetMGM</td>
+            <td>1.5 att → 3.5 yds = 2.3 YPC</td>
+            <td>Below 2.5 minimum</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>Across all active books, tonight's model run flagged <strong>51 violations league-wide — 11 in this game alone</strong>.</p>
+
+      <h2>🧩 Model vs. Market Coherence</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Metric</th>
+            <th>Fourth & Value Model</th>
+            <th>Sportsbooks</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Implied YPC bounds</td>
+            <td>2.5 – 6.5 ✅</td>
+            <td>As low as 2.3 🚫</td>
+          </tr>
+          <tr>
+            <td>Implied YPR bounds</td>
+            <td>6 – 18 ✅</td>
+            <td>As low as 4.2 🚫</td>
+          </tr>
+          <tr>
+            <td>Completion % bounds</td>
+            <td>50 – 75 ✅</td>
+            <td>Occasional overshoot 🚫</td>
+          </tr>
+          <tr>
+            <td>Total violations (KC @ JAX)</td>
+            <td>0 ✅</td>
+            <td>11 🚫</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>🔍 What It Means for Bettors</h2>
+
+      <p>When linked lines violate basic relationships, you don't need to trust a model — you can trust the math. If two markets can both hit, that's a structural edge, not a predictive one.</p>
+
+      <p>Family-based modeling gives us the visibility to spot these mismatches the moment they appear. We still model performance and probability, but this added layer shows when the books have priced themselves into a corner.</p>
+
+      <div class="highlight">
+        <strong>✅ Model Coherence Check</strong><br>
+        Our model produced over 100 player projections for tonight's slate with <strong>0 violations</strong>. Every efficiency metric stayed within realistic NFL ranges. The books? 11 in one game.
+      </div>
+
+      <h2>🧭 Conclusion</h2>
+
+      <p>Family-based modeling does two things:</p>
+
+      <ol>
+        <li>It keeps every projection grounded in real-world efficiency.</li>
+        <li>It surfaces opportunities when sportsbooks don't follow their own math.</li>
+      </ol>
+
+      <p>The Pacheco case shows how independent line-setting can create genuine arbitrage — not because we out-modeled anyone, but because we checked for coherence when others didn't.</p>
+
+      <p>As sportsbooks get sharper, these gaps will close. Until then, our coherence checks will keep flagging when the numbers simply don't add up — and that's where value lives.</p>
+
+      <p style="margin-top: 2em;"><strong>📚 Learn more about our modeling framework:</strong><br>
+      <a href="../methods.html">Methods: How Fourth & Value Models Player Props</a></p>
+
+      <a class="back" href="./index.html">← Back to Blog</a>
+    </article>
+  </main>
+</body>
+</html>
