@@ -286,7 +286,7 @@ if (!currentActive && sections.length) {
 """
 
 FILTER_BAR_HTML = """
-<div class="small" style="margin-bottom:16px;">Select Game → Market → Player filters below. <strong>My Books</strong>: Select only the books you have access to (multi-select with Ctrl/Cmd+Click). Consensus line = median across books; Market % = de-vigged implied probability. <strong>Fair Odds</strong> = model-implied fair price. <strong>Edge</strong> = Model % − Market % (basis points).</div>
+<div class="small" style="margin-bottom:16px;">Select Game → Market → Player filters below. <strong>My Books</strong>: Select only the books you have access to. Consensus line = median across books; Market % = de-vigged consensus probability. <strong>Fair Odds</strong> = de-vigged book price (~5% vig removed). <strong>Edge</strong> = Model % − Market % (basis points).</div>
 
 <div class="fv-filter-bar" id="fv-filter-bar">
   <label>Game <select id="filter-game"><option value="">All</option></select></label>
@@ -581,6 +581,12 @@ def harmonize(df: pd.DataFrame) -> pd.DataFrame:
     if "price" in df.columns:
         df["book_price_disp"] = df["price"].apply(fmt_odds_american)
 
+        # Calculate de-vigged fair odds from book price
+        VIG_FACTOR = 0.9524  # Remove ~5% vig (1/(1+0.05))
+        df["book_implied_prob"] = df["price"].apply(american_to_prob)
+        df["devig_prob"] = (df["book_implied_prob"] * VIG_FACTOR).clip(0.01, 0.99)
+        df["fair_odds"] = df["devig_prob"].apply(prob_to_american)
+
     # Game display
     def make_game(row):
         for c in ["game", "game_display", "matchup"]:
@@ -775,7 +781,7 @@ def render_overview_table(df: pd.DataFrame) -> str:
         ("Model %",  lambda r: canonical_str(r.get("model_prob_disp")) or DISPLAY_DASH, True, "model-pct"),
         ("Market %", lambda r: canonical_str(r.get("consensus_prob_disp")) or DISPLAY_DASH, True, "mkt-pct"),
         ("Edge (bps)", lambda r: fmt_edge_bps(r.get("edge_bps")), True, "edge"),
-        ("Fair Odds",  lambda r: fmt_odds_dash(prob_to_american(r.get("model_prob"))), True, "fair-odds"),
+        ("Fair Odds",  lambda r: fmt_odds_dash(r.get("fair_odds")), True, "fair-odds"),
     ]
 
     header = "".join(f"<th>{escape(label)}</th>" for label, _, _, _ in columns)
@@ -834,7 +840,7 @@ def render_value_table(df: pd.DataFrame) -> str:
         ("Model %",   lambda r: canonical_str(r.get("model_prob_disp")) or DISPLAY_DASH, True, "model-pct"),
         ("Market %",  lambda r: canonical_str(r.get("consensus_prob_disp")) or DISPLAY_DASH, True, "mkt-pct"),
         ("Edge (bps)", lambda r: fmt_edge_bps(r.get("edge_bps")), True, "edge"),
-        ("Fair Odds",  lambda r: fmt_odds_dash(prob_to_american(r.get("model_prob"))), True, "fair-odds"),
+        ("Fair Odds",  lambda r: fmt_odds_dash(r.get("fair_odds")), True, "fair-odds"),
     ]
 
     header = "".join(f"<th>{escape(label)}</th>" for label, _, _, _ in columns)
