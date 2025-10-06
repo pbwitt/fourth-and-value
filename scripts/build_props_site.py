@@ -180,6 +180,7 @@ def main():
 
     # Odds display
     df0["mkt_odds"] = df0["price"].map(fmt_odds)
+    df0["price_disp"] = df0["mkt_odds"]  # Alias for template compatibility
 
     # Fair odds (prefer model_price, else from model_prob)
     def _prob_to_american(p):
@@ -192,11 +193,12 @@ def main():
         return int(round(-100*p/(1-p))) if p >= 0.5 else int(round(100*(1-p)/p))
 
     # Fair odds = de-vigged market probability converted to odds
-    # Assumes ~4.76% vig (1/21 total overround), de-vig by scaling down mkt_prob
+    # Assumes ~4.76% vig (1/(1+0.05))
     from site_common import prob_to_american as prob_to_am_safe
     VIG_FACTOR = 0.9524  # Remove ~5% vig (1/(1+0.05))
     df0["devig_prob"] = (df0["mkt_prob"] * VIG_FACTOR).clip(0.01, 0.99)
     df0["fair_odds"] = df0["devig_prob"].apply(prob_to_am_safe).map(fmt_odds)
+    df0["model_price"] = df0["model_prob"].apply(_prob_to_american)  # Fair odds from model
 
     # Percentages
     def _american_to_prob(o):
@@ -209,9 +211,12 @@ def main():
     df0["mkt_prob"]  = df0["price"].apply(_american_to_prob)
     df0["mkt_pct"]   = df0["mkt_prob"].map(fmt_pct)
     df0["model_pct"] = df0["model_prob"].map(fmt_pct)
+    df0["mkt_prob_pct"] = df0["mkt_pct"]  # Alias for template compatibility
+    df0["model_prob_pct"] = df0["model_pct"]  # Alias for template compatibility
 
     # Edge vs market implied (bps)
     df0["edge_bps"] = ((df0["model_prob"] - df0["mkt_prob"]) * 1e4).round()
+    df0["edge_bps_mkt"] = df0["edge_bps"]  # Alias for template compatibility
 
     # Line (threshold) from sportsbook `point`
     def _fmt_point(x):
