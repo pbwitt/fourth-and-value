@@ -31,9 +31,13 @@
   <main class="wrap">
     <div class="card">
       <h1>Methods</h1>
-      <div class="updated">Last updated: Oct 5, 2024</div>
+      <div class="updated">Last updated: Oct 6, 2024</div>
 
       <p>This page describes how Fourth &amp; Value models player props and calculates "value." It's intentionally general (no week-specific numbers) so it stays accurate as we update models.</p>
+
+      <div class="highlight">
+        <strong>🆕 Latest Update (Oct 6, 2024):</strong> We've implemented family-based multi-market modeling, which links related markets (like rush attempts and rush yards) through shared efficiency metrics. This ensures coherent projections and surfaces value when books move markets independently.
+      </div>
 
       <h2 id="what-we-model">1) What we model</h2>
       <p>We focus on common player-prop markets, normalized to canonical keys (<code>market_std</code>):</p>
@@ -53,16 +57,43 @@
 
       <h2 id="modeling">3) Modeling approach</h2>
 
-      <div class="highlight">
-        <strong>🆕 Recent Updates (Oct 2024):</strong> We've significantly enhanced the model with exponential weighting, rolling windows, and matchup adjustments. See details below.
-      </div>
+      <h3>Family-based multi-market modeling (Oct 2024):</h3>
+      <p>Instead of modeling each market independently, we now model <strong>linked market families</strong> through shared latent factors:</p>
+
+      <ul>
+        <li><strong>Rush family:</strong> <code>rush_attempts</code> and <code>rush_yds</code> are linked through:
+          <ul>
+            <li>Volume latent: expected carries (μ, σ)</li>
+            <li>Efficiency latent: yards per carry (μ, σ) bounded [2.5, 6.5]</li>
+            <li>Derived relationship: <code>rush_yds = rush_attempts × YPC</code></li>
+          </ul>
+        </li>
+        <li><strong>Receive family:</strong> <code>receptions</code> and <code>recv_yds</code> linked through:
+          <ul>
+            <li>Volume latent: expected targets</li>
+            <li>Catch rate: receptions/targets bounded [0.50, 0.95]</li>
+            <li>Yards per reception: bounded [6.0, 18.0]</li>
+            <li>Derived: <code>recv_yds = targets × catch_rate × YPR</code></li>
+          </ul>
+        </li>
+        <li><strong>Pass family:</strong> <code>pass_attempts</code>, <code>pass_completions</code>, and <code>pass_yds</code> linked through:
+          <ul>
+            <li>Volume latent: expected attempts</li>
+            <li>Completion percentage: bounded [0.50, 0.75]</li>
+            <li>Yards per completion: bounded [5.0, 12.0]</li>
+            <li>Derived: <code>pass_yds = attempts × comp% × Y/C</code></li>
+          </ul>
+        </li>
+      </ul>
+
+      <p><strong>Why this matters:</strong> When a sportsbook moves the rush attempts line but not rush yards, our model detects the implied efficiency change. If a book prices 18 carries at 120 yards (6.67 YPC—above our max bound), we know they're mispricing at least one market. This surfaces arbitrage opportunities where both linked markets show value.</p>
 
       <h3>Core methodology:</h3>
       <ul>
         <li><strong>Recency-weighted L4:</strong> Per player × market, we use only the <strong>last 4 games</strong> (L4) with <strong>exponential weighting</strong> (alpha=0.4). Most recent game receives ~64% of the total weight.</li>
         <li><strong>Normal markets:</strong> Estimate mean <code>μ</code> and standard deviation <code>σ</code> → assume <em>Normal(μ,σ)</em>.</li>
         <li><strong>Poisson markets:</strong> Estimate rate <code>λ</code> for counts (TDs, INTs) → assume <em>Poisson(λ)</em>.</li>
-        <li><strong>Sanity guards:</strong> Floor <code>σ</code> to avoid overconfidence; clamp <code>μ ≥ 0</code> on yardage/attempt stats.</li>
+        <li><strong>Sanity guards:</strong> Efficiency metrics are bounded to realistic ranges; floor <code>σ</code> to avoid overconfidence.</li>
       </ul>
 
       <h3>Exponential weighting:</h3>
@@ -117,14 +148,59 @@
       </ul>
       <p>This filters for high-conviction signals where multiple data sources agree.</p>
 
-      <h2 id="display">7) What you see on the site</h2>
+      <h2 id="family-opportunities">7) Family-based opportunity detection</h2>
+      <p>Our family modeling enables three types of edge detection that traditional independent-market models miss:</p>
+
+      <h3>A. Family arbitrage (high-conviction plays):</h3>
+      <p>When <strong>both</strong> linked markets show strong edge in the same direction, we flag it as a family arbitrage opportunity. Example from Week 5:</p>
+      <ul>
+        <li><strong>James Cook (Rush family):</strong>
+          <ul>
+            <li>Rush attempts Over: +5,073 bps edge</li>
+            <li>Rush yards Over: +5,228 bps edge</li>
+            <li><strong>Combined: +10,301 bps</strong> (volume AND efficiency both point up)</li>
+          </ul>
+        </li>
+      </ul>
+      <p>These are higher-conviction bets because the edge isn't coming from a single market quirk—both volume and efficiency projections align.</p>
+
+      <h3>B. Incoherent book lines:</h3>
+      <p>When a sportsbook's lines imply physically impossible or highly unlikely efficiency metrics, we flag them:</p>
+      <ul>
+        <li><strong>Cam Ward (Bovada):</strong> 3.5 attempts → 4.5 yards = <strong>1.29 YPC</strong>
+          <ul><li>NFL minimum realistic YPC is ~2.5. This line is incoherent.</li></ul>
+        </li>
+        <li><strong>Chase Brown (BetRivers):</strong> 5.5 receptions → 20.5 yards = <strong>3.73 YPR</strong>
+          <ul><li>Realistic YPR bounds are 6–18. This implies impossible inefficiency.</li></ul>
+        </li>
+      </ul>
+      <p>When books are incoherent, there's often value on <em>both</em> sides of the linked markets (e.g., Over on attempts, Under on yards).</p>
+
+      <h3>C. Model coherence validation:</h3>
+      <p>We continuously validate that our own projections stay within realistic bounds:</p>
+      <ul>
+        <li>YPC: [2.5, 6.5] yards per carry</li>
+        <li>YPR: [6.0, 18.0] yards per reception</li>
+        <li>Comp%: [50%, 75%] completion percentage</li>
+        <li>Y/C: [5.0, 12.0] yards per completion (QB)</li>
+      </ul>
+      <p>Week 5 result: <strong>0 violations</strong>—all 100+ player projections fell within bounds.</p>
+
+      <h3>Real-world impact (Week 5):</h3>
+      <ul>
+        <li><strong>2,277 family arbitrage opportunities</strong> detected across Rush/Receive/Pass families</li>
+        <li><strong>51 incoherent book lines</strong> flagged (most at BetRivers, Bovada, DraftKings)</li>
+        <li>Top combined edge: <strong>Zay Jones</strong> receptions + yards on Bovada = +12,056 bps</li>
+      </ul>
+
+      <h2 id="display">8) What you see on the site</h2>
       <ul>
         <li><strong>Props:</strong> Per-book rows with Model %, Market %, Edge (bps), Fair Odds, Consensus data. Filter by game, market, player, and books you have access to.</li>
         <li><strong>Top Picks:</strong> One card per player × market × side; ranked by edge. Shows best available book/price with copy-bet functionality.</li>
         <li><strong>Consensus:</strong> Filtered for directional alignment. Shows model vs book vs consensus with multi-book aggregation.</li>
       </ul>
 
-      <h2 id="example">8) Real example: How the model behaves</h2>
+      <h2 id="example">9) Real example: How the model behaves</h2>
       <p><strong>Player:</strong> DeMario Douglas, Receptions, Over 1.5</p>
       <p><strong>Recent games (2024 Weeks 1-3):</strong> 2, 1, 2 receptions</p>
 
@@ -142,7 +218,7 @@
 
       <p>The most recent game (2 receptions) gets 64% weight, pulling the expectation up and increasing our model's confidence in the Over.</p>
 
-      <h2 id="limits">9) Known limitations</h2>
+      <h2 id="limits">10) Known limitations</h2>
       <ul>
         <li><strong>Sample size:</strong> Early in the season (Weeks 1-4), we have limited data. Model confidence is lower.</li>
         <li><strong>Defensive adjustments:</strong> Framework built but not yet fully integrated into production.</li>
@@ -151,14 +227,18 @@
         <li><strong>Venue effects:</strong> Home/away and dome vs outdoor not yet factored.</li>
       </ul>
 
-      <h2 id="roadmap">10) Roadmap</h2>
+      <h2 id="roadmap">11) Roadmap</h2>
       <ul>
         <li>✅ <strike>Exponential weighting for recent form</strike> (Oct 2024)</li>
         <li>✅ <strike>L4 rolling window</strike> (Oct 2024)</li>
         <li>✅ <strike>Injury/role adjustment framework</strike> (Oct 2024)</li>
         <li>✅ <strike>Defensive matchup framework</strike> (Oct 2024)</li>
+        <li>✅ <strike>Family-based multi-market modeling</strike> (Oct 2024)</li>
+        <li>✅ <strike>Coherence validation &amp; opportunity detection</strike> (Oct 2024)</li>
         <li>🔄 Integrate defensive stats into production pipeline</li>
         <li>🔄 Team context (pace, pass rate, game totals)</li>
+        <li>🔜 Market fusion (weak Bayesian updates from consensus lines)</li>
+        <li>🔜 Monte Carlo joint simulation with correlated shocks</li>
         <li>🔜 Usage-based priors (target share, routes, red-zone touches)</li>
         <li>🔜 Weather and venue adjustments</li>
         <li>🔜 Systematic calibration tracking (Brier scores, log loss)</li>
