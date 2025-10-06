@@ -415,9 +415,11 @@ def _opts_from_pairs(pairs):
     return "\n".join(out)
 
 def html_page(cards_html, title, market_pairs, game_pairs, book_pairs, week=None, season=None):
+    import json
     market_opts = _opts_from_pairs(market_pairs)
     game_opts   = _opts_from_pairs(game_pairs)
     book_opts   = _opts_from_pairs(book_pairs)
+    book_opts_js = json.dumps(book_pairs)  # JavaScript array for checkbox population
 
     # Week header
     week_header = ""
@@ -500,6 +502,83 @@ button.reset {{ background:#1a1a1d; border:1px solid #2a2a2e; color:#e7e7ea; }}
 @media (min-width: 900px) {{
   .container {{ max-width: 1100px; }}
 }}
+
+/* Checkbox dropdown for book filter */
+.checkbox-dropdown {{
+  position: relative;
+  min-width: 180px;
+}}
+.checkbox-dropdown-button {{
+  width: 100%;
+  background: #111113;
+  color: #e7e7ea;
+  border: 1px solid #232327;
+  border-radius: 10px;
+  padding: 8px 10px;
+  outline: none;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+}}
+.checkbox-dropdown-button:hover {{
+  border-color: #6ee7ff;
+}}
+.checkbox-dropdown-button::after {{
+  content: '▼';
+  font-size: 10px;
+  opacity: 0.6;
+}}
+.checkbox-dropdown.open .checkbox-dropdown-button::after {{
+  content: '▲';
+}}
+.checkbox-group {{
+  display: none;
+  position: absolute;
+  z-index: 1000;
+  flex-direction: column;
+  gap: 6px;
+  background: #111113;
+  border: 1px solid #232327;
+  border-radius: 10px;
+  padding: 10px;
+  max-height: 250px;
+  overflow-y: auto;
+  min-width: 100%;
+  margin-top: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.5);
+}}
+.checkbox-dropdown.open .checkbox-group {{
+  display: flex;
+}}
+.checkbox-item {{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}}
+.checkbox-item:hover {{
+  background: rgba(255,255,255,.05);
+}}
+.checkbox-item input[type="checkbox"] {{
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #34d399;
+}}
+.checkbox-item label {{
+  cursor: pointer;
+  flex: 1;
+  font-size: 13px;
+  color: #e7e7ea;
+  margin: 0;
+  white-space: nowrap;
+}}
 </style>
 
 
@@ -524,8 +603,13 @@ button.reset {{ background:#1a1a1d; border:1px solid #2a2a2e; color:#e7e7ea; }}
     <label>Game
       <select id="gameFilter">{game_opts}</select>
     </label>
-    <label>My Books (Ctrl/Cmd+Click)
-      <select id="bookFilter" multiple style="height:80px;">{book_opts}</select>
+    <label>My Books
+      <div id="bookDropdown" class="checkbox-dropdown">
+        <button type="button" id="bookButton" class="checkbox-dropdown-button">
+          <span id="bookButtonText">Book (All)</span>
+        </button>
+        <div id="bookFilter" class="checkbox-group"></div>
+      </div>
     </label>
     <div style="display:flex; gap:8px;">
       <button class="badge" onclick="applyFilters()">Apply</button>
@@ -566,7 +650,8 @@ function hideCard(el) {{ el.style.display = 'none'; }}
 
 function getSelectedBooks() {{
   const bookFilter = document.getElementById('bookFilter');
-  return Array.from(bookFilter.selectedOptions).map(opt => opt.value.toLowerCase());
+  const checkboxes = bookFilter.querySelectorAll('input[type="checkbox"]:checked');
+  return Array.from(checkboxes).map(cb => cb.value.toLowerCase());
 }}
 
 function updateBookCount() {{
@@ -621,7 +706,7 @@ function resetFilters() {{
   document.getElementById('gameFilter').selectedIndex = 0;
   // Select all books by default on reset
   const bookFilter = document.getElementById('bookFilter');
-  Array.from(bookFilter.options).forEach(opt => opt.selected = true);
+  bookFilter.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
   applyFilters();
 }}
 
@@ -643,29 +728,74 @@ function copyCard(btn) {{
   }});
 }}
 
-// Initialize book filter
+// Initialize book filter with checkboxes
 const bookFilter = document.getElementById('bookFilter');
+const bookDropdown = document.getElementById('bookDropdown');
+const bookButton = document.getElementById('bookButton');
+const bookButtonText = document.getElementById('bookButtonText');
 const selectAllBooksBtn = document.getElementById('select-all-books');
 const clearBooksBtn = document.getElementById('clear-books');
 
-// Select all books by default
-Array.from(bookFilter.options).forEach(opt => opt.selected = true);
+function updateBookButtonText() {{
+  const checkboxes = bookFilter.querySelectorAll('input[type="checkbox"]');
+  const checked = bookFilter.querySelectorAll('input[type="checkbox"]:checked');
+  const total = checkboxes.length;
+  const count = checked.length;
+  bookButtonText.textContent = count === total ? 'Book (All)' : count === 0 ? 'Book (None)' : `Book (${{count}})`;
+}}
+
+// Populate book checkboxes from book_opts
+const bookPairs = {book_opts_js};
+bookPairs.forEach(([value, label]) => {{
+  const div = document.createElement('div');
+  div.className = 'checkbox-item';
+
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.id = `book-${{value}}`;
+  checkbox.value = value;
+  checkbox.checked = true;  // All checked by default
+  checkbox.addEventListener('change', () => {{
+    updateBookButtonText();
+    applyFilters();
+  }});
+
+  const labelEl = document.createElement('label');
+  labelEl.htmlFor = `book-${{value}}`;
+  labelEl.textContent = label;
+
+  div.appendChild(checkbox);
+  div.appendChild(labelEl);
+  bookFilter.appendChild(div);
+}});
+
+updateBookButtonText();
+
+// Dropdown toggle
+bookButton.addEventListener('click', e => {{
+  e.stopPropagation();
+  bookDropdown.classList.toggle('open');
+}});
+
+// Close dropdown when clicking outside
+document.addEventListener('click', e => {{
+  if (!bookDropdown.contains(e.target)) {{
+    bookDropdown.classList.remove('open');
+  }}
+}});
 
 // Event listeners for Select All and Clear All buttons
 selectAllBooksBtn.addEventListener('click', (e) => {{
   e.preventDefault();
-  Array.from(bookFilter.options).forEach(opt => opt.selected = true);
+  bookFilter.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+  updateBookButtonText();
   applyFilters();
 }});
 
 clearBooksBtn.addEventListener('click', (e) => {{
   e.preventDefault();
-  Array.from(bookFilter.options).forEach(opt => opt.selected = false);
-  applyFilters();
-}});
-
-// Re-filter when book selection changes
-bookFilter.addEventListener('change', () => {{
+  bookFilter.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+  updateBookButtonText();
   applyFilters();
 }});
 

@@ -23,7 +23,10 @@ PROPS_HTML := $(DOCS_DIR)/props/index.html
 TOP_HTML   := $(DOCS_DIR)/props/top.html
 CONS_HTML  := $(DOCS_DIR)/props/consensus.html
 INSIGHTS_HTML := $(DOCS_DIR)/props/insights.html
+ARB_HTML   := $(DOCS_DIR)/props/arbitrage.html
 ODDS_CSV   := $(ODDS_DIR)/latest.csv
+FAM_ARB_CSV := data/qc/family_arbitrage.csv
+INCOH_CSV  := data/qc/incoherent_books.csv
 
 # ---- Phony targets ----
 .PHONY: monday_all monday_all_pub weekly publish_pages props_now_pages serve_preview clean_pages clean
@@ -33,7 +36,7 @@ monday_all: weekly
 	@echo "[OK] Weekly build complete: SEASON=$(SEASON) WEEK=$(WEEK)"
 
 # Weekly pipeline
-weekly: $(PROPS_HTML) $(TOP_HTML) $(CONS_HTML) $(INSIGHTS_HTML)
+weekly: $(PROPS_HTML) $(TOP_HTML) $(CONS_HTML) $(INSIGHTS_HTML) $(ARB_HTML)
 
 # ---- Steps ----
 # 0) Ensure dirs exist
@@ -94,6 +97,12 @@ $(INSIGHTS_HTML): scripts/build_insights_page.py | $(DOCS_DIR)/props
 	  --season $(SEASON) \
 	  --week $(WEEK) \
 	  --title "Fourth & Value — Insights (Week $(WEEK))" \
+	  --out $@
+
+$(ARB_HTML): scripts/build_arbitrage_page.py $(INCOH_CSV) $(MERGED) | $(DOCS_DIR)/props
+	$(PY) scripts/build_arbitrage_page.py \
+	  --incoherent-csv $(INCOH_CSV) \
+	  --props-csv $(MERGED) \
 	  --out $@
 
 

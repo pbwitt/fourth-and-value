@@ -305,6 +305,17 @@ footer{color:var(--muted);font-size:12px;margin-top:16px}
 a.button{display:inline-block;margin:8px 0;padding:8px 14px;border-radius:10px;text-decoration:none;font-weight:600;color:#111;background:#a78bfa;border:1px solid var(--border)}
 a.button:hover{background:#6ee7ff}
 .linklike{color:#a78bfa;text-decoration:none;border-bottom:1px dotted #a78bfa}
+.checkbox-dropdown{position:relative;min-width:180px}
+.checkbox-dropdown-button{width:100%;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px 12px;outline:none;cursor:pointer;text-align:left;display:flex;justify-content:space-between;align-items:center}
+.checkbox-dropdown-button:hover{border-color:#6ee7ff}
+.checkbox-dropdown-button::after{content:'▼';font-size:10px;opacity:0.6}
+.checkbox-dropdown.open .checkbox-dropdown-button::after{content:'▲'}
+.checkbox-group{display:none;position:absolute;z-index:1000;flex-direction:column;gap:6px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px;max-height:250px;overflow-y:auto;min-width:100%;margin-top:4px;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.checkbox-dropdown.open .checkbox-group{display:flex}
+.checkbox-item{display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 6px;border-radius:6px;transition:background .15s}
+.checkbox-item:hover{background:rgba(255,255,255,.05)}
+.checkbox-item input[type="checkbox"]{width:16px;height:16px;cursor:pointer;accent-color:#34d399}
+.checkbox-item label{cursor:pointer;flex:1;font-size:13px;color:var(--text);margin:0;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -319,7 +330,12 @@ a.button:hover{background:#6ee7ff}
       <select id="market"><option value="">Bet (market)</option></select>
       <select id="game"><option value="">Game</option></select>
       <select id="player"><option value="">Player</option></select>
-      <select id="book"><option value="">Book</option></select>
+      <div id="bookDropdown" class="checkbox-dropdown">
+        <button type="button" id="bookButton" class="checkbox-dropdown-button">
+          <span id="bookButtonText">Book</span>
+        </button>
+        <div id="book" class="checkbox-group"></div>
+      </div>
       <input id="q" type="search" placeholder="Search player / team / book…" />
     </div>
 
@@ -352,23 +368,74 @@ const DATA = """ + jsdata + """;
 
 function uniq(arr){ return [...new Set(arr.filter(Boolean))].sort((a,b)=>a.localeCompare(b)); }
 
-const state = { market:"", game:"", player:"", book:"", q:"" };
+const state = { market:"", game:"", player:"", books:new Set(), q:"" };
 const selMarket = document.getElementById("market");
 const selGame   = document.getElementById("game");
 const selPlayer = document.getElementById("player");
-const selBook   = document.getElementById("book");
+const bookGroup = document.getElementById("book");
+const bookDropdown = document.getElementById("bookDropdown");
+const bookButton = document.getElementById("bookButton");
+const bookButtonText = document.getElementById("bookButtonText");
 const inputQ    = document.getElementById("q");
 const tbody     = document.querySelector("#tbl tbody");
 const countEl   = document.getElementById("count");
 
+function updateBookButtonText(){
+  const total = bookGroup.querySelectorAll('input[type="checkbox"]').length;
+  const checked = state.books.size;
+  bookButtonText.textContent = checked === total ? 'Book (All)' : checked === 0 ? 'Book (None)' : `Book (${checked})`;
+}
+
 function hydrateSelectors(){
   uniq(DATA.map(r=>r.market_std)).forEach(v=>{ const o=document.createElement("option"); o.value=v; o.textContent=v; selMarket.appendChild(o); });
-  uniq(DATA.map(r=>r.bookmaker)).forEach(v=>{ const o=document.createElement("option"); o.value=v; o.textContent=v; selBook.appendChild(o); });
+
+  // Populate book checkboxes
+  uniq(DATA.map(r=>r.bookmaker)).forEach(book => {
+    const div = document.createElement("div");
+    div.className = "checkbox-item";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.id = `book-${book}`;
+    checkbox.value = book;
+    checkbox.checked = true;
+    state.books.add(book);
+    checkbox.addEventListener("change", e => {
+      if (e.target.checked) state.books.add(book);
+      else state.books.delete(book);
+      updateBookButtonText();
+      rebuildDependentSelectors();
+      render();
+    });
+
+    const label = document.createElement("label");
+    label.htmlFor = `book-${book}`;
+    label.textContent = book;
+
+    div.appendChild(checkbox);
+    div.appendChild(label);
+    bookGroup.appendChild(div);
+  });
+
+  updateBookButtonText();
   rebuildDependentSelectors();
 }
+
+// Dropdown toggle
+bookButton.addEventListener("click", e => {
+  e.stopPropagation();
+  bookDropdown.classList.toggle("open");
+});
+
+// Close dropdown when clicking outside
+document.addEventListener("click", e => {
+  if (!bookDropdown.contains(e.target)) {
+    bookDropdown.classList.remove("open");
+  }
+});
 function rebuildDependentSelectors(){
   const base = DATA.filter(r => (!state.market || r.market_std===state.market) &&
-                                (!state.book   || r.bookmaker===state.book));
+                                (state.books.size===0 || state.books.has(r.bookmaker)));
   const games = uniq(base.map(r=>r.game));
   selGame.innerHTML = '<option value="">Game</option>' + games.map(g=>`<option value="${g}">${g}</option>`).join("");
   if (games.includes(state.game)) selGame.value = state.game; else state.game = "";
@@ -385,7 +452,7 @@ function render(){
     (!state.market || r.market_std===state.market) &&
     (!state.game   || r.game===state.game) &&
     (!state.player || r.player===state.player) &&
-    (!state.book   || r.bookmaker===state.book) &&
+    (state.books.size===0 || state.books.has(r.bookmaker)) &&
     (!q || (r.player+" "+r.bookmaker+" "+r.game).toLowerCase().includes(q))
   ).sort((a,b)=> (b.edge_bps ?? -1) - (a.edge_bps ?? -1));
 
@@ -416,7 +483,6 @@ function render(){
 selMarket.addEventListener("change", e=>{ state.market=e.target.value; rebuildDependentSelectors(); render(); });
 selGame  .addEventListener("change", e=>{ state.game  =e.target.value; rebuildDependentSelectors(); render(); });
 selPlayer.addEventListener("change", e=>{ state.player=e.target.value; render(); });
-selBook  .addEventListener("change", e=>{ state.book  =e.target.value; rebuildDependentSelectors(); render(); });
 inputQ   .addEventListener("input",  e=>{ state.q     =e.target.value; render(); });
 
 hydrateSelectors(); render();

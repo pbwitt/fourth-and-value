@@ -1,0 +1,1280 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Fourth & Value — Incoherent Book Pricing</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="../favicon.ico" />
+  <style>
+:root {
+  --bg:#0b0b10;
+  --card:#14141c;
+  --muted:#9aa0a6;
+  --text:#e8eaed;
+  --border:#23232e;
+  --green:#34d399;
+  --red:#f87171;
+  --yellow:#fbbf24;
+  --orange:#fb923c;
+  --blue:#60a5fa;
+}
+
+body {
+  margin: 0;
+  padding: 24px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+}
+
+.small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.card {
+  background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0));
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.02), 0 12px 40px rgba(0,0,0,.35);
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: 28px;
+}
+
+.header-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.stat-pills {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pill {
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pill-value {
+  font-weight: 600;
+  color: var(--orange);
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.filter-bar label {
+  font-size: 14px;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--muted);
+}
+
+.filter-bar select, .filter-bar input {
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  min-width: 140px;
+  outline: none;
+}
+
+.filter-bar select:focus, .filter-bar input:focus {
+  border-color: #6ee7ff;
+  box-shadow: 0 0 0 3px rgba(110,231,255,.15);
+}
+
+.checkbox-dropdown {
+  position: relative;
+  min-width: 180px;
+}
+
+.checkbox-dropdown-button {
+  width: 100%;
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  outline: none;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+}
+
+.checkbox-dropdown-button:hover {
+  border-color: #6ee7ff;
+  box-shadow: 0 0 0 3px rgba(110,231,255,.15);
+}
+
+.checkbox-dropdown-button::after {
+  content: '▼';
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+.checkbox-dropdown.open .checkbox-dropdown-button::after {
+  content: '▲';
+}
+
+.checkbox-group {
+  display: none;
+  position: absolute;
+  z-index: 1000;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  max-height: 250px;
+  overflow-y: auto;
+  min-width: 100%;
+  margin-top: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.3);
+}
+
+.checkbox-dropdown.open .checkbox-group {
+  display: flex;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.checkbox-item:hover {
+  background: rgba(255,255,255,.05);
+}
+
+.checkbox-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--green);
+}
+
+.checkbox-item label {
+  cursor: pointer;
+  flex: 1;
+  font-size: 13px;
+  color: var(--text);
+  margin: 0;
+  white-space: nowrap;
+}
+
+.violation-card {
+  background: linear-gradient(135deg, rgba(251,146,60,.08), rgba(251,191,36,.08));
+  border: 1px solid rgba(251,146,60,.3);
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 12px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.violation-card.high-severity {
+  border-color: rgba(248,113,113,.4);
+  background: linear-gradient(135deg, rgba(248,113,113,.1), rgba(251,146,60,.08));
+}
+
+.violation-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(251,146,60,.25);
+}
+
+.violation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.violation-player {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.violation-game {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.violation-book {
+  font-size: 14px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.severity-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.severity-badge.high {
+  background: rgba(248,113,113,.2);
+  color: var(--red);
+}
+
+.severity-badge.medium {
+  background: rgba(251,191,36,.2);
+  color: var(--yellow);
+}
+
+.efficiency-problem {
+  background: rgba(248,113,113,.15);
+  border: 1px solid rgba(248,113,113,.3);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 12px 0;
+  font-size: 14px;
+}
+
+.efficiency-metric {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--red);
+  margin: 6px 0;
+}
+
+.efficiency-bounds {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.arbitrage-play {
+  background: rgba(52,211,153,.08);
+  border: 1px solid rgba(52,211,153,.3);
+  border-radius: 8px;
+  padding: 14px;
+  margin-top: 12px;
+}
+
+.arbitrage-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--green);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+
+.bet-suggestion {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.bet-side {
+  background: rgba(255,255,255,.03);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+}
+
+.bet-direction {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.bet-direction.over {
+  color: var(--green);
+}
+
+.bet-direction.under {
+  color: var(--red);
+}
+
+.bet-market {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.win-scenario {
+  margin-top: 10px;
+  padding: 8px;
+  background: rgba(52,211,153,.05);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.win-scenario strong {
+  color: var(--green);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--muted);
+}
+
+.empty-state-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.4;
+}
+
+@media (max-width: 768px) {
+  .bet-suggestion {
+    grid-template-columns: 1fr;
+  }
+
+  .header-info {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+  </style>
+</head>
+<body>
+  <div id="nav-root"></div>
+  <script src="../nav.js?v=7"></script>
+
+  <div class="card">
+    <div class="header-info">
+      <div>
+        <h1>⚠️ Incoherent Book Pricing</h1>
+        <div class="small">Books pricing impossible efficiency metrics — structural arbitrage opportunities</div>
+      </div>
+      <div class="stat-pills">
+        <div class="pill">
+          <span>Total Violations:</span>
+          <span class="pill-value" id="total-count">—</span>
+        </div>
+        <div class="pill">
+          <span>High Severity:</span>
+          <span class="pill-value" id="high-count">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="small" style="margin-bottom:16px;">
+      <strong>What is Incoherent Pricing?</strong> When sportsbooks price related markets independently, they sometimes create mathematically impossible combinations. Example: A book offers O/U 1.5 receptions and O/U 6.5 receiving yards, implying <strong>4.33 yards per reception</strong> — well below the NFL realistic range of 6–18 YPR. This creates <strong>structural arbitrage</strong>: bet Over receptions + Under yards. Both can win (e.g., 2 catches for 5 yards). Our family-based model detects these violations by checking implied efficiency against realistic bounds (YPC: 2.5–6.5, YPR: 6–18, Comp%: 50–75%).
+    </div>
+
+    <div class="filter-bar" id="filter-bar">
+      <label>
+        <span>Game</span>
+        <select id="filter-game">
+          <option value="">All Games</option>
+        </select>
+      </label>
+
+      <label>
+        <span>Book</span>
+        <div id="bookDropdown" class="checkbox-dropdown">
+          <button type="button" id="bookButton" class="checkbox-dropdown-button">
+            <span id="bookButtonText">Book (All)</span>
+          </button>
+          <div id="filter-book" class="checkbox-group"></div>
+        </div>
+      </label>
+
+      <label>
+        <span>Severity</span>
+        <select id="filter-severity">
+          <option value="">All Severities</option>
+          <option value="HIGH">High (extreme violations)</option>
+          <option value="MEDIUM">Medium (outside normal)</option>
+        </select>
+      </label>
+
+      <label>
+        <span>Metric</span>
+        <select id="filter-metric">
+          <option value="">All Metrics</option>
+          <option value="YPR">YPR (Yards per Reception)</option>
+          <option value="YPC">YPC (Yards per Carry)</option>
+          <option value="Comp%">Comp% (Completion %)</option>
+          <option value="Y/C">Y/C (Yards per Completion)</option>
+        </select>
+      </label>
+
+      <label>
+        <span>Player Search</span>
+        <input type="text" id="filter-player" placeholder="Search player..." />
+      </label>
+    </div>
+  </div>
+
+  <div id="violations-container"></div>
+
+  <div id="empty-state" class="card empty-state" style="display:none;">
+    <div class="empty-state-icon">✅</div>
+    <div>No incoherent book lines match your filters.</div>
+    <div class="small" style="margin-top:8px;">Try adjusting your filters or check back when new props are loaded.</div>
+  </div>
+
+  <script>
+    // This will be populated by the build script with actual data
+    const VIOLATIONS_DATA = [
+  {
+    "player": "camward",
+    "player_display": "Cam Ward",
+    "game": "Tennessee Titans @ Arizona Cardinals",
+    "book": "bovada",
+    "metric": "YPC",
+    "value": 1.2857142857142858,
+    "min_bound": 2.5,
+    "max_bound": 6.5,
+    "severity": "HIGH",
+    "details": "3.5 att \u2192 4.5 yds = 1.29 YPC"
+  },
+  {
+    "player": "chasebrown",
+    "player_display": "Chase Brown",
+    "game": "Detroit Lions @ Cincinnati Bengals",
+    "book": "betrivers",
+    "metric": "YPR",
+    "value": 3.727272727272727,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "HIGH",
+    "details": "5.5 rec \u2192 20.5 yds = 3.73 YPR"
+  },
+  {
+    "player": "chasebrown",
+    "player_display": "Chase Brown",
+    "game": "Detroit Lions @ Cincinnati Bengals",
+    "book": "bovada",
+    "metric": "YPR",
+    "value": 4.454545454545454,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "HIGH",
+    "details": "5.5 rec \u2192 24.5 yds = 4.45 YPR"
+  },
+  {
+    "player": "chasebrown",
+    "player_display": "Chase Brown",
+    "game": "Detroit Lions @ Cincinnati Bengals",
+    "book": "draftkings",
+    "metric": "YPR",
+    "value": 4.454545454545454,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "HIGH",
+    "details": "5.5 rec \u2192 24.5 yds = 4.45 YPR"
+  },
+  {
+    "player": "davidmontgomery",
+    "player_display": "David Montgomery",
+    "game": "Detroit Lions @ Cincinnati Bengals",
+    "book": "draftkings",
+    "metric": "YPC",
+    "value": 2.391304347826087,
+    "min_bound": 2.5,
+    "max_bound": 6.5,
+    "severity": "MEDIUM",
+    "details": "11.5 att \u2192 27.5 yds = 2.39 YPC"
+  },
+  {
+    "player": "deebosamuelsr",
+    "player_display": "Deebo Samuel Sr.",
+    "game": "Washington Commanders @ Los Angeles Chargers",
+    "book": "bovada",
+    "metric": "YPC",
+    "value": 2.333333333333333,
+    "min_bound": 2.5,
+    "max_bound": 6.5,
+    "severity": "MEDIUM",
+    "details": "1.5 att \u2192 3.5 yds = 2.33 YPC"
+  },
+  {
+    "player": "demariodouglas",
+    "player_display": "DeMario Douglas",
+    "game": "New England Patriots @ Buffalo Bills",
+    "book": "betmgm",
+    "metric": "YPR",
+    "value": 5.0,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "MEDIUM",
+    "details": "1.5 rec \u2192 7.5 yds = 5.00 YPR"
+  },
+  {
+    "player": "demariodouglas",
+    "player_display": "DeMario Douglas",
+    "game": "New England Patriots @ Buffalo Bills",
+    "book": "betonlineag",
+    "metric": "YPR",
+    "value": 5.666666666666667,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "MEDIUM",
+    "details": "1.5 rec \u2192 8.5 yds = 5.67 YPR"
+  },
+  {
+    "player": "demariodouglas",
+    "player_display": "DeMario Douglas",
+    "game": "New England Patriots @ Buffalo Bills",
+    "book": "bovada",
+    "metric": "YPR",
+    "value": 5.666666666666667,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "MEDIUM",
+    "details": "1.5 rec \u2192 8.5 yds = 5.67 YPR"
+  },
+  {
+    "player": "demariodouglas",
+    "player_display": "DeMario Douglas",
+    "game": "New England Patriots @ Buffalo Bills",
+    "book": "williamhill_us",
+    "metric": "YPR",
+    "value": 5.666666666666667,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "MEDIUM",
+    "details": "1.5 rec \u2192 8.5 yds = 5.67 YPR"
+  },
+  {
+    "player": "gregdortch",
+    "player_display": "Greg Dortch",
+    "game": "Tennessee Titans @ Arizona Cardinals",
+    "book": "bovada",
+    "metric": "YPR",
+    "value": 3.0,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "HIGH",
+    "details": "1.5 rec \u2192 4.5 yds = 3.00 YPR"
+  },
+  {
+    "player": "gunnarhelm",
+    "player_display": "Gunnar Helm",
+    "game": "Tennessee Titans @ Arizona Cardinals",
+    "book": "draftkings",
+    "metric": "YPR",
+    "value": 5.666666666666667,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "MEDIUM",
+    "details": "1.5 rec \u2192 8.5 yds = 5.67 YPR"
+  },
+  {
+    "player": "isiahpacheco",
+    "player_display": "Isiah Pacheco",
+    "game": "Kansas City Chiefs @ Jacksonville Jaguars",
+    "book": "betmgm",
+    "metric": "YPR",
+    "value": 4.333333333333333,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "HIGH",
+    "details": "1.5 rec \u2192 6.5 yds = 4.33 YPR"
+  },
+  {
+    "player": "isiahpacheco",
+    "player_display": "Isiah Pacheco",
+    "game": "Kansas City Chiefs @ Jacksonville Jaguars",
+    "book": "betonlineag",
+    "metric": "YPR",
+    "value": 4.333333333333333,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "HIGH",
+    "details": "1.5 rec \u2192 6.5 yds = 4.33 YPR"
+  },
+  {
+    "player": "isiahpacheco",
+    "player_display": "Isiah Pacheco",
+    "game": "Kansas City Chiefs @ Jacksonville Jaguars",
+    "book": "bovada",
+    "metric": "YPR",
+    "value": 4.333333333333333,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "HIGH",
+    "details": "1.5 rec \u2192 6.5 yds = 4.33 YPR"
+  },
+  {
+    "player": "isiahpacheco",
+    "player_display": "Isiah Pacheco",
+    "game": "Kansas City Chiefs @ Jacksonville Jaguars",
+    "book": "draftkings",
+    "metric": "YPR",
+    "value": 4.333333333333333,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "HIGH",
+    "details": "1.5 rec \u2192 6.5 yds = 4.33 YPR"
+  },
+  {
+    "player": "isiahpacheco",
+    "player_display": "Isiah Pacheco",
+    "game": "Kansas City Chiefs @ Jacksonville Jaguars",
+    "book": "fanduel",
+    "metric": "YPR",
+    "value": 4.333333333333333,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "HIGH",
+    "details": "1.5 rec \u2192 6.5 yds = 4.33 YPR"
+  },
+  {
+    "player": "isiahpacheco",
+    "player_display": "Isiah Pacheco",
+    "game": "Kansas City Chiefs @ Jacksonville Jaguars",
+    "book": "williamhill_us",
+    "metric": "YPR",
+    "value": 4.333333333333333,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "HIGH",
+    "details": "1.5 rec \u2192 6.5 yds = 4.33 YPR"
+  },
+  {
+    "player": "jamescook",
+    "player_display": "James Cook",
+    "game": "New England Patriots @ Buffalo Bills",
+    "book": "betmgm",
+    "metric": "YPR",
+    "value": 5.8,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "MEDIUM",
+    "details": "2.5 rec \u2192 14.5 yds = 5.80 YPR"
+  },
+  {
+    "player": "jaydendaniels",
+    "player_display": "Jayden Daniels",
+    "game": "Washington Commanders @ Los Angeles Chargers",
+    "book": "bovada",
+    "metric": "Y/C",
+    "value": 14.35483870967742,
+    "min_bound": 5.0,
+    "max_bound": 12.0,
+    "severity": "HIGH",
+    "details": "15.5 comp \u2192 222.5 yds = 14.35 Y/C"
+  },
+  {
+    "player": "justinherbert",
+    "player_display": "Justin Herbert",
+    "game": "Washington Commanders @ Los Angeles Chargers",
+    "book": "bovada",
+    "metric": "YPC",
+    "value": 11.0,
+    "min_bound": 2.5,
+    "max_bound": 6.5,
+    "severity": "HIGH",
+    "details": "4.5 att \u2192 49.5 yds = 11.00 YPC"
+  },
+  {
+    "player": "kareemhunt",
+    "player_display": "Kareem Hunt",
+    "game": "Kansas City Chiefs @ Jacksonville Jaguars",
+    "book": "betmgm",
+    "metric": "YPR",
+    "value": 5.0,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "MEDIUM",
+    "details": "1.5 rec \u2192 7.5 yds = 5.00 YPR"
+  },
+  {
+    "player": "kareemhunt",
+    "player_display": "Kareem Hunt",
+    "game": "Kansas City Chiefs @ Jacksonville Jaguars",
+    "book": "betonlineag",
+    "metric": "YPR",
+    "value": 5.0,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "MEDIUM",
+    "details": "1.5 rec \u2192 7.5 yds = 5.00 YPR"
+  },
+  {
+    "player": "lukemccaffrey",
+    "player_display": "Luke McCaffrey",
+    "game": "Washington Commanders @ Los Angeles Chargers",
+    "book": "bovada",
+    "metric": "YPR",
+    "value": 36.333333333333336,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "HIGH",
+    "details": "1.5 rec \u2192 54.5 yds = 36.33 YPR"
+  },
+  {
+    "player": "marvinharrisonjr",
+    "player_display": "Marvin Harrison Jr.",
+    "game": "Tennessee Titans @ Arizona Cardinals",
+    "book": "betrivers",
+    "metric": "YPR",
+    "value": 20.33333333333333,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "HIGH",
+    "details": "4.5 rec \u2192 91.5 yds = 20.33 YPR"
+  },
+  {
+    "player": "marvinharrisonjr",
+    "player_display": "Marvin Harrison Jr.",
+    "game": "Tennessee Titans @ Arizona Cardinals",
+    "book": "bovada",
+    "metric": "YPR",
+    "value": 21.22222222222222,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "HIGH",
+    "details": "4.5 rec \u2192 95.5 yds = 21.22 YPR"
+  },
+  {
+    "player": "marvinharrisonjr",
+    "player_display": "Marvin Harrison Jr.",
+    "game": "Tennessee Titans @ Arizona Cardinals",
+    "book": "draftkings",
+    "metric": "YPR",
+    "value": 21.22222222222222,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "HIGH",
+    "details": "4.5 rec \u2192 95.5 yds = 21.22 YPR"
+  },
+  {
+    "player": "michaelcarter",
+    "player_display": "Michael Carter",
+    "game": "Tennessee Titans @ Arizona Cardinals",
+    "book": "betrivers",
+    "metric": "YPR",
+    "value": 5.0,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "MEDIUM",
+    "details": "3.5 rec \u2192 17.5 yds = 5.00 YPR"
+  },
+  {
+    "player": "michaelcarter",
+    "player_display": "Michael Carter",
+    "game": "Tennessee Titans @ Arizona Cardinals",
+    "book": "bovada",
+    "metric": "YPR",
+    "value": 5.571428571428571,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "MEDIUM",
+    "details": "3.5 rec \u2192 19.5 yds = 5.57 YPR"
+  },
+  {
+    "player": "michaelcarter",
+    "player_display": "Michael Carter",
+    "game": "Tennessee Titans @ Arizona Cardinals",
+    "book": "draftkings",
+    "metric": "YPR",
+    "value": 5.571428571428571,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "MEDIUM",
+    "details": "3.5 rec \u2192 19.5 yds = 5.57 YPR"
+  },
+  {
+    "player": "omarionhampton",
+    "player_display": "Omarion Hampton",
+    "game": "Washington Commanders @ Los Angeles Chargers",
+    "book": "betrivers",
+    "metric": "YPR",
+    "value": 4.733333333333333,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "HIGH",
+    "details": "7.5 rec \u2192 35.5 yds = 4.73 YPR"
+  },
+  {
+    "player": "omarionhampton",
+    "player_display": "Omarion Hampton",
+    "game": "Washington Commanders @ Los Angeles Chargers",
+    "book": "bovada",
+    "metric": "YPR",
+    "value": 4.866666666666666,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "HIGH",
+    "details": "7.5 rec \u2192 36.5 yds = 4.87 YPR"
+  },
+  {
+    "player": "omarionhampton",
+    "player_display": "Omarion Hampton",
+    "game": "Washington Commanders @ Los Angeles Chargers",
+    "book": "draftkings",
+    "metric": "YPR",
+    "value": 4.866666666666666,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "HIGH",
+    "details": "7.5 rec \u2192 36.5 yds = 4.87 YPR"
+  },
+  {
+    "player": "rachaadwhite",
+    "player_display": "Rachaad White",
+    "game": "Tampa Bay Buccaneers @ Seattle Seahawks",
+    "book": "betrivers",
+    "metric": "YPR",
+    "value": 5.222222222222222,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "MEDIUM",
+    "details": "4.5 rec \u2192 23.5 yds = 5.22 YPR"
+  },
+  {
+    "player": "rachaadwhite",
+    "player_display": "Rachaad White",
+    "game": "Tampa Bay Buccaneers @ Seattle Seahawks",
+    "book": "draftkings",
+    "metric": "YPR",
+    "value": 5.666666666666667,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "MEDIUM",
+    "details": "4.5 rec \u2192 25.5 yds = 5.67 YPR"
+  },
+  {
+    "player": "rhamondrestevenson",
+    "player_display": "Rhamondre Stevenson",
+    "game": "New England Patriots @ Buffalo Bills",
+    "book": "betmgm",
+    "metric": "YPR",
+    "value": 5.4,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "MEDIUM",
+    "details": "2.5 rec \u2192 13.5 yds = 5.40 YPR"
+  },
+  {
+    "player": "rhamondrestevenson",
+    "player_display": "Rhamondre Stevenson",
+    "game": "New England Patriots @ Buffalo Bills",
+    "book": "betonlineag",
+    "metric": "YPR",
+    "value": 5.4,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "MEDIUM",
+    "details": "2.5 rec \u2192 13.5 yds = 5.40 YPR"
+  },
+  {
+    "player": "rhamondrestevenson",
+    "player_display": "Rhamondre Stevenson",
+    "game": "New England Patriots @ Buffalo Bills",
+    "book": "betrivers",
+    "metric": "YPR",
+    "value": 5.8,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "MEDIUM",
+    "details": "2.5 rec \u2192 14.5 yds = 5.80 YPR"
+  },
+  {
+    "player": "rhamondrestevenson",
+    "player_display": "Rhamondre Stevenson",
+    "game": "New England Patriots @ Buffalo Bills",
+    "book": "bovada",
+    "metric": "YPR",
+    "value": 5.0,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "MEDIUM",
+    "details": "2.5 rec \u2192 12.5 yds = 5.00 YPR"
+  },
+  {
+    "player": "rhamondrestevenson",
+    "player_display": "Rhamondre Stevenson",
+    "game": "New England Patriots @ Buffalo Bills",
+    "book": "draftkings",
+    "metric": "YPR",
+    "value": 5.4,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "MEDIUM",
+    "details": "2.5 rec \u2192 13.5 yds = 5.40 YPR"
+  },
+  {
+    "player": "rhamondrestevenson",
+    "player_display": "Rhamondre Stevenson",
+    "game": "New England Patriots @ Buffalo Bills",
+    "book": "fanatics",
+    "metric": "YPR",
+    "value": 4.2,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "HIGH",
+    "details": "2.5 rec \u2192 10.5 yds = 4.20 YPR"
+  },
+  {
+    "player": "rhamondrestevenson",
+    "player_display": "Rhamondre Stevenson",
+    "game": "New England Patriots @ Buffalo Bills",
+    "book": "fanduel",
+    "metric": "YPR",
+    "value": 5.0,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "MEDIUM",
+    "details": "2.5 rec \u2192 12.5 yds = 5.00 YPR"
+  },
+  {
+    "player": "rhamondrestevenson",
+    "player_display": "Rhamondre Stevenson",
+    "game": "New England Patriots @ Buffalo Bills",
+    "book": "williamhill_us",
+    "metric": "YPR",
+    "value": 5.0,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "MEDIUM",
+    "details": "2.5 rec \u2192 12.5 yds = 5.00 YPR"
+  },
+  {
+    "player": "samdarnold",
+    "player_display": "Sam Darnold",
+    "game": "Tampa Bay Buccaneers @ Seattle Seahawks",
+    "book": "draftkings",
+    "metric": "Y/C",
+    "value": 12.68627450980392,
+    "min_bound": 5.0,
+    "max_bound": 12.0,
+    "severity": "MEDIUM",
+    "details": "25.5 comp \u2192 323.5 yds = 12.69 Y/C"
+  },
+  {
+    "player": "sterlingshepard",
+    "player_display": "Sterling Shepard",
+    "game": "Tampa Bay Buccaneers @ Seattle Seahawks",
+    "book": "betrivers",
+    "metric": "YPR",
+    "value": 5.857142857142857,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "MEDIUM",
+    "details": "3.5 rec \u2192 20.5 yds = 5.86 YPR"
+  },
+  {
+    "player": "sterlingshepard",
+    "player_display": "Sterling Shepard",
+    "game": "Tampa Bay Buccaneers @ Seattle Seahawks",
+    "book": "draftkings",
+    "metric": "YPR",
+    "value": 5.571428571428571,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "MEDIUM",
+    "details": "3.5 rec \u2192 19.5 yds = 5.57 YPR"
+  },
+  {
+    "player": "tonypollard",
+    "player_display": "Tony Pollard",
+    "game": "Tennessee Titans @ Arizona Cardinals",
+    "book": "bovada",
+    "metric": "YPR",
+    "value": 3.0,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "HIGH",
+    "details": "1.5 rec \u2192 4.5 yds = 3.00 YPR"
+  },
+  {
+    "player": "travisetiennejr",
+    "player_display": "Travis Etienne Jr.",
+    "game": "Kansas City Chiefs @ Jacksonville Jaguars",
+    "book": "draftkings",
+    "metric": "YPR",
+    "value": 5.0,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "MEDIUM",
+    "details": "2.5 rec \u2192 12.5 yds = 5.00 YPR"
+  },
+  {
+    "player": "travisetiennejr",
+    "player_display": "Travis Etienne Jr.",
+    "game": "Kansas City Chiefs @ Jacksonville Jaguars",
+    "book": "fanatics",
+    "metric": "YPR",
+    "value": 4.2,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "HIGH",
+    "details": "2.5 rec \u2192 10.5 yds = 4.20 YPR"
+  },
+  {
+    "player": "xavierworthy",
+    "player_display": "Xavier Worthy",
+    "game": "Kansas City Chiefs @ Jacksonville Jaguars",
+    "book": "betmgm",
+    "metric": "YPC",
+    "value": 2.333333333333333,
+    "min_bound": 2.5,
+    "max_bound": 6.5,
+    "severity": "MEDIUM",
+    "details": "1.5 att \u2192 3.5 yds = 2.33 YPC"
+  },
+  {
+    "player": "zayjones",
+    "player_display": "Zay Jones",
+    "game": "Tennessee Titans @ Arizona Cardinals",
+    "book": "bovada",
+    "metric": "YPR",
+    "value": 1.0,
+    "min_bound": 6.0,
+    "max_bound": 18.0,
+    "severity": "HIGH",
+    "details": "0.5 rec \u2192 0.5 yds = 1.00 YPR"
+  }
+];
+
+    const container = document.getElementById('violations-container');
+    const emptyState = document.getElementById('empty-state');
+    const totalCount = document.getElementById('total-count');
+    const highCount = document.getElementById('high-count');
+
+    const filterGame = document.getElementById('filter-game');
+    const filterBook = document.getElementById('filter-book');
+    const bookDropdown = document.getElementById('bookDropdown');
+    const bookButton = document.getElementById('bookButton');
+    const bookButtonText = document.getElementById('bookButtonText');
+    const filterSeverity = document.getElementById('filter-severity');
+    const filterMetric = document.getElementById('filter-metric');
+    const filterPlayer = document.getElementById('filter-player');
+
+    function updateBookButtonText() {
+      const checkboxes = filterBook.querySelectorAll('input[type="checkbox"]');
+      const checked = filterBook.querySelectorAll('input[type="checkbox"]:checked');
+      const total = checkboxes.length;
+      const count = checked.length;
+      bookButtonText.textContent = count === total ? 'Book (All)' : count === 0 ? 'Book (None)' : `Book (${count})`;
+    }
+
+    // Populate game filter
+    const games = [...new Set(VIOLATIONS_DATA.map(d => d.game))].sort();
+    games.forEach(game => {
+      const opt = document.createElement('option');
+      opt.value = game;
+      opt.textContent = game;
+      filterGame.appendChild(opt);
+    });
+
+    // Populate book checkboxes
+    const books = [...new Set(VIOLATIONS_DATA.map(d => d.book))].sort();
+    books.forEach(book => {
+      const div = document.createElement('div');
+      div.className = 'checkbox-item';
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.id = `book-${book}`;
+      checkbox.value = book;
+      checkbox.checked = true; // All checked by default
+      checkbox.addEventListener('change', () => {
+        updateBookButtonText();
+        applyFilters();
+      });
+
+      const label = document.createElement('label');
+      label.htmlFor = `book-${book}`;
+      label.textContent = book;
+
+      div.appendChild(checkbox);
+      div.appendChild(label);
+      filterBook.appendChild(div);
+    });
+
+    updateBookButtonText();
+
+    // Dropdown toggle
+    bookButton.addEventListener('click', e => {
+      e.stopPropagation();
+      bookDropdown.classList.toggle('open');
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', e => {
+      if (!bookDropdown.contains(e.target)) {
+        bookDropdown.classList.remove('open');
+      }
+    });
+
+    function getArbitrageDirection(metric, value, minBound, maxBound) {
+      if (value < minBound) {
+        // Efficiency too low - bet Over volume + Under total
+        return {
+          side1: 'over',
+          market1: metric.includes('YPR') ? 'receptions' : metric.includes('YPC') ? 'rush attempts' : 'pass attempts',
+          side2: 'under',
+          market2: metric.includes('YPR') ? 'receiving yards' : metric.includes('YPC') ? 'rush yards' : 'pass yards',
+          reason: `Book implies ${value.toFixed(2)} ${metric} (impossible low). If volume hits, total likely stays under.`
+        };
+      } else {
+        // Efficiency too high - bet Under volume + Over total (rare)
+        return {
+          side1: 'under',
+          market1: metric.includes('YPR') ? 'receptions' : metric.includes('YPC') ? 'rush attempts' : 'pass attempts',
+          side2: 'over',
+          market2: metric.includes('YPR') ? 'receiving yards' : metric.includes('YPC') ? 'rush yards' : 'pass yards',
+          reason: `Book implies ${value.toFixed(2)} ${metric} (impossible high). If volume misses, total likely goes over.`
+        };
+      }
+    }
+
+    function renderViolationCard(violation) {
+      const arb = getArbitrageDirection(violation.metric, violation.value, violation.min_bound, violation.max_bound);
+      const severityClass = violation.severity.toLowerCase();
+
+      return `
+        <div class="violation-card ${severityClass}-severity"
+             data-game="${violation.game}"
+             data-book="${violation.book}"
+             data-severity="${violation.severity}"
+             data-metric="${violation.metric}"
+             data-player="${violation.player.toLowerCase()}">
+          <div class="violation-header">
+            <div>
+              <div class="violation-player">${violation.player_display}</div>
+              <div class="violation-game">${violation.game}</div>
+              <div class="violation-book">Book: ${violation.book}</div>
+            </div>
+            <div>
+              <div class="severity-badge ${severityClass}">${violation.severity}</div>
+            </div>
+          </div>
+
+          <div class="efficiency-problem">
+            <div style="font-size:13px;color:var(--muted);margin-bottom:4px;">Implied ${violation.metric}</div>
+            <div class="efficiency-metric">${violation.value.toFixed(2)}</div>
+            <div class="efficiency-bounds">Realistic range: [${violation.min_bound}, ${violation.max_bound}]</div>
+            <div style="margin-top:8px;font-size:12px;color:var(--muted);">${violation.details}</div>
+          </div>
+
+          <div class="arbitrage-play">
+            <div class="arbitrage-title">💡 Structural Arbitrage</div>
+            <div class="bet-suggestion">
+              <div class="bet-side">
+                <div class="bet-direction ${arb.side1}">${arb.side1.toUpperCase()}</div>
+                <div class="bet-market">${arb.market1}</div>
+              </div>
+              <div class="bet-side">
+                <div class="bet-direction ${arb.side2}">${arb.side2.toUpperCase()}</div>
+                <div class="bet-market">${arb.market2}</div>
+              </div>
+            </div>
+            <div class="win-scenario">
+              <strong>Why both can win:</strong> ${arb.reason}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function applyFilters() {
+      const gameVal = filterGame.value.toLowerCase();
+      const severityVal = filterSeverity.value.toUpperCase();
+      const metricVal = filterMetric.value.toUpperCase();
+      const playerVal = filterPlayer.value.toLowerCase().trim();
+
+      // Get selected books from checkboxes
+      const selectedBooks = Array.from(filterBook.querySelectorAll('input[type="checkbox"]:checked'))
+        .map(cb => cb.value);
+
+      const cards = container.querySelectorAll('.violation-card');
+      let visibleCount = 0;
+
+      cards.forEach(card => {
+        const game = card.dataset.game.toLowerCase();
+        const book = card.dataset.book;
+        const severity = card.dataset.severity.toUpperCase();
+        const metric = card.dataset.metric.toUpperCase();
+        const player = card.dataset.player;
+
+        const gameMatch = !gameVal || game.includes(gameVal);
+        const bookMatch = selectedBooks.length === 0 || selectedBooks.includes(book);
+        const severityMatch = !severityVal || severity === severityVal;
+        const metricMatch = !metricVal || metric === metricVal;
+        const playerMatch = !playerVal || player.includes(playerVal);
+
+        if (gameMatch && bookMatch && severityMatch && metricMatch && playerMatch) {
+          card.style.display = '';
+          visibleCount++;
+        } else {
+          card.style.display = 'none';
+        }
+      });
+
+      emptyState.style.display = visibleCount === 0 ? '' : 'none';
+    }
+
+    function renderAll() {
+      // Sort by severity (HIGH first) then by metric value deviation
+      const sorted = [...VIOLATIONS_DATA].sort((a, b) => {
+        if (a.severity !== b.severity) {
+          return a.severity === 'HIGH' ? -1 : 1;
+        }
+        // For same severity, sort by how far outside bounds
+        const devA = Math.min(Math.abs(a.value - a.min_bound), Math.abs(a.value - a.max_bound));
+        const devB = Math.min(Math.abs(b.value - b.min_bound), Math.abs(b.value - b.max_bound));
+        return devB - devA;
+      });
+
+      container.innerHTML = sorted.map(renderViolationCard).join('');
+
+      // Update stats
+      totalCount.textContent = VIOLATIONS_DATA.length;
+      highCount.textContent = VIOLATIONS_DATA.filter(d => d.severity === 'HIGH').length;
+
+      applyFilters();
+    }
+
+    // Event listeners
+    filterGame.addEventListener('change', applyFilters);
+    filterSeverity.addEventListener('change', applyFilters);
+    filterMetric.addEventListener('change', applyFilters);
+    filterPlayer.addEventListener('input', applyFilters);
+
+    // Initial render
+    renderAll();
+  </script>
+</body>
+</html>

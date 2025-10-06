@@ -126,6 +126,93 @@ table.consensus-table a {
   text-decoration: none;
 }
 
+.checkbox-dropdown {
+  position: relative;
+  min-width: 180px;
+}
+
+.checkbox-dropdown-button {
+  width: 100%;
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  outline: none;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+}
+
+.checkbox-dropdown-button:hover {
+  border-color: #6ee7ff;
+  box-shadow: 0 0 0 3px rgba(110,231,255,.15);
+}
+
+.checkbox-dropdown-button::after {
+  content: '▼';
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+.checkbox-dropdown.open .checkbox-dropdown-button::after {
+  content: '▲';
+}
+
+.checkbox-group {
+  display: none;
+  position: absolute;
+  z-index: 1000;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  max-height: 250px;
+  overflow-y: auto;
+  min-width: 100%;
+  margin-top: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.3);
+}
+
+.checkbox-dropdown.open .checkbox-group {
+  display: flex;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.checkbox-item:hover {
+  background: rgba(255,255,255,.05);
+}
+
+.checkbox-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #34d399;
+}
+
+.checkbox-item label {
+  cursor: pointer;
+  flex: 1;
+  font-size: 13px;
+  color: var(--text);
+  margin: 0;
+  white-space: nowrap;
+}
+
 </style>
 
 
@@ -137,9 +224,13 @@ table.consensus-table a {
   <label>Game <select id="filter-game"><option value="">All</option></select></label>
   <label>Market <select id="filter-market"><option value="">All</option></select></label>
   <label>Player <input type="text" id="filter-player" placeholder="Search player" /></label>
-  <label>My Books (Ctrl/Cmd+Click)
-    <select id="filter-books" multiple style="height:80px;">
-    </select>
+  <label>My Books
+    <div id="bookDropdown" class="checkbox-dropdown">
+      <button type="button" id="bookButton" class="checkbox-dropdown-button">
+        <span id="bookButtonText">Book (All)</span>
+      </button>
+      <div id="filter-books" class="checkbox-group"></div>
+    </div>
   </label>
 </div>
 
@@ -325,12 +416,23 @@ document.addEventListener('DOMContentLoaded', function() {
   const gameSel = document.getElementById('filter-game');
   const marketSel = document.getElementById('filter-market');
   const booksMultiSel = document.getElementById('filter-books');
+  const bookDropdown = document.getElementById('bookDropdown');
+  const bookButton = document.getElementById('bookButton');
+  const bookButtonText = document.getElementById('bookButtonText');
   const playerInput = document.getElementById('filter-player');
   const selectAllBtn = document.getElementById('select-all-books');
   const clearBooksBtn = document.getElementById('clear-books');
   const bookCountSpan = document.getElementById('book-count');
 
   if (!gameSel || !marketSel || !booksMultiSel || !playerInput) return;
+
+  function updateBookButtonText() {
+    const checkboxes = booksMultiSel.querySelectorAll('input[type="checkbox"]');
+    const checked = booksMultiSel.querySelectorAll('input[type="checkbox"]:checked');
+    const total = checkboxes.length;
+    const count = checked.length;
+    bookButtonText.textContent = count === total ? 'Book (All)' : count === 0 ? 'Book (None)' : `Book (${count})`;
+  }
 
   const rows = Array.from(document.querySelectorAll('table.consensus-table tbody tr'));
   const bookEntries = new Map();
@@ -369,19 +471,59 @@ document.addEventListener('DOMContentLoaded', function() {
 
   fillSelect(gameSel, gameEntries);
   fillSelect(marketSel, marketEntries);
-  fillSelect(booksMultiSel, bookEntries);
 
-  // Select all books by default
-  Array.from(booksMultiSel.options).forEach(opt => opt.selected = true);
+  // Populate book checkboxes
+  const bookOpts = Array.from(bookEntries.entries()).sort((a,b) => a[1].localeCompare(b[1]));
+  bookOpts.forEach(([key, label]) => {
+    const div = document.createElement('div');
+    div.className = 'checkbox-item';
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.id = `book-${key}`;
+    checkbox.value = key;
+    checkbox.checked = true;
+    checkbox.addEventListener('change', () => {
+      updateBookButtonText();
+      applyFilters();
+      updateBookCount();
+    });
+
+    const labelEl = document.createElement('label');
+    labelEl.htmlFor = `book-${key}`;
+    labelEl.textContent = label;
+
+    div.appendChild(checkbox);
+    div.appendChild(labelEl);
+    booksMultiSel.appendChild(div);
+  });
+
+  updateBookButtonText();
   updateBookCount();
 
+  // Dropdown toggle
+  bookButton.addEventListener('click', e => {
+    e.stopPropagation();
+    bookDropdown.classList.toggle('open');
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', e => {
+    if (!bookDropdown.contains(e.target)) {
+      bookDropdown.classList.remove('open');
+    }
+  });
+
   function getSelectedBooks() {
-    return Array.from(booksMultiSel.selectedOptions).map(opt => opt.value.toLowerCase());
+    const checkboxes = booksMultiSel.querySelectorAll('input[type="checkbox"]:checked');
+    return Array.from(checkboxes).map(cb => cb.value.toLowerCase());
   }
 
   function updateBookCount() {
-    const count = booksMultiSel.selectedOptions.length;
-    const total = booksMultiSel.options.length;
+    const checkboxes = booksMultiSel.querySelectorAll('input[type="checkbox"]');
+    const checked = booksMultiSel.querySelectorAll('input[type="checkbox"]:checked');
+    const count = checked.length;
+    const total = checkboxes.length;
     bookCountSpan.textContent = count === total ? 'All books selected' : `${count} of ${total} books selected`;
   }
 
@@ -414,20 +556,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
   gameSel.addEventListener('change', applyFilters);
   marketSel.addEventListener('change', applyFilters);
-  booksMultiSel.addEventListener('change', () => {
-    updateBookCount();
-    applyFilters();
-  });
   playerInput.addEventListener('input', applyFilters);
 
   selectAllBtn.addEventListener('click', () => {
-    Array.from(booksMultiSel.options).forEach(opt => opt.selected = true);
+    booksMultiSel.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+    updateBookButtonText();
     updateBookCount();
     applyFilters();
   });
 
   clearBooksBtn.addEventListener('click', () => {
-    Array.from(booksMultiSel.options).forEach(opt => opt.selected = false);
+    booksMultiSel.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+    updateBookButtonText();
     updateBookCount();
     applyFilters();
   });
