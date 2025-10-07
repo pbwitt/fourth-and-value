@@ -14,6 +14,7 @@ endif
 DOCS_DIR   := docs
 PROPS_DIR  := data/props
 ODDS_DIR   := data/odds
+QC_DIR     := data/qc
 
 PROPS_ALL  := $(PROPS_DIR)/latest_all_props.csv
 PARAMS     := $(PROPS_DIR)/params_week$(WEEK).csv
@@ -40,7 +41,7 @@ weekly: $(PROPS_HTML) $(TOP_HTML) $(CONS_HTML) $(INSIGHTS_HTML) $(ARB_HTML)
 
 # ---- Steps ----
 # 0) Ensure dirs exist
-$(PROPS_DIR) $(DOCS_DIR)/props $(ODDS_DIR):
+$(PROPS_DIR) $(DOCS_DIR)/props $(ODDS_DIR) $(QC_DIR):
 	mkdir -p $@
 
 # 1) Odds (stdout to file, as your script expects)
@@ -66,6 +67,13 @@ $(MERGED): scripts/make_props_edges.py $(PARAMS) $(PROPS_ALL) | $(PROPS_DIR)
 	  --props_csv $(PROPS_ALL) \
 	  --params_csv $(PARAMS) \
 	  --out $@
+
+# 4b) QC family coherence → incoherent books and family arbitrage CSVs
+$(INCOH_CSV) $(FAM_ARB_CSV): scripts/qc_family_coherence.py $(MERGED) $(PARAMS) | $(QC_DIR)
+	$(PY) scripts/qc_family_coherence.py \
+	  --props $(MERGED) \
+	  --params $(PARAMS) \
+	  --out-dir data/qc
 
 # 5) Build pages
 $(PROPS_HTML): scripts/build_props_site.py $(MERGED) | $(DOCS_DIR)/props
