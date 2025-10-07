@@ -357,12 +357,77 @@ def main():
     if "week" not in merged.columns:
         merged["week"] = args.week
 
+    # ========== Consensus calculation (per player+market+side) ==========
+    # DEBUG: Check what columns we have
+    logging.info(f"[consensus] Available columns: {list(merged.columns)}")
+
+    # Create name_std from player if missing
+    if "name_std" not in merged.columns and "player_key" in merged.columns:
+        merged["name_std"] = merged["player_key"]
+    elif "name_std" not in merged.columns and "player" in merged.columns:
+        merged["name_std"] = merged["player"]
+
+    # Create side column from name if missing
+    if "side" not in merged.columns and "name" in merged.columns:
+        merged["side"] = merged["name"].astype(str).str.lower().str.strip()
+
+    logging.info(f"[consensus] After prep - has name_std: {'name_std' in merged.columns}, has side: {'side' in merged.columns}")
+
+    # De-vig: scale Over+Under to sum to 1 within each book×player×market group
+    def _devig_group(g: pd.DataFrame) -> pd.DataFrame:
+        sides = set(g["side"].dropna().unique().tolist())
+        if {"over","under"}.issubset(sides):
+            tot = g.loc[g["side"].isin(["over","under"]), "mkt_prob"].sum()
+            if tot and tot > 0:
+                g["prob_devig"] = g["mkt_prob"] / tot
+            else:
+                g["prob_devig"] = g["mkt_prob"]
+        else:
+            g["prob_devig"] = g["mkt_prob"]
+        return g
+
+    if "bookmaker_title" not in merged.columns and "bookmaker" in merged.columns:
+        merged["bookmaker_title"] = merged["bookmaker"]
+
+    # Only calculate consensus for rows that have the required columns
+    if all(col in merged.columns for col in ["bookmaker_title","name_std","market_std","side"]):
+        merged = (merged.groupby(["bookmaker_title","name_std","market_std"], group_keys=False)
+                        .apply(_devig_group))
+
+        # Calculate consensus per player+market+side
+        consensus_keys = ["name_std","market_std","side"]
+
+        consensus_line = (
+            merged.groupby(consensus_keys, as_index=False)
+                  .agg({"point": "median"})
+                  .rename(columns={"point": "consensus_line"})
+        )
+
+        consensus_prob = (
+            merged.groupby(consensus_keys, as_index=False)
+                  .agg({"prob_devig": "median"})
+                  .rename(columns={"prob_devig": "consensus_prob"})
+        )
+
+        book_count_df = (
+            merged.groupby(consensus_keys, as_index=False)
+                  .agg({"bookmaker_title": pd.Series.nunique})
+                  .rename(columns={"bookmaker_title": "book_count"})
+        )
+
+        # Merge consensus back into main data
+        merged = (merged
+                  .merge(consensus_line, on=consensus_keys, how="left")
+                  .merge(consensus_prob, on=consensus_keys, how="left")
+                  .merge(book_count_df, on=consensus_keys, how="left"))
+
     # Tidy & write
     # Keep original columns and add our metrics; do not drop unknowns to stay compatible with builders
     out_cols_priority: List[str] = [
         "season", "week", "game", "player", "name_std", "player_key",
-        "book", "market_std", "name", "point", "point_key", "price",
+        "book", "market_std", "name", "side", "point", "point_key", "price",
         "mkt_prob", "model_prob", "edge_bps",
+        "consensus_line", "consensus_prob", "book_count",
         "mu", "sigma", "lam",
     ]
     # maintain any others too
