@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import re
 import pandas as pd
 from pathlib import Path
 
@@ -56,9 +57,14 @@ def main():
         # Use default template from docs/props/arbitrage.html
         template = Path('docs/props/arbitrage.html').read_text()
 
-    # Replace data placeholder
+    # Replace data using regex to match the VIOLATIONS_DATA array
     data_json = json.dumps(records, indent=2)
-    output = template.replace('{DATA_PLACEHOLDER}', data_json)
+
+    def replace_data(match):
+        return f'const VIOLATIONS_DATA = {data_json};'
+
+    pattern = r'const VIOLATIONS_DATA = \[[\s\S]*?\];'
+    output = re.sub(pattern, replace_data, template)
 
     # Write output
     Path(args.out).write_text(output)
