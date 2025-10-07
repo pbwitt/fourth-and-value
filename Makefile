@@ -30,14 +30,31 @@ FAM_ARB_CSV := data/qc/family_arbitrage.csv
 INCOH_CSV  := data/qc/incoherent_books.csv
 
 # ---- Phony targets ----
-.PHONY: monday_all monday_all_pub weekly publish_pages props_now_pages serve_preview clean_pages clean
+.PHONY: monday_all monday_all_pub weekly qc publish_pages props_now_pages serve_preview clean_pages clean
 
 # Main weekly build (no publish)
-monday_all: weekly
+monday_all: weekly qc
 	@echo "[OK] Weekly build complete: SEASON=$(SEASON) WEEK=$(WEEK)"
+	@echo "[OK] All QC checks passed ✓"
 
 # Weekly pipeline
 weekly: $(PROPS_HTML) $(TOP_HTML) $(CONS_HTML) $(INSIGHTS_HTML) $(ARB_HTML)
+
+# QC checks (run after weekly build)
+.PHONY: qc
+qc: $(MERGED) $(PARAMS) $(PROPS_ALL)
+	@echo "===================================================================="
+	@echo "Running QC checks for Week $(WEEK)..."
+	@echo "===================================================================="
+	$(PY) scripts/weekly_qc_checks.py \
+		--season $(SEASON) \
+		--week $(WEEK) \
+		--props $(PROPS_ALL) \
+		--params $(PARAMS) \
+		--edges $(MERGED)
+	@echo "===================================================================="
+	@echo "QC checks complete!"
+	@echo "===================================================================="
 
 # ---- Steps ----
 # 0) Ensure dirs exist
