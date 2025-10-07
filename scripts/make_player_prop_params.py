@@ -548,7 +548,9 @@ def apply_defensive_adjustment(mu: float, market_std: str, def_rating: float) ->
 
     # Map def_rating (0.5-2.0) to adjustment factor (1.15-0.85)
     # Linear interpolation: rating 0.5 → 1.15x, rating 1.0 → 1.0x, rating 2.0 → 0.85x
-    adjustment = 1.15 - (def_rating - 0.5) * 0.2  # slope = -0.2 per rating point
+    # From 1.0, extremes are ±0.5 units away, and we want ±15% adjustment
+    # slope = -0.15 / 0.5 = -0.3 per unit from 1.0
+    adjustment = 1.0 - (def_rating - 1.0) * 0.3  # centered at 1.0, ±15% over ±0.5 unit range
 
     return mu * adjustment
 
