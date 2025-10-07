@@ -254,6 +254,7 @@ def main():
         "game","player","bookmaker",
         # Bet column: use the slug the filters expect (market_std). If you prefer pretty, swap to "market_disp".
         "market_std",
+        "name",  # Over/Under side
         "line_disp",
         "mkt_odds","fair_odds","mkt_pct","model_pct","edge_bps",
         "consensus_line_disp","consensus_pct","book_count_disp",
@@ -348,7 +349,7 @@ a.button:hover{background:#6ee7ff}
     <table id="tbl">
       <thead>
         <tr>
-          <th>Game</th><th>Player</th><th>Book</th><th>Bet</th>
+          <th>Game</th><th>Player</th><th>Book</th><th>Bet</th><th>Side</th>
           <th class="num">Line</th>
           <th class="num">Book Odds</th><th class="num">Fair (De-vig)</th>
           <th class="num">Book %</th><th class="num">Model %</th>
@@ -464,6 +465,7 @@ function render(){
       <td>${r.player||""}</td>
       <td>${r.bookmaker||""}</td>
       <td>${r.market_std||""}</td>
+      <td>${r.name||""}</td>
       <td class="num">${r.line_disp ?? ""}</td>
       <td class="num">${r.mkt_odds ?? ""}</td>
       <td class="num">${r.fair_odds ?? ""}</td>
