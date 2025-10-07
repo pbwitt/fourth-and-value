@@ -1,4 +1,4 @@
-// docs/nav.js (v=23) — responsive nav; "Consensus" hidden on mobile
+// docs/nav.js (v=25) — responsive nav; "Consensus" hidden on mobile; Arbitrage added
 (function () {
   // --- Find script & compute base (works locally + GitHub Pages) ---
   const scriptEl =
@@ -120,9 +120,12 @@
     { href: `${base}/props/top.html`,    label: 'Top Picks' },
     // Hide Consensus on mobile only:
     { href: `${base}/props/consensus.html`, label: 'Consensus', hideOnMobile: true },
+    { href: `${base}/props/arbitrage.html`, label: 'Arbitrage' },
     { href: `${base}/methods.html`,      label: 'Methods' },
     { href: `${base}/blog/`, label: "Blog" },
   ];
+
+  console.log('[nav.js DEBUG] pages array:', pages.map(p => p.label));
 
   const here = location.pathname.replace(/\/index\.html$/, '/');
 

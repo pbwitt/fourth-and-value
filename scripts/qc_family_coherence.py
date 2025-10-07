@@ -349,7 +349,7 @@ def generate_blog_post(opportunities, incoherent, out_path='docs/blog/family_opp
 </head>
 <body>
   <div id="nav-root"></div>
-  <script src="../nav.js?v=24"></script>
+  <script src="../nav.js?v=25"></script>
 
   <main class="wrap">
     <article>

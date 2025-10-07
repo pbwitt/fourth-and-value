@@ -348,7 +348,7 @@ def render_html(title: str, items: List[Dict[str, Any]]) -> str:
     {sections_html}
   </div>
 
-  <script src="../nav.js?v=24"></script>
+  <script src="../nav.js?v=25"></script>
   <script>{SCRIPT}</script>
 </body>
 </html>
