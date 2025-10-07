@@ -112,6 +112,7 @@ def nav_html(active: str = "") -> str:
         ("Props", "/props/index.html"),
        ("Top Picks", "/props/top.html"),
      ("Consensus", "/props/consensus.html"),
+     ("Arbitrage", "/props/arbitrage.html"),
     ]
     items = "".join(li(lbl, href, active.lower()==lbl.lower()) for (lbl, href) in NAV_LINKS)
 
