@@ -31,12 +31,12 @@
   <main class="wrap">
     <div class="card">
       <h1>Methods</h1>
-      <div class="updated">Last updated: Oct 6, 2024</div>
+      <div class="updated">Last updated: Oct 7, 2025</div>
 
       <p>This page describes how Fourth &amp; Value models player props and calculates "value." It's intentionally general (no week-specific numbers) so it stays accurate as we update models.</p>
 
       <div class="highlight">
-        <strong>🆕 Latest Update (Oct 6, 2024):</strong> We've implemented family-based multi-market modeling, which links related markets (like rush attempts and rush yards) through shared efficiency metrics. This ensures coherent projections and surfaces value when books move markets independently.
+        <strong>🆕 Latest Update (Oct 7, 2025):</strong> Defensive adjustments are now fully implemented and documented. We adjust player projections by ±15% based on opponent defensive strength (computed from yards allowed per game). See the Matchup Adjustments section below for the complete formula and implementation details.
       </div>
 
       <h2 id="what-we-model">1) What we model</h2>
@@ -106,16 +106,43 @@
       <p>This captures form changes, hot streaks, and role adjustments much faster than simple averages.</p>
 
       <h3>Matchup adjustments:</h3>
+      <p>We apply defensive adjustments to account for opponent strength. This affects the player's expected production (μ) based on the quality of defense they're facing.</p>
+
+      <p><strong>Defensive rating calculation:</strong></p>
       <ul>
-        <li><strong>Opponent defensive strength:</strong> We compute defensive ratings (0.5-2.0 scale) based on yards allowed per game.</li>
-        <li><strong>Adjustment range:</strong> ±15% to player expectations
+        <li>Computed from <strong>current season yards allowed per game</strong> (weeks 1 to N-1)</li>
+        <li>Normalized using z-scores to a <strong>0.5–2.0 scale</strong>:
           <ul>
-            <li>Weakest defense (0.5 rating): +15% boost to μ</li>
-            <li>Average defense (1.0 rating): No adjustment</li>
-            <li>Toughest defense (2.0 rating): -15% penalty to μ</li>
+            <li>0.5 = Easiest defense (most yards allowed)</li>
+            <li>1.0 = League average defense</li>
+            <li>2.0 = Toughest defense (fewest yards allowed)</li>
+          </ul>
+        </li>
+        <li>Separate ratings for pass defense and rush defense</li>
+        <li>Updated weekly as more games are played</li>
+      </ul>
+
+      <p><strong>Adjustment formula:</strong></p>
+      <ul>
+        <li><code>adjustment_factor = 1.0 - (def_rating - 1.0) × 0.3</code></li>
+        <li>Applied to μ after deriving from latent factors: <code>μ_adjusted = μ × adjustment_factor</code></li>
+        <li>Market mapping:
+          <ul>
+            <li>Receptions, receiving yards: use <strong>pass_def_rating</strong></li>
+            <li>Rush yards, rush attempts: use <strong>rush_def_rating</strong></li>
+            <li>QB passing markets: use <strong>pass_def_rating</strong></li>
           </ul>
         </li>
       </ul>
+
+      <p><strong>Examples:</strong></p>
+      <ul>
+        <li>Easiest defense (0.5 rating) → <code>1.0 - (0.5 - 1.0) × 0.3 = 1.15</code> → <strong>+15% boost</strong></li>
+        <li>Average defense (1.0 rating) → <code>1.0 - (1.0 - 1.0) × 0.3 = 1.00</code> → <strong>No change</strong></li>
+        <li>Tough defense (1.5 rating) → <code>1.0 - (1.5 - 1.0) × 0.3 = 0.85</code> → <strong>-15% penalty</strong></li>
+      </ul>
+
+      <p class="note"><em>Note: In practice, defensive ratings typically range from 0.5 to ~1.5 early in the season, so actual adjustments are usually in the ±7% to ±15% range.</em></p>
 
       <h3>Manual adjustments (injuries/role changes):</h3>
       <ul>
