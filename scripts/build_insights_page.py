@@ -121,7 +121,7 @@ STYLE = """
   :root { color-scheme: dark; }
   body {
     margin: 0;
-    background: #0b1220;
+    background: #0b0b0b;
     color: #e5e7eb;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
   }

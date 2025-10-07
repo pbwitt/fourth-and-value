@@ -237,6 +237,9 @@ def main():
     df0["consensus_pct"] = df0["consensus_prob"].map(fmt_pct)
     df0["book_count_disp"] = df0["book_count"].apply(lambda x: str(int(x)) if pd.notna(x) else "")
 
+    # Format model line (mu) for display
+    df0["model_line_disp"] = df0["mu"].apply(_fmt_point)
+
     # Filter modeled if requested
     df = df0.copy()
     if not args.show_unmodeled and "model_prob" in df.columns:
@@ -255,9 +258,9 @@ def main():
         # Bet column: use the slug the filters expect (market_std). If you prefer pretty, swap to "market_disp".
         "market_std",
         "name",  # Over/Under side
-        "line_disp",
+        "line_disp","model_line_disp","consensus_line_disp",
         "mkt_odds","fair_odds","mkt_pct","model_pct","edge_bps",
-        "consensus_line_disp","consensus_pct","book_count_disp",
+        "consensus_pct","book_count_disp",
         "kick_et"
     ]
     for c in keep:
@@ -350,11 +353,11 @@ a.button:hover{background:#6ee7ff}
       <thead>
         <tr>
           <th>Game</th><th>Player</th><th>Book</th><th>Bet</th><th>Side</th>
-          <th class="num">Line</th>
+          <th class="num">Book Line</th><th class="num">Model Line</th><th class="num">Consensus Line</th>
           <th class="num">Book Odds</th><th class="num">Fair (De-vig)</th>
           <th class="num">Book %</th><th class="num">Model %</th>
           <th class="num">Edge (bps)</th>
-          <th class="num">Consensus Line</th><th class="num">Market %</th><th class="num">Books</th>
+          <th class="num">Market %</th><th class="num">Books</th>
           <th>Kick (ET)</th>
         </tr>
       </thead>
@@ -467,6 +470,8 @@ function render(){
       <td>${r.market_std||""}</td>
       <td>${r.name||""}</td>
       <td class="num">${r.line_disp ?? ""}</td>
+      <td class="num">${r.model_line_disp ?? ""}</td>
+      <td class="num">${r.consensus_line_disp ?? ""}</td>
       <td class="num">${r.mkt_odds ?? ""}</td>
       <td class="num">${r.fair_odds ?? ""}</td>
       <td class="num">${r.mkt_pct ?? ""}</td>
@@ -474,7 +479,6 @@ function render(){
       <td class="num" style="color:${
         (r.edge_bps==null) ? "#9aa0a6" : (r.edge_bps>0 ? "#4ade80" : "#f87171")
       }">${r.edge_bps ?? ""}</td>
-      <td class="num">${r.consensus_line_disp ?? ""}</td>
       <td class="num">${r.consensus_pct ?? ""}</td>
       <td class="num">${r.book_count_disp ?? ""}</td>
       <td>${r.kick_et||""}</td>
