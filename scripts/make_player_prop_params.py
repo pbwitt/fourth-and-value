@@ -553,6 +553,153 @@ def apply_defensive_adjustment(mu: float, market_std: str, def_rating: float) ->
     return mu * adjustment
 
 
+def calculate_defensive_ratings(season: int, week: int) -> pd.DataFrame:
+    """
+    Calculate defensive ratings from yards allowed per game.
+
+    Returns DataFrame with columns:
+        - team: Team abbreviation
+        - pass_def_rating: 0.5-2.0 (for receiving markets)
+        - rush_def_rating: 0.5-2.0 (for rushing markets)
+
+    Scale:
+        - 2.0 = Toughest defense (fewest yards) → -15% to offense
+        - 1.0 = Average defense → no adjustment
+        - 0.5 = Easiest defense (most yards) → +15% to offense
+    """
+    from pathlib import Path
+
+    # Load current season weekly data
+    parquet_path = Path(f"data/weekly_player_stats_{season}.parquet")
+    if not parquet_path.exists():
+        logging.warning(f"No defensive data available: {parquet_path}")
+        return pd.DataFrame()
+
+    df = pd.read_parquet(parquet_path)
+    df.columns = [c.lower() for c in df.columns]
+
+    # Filter to weeks before current week
+    df = df[df['week'] < week].copy()
+
+    if len(df) == 0:
+        logging.warning(f"No defensive data for weeks before {week}")
+        return pd.DataFrame()
+
+    # Calculate yards allowed per team
+    teams = df['team'].unique()
+    def_data = []
+
+    for team in teams:
+        # Get all players who played AGAINST this team
+        against_team = df[df['opponent_team'] == team]
+
+        # Sum yards gained against this team
+        pass_yds_allowed = against_team['receiving_yards'].sum()
+        rush_yds_allowed = against_team['rushing_yards'].sum()
+
+        # Count games
+        games = len(df[df['team'] == team]['week'].unique())
+
+        if games > 0:
+            def_data.append({
+                'team': team,
+                'pass_yds_per_game': pass_yds_allowed / games,
+                'rush_yds_per_game': rush_yds_allowed / games,
+                'games': games
+            })
+
+    def_df = pd.DataFrame(def_data)
+
+    if len(def_df) == 0:
+        return pd.DataFrame()
+
+    # Normalize to 0.5-2.0 scale using z-scores
+    # Fewer yards allowed = tougher defense = higher rating
+    for stat_type in ['pass_yds_per_game', 'rush_yds_per_game']:
+        mean = def_df[stat_type].mean()
+        std = def_df[stat_type].std()
+
+        if std > 0:
+            z_scores = (def_df[stat_type] - mean) / std
+            # Invert: fewer yards = higher rating
+            rating = 1.0 - (z_scores * 0.25)
+            rating = rating.clip(0.5, 2.0)
+        else:
+            rating = 1.0  # All average if no variation
+
+        rating_col = stat_type.replace('_yds_per_game', '_def_rating')
+        def_df[rating_col] = rating
+
+    logging.info(f"[defense] Calculated ratings for {len(def_df)} teams")
+    return def_df[['team', 'pass_def_rating', 'rush_def_rating', 'games']].set_index('team')
+
+
+def create_opponent_map(props: pd.DataFrame, logs: pd.DataFrame) -> dict:
+    """
+    Create player → opponent team mapping.
+
+    Returns:
+        dict: {player_name: opponent_team_abbrev}
+
+    Logic:
+        1. Get player's team from game logs (most recent team)
+        2. Parse game string to find opponent
+    """
+    # Team name to abbreviation mapping
+    team_to_abbrev = {
+        'Arizona Cardinals': 'ARI', 'Atlanta Falcons': 'ATL', 'Baltimore Ravens': 'BAL',
+        'Buffalo Bills': 'BUF', 'Carolina Panthers': 'CAR', 'Chicago Bears': 'CHI',
+        'Cincinnati Bengals': 'CIN', 'Cleveland Browns': 'CLE', 'Dallas Cowboys': 'DAL',
+        'Denver Broncos': 'DEN', 'Detroit Lions': 'DET', 'Green Bay Packers': 'GB',
+        'Houston Texans': 'HOU', 'Indianapolis Colts': 'IND', 'Jacksonville Jaguars': 'JAX',
+        'Kansas City Chiefs': 'KC', 'Las Vegas Raiders': 'LV', 'Los Angeles Chargers': 'LAC',
+        'Los Angeles Rams': 'LAR', 'Miami Dolphins': 'MIA', 'Minnesota Vikings': 'MIN',
+        'New England Patriots': 'NE', 'New Orleans Saints': 'NO', 'New York Giants': 'NYG',
+        'New York Jets': 'NYJ', 'Philadelphia Eagles': 'PHI', 'Pittsburgh Steelers': 'PIT',
+        'San Francisco 49ers': 'SF', 'Seattle Seahawks': 'SEA', 'Tampa Bay Buccaneers': 'TB',
+        'Tennessee Titans': 'TEN', 'Washington Commanders': 'WAS'
+    }
+
+    opponent_map = {}
+
+    # Get player → team mapping from logs (most recent team)
+    player_team_map = {}
+    if logs is not None and not logs.empty and 'player' in logs.columns and 'recent_team' in logs.columns:
+        # Use most recent team per player
+        player_teams = logs.groupby('player')['recent_team'].last()
+        player_team_map = player_teams.to_dict()
+
+    # Process props to find opponents
+    for _, row in props.iterrows():
+        player = row.get('player')
+        if pd.isna(player):
+            continue
+
+        home = row.get('home_team', '')
+        away = row.get('away_team', '')
+
+        # Get player's team
+        player_team = player_team_map.get(player)
+
+        if player_team:
+            # Determine opponent
+            if player_team == home:
+                opponent_map[player] = team_to_abbrev.get(away, away)
+            elif player_team == away:
+                opponent_map[player] = team_to_abbrev.get(home, home)
+            else:
+                # Team mismatch - player might have been traded
+                # Try to infer from game string
+                game = row.get('game', '')
+                if home and away:
+                    # Default to home team as opponent if player is away, vice versa
+                    # This is a fallback heuristic
+                    opponent_map[player] = team_to_abbrev.get(home, home)  # Conservative default
+
+    logging.info(f"[opponent] Mapped opponents for {len(opponent_map)} players")
+    return opponent_map
+
+
 def load_player_adjustments() -> dict:
     """
     Load manual player adjustments from JSON config file.
@@ -1009,7 +1156,7 @@ def derive_market_from_latents(market_std: str, latents: dict, player_idx: pd.In
         )
 
 
-def build_params(cands, logs, season, week):
+def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map=None):
     """
     Board-driven param builder.
     - Emits a row for every (player, market_std) present on the props board.
@@ -1017,6 +1164,7 @@ def build_params(cands, logs, season, week):
     - Poisson markets -> dist='poisson', fills lam from logs if available, else PRIORS (and mirrors to mu).
     - Adds used_logs=1 per row only if that player has any logs; else 0.
     - Includes team/position/gsis_id if we can infer them from logs; else NaN.
+    - Applies defensive adjustments if defensive_ratings and opponent_map provided.
     """
     import numpy as np
     import pandas as pd
@@ -1113,6 +1261,39 @@ def build_params(cands, logs, season, week):
         sg_map[mkt] = sg
 
     print(f"[family] Derived params for {len(mu_map)} Normal markets from latents")
+
+    # ========================================
+    # APPLY DEFENSIVE ADJUSTMENTS
+    # ========================================
+    if defensive_ratings is not None and opponent_map:
+        print(f"[defense] Applying defensive adjustments...")
+        adjustments_applied = 0
+
+        for mkt in family_markets:
+            # Map market to defense type
+            if mkt in ["receptions", "recv_yds"]:
+                def_type = "pass_def_rating"
+            elif mkt in ["rush_yds", "rush_attempts"]:
+                def_type = "rush_def_rating"
+            elif mkt in ["pass_yds", "pass_attempts", "pass_completions"]:
+                def_type = "pass_def_rating"  # QB facing pass defense
+            else:
+                continue
+
+            # Apply adjustment per player
+            for player in player_idx:
+                opponent = opponent_map.get(player)
+                if opponent and opponent in defensive_ratings.index:
+                    def_rating = defensive_ratings.loc[opponent, def_type]
+                    old_mu = mu_map[mkt][player]
+                    mu_map[mkt][player] = apply_defensive_adjustment(
+                        old_mu,
+                        mkt,
+                        def_rating
+                    )
+                    adjustments_applied += 1
+
+        print(f"[defense] Applied {adjustments_applied} defensive adjustments")
 
     # ========================================
     # GROUP-BASED LOGIC (backward compat for any markets not in families)
@@ -1350,12 +1531,15 @@ def main():
     # This ensures we're using the most recent games from THIS season
     logs = fetch_recent_game_logs(season)
 
+    # Calculate defensive ratings from current season
+    logging.info(f"Calculating defensive ratings for season={season}, week={week}")
+    defensive_ratings = calculate_defensive_ratings(season, week)
+    logging.info(f"Calculated defensive ratings for {len(defensive_ratings)} teams")
 
-
-        # --- PROPS → cands (board-driven) ---
-    props_csv = getattr(args, "props_csv", None) or "data/props/latest_all_props.csv"
-    logging.info(f"Loading props from {props_csv}")
-    props = load_props(props_csv)
+    # Create opponent lookup
+    logging.info("Creating opponent map from props data")
+    opponent_map = create_opponent_map(props, logs)
+    logging.info(f"Mapped {len(opponent_map)} players to opponents")
 
     from common_markets import std_market, MODELED_MARKETS
 
@@ -1380,7 +1564,9 @@ def main():
     logging.info(f"Candidates: {cands[['player','market_std']].drop_duplicates().shape[0]} "
                  "unique (player, market_std) pairs.")
 
-    params = build_params(cands, logs, args.season, args.week)
+    params = build_params(cands, logs, args.season, args.week,
+                         defensive_ratings=defensive_ratings,
+                         opponent_map=opponent_map)
 
 
     # tidy columns order
