@@ -400,7 +400,7 @@ def fetch_recent_game_logs(season: int) -> Optional[pd.DataFrame]:
     needed = [
         "recent_team","position","gsis_id","season","week",
         "rushing_yards","rushing_attempts","rushing_tds","carries",
-        "receptions","receiving_yards","receiving_tds",
+        "receptions","receiving_yards","receiving_tds","targets",  # Added targets
         "passing_yards","passing_tds","interceptions",
         "attempts","completions"
     ]
@@ -1346,6 +1346,8 @@ def main():
 
     logging.info(f"Candidates: {len(cands)} unique (player, market_std) pairs.")
 
+    # Always use current season for L4 (last 4 games) methodology
+    # This ensures we're using the most recent games from THIS season
     logs = fetch_recent_game_logs(season)
 
 
