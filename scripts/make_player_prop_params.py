@@ -271,6 +271,19 @@ PRIORS = {
     "pass_interceptions":{"lam": 0.8},
 }
 
+# Home/Away performance multipliers (applied to mu)
+# Based on typical NFL home field advantage patterns
+HOME_AWAY_MULTIPLIERS = {
+    "pass_yds":          {"home": 1.06, "away": 0.94},   # QBs ~6% better at home
+    "pass_tds":          {"home": 1.06, "away": 0.94},
+    "pass_interceptions":{"home": 0.95, "away": 1.05},   # Fewer INTs at home
+    "rush_yds":          {"home": 1.04, "away": 0.96},   # RBs ~4% better at home
+    "rush_attempts":     {"home": 1.02, "away": 0.98},   # Slight volume boost
+    "recv_yds":          {"home": 1.06, "away": 0.94},   # WRs benefit like QBs
+    "receptions":        {"home": 1.03, "away": 0.97},   # Catch rate advantage
+    "anytime_td":        {"home": 1.05, "away": 0.95},   # TD scoring boost
+}
+
 # minimal sample size before trusting player-specific numbers
 MIN_GAMES_STRICT = 4       # prefer at least this many games for strong trust
 MIN_GAMES_LOOSE  = 2       # if <strict but >=loose, still use but add shrinkage
@@ -363,10 +376,55 @@ def load_props_candidates(props_csv: str) -> pd.DataFrame:
     return df
 
 
+def enrich_logs_with_home_away(logs: pd.DataFrame, season: int) -> pd.DataFrame:
+    """
+    Add 'is_home' boolean column to game logs by joining with NFL schedule.
+
+    Args:
+        logs: Player weekly stats with 'recent_team', 'opponent_team', 'week'
+        season: NFL season year
+
+    Returns:
+        logs DataFrame with added 'is_home' column
+    """
+    try:
+        import nfl_data_py as nfl
+        schedule = nfl.import_schedules([season])
+        schedule = schedule[['season', 'week', 'home_team', 'away_team']].copy()
+
+        # Create lookup: (team, opponent, week) → is_home
+        home_lookup = {}
+        for _, row in schedule.iterrows():
+            week = row['week']
+            home = row['home_team']
+            away = row['away_team']
+            home_lookup[(home, away, week)] = True
+            home_lookup[(away, home, week)] = False
+
+        # Apply to logs
+        def is_home_game(row):
+            key = (row.get('recent_team'), row.get('opponent_team'), row.get('week'))
+            return home_lookup.get(key, None)  # None if not found
+
+        logs['is_home'] = logs.apply(is_home_game, axis=1)
+
+        # Log coverage
+        coverage = logs['is_home'].notna().sum() / len(logs) if len(logs) > 0 else 0
+        logging.info(f"[home/away] Enriched {coverage:.1%} of game logs with home/away flag")
+
+        return logs
+
+    except Exception as e:
+        logging.warning(f"[home/away] Could not enrich logs with home/away: {e}")
+        logs['is_home'] = None
+        return logs
+
+
 def fetch_recent_game_logs(season: int) -> Optional[pd.DataFrame]:
     """
     Load weekly player logs for `season` from local nflverse parquet fetched earlier.
     Fail-fast if missing instead of silently falling back.
+    Enriches with home/away indicator.
     """
     from pathlib import Path
     p = Path(f"data/weekly_player_stats_{season}.parquet")
@@ -398,7 +456,7 @@ def fetch_recent_game_logs(season: int) -> Optional[pd.DataFrame]:
         weekly["player"] = ""
 
     needed = [
-        "recent_team","position","gsis_id","season","week",
+        "recent_team","position","gsis_id","season","week","opponent_team",
         "rushing_yards","rushing_attempts","rushing_tds","carries",
         "receptions","receiving_yards","receiving_tds","targets",  # Added targets
         "passing_yards","passing_tds","interceptions",
@@ -421,6 +479,10 @@ def fetch_recent_game_logs(season: int) -> Optional[pd.DataFrame]:
 
     tail["name_std"] = tail["player"].astype(str).map(name_std_str)
     tail["player_key"] = tail["player"].astype(str).map(slugify)
+
+    # Enrich with home/away flag
+    tail = enrich_logs_with_home_away(tail, season)
+
     return tail
 
 
@@ -702,6 +764,75 @@ def create_opponent_map(props: pd.DataFrame, logs: pd.DataFrame) -> dict:
     return opponent_map
 
 
+def create_home_away_map(props: pd.DataFrame, logs: pd.DataFrame) -> dict:
+    """
+    Create player → is_home mapping for upcoming games.
+
+    Returns:
+        dict: {player_name: True/False/None}
+            True = player is at home
+            False = player is away
+            None = unknown
+
+    Logic:
+        1. Get player's team from game logs (most recent team)
+        2. Check if team matches home_team or away_team in props
+    """
+    # Team name to abbreviation mapping (same as create_opponent_map)
+    team_to_abbrev = {
+        'Arizona Cardinals': 'ARI', 'Atlanta Falcons': 'ATL', 'Baltimore Ravens': 'BAL',
+        'Buffalo Bills': 'BUF', 'Carolina Panthers': 'CAR', 'Chicago Bears': 'CHI',
+        'Cincinnati Bengals': 'CIN', 'Cleveland Browns': 'CLE', 'Dallas Cowboys': 'DAL',
+        'Denver Broncos': 'DEN', 'Detroit Lions': 'DET', 'Green Bay Packers': 'GB',
+        'Houston Texans': 'HOU', 'Indianapolis Colts': 'IND', 'Jacksonville Jaguars': 'JAX',
+        'Kansas City Chiefs': 'KC', 'Las Vegas Raiders': 'LV', 'Los Angeles Chargers': 'LAC',
+        'Los Angeles Rams': 'LAR', 'Miami Dolphins': 'MIA', 'Minnesota Vikings': 'MIN',
+        'New England Patriots': 'NE', 'New Orleans Saints': 'NO', 'New York Giants': 'NYG',
+        'New York Jets': 'NYJ', 'Philadelphia Eagles': 'PHI', 'Pittsburgh Steelers': 'PIT',
+        'San Francisco 49ers': 'SF', 'Seattle Seahawks': 'SEA', 'Tampa Bay Buccaneers': 'TB',
+        'Tennessee Titans': 'TEN', 'Washington Commanders': 'WAS'
+    }
+
+    # Reverse mapping: abbrev → full name
+    abbrev_to_team = {v: k for k, v in team_to_abbrev.items()}
+
+    home_away_map = {}
+
+    # Get player → team mapping from logs (most recent team)
+    player_team_map = {}
+    if logs is not None and not logs.empty and 'player' in logs.columns and 'recent_team' in logs.columns:
+        player_teams = logs.groupby('player')['recent_team'].last()
+        player_team_map = player_teams.to_dict()
+
+    # Process props to determine home/away
+    for _, row in props.iterrows():
+        player = row.get('player')
+        if pd.isna(player):
+            continue
+
+        home = row.get('home_team', '')
+        away = row.get('away_team', '')
+
+        # Get player's team (abbreviation from logs)
+        player_team_abbrev = player_team_map.get(player)
+
+        if player_team_abbrev:
+            # Convert abbreviation to full name for comparison with props
+            player_team_full = abbrev_to_team.get(player_team_abbrev, player_team_abbrev)
+
+            # Check if player is home or away
+            if player_team_full == home or player_team_abbrev == home:
+                home_away_map[player] = True
+            elif player_team_full == away or player_team_abbrev == away:
+                home_away_map[player] = False
+            else:
+                # Can't determine - team mismatch
+                home_away_map[player] = None
+
+    logging.info(f"[home/away] Mapped home/away for {len([v for v in home_away_map.values() if v is not None])} players")
+    return home_away_map
+
+
 def load_player_adjustments() -> dict:
     """
     Load manual player adjustments from JSON config file.
@@ -757,6 +888,34 @@ def apply_player_adjustment(mu: float, name_std: str, market_std: str, adjustmen
         return adjusted
 
     return mu
+
+
+def apply_home_away_adjustment(mu: float, market_std: str, is_home: Optional[bool]) -> float:
+    """
+    Apply home/away multiplier to player expectation.
+
+    Args:
+        mu: Base player expectation
+        market_std: Market type (e.g., 'pass_yds', 'rush_yds')
+        is_home: True if player is at home, False if away, None if unknown
+
+    Returns:
+        Adjusted mu
+
+    Logic:
+        - Home games: boost offensive production ~2-6% depending on market
+        - Away games: decrease by similar amount
+        - Unknown: no adjustment (use base mu)
+    """
+    if pd.isna(mu) or is_home is None:
+        return mu
+
+    multipliers = HOME_AWAY_MULTIPLIERS.get(market_std)
+    if not multipliers:
+        return mu
+
+    multiplier = multipliers.get("home" if is_home else "away", 1.0)
+    return mu * multiplier
 
 
 # ========================================
@@ -1158,7 +1317,7 @@ def derive_market_from_latents(market_std: str, latents: dict, player_idx: pd.In
         )
 
 
-def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map=None):
+def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map=None, home_away_map=None):
     """
     Board-driven param builder.
     - Emits a row for every (player, market_std) present on the props board.
@@ -1167,6 +1326,7 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
     - Adds used_logs=1 per row only if that player has any logs; else 0.
     - Includes team/position/gsis_id if we can infer them from logs; else NaN.
     - Applies defensive adjustments if defensive_ratings and opponent_map provided.
+    - Applies home/away adjustments if home_away_map provided.
     """
     import numpy as np
     import pandas as pd
@@ -1298,6 +1458,38 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
         print(f"[defense] Applied {adjustments_applied} defensive adjustments")
 
     # ========================================
+    # APPLY HOME/AWAY ADJUSTMENTS
+    # ========================================
+    if home_away_map:
+        print(f"[home/away] Applying home field advantage adjustments...")
+        home_away_applied = 0
+
+        for mkt in family_markets:
+            # Only apply to markets with defined multipliers
+            if mkt not in HOME_AWAY_MULTIPLIERS:
+                continue
+
+            # Apply adjustment per player
+            for player in player_idx:
+                is_home = home_away_map.get(player)
+                if is_home is not None:  # Skip if unknown
+                    old_mu = mu_map[mkt][player]
+                    mu_map[mkt][player] = apply_home_away_adjustment(
+                        old_mu,
+                        mkt,
+                        is_home
+                    )
+                    home_away_applied += 1
+
+        # Also apply to Poisson markets (TDs)
+        for mkt in ["anytime_td", "pass_tds", "pass_interceptions"]:
+            if mkt not in HOME_AWAY_MULTIPLIERS:
+                continue
+            # Will be handled below when lambda values are assigned
+
+        print(f"[home/away] Applied {home_away_applied} home/away adjustments")
+
+    # ========================================
     # GROUP-BASED LOGIC (backward compat for any markets not in families)
     # ========================================
     if logs is not None and not logs.empty:
@@ -1328,10 +1520,24 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
     ints = lam_from(LOG_COLS_POISSON["pass_interceptions"], "pass_interceptions")
 
     def lam_for(mkt):
-        if mkt == "anytime_td":         return (rtd + rctd).clip(lower=0.01, upper=5.0)
-        if mkt == "pass_tds":           return ptd.clip(lower=0.01, upper=5.0)
-        if mkt == "pass_interceptions": return ints.clip(lower=0.01, upper=5.0)
-        return const_series(np.nan)
+        if mkt == "anytime_td":
+            lam_series = (rtd + rctd).clip(lower=0.01, upper=5.0)
+        elif mkt == "pass_tds":
+            lam_series = ptd.clip(lower=0.01, upper=5.0)
+        elif mkt == "pass_interceptions":
+            lam_series = ints.clip(lower=0.01, upper=5.0)
+        else:
+            lam_series = const_series(np.nan)
+
+        # Apply home/away adjustment to Poisson markets
+        if home_away_map and mkt in HOME_AWAY_MULTIPLIERS:
+            adjusted = {}
+            for player in lam_series.index:
+                is_home = home_away_map.get(player)
+                adjusted[player] = apply_home_away_adjustment(lam_series[player], mkt, is_home)
+            lam_series = pd.Series(adjusted, index=lam_series.index)
+
+        return lam_series
 
     # --- Load manual player adjustments ---
     player_adjustments = load_player_adjustments()
@@ -1356,6 +1562,7 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
             team     = want["player"].map(g_team)  if "team"     in getattr(cands, "columns", []) or True else np.nan,
             position = want["player"].map(g_pos)   if "position" in getattr(cands, "columns", []) or True else np.nan,
             gsis_id  = want["player"].map(g_gsis)  if "gsis_id"  in getattr(cands, "columns", []) or True else np.nan,
+            is_home  = want["player"].map(lambda p: home_away_map.get(p) if home_away_map else None),
         )
 
         if mkt in LOG_COLS_NORMAL:
@@ -1543,6 +1750,11 @@ def main():
     opponent_map = create_opponent_map(props, logs)
     logging.info(f"Mapped {len(opponent_map)} players to opponents")
 
+    # Create home/away lookup for upcoming games
+    logging.info("Creating home/away map from props data")
+    home_away_map = create_home_away_map(props, logs)
+    logging.info(f"Mapped home/away for {len([v for v in home_away_map.values() if v is not None])} players")
+
     from common_markets import std_market, MODELED_MARKETS
 
     # normalize book labels → canonical (e.g., player_reception_yds → recv_yds)
@@ -1568,7 +1780,8 @@ def main():
 
     params = build_params(cands, logs, args.season, args.week,
                          defensive_ratings=defensive_ratings,
-                         opponent_map=opponent_map)
+                         opponent_map=opponent_map,
+                         home_away_map=home_away_map)
 
 
     # tidy columns order
@@ -1582,7 +1795,7 @@ def main():
 
     # Final tidy + write
     cols = ["season","week","player","player_key","name_std","market_std","market",
-        "dist","mu","sigma","lam","used_logs",
+        "dist","mu","sigma","lam","used_logs","is_home",
         "implied_ypc","implied_ypr","implied_comp_pct","implied_ypc_pass","implied_cr"]
     params = params[[c for c in cols if c in params.columns]].copy()
     params = standardize_input(params)           # adds market_std/name/point/name_std
