@@ -2,13 +2,18 @@
 PY ?= python3
 SEASON ?=
 WEEK   ?=
+DATE   ?= $(shell date +%Y-%m-%d)
 
-# Require SEASON/WEEK
+# Require SEASON/WEEK for NFL targets
 ifeq ($(strip $(SEASON)),)
-  $(error SEASON=YYYY required (e.g., SEASON=2025))
+  ifeq ($(filter nhl_%,$(MAKECMDGOALS)),)
+    $(error SEASON=YYYY required (e.g., SEASON=2025))
+  endif
 endif
 ifeq ($(strip $(WEEK)),)
-  $(error WEEK=N required (e.g., WEEK=3))
+  ifeq ($(filter nhl_%,$(MAKECMDGOALS)),)
+    $(error WEEK=N required (e.g., WEEK=3))
+  endif
 endif
 
 DOCS_DIR   := docs
@@ -30,6 +35,7 @@ INCOH_CSV  := data/qc/incoherent_books.csv
 
 # ---- Phony targets ----
 .PHONY: monday_all monday_all_pub weekly qc publish_pages props_now_pages serve_preview clean_pages clean
+.PHONY: nhl_daily nhl_odds nhl_stats nhl_consensus nhl_edges nhl_page
 
 # Main weekly build (no publish)
 monday_all: weekly qc
@@ -151,6 +157,79 @@ clean_pages:
 
 clean:
 	rm -f $(PARAMS) $(MERGED)
+
+
+# ========================================================================
+# NHL Daily Pipeline
+# ========================================================================
+
+# NHL directories
+NHL_DATA_DIR := data/nhl
+NHL_PROC_DIR := $(NHL_DATA_DIR)/processed
+NHL_CONS_DIR := $(NHL_DATA_DIR)/consensus
+NHL_PROPS_DIR := $(NHL_DATA_DIR)/props
+NHL_DOCS_DIR := docs/nhl/props
+
+# NHL outputs
+NHL_ODDS_PROPS := $(NHL_PROC_DIR)/odds_props_$(DATE).csv
+NHL_ODDS_GAMES := $(NHL_PROC_DIR)/odds_games_$(DATE).csv
+NHL_STATS_SKATERS := $(NHL_PROC_DIR)/skater_logs_$(DATE).parquet
+NHL_STATS_GOALIES := $(NHL_PROC_DIR)/goalie_logs_$(DATE).parquet
+NHL_CONSENSUS_PROPS := $(NHL_CONS_DIR)/consensus_props_$(DATE).csv
+NHL_CONSENSUS_GAMES := $(NHL_CONS_DIR)/consensus_games_$(DATE).csv
+NHL_PROPS_MODEL := $(NHL_PROPS_DIR)/props_with_model_$(DATE).csv
+NHL_PAGE := $(NHL_DOCS_DIR)/index.html
+
+# Full daily pipeline
+nhl_daily: $(NHL_PAGE)
+	@echo "===================================================================="
+	@echo "NHL daily build complete for $(DATE)"
+	@echo "===================================================================="
+	@echo "✓ Odds:      $(NHL_ODDS_PROPS)"
+	@echo "✓ Stats:     $(NHL_STATS_SKATERS)"
+	@echo "✓ Consensus: $(NHL_CONSENSUS_PROPS)"
+	@echo "✓ Edges:     $(NHL_PROPS_MODEL)"
+	@echo "✓ Page:      $(NHL_PAGE)"
+	@echo "===================================================================="
+
+# Individual steps
+nhl_odds: $(NHL_ODDS_PROPS) $(NHL_ODDS_GAMES)
+
+nhl_stats: $(NHL_STATS_SKATERS) $(NHL_STATS_GOALIES)
+
+nhl_consensus: $(NHL_CONSENSUS_PROPS) $(NHL_CONSENSUS_GAMES)
+
+nhl_edges: $(NHL_PROPS_MODEL)
+
+nhl_page: $(NHL_PAGE)
+
+# Fetch NHL odds
+$(NHL_ODDS_PROPS) $(NHL_ODDS_GAMES): scripts/nhl/fetch_nhl_odds.py | $(NHL_PROC_DIR)
+	$(PY) scripts/nhl/fetch_nhl_odds.py --date $(DATE)
+
+# Fetch NHL stats
+$(NHL_STATS_SKATERS) $(NHL_STATS_GOALIES): scripts/nhl/fetch_nhl_stats.py | $(NHL_PROC_DIR)
+	$(PY) scripts/nhl/fetch_nhl_stats.py --date $(DATE)
+
+# Compute consensus
+$(NHL_CONSENSUS_PROPS) $(NHL_CONSENSUS_GAMES): $(NHL_ODDS_PROPS) scripts/nhl/make_nhl_consensus.py | $(NHL_CONS_DIR)
+	$(PY) scripts/nhl/make_nhl_consensus.py --date $(DATE)
+
+# Compute edges
+$(NHL_PROPS_MODEL): $(NHL_ODDS_PROPS) $(NHL_CONSENSUS_PROPS) scripts/nhl/make_nhl_edges.py | $(NHL_PROPS_DIR)
+	$(PY) scripts/nhl/make_nhl_edges.py --date $(DATE)
+
+# Build page
+$(NHL_PAGE): $(NHL_PROPS_MODEL) scripts/nhl/build_nhl_props_page.py | $(NHL_DOCS_DIR)
+	$(PY) scripts/nhl/build_nhl_props_page.py --date $(DATE)
+
+# Ensure NHL directories exist
+$(NHL_PROC_DIR) $(NHL_CONS_DIR) $(NHL_PROPS_DIR) $(NHL_DOCS_DIR):
+	mkdir -p $@
+
+# ========================================================================
+# End NHL Pipeline
+# ========================================================================
 
 
 .FORCE:
