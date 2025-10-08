@@ -292,13 +292,7 @@ def main():
 
     title_html = escape(args.title)
 
-    # Week header (prominent h1)
-    week_header = ""
-    if args.week:
-        if args.season:
-            week_header = f'<h1 style="margin:0 0 8px;font-size:22px;font-weight:700;letter-spacing:.2px;color:#fff;">Week {args.week}, {args.season}</h1>'
-        else:
-            week_header = f'<h1 style="margin:0 0 8px;font-size:22px;font-weight:700;letter-spacing:.2px;color:#fff;">Week {args.week}</h1>'
+    # Week header removed - redundant with page title
 
     # -------- HTML shell (your client-side renderer) --------
     html = """<!doctype html>
@@ -370,8 +364,6 @@ tr.consensus-pick td:first-child::before{content:'★ ';color:#4ade80;font-size:
 </style>
 </head>
 <body>
-
-""" + week_header + """
 
   <div class="card">
     <h1>""" + title_html + """</h1>
