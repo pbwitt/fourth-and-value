@@ -6,7 +6,7 @@ Shared module for training and inference.
 
 import pandas as pd
 import numpy as np
-from scipy.stats import norm
+from scipy.stats import norm, poisson
 
 
 class SimpleSOGModel:
@@ -85,6 +85,97 @@ class SimpleSOGModel:
         Input: DataFrame with columns [player, market_std, side, point]
         Output: Series of probabilities
         """
+        probs = []
+
+        for _, row in props_df.iterrows():
+            player = row["player"]
+            line = row["point"]
+            side = row["side"]
+
+            if side == "Over":
+                prob = self.predict_prob_over(player, line)
+            else:  # Under
+                prob = 1 - self.predict_prob_over(player, line)
+
+            probs.append(prob)
+
+        return pd.Series(probs, index=props_df.index)
+
+
+class SimpleScoringModel:
+    """
+    Simple scoring model for Goals/Assists/Points.
+
+    Uses Poisson distribution based on:
+    - Season rate per game (goals/assists/points per game)
+    - Position-based adjustments
+
+    For 0.5 lines (common for goals), uses Bernoulli approximation.
+    """
+
+    def __init__(self, stat_name: str):
+        """
+        Initialize model for a specific stat.
+
+        Args:
+            stat_name: "goals", "assists", or "points"
+        """
+        self.stat_name = stat_name
+        self.skater_stats = None
+
+    def fit(self, skater_df: pd.DataFrame):
+        """Fit model on season stats."""
+        stat_col_map = {
+            "goals": "goals",
+            "assists": "assists",
+            "points": "points",
+        }
+
+        stat_col = stat_col_map.get(self.stat_name)
+        if stat_col not in skater_df.columns:
+            raise ValueError(f"Stat column {stat_col} not found in data")
+
+        self.skater_stats = skater_df.set_index("player")[
+            [stat_col, "games_played", "position"]
+        ].copy()
+
+        # Compute rate per game
+        self.skater_stats[f"{self.stat_name}_per_game"] = (
+            self.skater_stats[stat_col] / self.skater_stats["games_played"]
+        )
+
+        return self
+
+    def predict_prob_over(self, player: str, line: float) -> float:
+        """
+        Predict probability of going OVER a line.
+
+        For integer lines: Uses Poisson CDF
+        For 0.5 lines (goals): Uses Bernoulli approximation from rate
+        """
+        # Normalize player name
+        player_norm = " ".join(player.strip().lower().split())
+
+        if self.skater_stats is None or player_norm not in self.skater_stats.index:
+            # Unknown player: use 50%
+            return 0.5
+
+        stats = self.skater_stats.loc[player_norm]
+        rate_per_game = stats[f"{self.stat_name}_per_game"]
+
+        # For very low lines (0.5), use Bernoulli approximation
+        if line == 0.5:
+            # P(X >= 1) = 1 - P(X = 0) = 1 - e^(-λ)
+            prob_over = 1 - poisson.pmf(0, rate_per_game)
+        else:
+            # For higher lines, use Poisson survival function
+            # P(X > line) = 1 - P(X <= line) = 1 - CDF(floor(line))
+            prob_over = 1 - poisson.cdf(int(line), rate_per_game)
+
+        return prob_over
+
+    def predict_batch(self, props_df: pd.DataFrame) -> pd.Series:
+        """Predict probabilities for a batch of props."""
         probs = []
 
         for _, row in props_df.iterrows():

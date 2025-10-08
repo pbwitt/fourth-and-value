@@ -27,7 +27,7 @@ import numpy as np
 
 # Import shared model classes
 sys.path.insert(0, str(Path(__file__).parent))
-from nhl_models import SimpleSOGModel
+from nhl_models import SimpleSOGModel, SimpleScoringModel
 
 
 def american_to_prob(odds: float) -> float:
@@ -69,6 +69,7 @@ def load_models():
     """Load trained models if available."""
     models = {}
 
+    # Load SOG model
     sog_model_path = Path("data/nhl/models/sog_model_latest.pkl")
     if sog_model_path.exists():
         with open(sog_model_path, "rb") as f:
@@ -77,6 +78,16 @@ def load_models():
     else:
         print(f"[make_nhl_edges] SOG model not found, using consensus baseline")
 
+    # Load scoring models (goals, assists, points)
+    for stat in ["goals", "assists", "points"]:
+        model_path = Path(f"data/nhl/models/{stat}_model_latest.pkl")
+        if model_path.exists():
+            with open(model_path, "rb") as f:
+                models[stat] = pickle.load(f)
+            print(f"[make_nhl_edges] Loaded {stat} model from {model_path}")
+        else:
+            print(f"[make_nhl_edges] {stat.capitalize()} model not found, using consensus baseline")
+
     return models
 
 
@@ -84,16 +95,17 @@ def compute_model_prob(row, models, consensus_prob):
     """
     Compute model probability for a prop.
 
-    Phase B: Use trained model for SOG, consensus for others.
+    Phase C: Use trained models for all markets (SOG, goals, assists, points).
+    Falls back to consensus if model not available.
     """
     market_std = row.get("market_std")
     player = row.get("player")
     side = row.get("side")
     line = row.get("point")
 
-    # Use trained model if available
-    if market_std == "sog" and "sog" in models:
-        model = models["sog"]
+    # Check if we have a model for this market
+    if market_std in models:
+        model = models[market_std]
         try:
             if side == "Over":
                 prob = model.predict_prob_over(player, line)
@@ -102,10 +114,10 @@ def compute_model_prob(row, models, consensus_prob):
             return prob
         except Exception as e:
             # Fallback to consensus on error
-            print(f"[warn] Model prediction failed for {player}: {e}", file=sys.stderr)
+            print(f"[warn] Model prediction failed for {player} {market_std}: {e}", file=sys.stderr)
             return consensus_prob
 
-    # Fallback to consensus for other markets (goals, assists, points)
+    # Fallback to consensus if no model available
     return consensus_prob
 
 

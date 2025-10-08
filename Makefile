@@ -177,6 +177,7 @@ NHL_STATS_SKATERS := $(NHL_PROC_DIR)/skater_logs_$(DATE).parquet
 NHL_STATS_GOALIES := $(NHL_PROC_DIR)/goalie_logs_$(DATE).parquet
 NHL_CONSENSUS_PROPS := $(NHL_CONS_DIR)/consensus_props_$(DATE).csv
 NHL_CONSENSUS_GAMES := $(NHL_CONS_DIR)/consensus_games_$(DATE).csv
+NHL_MODELS := $(NHL_DATA_DIR)/models/sog_model_latest.pkl
 NHL_PROPS_MODEL := $(NHL_PROPS_DIR)/props_with_model_$(DATE).csv
 NHL_PAGE := $(NHL_DOCS_DIR)/index.html
 
@@ -211,12 +212,17 @@ $(NHL_ODDS_PROPS) $(NHL_ODDS_GAMES): scripts/nhl/fetch_nhl_odds.py | $(NHL_PROC_
 $(NHL_STATS_SKATERS) $(NHL_STATS_GOALIES): scripts/nhl/fetch_nhl_stats.py | $(NHL_PROC_DIR)
 	$(PY) scripts/nhl/fetch_nhl_stats.py --date $(DATE)
 
+# Train models
+$(NHL_MODELS): $(NHL_STATS_SKATERS) scripts/nhl/train_sog_model.py scripts/nhl/train_scoring_models.py | $(NHL_DATA_DIR)/models
+	$(PY) scripts/nhl/train_sog_model.py --date $(DATE)
+	$(PY) scripts/nhl/train_scoring_models.py --date $(DATE)
+
 # Compute consensus
 $(NHL_CONSENSUS_PROPS) $(NHL_CONSENSUS_GAMES): $(NHL_ODDS_PROPS) scripts/nhl/make_nhl_consensus.py | $(NHL_CONS_DIR)
 	$(PY) scripts/nhl/make_nhl_consensus.py --date $(DATE)
 
-# Compute edges
-$(NHL_PROPS_MODEL): $(NHL_ODDS_PROPS) $(NHL_CONSENSUS_PROPS) scripts/nhl/make_nhl_edges.py | $(NHL_PROPS_DIR)
+# Compute edges (depends on models)
+$(NHL_PROPS_MODEL): $(NHL_ODDS_PROPS) $(NHL_CONSENSUS_PROPS) $(NHL_MODELS) scripts/nhl/make_nhl_edges.py | $(NHL_PROPS_DIR)
 	$(PY) scripts/nhl/make_nhl_edges.py --date $(DATE)
 
 # Build page
@@ -224,7 +230,7 @@ $(NHL_PAGE): $(NHL_PROPS_MODEL) scripts/nhl/build_nhl_props_page.py | $(NHL_DOCS
 	$(PY) scripts/nhl/build_nhl_props_page.py --date $(DATE)
 
 # Ensure NHL directories exist
-$(NHL_PROC_DIR) $(NHL_CONS_DIR) $(NHL_PROPS_DIR) $(NHL_DOCS_DIR):
+$(NHL_PROC_DIR) $(NHL_CONS_DIR) $(NHL_PROPS_DIR) $(NHL_DOCS_DIR) $(NHL_DATA_DIR)/models:
 	mkdir -p $@
 
 # ========================================================================
