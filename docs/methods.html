@@ -31,12 +31,12 @@
   <main class="wrap">
     <div class="card">
       <h1>Methods</h1>
-      <div class="updated">Last updated: Oct 7, 2025</div>
+      <div class="updated">Last updated: Oct 8, 2025</div>
 
       <p>This page describes how Fourth &amp; Value models player props and calculates "value." It's intentionally general (no week-specific numbers) so it stays accurate as we update models.</p>
 
       <div class="highlight">
-        <strong>🆕 Latest Update (Oct 7, 2025):</strong> Defensive adjustments are now fully implemented and documented. We adjust player projections by ±15% based on opponent defensive strength (computed from yards allowed per game). See the Matchup Adjustments section below for the complete formula and implementation details.
+        <strong>🆕 Latest Update (Oct 8, 2025):</strong> Home/away field advantage adjustments are now live! We apply evidence-based multipliers (±3% to ±6%) based on game location, resulting in 6-12% spreads between home and away projections. Combined with defensive adjustments, this brings our model significantly closer to market consensus. See the Matchup Adjustments section for full details.
       </div>
 
       <h2 id="what-we-model">1) What we model</h2>
@@ -106,7 +106,10 @@
       <p>This captures form changes, hot streaks, and role adjustments much faster than simple averages.</p>
 
       <h3>Matchup adjustments:</h3>
-      <p>We apply defensive adjustments to account for opponent strength. This affects the player's expected production (μ) based on the quality of defense they're facing.</p>
+      <p>We apply two layers of matchup adjustments to account for both opponent strength and game location:</p>
+
+      <h4>A. Defensive adjustments</h4>
+      <p>Player projections are adjusted based on opponent defensive strength.</p>
 
       <p><strong>Defensive rating calculation:</strong></p>
       <ul>
@@ -143,6 +146,113 @@
       </ul>
 
       <p class="note"><em>Note: In practice, defensive ratings typically range from 0.5 to ~1.5 early in the season, so actual adjustments are usually in the ±7% to ±15% range.</em></p>
+
+      <h4>B. Home/Away field advantage adjustments</h4>
+      <p>After defensive adjustments, we apply home field advantage multipliers to account for location-based performance differences.</p>
+
+      <p><strong>Why this matters:</strong> NFL data shows consistent home field advantage across all positions. Home teams score 2-4 more points per game on average. This stems from:</p>
+      <ul>
+        <li>Crowd noise disrupting opponent communication (helps your offense)</li>
+        <li>Familiarity with field conditions, locker rooms, and routine</li>
+        <li>Reduced travel fatigue and timezone changes</li>
+        <li>Referee bias (subtle but measurable)</li>
+      </ul>
+
+      <p><strong>Implementation approach:</strong> We use evidence-based multipliers applied to player expectations (μ) after defensive adjustments:</p>
+
+      <table style="border-collapse: collapse; width: 100%; margin: 12px 0;">
+        <thead>
+          <tr style="border-bottom: 2px solid rgba(255,255,255,0.1);">
+            <th style="text-align: left; padding: 8px;">Market</th>
+            <th style="text-align: center; padding: 8px;">Home Multiplier</th>
+            <th style="text-align: center; padding: 8px;">Away Multiplier</th>
+            <th style="text-align: center; padding: 8px;">Total Spread</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <td style="padding: 8px;">Pass Yards</td>
+            <td style="text-align: center; padding: 8px;">+6.0%</td>
+            <td style="text-align: center; padding: 8px;">-6.0%</td>
+            <td style="text-align: center; padding: 8px;"><strong>12.0%</strong></td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <td style="padding: 8px;">Pass TDs</td>
+            <td style="text-align: center; padding: 8px;">+6.0%</td>
+            <td style="text-align: center; padding: 8px;">-6.0%</td>
+            <td style="text-align: center; padding: 8px;"><strong>12.0%</strong></td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <td style="padding: 8px;">Interceptions</td>
+            <td style="text-align: center; padding: 8px;">-5.0%</td>
+            <td style="text-align: center; padding: 8px;">+5.0%</td>
+            <td style="text-align: center; padding: 8px;"><strong>10.0%</strong></td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <td style="padding: 8px;">Rush Yards</td>
+            <td style="text-align: center; padding: 8px;">+4.0%</td>
+            <td style="text-align: center; padding: 8px;">-4.0%</td>
+            <td style="text-align: center; padding: 8px;"><strong>8.0%</strong></td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <td style="padding: 8px;">Rush Attempts</td>
+            <td style="text-align: center; padding: 8px;">+2.0%</td>
+            <td style="text-align: center; padding: 8px;">-2.0%</td>
+            <td style="text-align: center; padding: 8px;"><strong>4.0%</strong></td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <td style="padding: 8px;">Receiving Yards</td>
+            <td style="text-align: center; padding: 8px;">+6.0%</td>
+            <td style="text-align: center; padding: 8px;">-6.0%</td>
+            <td style="text-align: center; padding: 8px;"><strong>12.0%</strong></td>
+          </tr>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+            <td style="padding: 8px;">Receptions</td>
+            <td style="text-align: center; padding: 8px;">+3.0%</td>
+            <td style="text-align: center; padding: 8px;">-3.0%</td>
+            <td style="text-align: center; padding: 8px;"><strong>6.0%</strong></td>
+          </tr>
+          <tr>
+            <td style="padding: 8px;">Anytime TD</td>
+            <td style="text-align: center; padding: 8px;">+5.0%</td>
+            <td style="text-align: center; padding: 8px;">-5.0%</td>
+            <td style="text-align: center; padding: 8px;"><strong>10.0%</strong></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p><strong>Real-world impact (Week 6 data):</strong></p>
+      <ul>
+        <li><strong>Coverage:</strong> 80.5% of props (206/256) have home/away data
+          <ul>
+            <li>Missing data primarily from D/ST units and recently traded players</li>
+          </ul>
+        </li>
+        <li><strong>Passing yards:</strong> Home QBs average 152.1 yards vs 134.6 away (+13.1% actual difference)</li>
+        <li><strong>Receiving yards:</strong> Home WRs/TEs average 42.0 yards vs 36.6 away (+14.8%)</li>
+        <li><strong>Rush yards:</strong> Home RBs average 54.4 yards vs 50.8 away (+6.9%)</li>
+      </ul>
+
+      <p><strong>Data pipeline:</strong></p>
+      <ol>
+        <li>Fetch NFL schedule data (home_team/away_team for each game)</li>
+        <li>Enrich historical game logs with <code>is_home</code> flag by joining on team/opponent/week</li>
+        <li>Build player params from L4 weighted history</li>
+        <li>Apply defensive adjustments (opponent strength)</li>
+        <li>Apply home/away multipliers (game location) ← <strong>New step</strong></li>
+        <li>Generate final probabilities for O/U props</li>
+      </ol>
+
+      <p><strong>Why simple multipliers (vs full home/away splits)?</strong></p>
+      <ul>
+        <li>✅ Requires less historical data (4 games vs 8+ for statistical significance)</li>
+        <li>✅ Lower risk of overfitting early in the season</li>
+        <li>✅ Easier to tune and validate against backtest results</li>
+        <li>✅ More transparent for users</li>
+        <li>🔜 Future phase: Full home/away distribution splits when we have sufficient data</li>
+      </ul>
+
+      <p class="note"><em>Note: Home/away adjustments are applied multiplicatively after defensive adjustments. A player facing a tough defense on the road receives both penalties (e.g., -15% defensive × -6% away = -20.1% total).</em></p>
 
       <h3>Manual adjustments (injuries/role changes):</h3>
       <ul>
@@ -248,10 +358,9 @@
       <h2 id="limits">10) Known limitations</h2>
       <ul>
         <li><strong>Sample size:</strong> Early in the season (Weeks 1-4), we have limited data. Model confidence is lower.</li>
-        <li><strong>Defensive adjustments:</strong> Framework built but not yet fully integrated into production.</li>
         <li><strong>Team context:</strong> We don't yet adjust for pace, game script, or team totals/spreads.</li>
         <li><strong>Weather:</strong> No weather adjustments (particularly important for passing games).</li>
-        <li><strong>Venue effects:</strong> Home/away and dome vs outdoor not yet factored.</li>
+        <li><strong>Venue effects:</strong> Dome vs outdoor conditions not yet factored.</li>
       </ul>
 
       <h2 id="roadmap">11) Roadmap</h2>
@@ -262,12 +371,13 @@
         <li>✅ <strike>Defensive matchup framework</strike> (Oct 2024)</li>
         <li>✅ <strike>Family-based multi-market modeling</strike> (Oct 2024)</li>
         <li>✅ <strike>Coherence validation &amp; opportunity detection</strike> (Oct 2024)</li>
-        <li>🔄 Integrate defensive stats into production pipeline</li>
+        <li>✅ <strike>Defensive stats integrated into production</strike> (Oct 2024)</li>
+        <li>✅ <strike>Home/away field advantage adjustments</strike> (Oct 2024)</li>
         <li>🔄 Team context (pace, pass rate, game totals)</li>
         <li>🔜 Market fusion (weak Bayesian updates from consensus lines)</li>
         <li>🔜 Monte Carlo joint simulation with correlated shocks</li>
         <li>🔜 Usage-based priors (target share, routes, red-zone touches)</li>
-        <li>🔜 Weather and venue adjustments</li>
+        <li>🔜 Weather and dome/outdoor venue adjustments</li>
         <li>🔜 Systematic calibration tracking (Brier scores, log loss)</li>
         <li>🔜 Public post-game grading and calibration charts</li>
         <li>🔜 Expanded markets (alt lines, first/last TD)</li>
