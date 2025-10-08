@@ -7,6 +7,7 @@ Shared module for training and inference.
 import pandas as pd
 import numpy as np
 from scipy.stats import norm, poisson
+from sklearn.isotonic import IsotonicRegression
 
 
 class SimpleSOGModel:
@@ -33,6 +34,7 @@ class SimpleSOGModel:
         }
         self.default_std = 1.2
         self.skater_stats = None
+        self.calibrator = None  # Isotonic regression calibrator
 
     def fit(self, skater_df: pd.DataFrame):
         """
@@ -52,12 +54,36 @@ class SimpleSOGModel:
 
         return self
 
-    def predict_prob_over(self, player: str, line: float) -> float:
+    def calibrate(self, props_df: pd.DataFrame):
+        """
+        Calibrate model using isotonic regression.
+
+        Args:
+            props_df: DataFrame with columns [player, point, side, consensus_prob]
+        """
+        # Get raw model predictions
+        raw_probs = self.predict_batch(props_df)
+
+        # Get consensus probabilities (calibration targets)
+        consensus_probs = props_df["consensus_prob"].values
+
+        # Fit isotonic regression
+        self.calibrator = IsotonicRegression(out_of_bounds="clip")
+        self.calibrator.fit(raw_probs, consensus_probs)
+
+        return self
+
+    def predict_prob_over(self, player: str, line: float, calibrated: bool = True) -> float:
         """
         Predict probability of going OVER a line.
 
         Uses Normal distribution: N(mean=shots_per_game, std=position_std)
         P(X > line) = 1 - CDF(line)
+
+        Args:
+            player: Player name
+            line: Prop line
+            calibrated: Whether to apply calibration (default True)
         """
         # Normalize player name
         player_norm = " ".join(player.strip().lower().split())
@@ -76,14 +102,22 @@ class SimpleSOGModel:
         # P(X > line) using Normal CDF
         prob_over = 1 - norm.cdf(line, loc=mean_sog, scale=std_sog)
 
+        # Apply calibration if available
+        if calibrated and self.calibrator is not None:
+            prob_over = self.calibrator.predict([prob_over])[0]
+
         return prob_over
 
-    def predict_batch(self, props_df: pd.DataFrame) -> pd.Series:
+    def predict_batch(self, props_df: pd.DataFrame, calibrated: bool = False) -> pd.Series:
         """
         Predict probabilities for a batch of props.
 
         Input: DataFrame with columns [player, market_std, side, point]
         Output: Series of probabilities
+
+        Args:
+            props_df: Props DataFrame
+            calibrated: Whether to apply calibration (default False for training)
         """
         probs = []
 
@@ -93,9 +127,9 @@ class SimpleSOGModel:
             side = row["side"]
 
             if side == "Over":
-                prob = self.predict_prob_over(player, line)
+                prob = self.predict_prob_over(player, line, calibrated=calibrated)
             else:  # Under
-                prob = 1 - self.predict_prob_over(player, line)
+                prob = 1 - self.predict_prob_over(player, line, calibrated=calibrated)
 
             probs.append(prob)
 
@@ -122,6 +156,7 @@ class SimpleScoringModel:
         """
         self.stat_name = stat_name
         self.skater_stats = None
+        self.calibrator = None  # Isotonic regression calibrator
 
     def fit(self, skater_df: pd.DataFrame):
         """Fit model on season stats."""
@@ -146,12 +181,36 @@ class SimpleScoringModel:
 
         return self
 
-    def predict_prob_over(self, player: str, line: float) -> float:
+    def calibrate(self, props_df: pd.DataFrame):
+        """
+        Calibrate model using isotonic regression.
+
+        Args:
+            props_df: DataFrame with columns [player, point, side, consensus_prob]
+        """
+        # Get raw model predictions
+        raw_probs = self.predict_batch(props_df)
+
+        # Get consensus probabilities (calibration targets)
+        consensus_probs = props_df["consensus_prob"].values
+
+        # Fit isotonic regression
+        self.calibrator = IsotonicRegression(out_of_bounds="clip")
+        self.calibrator.fit(raw_probs, consensus_probs)
+
+        return self
+
+    def predict_prob_over(self, player: str, line: float, calibrated: bool = True) -> float:
         """
         Predict probability of going OVER a line.
 
         For integer lines: Uses Poisson CDF
         For 0.5 lines (goals): Uses Bernoulli approximation from rate
+
+        Args:
+            player: Player name
+            line: Prop line
+            calibrated: Whether to apply calibration (default True)
         """
         # Normalize player name
         player_norm = " ".join(player.strip().lower().split())
@@ -172,10 +231,20 @@ class SimpleScoringModel:
             # P(X > line) = 1 - P(X <= line) = 1 - CDF(floor(line))
             prob_over = 1 - poisson.cdf(int(line), rate_per_game)
 
+        # Apply calibration if available
+        if calibrated and self.calibrator is not None:
+            prob_over = self.calibrator.predict([prob_over])[0]
+
         return prob_over
 
-    def predict_batch(self, props_df: pd.DataFrame) -> pd.Series:
-        """Predict probabilities for a batch of props."""
+    def predict_batch(self, props_df: pd.DataFrame, calibrated: bool = False) -> pd.Series:
+        """
+        Predict probabilities for a batch of props.
+
+        Args:
+            props_df: Props DataFrame
+            calibrated: Whether to apply calibration (default False for training)
+        """
         probs = []
 
         for _, row in props_df.iterrows():
@@ -184,9 +253,9 @@ class SimpleScoringModel:
             side = row["side"]
 
             if side == "Over":
-                prob = self.predict_prob_over(player, line)
+                prob = self.predict_prob_over(player, line, calibrated=calibrated)
             else:  # Under
-                prob = 1 - self.predict_prob_over(player, line)
+                prob = 1 - self.predict_prob_over(player, line, calibrated=calibrated)
 
             probs.append(prob)
 

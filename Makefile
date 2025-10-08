@@ -212,17 +212,22 @@ $(NHL_ODDS_PROPS) $(NHL_ODDS_GAMES): scripts/nhl/fetch_nhl_odds.py | $(NHL_PROC_
 $(NHL_STATS_SKATERS) $(NHL_STATS_GOALIES): scripts/nhl/fetch_nhl_stats.py | $(NHL_PROC_DIR)
 	$(PY) scripts/nhl/fetch_nhl_stats.py --date $(DATE)
 
-# Train models
+# Train models (uncalibrated)
 $(NHL_MODELS): $(NHL_STATS_SKATERS) scripts/nhl/train_sog_model.py scripts/nhl/train_scoring_models.py | $(NHL_DATA_DIR)/models
 	$(PY) scripts/nhl/train_sog_model.py --date $(DATE)
 	$(PY) scripts/nhl/train_scoring_models.py --date $(DATE)
 
-# Compute consensus
+# Compute consensus (needed for calibration targets)
 $(NHL_CONSENSUS_PROPS) $(NHL_CONSENSUS_GAMES): $(NHL_ODDS_PROPS) scripts/nhl/make_nhl_consensus.py | $(NHL_CONS_DIR)
 	$(PY) scripts/nhl/make_nhl_consensus.py --date $(DATE)
 
-# Compute edges (depends on models)
-$(NHL_PROPS_MODEL): $(NHL_ODDS_PROPS) $(NHL_CONSENSUS_PROPS) $(NHL_MODELS) scripts/nhl/make_nhl_edges.py | $(NHL_PROPS_DIR)
+# Calibrate models (depends on consensus)
+$(NHL_DATA_DIR)/models/.calibrated_$(DATE): $(NHL_MODELS) $(NHL_CONSENSUS_PROPS) scripts/nhl/calibrate_nhl_models.py
+	$(PY) scripts/nhl/calibrate_nhl_models.py --date $(DATE)
+	touch $@
+
+# Compute edges (depends on calibrated models)
+$(NHL_PROPS_MODEL): $(NHL_ODDS_PROPS) $(NHL_CONSENSUS_PROPS) $(NHL_DATA_DIR)/models/.calibrated_$(DATE) scripts/nhl/make_nhl_edges.py | $(NHL_PROPS_DIR)
 	$(PY) scripts/nhl/make_nhl_edges.py --date $(DATE)
 
 # Build page
