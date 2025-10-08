@@ -545,20 +545,28 @@ function render(){
   `).join("");
 
   // Render mobile cards
-  cardGrid.innerHTML = rows.map(r => `
+  cardGrid.innerHTML = rows.map(r => {
+    // Check if model probability is high confidence (>85%)
+    const modelProbNum = parseFloat((r.model_pct || '').replace('%', ''));
+    const isStrongSignal = modelProbNum >= 85;
+    const fireEmoji = isStrongSignal ? ' 🔥' : '';
+
+    return `
     <div class="prop-card${r.is_consensus ? ' consensus' : ''}">
       ${r.is_consensus ? '<div class="prop-card-badge">★ CONSENSUS</div>' : ''}
       <div class="prop-card-meta">${r.kick_et || ''} • ${r.game || ''}</div>
       <div class="prop-card-headline">${r.player || ''} — ${r.market_std || ''}</div>
       <div class="prop-card-betline">${r.name || ''} ${r.line_disp || ''} @ ${r.mkt_odds || ''} (${r.bookmaker || ''})</div>
       <div class="prop-card-stats">
-        <div>Model %</div><div>${r.model_pct || ''}</div>
+        <div>Model Line</div><div>${r.model_line_disp || ''}</div>
+        <div>Model %</div><div>${r.model_pct || ''}${fireEmoji}</div>
         <div>Edge</div><div style="color:${(r.edge_bps==null) ? '#9aa0a6' : (r.edge_bps>0 ? '#4ade80' : '#f87171')}">${r.edge_bps ? (r.edge_bps > 0 ? '+' : '') + r.edge_bps + ' bps' : ''}</div>
         <div>Market %</div><div>${r.consensus_pct || r.mkt_pct || ''}</div>
         <div>Fair Odds</div><div>${r.fair_odds || ''}</div>
       </div>
     </div>
-  `).join("");
+    `;
+  }).join("");
 }
 
 selMarket.addEventListener("change", e=>{ state.market=e.target.value; rebuildDependentSelectors(); render(); });
