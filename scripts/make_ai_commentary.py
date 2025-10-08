@@ -173,15 +173,9 @@ def _prompt_for_weekly_overview(df: pd.DataFrame, season: int, week: int) -> str
     # High confidence count
     high_conf_count = len(df[df.get('model_prob', 0) > 0.8]) if 'model_prob' in df.columns else 0
 
-    # Check for arbitrage file
-    arb_file = Path("data/qc/family_arbitrage.csv")
+    # Don't mention arbitrage count - the family_arbitrage.csv file
+    # contains incoherence warnings, not actual arb opportunities
     arb_count = 0
-    if arb_file.exists():
-        try:
-            arb_df = pd.read_csv(arb_file)
-            arb_count = len(arb_df)
-        except:
-            pass
 
     num_games = len(df['game_norm'].unique()) if 'game_norm' in df.columns else 0
 
