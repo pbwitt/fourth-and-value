@@ -352,7 +352,7 @@ def render_html(title: str, items: List[Dict[str, Any]], week_overview: str = ""
 
   <div class="wrap" data-week-overview="{week_overview_escaped}">
     <h1>{html.escape(title)}</h1>
-    <p class="muted">AI-assisted commentary per game. Choose a matchup to view just that game's summary. Total picks: {total_picks}.</p>
+    <p class="muted">AI-powered insights from our model. Choose a matchup to view analysis.</p>
 
     {sections_html}
   </div>
