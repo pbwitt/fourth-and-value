@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Compute edges for NHL props by joining odds + consensus + baseline model.
+Compute edges for NHL props by joining odds + consensus + ML models.
 
-For Phase A MVP, uses market consensus as model baseline (market-implied predictions).
-Future phases will add trained ML models for SOG, Goals, Assists, Points.
+Phase B: Uses trained models for SOG (Goals/Assists/Points fall back to consensus).
 
 Inputs:
   - data/nhl/processed/odds_props_{date}.csv
   - data/nhl/consensus/consensus_props_{date}.csv
+  - data/nhl/models/sog_model_latest.pkl (if available)
 
 Outputs:
   - data/nhl/props/props_with_model_{date}.csv
@@ -17,12 +17,17 @@ Usage:
 """
 
 import argparse
+import pickle
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
 import numpy as np
+
+# Import shared model classes
+sys.path.insert(0, str(Path(__file__).parent))
+from nhl_models import SimpleSOGModel
 
 
 def american_to_prob(odds: float) -> float:
@@ -60,16 +65,47 @@ def normalize_player_name(name: str) -> str:
     return " ".join(name.strip().lower().split())
 
 
-def compute_baseline_model_prob(consensus_prob: float, side: str) -> float:
-    """
-    Phase A baseline: Use market consensus as model probability.
+def load_models():
+    """Load trained models if available."""
+    models = {}
 
-    For Over/Under markets, consensus_prob represents the market's implied
-    probability. We use this as our baseline model prediction.
+    sog_model_path = Path("data/nhl/models/sog_model_latest.pkl")
+    if sog_model_path.exists():
+        with open(sog_model_path, "rb") as f:
+            models["sog"] = pickle.load(f)
+        print(f"[make_nhl_edges] Loaded SOG model from {sog_model_path}")
+    else:
+        print(f"[make_nhl_edges] SOG model not found, using consensus baseline")
 
-    Future phases will replace this with trained ML models.
+    return models
+
+
+def compute_model_prob(row, models, consensus_prob):
     """
-    # For Phase A MVP, market consensus IS our model
+    Compute model probability for a prop.
+
+    Phase B: Use trained model for SOG, consensus for others.
+    """
+    market_std = row.get("market_std")
+    player = row.get("player")
+    side = row.get("side")
+    line = row.get("point")
+
+    # Use trained model if available
+    if market_std == "sog" and "sog" in models:
+        model = models["sog"]
+        try:
+            if side == "Over":
+                prob = model.predict_prob_over(player, line)
+            else:  # Under
+                prob = 1 - model.predict_prob_over(player, line)
+            return prob
+        except Exception as e:
+            # Fallback to consensus on error
+            print(f"[warn] Model prediction failed for {player}: {e}", file=sys.stderr)
+            return consensus_prob
+
+    # Fallback to consensus for other markets (goals, assists, points)
     return consensus_prob
 
 
@@ -124,9 +160,12 @@ def main():
 
     print(f"[make_nhl_edges] Joined {len(merged)} prop rows with consensus")
 
-    # Compute baseline model probability (Phase A: use consensus as model)
+    # Load trained models
+    models = load_models()
+
+    # Compute model probabilities (Phase B: use models where available)
     merged["model_prob"] = merged.apply(
-        lambda row: compute_baseline_model_prob(row["consensus_prob"], row["side"]),
+        lambda row: compute_model_prob(row, models, row["consensus_prob"]),
         axis=1,
     )
 
