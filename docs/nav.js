@@ -13,7 +13,7 @@
   // --- Styles ---
   const css = `
   :root{
-    --nav-h:64px; --nav-bg:#0b1220; --nav-fg:#ffffff; --nav-fg-dim:#cbd5e1; --nav-border:#1f2937;
+    --nav-h:64px; --nav-bg:#0b0b0b; --nav-fg:#ffffff; --nav-fg-dim:#cbd5e1; --nav-border:#27324a;
   }
   @media (max-width:768px){ :root{ --nav-h:56px; } }
 

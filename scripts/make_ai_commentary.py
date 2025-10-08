@@ -128,9 +128,11 @@ What our model sees:
 - Confidence range: {conf_range}
 - Best books for prices: {best_books}
 
+IMPORTANT: Only mention markets that appear in the "Market directions" and "Strongest edges" data above. Do NOT mention or recommend markets like "longest reception", "longest rush", "first TD", "last TD", or any other markets not explicitly shown in the data. Stick strictly to the markets we actually model.
+
 Write a friendly, conversational paragraph (3-5 sentences) that:
 - Talks naturally about what looks interesting in this matchup (e.g., "I really like the RB unders here" or "The receiving props look solid")
-- Names 1-3 specific players and why they stand out based on the data
+- Names 1-3 specific players and why they stand out based ONLY on the markets shown in the data
 - Gives honest advice about confidence level (e.g., "This one feels pretty solid" vs "There's more uncertainty here, so maybe go lighter")
 - Only mentions shopping around if prices actually vary significantly across books
 - Sounds like advice you'd give a friend, not a robot report
@@ -139,6 +141,7 @@ Avoid:
 - Generic phrases like "pops most on our numbers" or "keep stakes modest"
 - Overly formal language
 - Bullet points or lists
+- Mentioning any markets not in the provided data
 
 Return only the conversational paragraph.
 """
