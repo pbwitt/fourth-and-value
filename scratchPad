@@ -1,0 +1,118 @@
+python - <<'PY'
+import pandas as pd, numpy as np, json, os, sys
+
+OK = True
+def fail(msg):
+    global OK; OK=False; print("❌", msg)
+def pass_(msg):
+    print("✅", msg)
+
+paths = {
+    "odds":"data/props/latest_all_props.csv",
+    "params":"data/props/params_week4.csv",
+    "merged":"data/props/props_with_model_week4.csv",
+}
+for k,p in paths.items():
+    if not os.path.exists(p): fail(f"[{k}] missing: {p}")
+    else: pass_(f"[{k}] found: {p} ({os.path.getsize(p)/1e6:.2f} MB)")
+
+if not all(os.path.exists(p) for p in paths.values()):
+    sys.exit(1)
+
+odds   = pd.read_csv(paths["odds"], low_memory=False)
+params = pd.read_csv(paths["params"], low_memory=False)
+merged = pd.read_csv(paths["merged"], low_memory=False)
+
+# ---- ODDS QC ----
+need_odds_cols = ["game_id","bookmaker","market","player","price"]
+missing = [c for c in need_odds_cols if c not in odds.columns]
+if missing: fail(f"[odds] missing cols: {missing}")
+else: pass_("[odds] required columns present")
+
+dup_rate = odds.duplicated(subset=["bookmaker","game_id","market","player","point"]).mean()
+print(f"[odds] duplicate rate on key ~ {dup_rate:.2%}")
+if dup_rate > 0.01: fail("[odds] duplicate rate >1% (expected low)")
+
+# ---- PARAMS QC ----
+need_param_cols = ["name_std","market_std"]
+missing = [c for c in need_param_cols if c not in params.columns]
+if missing: fail(f"[params] missing cols: {missing}")
+else: pass_("[params] required columns present")
+
+# Coverage expectations
+has_mu   = "mu" in params and params["mu"].notna().mean()
+has_sig  = "sigma" in params and params["sigma"].notna().mean()
+has_lam  = "lam" in params and params["lam"].notna().mean()
+print(f"[params] coverage: mu={has_mu if has_mu is not False else 0:.1%} sigma={has_sig if has_sig is not False else 0:.1%} lam={has_lam if has_lam is not False else 0:.1%}")
+
+# Basic health for Normal markets (if present)
+if "sigma" in params:
+    bad_sigma = (params["sigma"]<=0).sum()
+    if bad_sigma>0: fail(f"[params] {bad_sigma} rows have sigma<=0")
+    else: pass_("[params] sigma >0 for all rows w/ sigma")
+
+if "mu" in params:
+    neg_mu = (params["mu"]<0).sum()
+    if neg_mu>0: fail(f"[params] {neg_mu} rows have mu<0 (should be clamped ≥0)")
+    else: pass_("[params] mu ≥0 for all rows w/ mu")
+
+# ---- MERGED/EDGES QC ----
+need_merged_cols = ["player","name_std","market_std","model_prob","edge_bps","side"]
+missing = [c for c in need_merged_cols if c not in merged.columns]
+if missing: fail(f"[merged] missing cols: {missing}")
+else: pass_("[merged] required columns present")
+
+# model_prob should exist and vary by market (for modeled markets)
+if "model_prob" in merged:
+    overall_null = merged["model_prob"].isna().mean()
+    print(f"[merged] model_prob null % = {overall_null:.1%}")
+    modeled = merged[merged["model_prob"].notna()].copy()
+    if len(modeled)==0:
+        fail("[merged] no modeled rows (model_prob all null)")
+    else:
+        # variance check by market
+        v = (modeled.groupby("market_std")["model_prob"]
+                    .nunique(dropna=True)
+                    .reset_index(name="distinct"))
+        flat_markets = v[v["distinct"]<=1]["market_std"].tolist()
+        print(f"[merged] markets with flat model_prob: {flat_markets[:10]}{' ...' if len(flat_markets)>10 else ''}")
+        if len(flat_markets) > 0:
+            fail(f"[merged] {len(flat_markets)} markets have no variance in model_prob")
+        else:
+            pass_("[merged] model_prob varies within markets")
+
+# side/name_std presence
+if "side" in merged and merged["side"].isna().mean()==0:
+    pass_("[merged] side populated 100%")
+else:
+    fail("[merged] side has nulls")
+
+# Basic edge sanity
+if "edge_bps" in merged:
+    if merged["edge_bps"].notna().any():
+        lo, hi = merged["edge_bps"].quantile([0.01,0.99]).tolist()
+        print(f"[merged] edge_bps ~ 1–99%ile: [{lo:.0f}, {hi:.0f}] bps")
+        pass_("[merged] edge_bps present")
+    else:
+        fail("[merged] edge_bps all null")
+
+# Kickoff formatting (optional columns)
+for c in ["kick_et","kickoff_et","commence_time"]:
+    if c in merged.columns:
+        pass_(f"[merged] has {c}")
+
+# Save quick summary
+out = {
+    "odds_rows": int(len(odds)),
+    "params_rows": int(len(params)),
+    "merged_rows": int(len(merged)),
+    "dup_rate_odds": float(dup_rate),
+    "model_prob_null_pct": float(overall_null) if "model_prob" in merged else None,
+}
+os.makedirs("data/qc", exist_ok=True)
+with open("data/qc/props_qc_week4.json","w") as f: json.dump(out, f, indent=2)
+print("📄 wrote data/qc/props_qc_week4.json")
+
+if OK: print("\n🎉 QC PASSED: data looks final-ready.")
+else:  print("\n⚠️ QC FOUND ISSUES: see ❌ above.")
+PY

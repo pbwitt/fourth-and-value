@@ -16,15 +16,8 @@ def main():
 
     df = pd.read_csv(args.in_csv, low_memory=False)
 
-    # Create 'side' from 'name' column if missing (yes/over/under/no)
-    if "side" not in df.columns and "name" in df.columns:
-        df["side"] = df["name"]
-
     # --- light guards ---
-    need = {"market_std","side","point","price","week"}
-    if "bookmaker_title" not in df.columns and "bookmaker" in df.columns:
-        df["bookmaker_title"] = df["bookmaker"]
-
+    need = {"market_std","side","point","price","bookmaker_title","week"}
     if not need.issubset(df.columns):
         missing = sorted(need - set(df.columns))
         raise SystemExit(f"Missing required columns: {missing}")

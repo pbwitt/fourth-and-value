@@ -4,6 +4,7 @@
 # Calls OpenAI if OPENAI_API_KEY + openai SDK are available; otherwise uses a deterministic fallback.
 
 import argparse, json, os, sys, textwrap, math, re
+from pathlib import Path
 from typing import Dict, List, Optional
 import pandas as pd
 import numpy as np
@@ -97,25 +98,96 @@ import numpy as np
 import textwrap
 import pandas as pd
 
-SUMMARY_TEMPLATE = """You are producing a concise betting summary for one NFL game.
-Write a single paragraph (3–5 sentences). Be specific and grounded in the data below.
-Do NOT use bullet points or headings. Avoid generic phrases like "pops most on our numbers".
+WEEKLY_OVERVIEW_TEMPLATE = """You're helping a casual NFL fan understand the betting landscape for Week {week}.
+
+Week {week} Overview:
+- Total games: {num_games}
+- Top 5 strongest edges: {top_edges_week}
+- Market themes: {market_themes}
+- High-confidence plays (>80%): {high_conf_count}
+- Arbitrage opportunities: {arb_count}
+
+Write a friendly, conversational overview (4-6 sentences) that:
+- Highlights the biggest themes this week (e.g., "Lots of tight end unders popping" or "RB props looking soft")
+- Mentions 2-3 standout players with the strongest edges across all games
+- Notes if there are good arbitrage opportunities worth exploring
+- Gives a general confidence vibe for the week (e.g., "Solid week with some confident plays" vs "Tighter lines this week")
+- Sounds like you're catching up a friend on what to look for
+
+Avoid generic phrases. Be specific and data-driven but conversational.
+Return only the paragraph.
+"""
+
+SUMMARY_TEMPLATE = """You're a knowledgeable friend helping a casual NFL fan find good player prop bets for this game.
 
 Game: {matchup}
 
-Signals (model vs market):
-- Market directions summary: {market_skew}
-- Strongest player edges (abs bps): {top_edges}
-- Confidence range (5th–95th pct of model_conf): {conf_range}
-- Most frequent best-price books: {best_books}
+What our model sees:
+- Market directions: {market_skew}
+- Strongest edges: {top_edges}
+- Confidence range: {conf_range}
+- Best books for prices: {best_books}
 
-Guidance:
-- State the overall read (e.g., "RB unders dominate", "WR receptions overs cluster").
-- Mention 1–3 specific players + markets that drive the read.
-- Qualify uncertainty (e.g., "higher uncertainty—keep stakes modest" vs "tighter distribution").
-- If prices differ materially by book, suggest shopping; otherwise don’t force it.
-Return only the paragraph text.
+Write a friendly, conversational paragraph (3-5 sentences) that:
+- Talks naturally about what looks interesting in this matchup (e.g., "I really like the RB unders here" or "The receiving props look solid")
+- Names 1-3 specific players and why they stand out based on the data
+- Gives honest advice about confidence level (e.g., "This one feels pretty solid" vs "There's more uncertainty here, so maybe go lighter")
+- Only mentions shopping around if prices actually vary significantly across books
+- Sounds like advice you'd give a friend, not a robot report
+
+Avoid:
+- Generic phrases like "pops most on our numbers" or "keep stakes modest"
+- Overly formal language
+- Bullet points or lists
+
+Return only the conversational paragraph.
 """
+
+def _prompt_for_weekly_overview(df: pd.DataFrame, season: int, week: int) -> str:
+    """Generate prompt for week-at-a-glance overview."""
+    # Top 5 edges across all games
+    if {'player', 'market_std', 'edge_bps'}.issubset(df.columns):
+        top = (df[['player','market_std','edge_bps']]
+               .dropna()
+               .assign(abs_edge=lambda x: x['edge_bps'].abs())
+               .sort_values('abs_edge', ascending=False)
+               .head(5))
+        top_edges_week = "; ".join(f"{r.player} {r.market_std} ({int(r.edge_bps)} bps)"
+                                    for _, r in top.iterrows()) if len(top) else "n/a"
+    else:
+        top_edges_week = "n/a"
+
+    # Market themes (which markets have most edges)
+    if {'edge_bps', 'market_std'}.issubset(df.columns):
+        theme_counts = df[df['edge_bps'].abs() > 200].groupby('market_std').size().sort_values(ascending=False).head(3)
+        market_themes = ", ".join(f"{m}: {c} edges" for m, c in theme_counts.items()) if len(theme_counts) else "n/a"
+    else:
+        market_themes = "n/a"
+
+    # High confidence count
+    high_conf_count = len(df[df.get('model_prob', 0) > 0.8]) if 'model_prob' in df.columns else 0
+
+    # Check for arbitrage file
+    arb_file = Path("data/qc/family_arbitrage.csv")
+    arb_count = 0
+    if arb_file.exists():
+        try:
+            arb_df = pd.read_csv(arb_file)
+            arb_count = len(arb_df)
+        except:
+            pass
+
+    num_games = len(df['game_norm'].unique()) if 'game_norm' in df.columns else 0
+
+    prompt = WEEKLY_OVERVIEW_TEMPLATE.format(
+        week=week,
+        num_games=num_games,
+        top_edges_week=top_edges_week,
+        market_themes=market_themes,
+        high_conf_count=high_conf_count,
+        arb_count=arb_count
+    )
+    return textwrap.dedent(prompt).strip()
 
 def _prompt_for_game(game: str, rows: pd.DataFrame, season: int, week: int) -> str:
     """
@@ -183,7 +255,7 @@ def _call_llm(client, model, prompt: str) -> str:
         resp = client.chat.completions.create(
             model=model,  # e.g., "gpt-5"
             messages=[
-                {"role": "system", "content": "You are a sharp, data-driven NFL betting assistant."},
+                {"role": "system", "content": "You're a knowledgeable friend who follows NFL closely and helps casual fans find smart player prop bets. You're analytical but conversational, honest about uncertainty, and avoid sounding robotic or overly formal."},
                 {"role": "user", "content": prompt},
             ],
         )
@@ -229,14 +301,37 @@ def main(argv=None):
     if client is None:
         print("[warn] OPENAI_API_KEY not found or openai SDK missing; using deterministic fallback.", file=sys.stderr)
 
-    out = {"games": []}  # <-- THIS is what build_insights_page.py expects
+    # Generate weekly overview first
+    print(f"\n{'='*70}", file=sys.stderr)
+    print(f"Generating AI Insights for Week {args.week}", file=sys.stderr)
+    print(f"{'='*70}", file=sys.stderr)
+    print(f"[1/{len(games)+1}] Generating weekly overview...", file=sys.stderr, flush=True)
+    weekly_prompt = _prompt_for_weekly_overview(df, args.season, args.week)
+    weekly_overview = _call_llm(client, args.model, weekly_prompt) or ""
+    if not weekly_overview.strip():
+        # Fallback for weekly overview
+        top_edge = df.nlargest(1, 'edge_bps').iloc[0] if 'edge_bps' in df.columns and len(df) > 0 else None
+        if top_edge is not None:
+            weekly_overview = f"Week {args.week} features {len(games)} games with several interesting edges. Top edge: {top_edge.get('player', 'Unknown')} {top_edge.get('market_std', '')} at {int(top_edge.get('edge_bps', 0))} bps. Check individual games for details."
+        else:
+            weekly_overview = f"Week {args.week} features {len(games)} games. Select a game above to see detailed analysis."
+    print(f"    ✓ Weekly overview complete", file=sys.stderr)
 
-    for g in games:
+    out = {
+        "week_overview": weekly_overview.strip(),
+        "games": []
+    }
+
+    for idx, g in enumerate(games, start=2):
         df_g = df[df["game_norm"] == g]
         top = _select_top_for_game(df_g, args.top_n)
 
         prompt = _prompt_for_game(g, df_g, args.season, args.week)
-        print(f"[LLM] {g} ...", file=sys.stderr)
+        pct = int((idx-1) / len(games) * 100)
+        bar_length = 40
+        filled = int(bar_length * (idx-1) / len(games))
+        bar = '█' * filled + '░' * (bar_length - filled)
+        print(f"\r[{idx}/{len(games)+1}] {bar} {pct}% | {g[:50]}", file=sys.stderr, end='', flush=True)
 
     # at the top of the run (once)
 
@@ -263,7 +358,10 @@ def main(argv=None):
     with open(args.out_json, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=2)
 
-    print(f"[ok] wrote {args.out_json} with {len(out)} games.")
+    print(f"\n\n{'='*70}", file=sys.stderr)
+    print(f"✓ Complete! Generated insights for {len(out['games'])} games", file=sys.stderr)
+    print(f"  Output: {args.out_json}", file=sys.stderr)
+    print(f"{'='*70}\n", file=sys.stderr)
 
 if __name__ == "__main__":
     main()

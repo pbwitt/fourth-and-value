@@ -92,7 +92,7 @@ def coerce_items(obj: Any) -> List[Dict[str, Any]]:
 
     return items
 
-def load_insights_json(season: int, week: int, override: Optional[str]) -> Tuple[List[Dict[str, Any]], Optional[Path]]:
+def load_insights_json(season: int, week: int, override: Optional[str]) -> Tuple[List[Dict[str, Any]], Optional[str], Optional[Path]]:
     paths: List[Path] = []
     if override:
         p = Path(override)
@@ -112,8 +112,9 @@ def load_insights_json(season: int, week: int, override: Optional[str]) -> Tuple
     src = paths[0]
     with src.open("r", encoding="utf-8") as f:
         raw = json.load(f)
+    week_overview = raw.get("week_overview", "") if isinstance(raw, dict) else ""
     items = coerce_items(raw)
-    return items, src
+    return items, week_overview, src
 
 # ---------- HTML RENDERING ----------
 
@@ -163,9 +164,9 @@ STYLE = """
   }
 
   /* Minimal nav styles (for injected nav.js) */
-  .site-header{position:sticky;top:0;z-index:50;background:rgba(20,20,24,.65);
+  .site-header{position:sticky;top:0;z-index:50;background:rgba(11,11,11,.85);
     backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
-    border-bottom:1px solid #1f2937}
+    border-bottom:1px solid #27324a}
   .navbar{max-width:1100px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:12px}
   .nav-links{margin-left:auto;display:flex;flex-wrap:wrap;gap:8px}
   .nav-link{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px;text-decoration:none;color:#e5e7eb}
@@ -268,7 +269,12 @@ document.addEventListener('DOMContentLoaded', () => {
   if (v === '__all__') {
     blocks.forEach(b => { b.style.display = 'none'; });
     weekBox.style.display = '';
-    weekLine.textContent = `${totalGames} games • ${totalPicks} total picks. Select a game to view its summary.`;
+    const weekOverview = wrap.dataset.weekOverview || '';
+    if (weekOverview) {
+      weekLine.textContent = weekOverview;
+    } else {
+      weekLine.textContent = `${totalGames} games • ${totalPicks} total picks. Select a game to view its summary.`;
+    }
     countSpan.textContent = `${totalGames} games`;
     updateShare(null, null);
     return;
@@ -308,7 +314,7 @@ def slugify(s: str) -> str:
          .replace("@", " at ")
     ).replace("  ", " ").strip().replace(" ", "-")
 
-def render_html(title: str, items: List[Dict[str, Any]]) -> str:
+def render_html(title: str, items: List[Dict[str, Any]], week_overview: str = "") -> str:
     total_picks = sum(len(it.get("picks", [])) for it in items)
 
     game_sections: List[str] = []
@@ -330,6 +336,9 @@ def render_html(title: str, items: List[Dict[str, Any]]) -> str:
 
     sections_html = "\n".join(game_sections)
 
+    # Add weekly overview as a hidden attribute for JavaScript
+    week_overview_escaped = html.escape(week_overview) if week_overview else ""
+
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -341,9 +350,9 @@ def render_html(title: str, items: List[Dict[str, Any]]) -> str:
 <body>
   <div id="nav-root"></div>
 
-  <div class="wrap">
+  <div class="wrap" data-week-overview="{week_overview_escaped}">
     <h1>{html.escape(title)}</h1>
-    <p class="muted">AI-assisted commentary per game. Choose a matchup to view just that game’s summary. Total picks: {total_picks}.</p>
+    <p class="muted">AI-assisted commentary per game. Choose a matchup to view just that game's summary. Total picks: {total_picks}.</p>
 
     {sections_html}
   </div>
@@ -365,11 +374,11 @@ def main(argv: List[str]) -> None:
     ap.add_argument("--json", help="Optional override path to insights JSON")
     args = ap.parse_args(argv)
 
-    items, src = load_insights_json(args.season, args.week, args.json)
+    items, week_overview, src = load_insights_json(args.season, args.week, args.json)
     if not items:
         print("[warn] No items to render; page will say 0 picks.", file=sys.stderr)
 
-    html_str = render_html(args.title, items)
+    html_str = render_html(args.title, items, week_overview)
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(html_str, encoding="utf-8")
