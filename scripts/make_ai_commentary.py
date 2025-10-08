@@ -148,6 +148,9 @@ Return only the conversational paragraph.
 
 def _prompt_for_weekly_overview(df: pd.DataFrame, season: int, week: int) -> str:
     """Generate prompt for week-at-a-glance overview."""
+    # Filter to only markets we actually model (have model_prob)
+    df = df[df['model_prob'].notna()].copy()
+
     # Top 5 edges across all games
     if {'player', 'market_std', 'edge_bps'}.issubset(df.columns):
         top = (df[['player','market_std','edge_bps']]
@@ -197,6 +200,12 @@ def _prompt_for_game(game: str, rows: pd.DataFrame, season: int, week: int) -> s
     Build a compact, model-led paragraph prompt for GPT-5, using the rows for this matchup.
     """
     df = rows.copy()
+
+    # Filter to only markets we actually model (have model_prob)
+    df = df[df['model_prob'].notna()].copy()
+
+    if len(df) == 0:
+        return ""
 
     # --- Market skew by over/under counts per market type
     if {'edge_bps', 'market_std'}.issubset(df.columns):
