@@ -22,7 +22,6 @@ MERGED     := $(PROPS_DIR)/props_with_model_week$(WEEK).csv
 
 PROPS_HTML := $(DOCS_DIR)/props/index.html
 TOP_HTML   := $(DOCS_DIR)/props/top.html
-CONS_HTML  := $(DOCS_DIR)/props/consensus.html
 INSIGHTS_HTML := $(DOCS_DIR)/props/insights.html
 ARB_HTML   := $(DOCS_DIR)/props/arbitrage.html
 ODDS_CSV   := $(ODDS_DIR)/latest.csv
@@ -37,8 +36,8 @@ monday_all: weekly qc
 	@echo "[OK] Weekly build complete: SEASON=$(SEASON) WEEK=$(WEEK)"
 	@echo "[OK] All QC checks passed ✓"
 
-# Weekly pipeline
-weekly: $(PROPS_HTML) $(TOP_HTML) $(CONS_HTML) $(INSIGHTS_HTML) $(ARB_HTML)
+# Weekly pipeline (consensus removed - now integrated into Props page)
+weekly: $(PROPS_HTML) $(TOP_HTML) $(INSIGHTS_HTML) $(ARB_HTML)
 
 # QC checks (run after weekly build)
 .PHONY: qc
@@ -110,13 +109,6 @@ $(TOP_HTML): scripts/build_top_picks.py $(MERGED) | $(DOCS_DIR)/props
 	  --week $(WEEK) \
 	  --title "Top Picks — Week $(WEEK)"
 
-$(CONS_HTML): scripts/build_consensus_page.py $(MERGED) | $(DOCS_DIR)/props
-	$(PY) scripts/build_consensus_page.py \
-	  --merged_csv $(MERGED) \
-	  --out $@ \
-	  --season $(SEASON) \
-	  --week $(WEEK)
-
 $(INSIGHTS_HTML): scripts/build_insights_page.py | $(DOCS_DIR)/props
 	$(PY) scripts/build_insights_page.py \
 	  --season $(SEASON) \
@@ -132,7 +124,7 @@ $(ARB_HTML): scripts/build_arbitrage_page.py $(INCOH_CSV) $(MERGED) | $(DOCS_DIR
 
 
 # Pages-only rebuild (when CSV already exists)
-props_now_pages: $(PROPS_HTML) $(TOP_HTML) $(CONS_HTML) $(INSIGHTS_HTML)
+props_now_pages: $(PROPS_HTML) $(TOP_HTML) $(INSIGHTS_HTML)
 	@echo "[OK] Pages rebuilt from $(MERGED)"
 
 # Local preview
@@ -155,7 +147,7 @@ monday_all_pub: monday_all publish_pages
 
 # Cleanup
 clean_pages:
-	rm -f $(PROPS_HTML) $(TOP_HTML) $(CONS_HTML) $(INSIGHTS_HTML)
+	rm -f $(PROPS_HTML) $(TOP_HTML) $(INSIGHTS_HTML)
 
 clean:
 	rm -f $(PARAMS) $(MERGED)

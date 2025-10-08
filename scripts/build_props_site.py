@@ -240,6 +240,26 @@ def main():
     # Format model line (mu) for display
     df0["model_line_disp"] = df0["mu"].apply(_fmt_point)
 
+    # Detect consensus picks (directional alignment: book < consensus < model for overs)
+    def is_consensus_pick(row):
+        try:
+            book_line = float(row.get("point"))
+            cons_line = float(row.get("consensus_line"))
+            model_line = float(row.get("mu"))
+            side = str(row.get("name", "")).lower().strip()
+
+            # For "over" bets: book < consensus < model
+            if side in ["over", "yes"]:
+                return book_line < cons_line < model_line
+            # For "under" bets: book > consensus > model
+            elif side in ["under", "no"]:
+                return book_line > cons_line > model_line
+            return False
+        except (ValueError, TypeError):
+            return False
+
+    df0["is_consensus"] = df0.apply(is_consensus_pick, axis=1)
+
     # Filter modeled if requested
     df = df0.copy()
     if not args.show_unmodeled and "model_prob" in df.columns:
@@ -261,7 +281,8 @@ def main():
         "line_disp","model_line_disp","consensus_line_disp",
         "mkt_odds","fair_odds","mkt_pct","model_pct","edge_bps",
         "consensus_pct","book_count_disp",
-        "kick_et"
+        "kick_et",
+        "is_consensus"  # NEW: consensus pick flag
     ]
     for c in keep:
         if c not in df.columns:
@@ -320,6 +341,32 @@ a.button:hover{background:#6ee7ff}
 .checkbox-item:hover{background:rgba(255,255,255,.05)}
 .checkbox-item input[type="checkbox"]{width:16px;height:16px;cursor:pointer;accent-color:#34d399}
 .checkbox-item label{cursor:pointer;flex:1;font-size:13px;color:var(--text);margin:0;white-space:nowrap}
+
+/* Consensus highlighting */
+tr.consensus-pick{border-left:3px solid #4ade80;background:rgba(78,222,128,.05)}
+tr.consensus-pick td:first-child::before{content:'★ ';color:#4ade80;font-size:14px;margin-right:4px}
+
+/* Consensus filter toggle */
+.toggle-wrapper{display:flex;align-items:center;gap:8px;margin-top:10px}
+.toggle-wrapper input[type="checkbox"]{width:16px;height:16px;cursor:pointer;accent-color:#34d399}
+.toggle-wrapper label{cursor:pointer;font-size:13px;margin:0}
+
+/* Mobile card view */
+.card-grid{display:none;grid-template-columns:1fr;gap:12px;margin-top:16px}
+.prop-card{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,0));border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.prop-card.consensus{border-left:3px solid #4ade80;background:rgba(78,222,128,.03)}
+.prop-card-badge{display:inline-block;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:600;color:#111;background:#4ade80;margin-bottom:8px}
+.prop-card-meta{font-size:12px;color:var(--muted);margin-bottom:8px}
+.prop-card-headline{font-size:16px;font-weight:600;margin-bottom:6px}
+.prop-card-betline{font-size:14px;color:#6ee7ff;margin-bottom:10px}
+.prop-card-stats{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:13px}
+.prop-card-stats div:nth-child(odd){color:var(--muted)}
+.prop-card-stats div:nth-child(even){text-align:right;font-variant-numeric:tabular-nums}
+
+@media (max-width:900px){
+  .table-wrap{display:none}
+  .card-grid{display:grid}
+}
 </style>
 </head>
 <body>
@@ -344,7 +391,13 @@ a.button:hover{background:#6ee7ff}
     </div>
 
     <div class="small" style="margin-top:10px;">
-      <span id="count"></span> · Tip: “No Scorer” is hidden.
+      <span id="count"></span> · Tip: "No Scorer" is hidden.
+    </div>
+
+    <div class="toggle-wrapper">
+      <input type="checkbox" id="consensusOnly" />
+      <label for="consensusOnly">Consensus picks only</label>
+      <span style="color:var(--muted);font-size:12px;margin-left:8px">— Shows where the book diverges from the market and our model leans toward the market</span>
     </div>
   </div>
 
@@ -365,6 +418,8 @@ a.button:hover{background:#6ee7ff}
     </table>
   </div>
 
+  <div id="cardGrid" class="card-grid"></div>
+
   <footer>Generated locally. Dark theme, zero dependencies.</footer>
 
 <script>
@@ -372,7 +427,7 @@ const DATA = """ + jsdata + """;
 
 function uniq(arr){ return [...new Set(arr.filter(Boolean))].sort((a,b)=>a.localeCompare(b)); }
 
-const state = { market:"", game:"", player:"", books:new Set(), q:"" };
+const state = { market:"", game:"", player:"", books:new Set(), q:"", consensusOnly:false };
 const selMarket = document.getElementById("market");
 const selGame   = document.getElementById("game");
 const selPlayer = document.getElementById("player");
@@ -382,7 +437,9 @@ const bookButton = document.getElementById("bookButton");
 const bookButtonText = document.getElementById("bookButtonText");
 const inputQ    = document.getElementById("q");
 const tbody     = document.querySelector("#tbl tbody");
+const cardGrid  = document.getElementById("cardGrid");
 const countEl   = document.getElementById("count");
+const consensusCheckbox = document.getElementById("consensusOnly");
 
 function updateBookButtonText(){
   const total = bookGroup.querySelectorAll('input[type="checkbox"]').length;
@@ -452,18 +509,28 @@ function rebuildDependentSelectors(){
 
 function render(){
   const q = state.q.trim().toLowerCase();
-  const rows = DATA.filter(r =>
+  let rows = DATA.filter(r =>
     (!state.market || r.market_std===state.market) &&
     (!state.game   || r.game===state.game) &&
     (!state.player || r.player===state.player) &&
     (state.books.size===0 || state.books.has(r.bookmaker)) &&
     (!q || (r.player+" "+r.bookmaker+" "+r.game).toLowerCase().includes(q))
-  ).sort((a,b)=> (b.edge_bps ?? -1) - (a.edge_bps ?? -1));
+  );
 
-  countEl.textContent = rows.length + " rows";
+  // Apply consensus filter if enabled
+  if (state.consensusOnly) {
+    rows = rows.filter(r => r.is_consensus === true);
+  }
 
+  rows = rows.sort((a,b)=> (b.edge_bps ?? -1) - (a.edge_bps ?? -1));
+
+  const consensusCount = rows.filter(r => r.is_consensus === true).length;
+  countEl.textContent = rows.length + " rows" +
+    (state.consensusOnly ? " (consensus only)" : ` (${consensusCount} consensus)`);
+
+  // Render table
   tbody.innerHTML = rows.map(r => `
-    <tr>
+    <tr class="${r.is_consensus ? 'consensus-pick' : ''}">
       <td>${r.game||""}</td>
       <td>${r.player||""}</td>
       <td>${r.bookmaker||""}</td>
@@ -484,12 +551,36 @@ function render(){
       <td>${r.kick_et||""}</td>
     </tr>
   `).join("");
+
+  // Render mobile cards
+  cardGrid.innerHTML = rows.map(r => `
+    <div class="prop-card${r.is_consensus ? ' consensus' : ''}">
+      ${r.is_consensus ? '<div class="prop-card-badge">★ CONSENSUS</div>' : ''}
+      <div class="prop-card-meta">${r.kick_et || ''} • ${r.game || ''}</div>
+      <div class="prop-card-headline">${r.player || ''} — ${r.market_std || ''}</div>
+      <div class="prop-card-betline">${r.name || ''} ${r.line_disp || ''} @ ${r.mkt_odds || ''} (${r.bookmaker || ''})</div>
+      <div class="prop-card-stats">
+        <div>Model %</div><div>${r.model_pct || ''}</div>
+        <div>Edge</div><div style="color:${(r.edge_bps==null) ? '#9aa0a6' : (r.edge_bps>0 ? '#4ade80' : '#f87171')}">${r.edge_bps ? (r.edge_bps > 0 ? '+' : '') + r.edge_bps + ' bps' : ''}</div>
+        <div>Market %</div><div>${r.consensus_pct || r.mkt_pct || ''}</div>
+        <div>Fair Odds</div><div>${r.fair_odds || ''}</div>
+      </div>
+    </div>
+  `).join("");
 }
 
 selMarket.addEventListener("change", e=>{ state.market=e.target.value; rebuildDependentSelectors(); render(); });
 selGame  .addEventListener("change", e=>{ state.game  =e.target.value; rebuildDependentSelectors(); render(); });
 selPlayer.addEventListener("change", e=>{ state.player=e.target.value; render(); });
 inputQ   .addEventListener("input",  e=>{ state.q     =e.target.value; render(); });
+consensusCheckbox.addEventListener("change", e=>{ state.consensusOnly=e.target.checked; render(); });
+
+// Check URL for consensus=1 parameter
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('consensus') === '1') {
+  state.consensusOnly = true;
+  consensusCheckbox.checked = true;
+}
 
 hydrateSelectors(); render();
 </script>

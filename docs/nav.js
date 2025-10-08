@@ -1,4 +1,4 @@
-// docs/nav.js (v=25) — responsive nav; "Consensus" hidden on mobile; Arbitrage added
+// docs/nav.js (v=27) — Consensus redirects to Props with filter enabled
 (function () {
   // --- Find script & compute base (works locally + GitHub Pages) ---
   const scriptEl =
@@ -118,8 +118,8 @@
     { href: `${base}/props/insights.html`,    label: 'Insights' },
     { href: `${base}/props/index.html`,  label: 'Player Props' },
     { href: `${base}/props/top.html`,    label: 'Top Picks' },
-    // Hide Consensus on mobile only:
-    { href: `${base}/props/consensus.html`, label: 'Consensus', hideOnMobile: true },
+    // Hide Consensus on mobile only - now redirects to Props with consensus filter
+    { href: `${base}/props/index.html?consensus=1`, label: 'Consensus', hideOnMobile: true },
     { href: `${base}/props/arbitrage.html`, label: 'Arbitrage' },
     { href: `${base}/methods.html`,      label: 'Methods' },
     { href: `${base}/blog/`, label: "Blog" },
