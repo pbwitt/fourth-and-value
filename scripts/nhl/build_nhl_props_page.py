@@ -102,6 +102,7 @@ def main():
     df["fair_odds_disp"] = df["fair_odds"].apply(fmt_odds)
     df["mkt_pct_disp"] = df["mkt_prob"].apply(lambda p: fmt_pct(p * 100) if not pd.isna(p) else "")
     df["model_pct_disp"] = df["model_prob"].apply(lambda p: fmt_pct(p * 100) if not pd.isna(p) else "")
+    df["consensus_pct_disp"] = df["consensus_prob"].apply(lambda p: fmt_pct(p * 100) if not pd.isna(p) else "")
     df["edge_bps_disp"] = df["edge_bps"].apply(lambda e: f"{int(e)}" if not pd.isna(e) else "")
     df["market_disp"] = df["market_std"].apply(pretty_market)
     df["kick_et"] = df["commence_time"].apply(to_kick_et)
@@ -109,6 +110,8 @@ def main():
     # Line display with decimal if needed
     df["line_disp"] = df["point"].apply(lambda x: f"{x:.1f}" if not pd.isna(x) else "")
     df["model_line_disp"] = df["model_line"].apply(lambda x: f"{x:.1f}" if not pd.isna(x) else "")
+    df["consensus_line_disp"] = df["consensus_line"].apply(lambda x: f"{x:.1f}" if not pd.isna(x) else "")
+    df["book_count_disp"] = df["book_count"].apply(lambda x: f"{int(x)}" if not pd.isna(x) else "")
 
     # Sort by abs edge (biggest edges first)
     df["abs_edge"] = df["edge_bps"].abs()
@@ -126,15 +129,22 @@ def main():
             "market_std": row["market_std"],
             "side": row["side"],
             "line_disp": row["line_disp"],
+            "consensus_line_disp": row["consensus_line_disp"],
+            "model_line_disp": row["model_line_disp"],
             "bookmaker": row["bookmaker_title"],
             "price_disp": row["price_disp"],
-            "model_line_disp": row["model_line_disp"],
             "model_pct_disp": row["model_pct_disp"],
+            "consensus_pct_disp": row["consensus_pct_disp"],
+            "mkt_pct_disp": row["mkt_pct_disp"],
             "fair_odds_disp": row["fair_odds_disp"],
             "edge_bps_disp": row["edge_bps_disp"],
-            "mkt_pct_disp": row["mkt_pct_disp"],
+            "book_count_disp": row["book_count_disp"],
             "kick_et": row["kick_et"],
             "edge_bps": row["edge_bps"],
+            "model_prob": row.get("model_prob", 0),
+            "consensus_prob": row.get("consensus_prob", 0),
+            "mkt_prob": row.get("mkt_prob", 0),
+            "book_count": row.get("book_count", 0),
             "is_consensus": row.get("book_count", 0) >= 3,  # 3+ books = consensus
         })
 
@@ -153,17 +163,6 @@ def main():
 def build_html(rows, date_str):
     """Build complete HTML page."""
 
-    # Shared nav HTML
-    nav_html = """
-    <nav>
-      <ul>
-        <li><a href="/index.html">Home</a></li>
-        <li><a href="/docs/props/index.html">NFL Props</a></li>
-        <li><a href="/docs/nhl/props/index.html" class="active">NHL Props</a></li>
-      </ul>
-    </nav>
-    """
-
     # Convert rows to JSON for JS
     import json
     rows_json = json.dumps(rows, indent=2)
@@ -174,8 +173,35 @@ def build_html(rows, date_str):
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NHL Props - Fourth & Value</title>
-  <link rel="stylesheet" href="/styles.css">
   <style>
+    /* Base styles */
+    * {{
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }}
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #0f0f0f;
+      color: #fff;
+      line-height: 1.6;
+    }}
+
+    .container {{
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem 1rem;
+    }}
+    h1 {{
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      color: #4FC3F7;
+    }}
+    p {{
+      color: #999;
+      margin-bottom: 1.5rem;
+    }}
+
     /* Filters */
     .filters {{
       background: #2a2a2a;
@@ -284,13 +310,25 @@ def build_html(rows, date_str):
   </style>
 </head>
 <body>
-  {nav_html}
+  <div id="nav-root"></div>
 
   <div class="container">
     <h1>NHL Props - {date_str}</h1>
     <p>Model-driven NHL player prop picks with edge analysis.</p>
 
     <div class="filters">
+      <div class="filter-group">
+        <label>Game</label>
+        <select id="gameFilter">
+          <option value="">All Games</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label>Player</label>
+        <input type="text" id="playerFilter" placeholder="Search player...">
+      </div>
+
       <div class="filter-group">
         <label>Market</label>
         <select id="marketFilter">
@@ -312,13 +350,17 @@ def build_html(rows, date_str):
       </div>
 
       <div class="filter-group">
-        <label>Min Edge (bps)</label>
-        <input type="number" id="minEdgeFilter" placeholder="0" value="0">
+        <label>Book</label>
+        <select id="bookFilter">
+          <option value="">All Books</option>
+        </select>
       </div>
 
       <div class="filter-group">
-        <label>Player</label>
-        <input type="text" id="playerFilter" placeholder="Search player...">
+        <label>
+          <input type="checkbox" id="consensusFilter">
+          Consensus Only
+        </label>
       </div>
     </div>
 
@@ -331,13 +373,17 @@ def build_html(rows, date_str):
             <th>Game</th>
             <th>Market</th>
             <th>Side</th>
-            <th>Line</th>
-            <th>Book</th>
-            <th>Odds</th>
+            <th>Book Line</th>
+            <th>Consensus Line</th>
             <th>Model Line</th>
-            <th>Model %</th>
+            <th>Book</th>
+            <th>Book Odds</th>
             <th>Fair Odds</th>
+            <th>Book %</th>
+            <th>Market %</th>
+            <th>Model %</th>
             <th>Edge</th>
+            <th>Books</th>
           </tr>
         </thead>
         <tbody id="propsTableBody">
@@ -353,22 +399,66 @@ def build_html(rows, date_str):
   <script>
     const propsData = {rows_json};
 
+    // Populate game filter
+    function populateFilters() {{
+      const games = [...new Set(propsData.map(r => r.game))].sort();
+      const gameSelect = document.getElementById('gameFilter');
+      games.forEach(game => {{
+        const option = document.createElement('option');
+        option.value = game;
+        option.textContent = game;
+        gameSelect.appendChild(option);
+      }});
+
+      const books = [...new Set(propsData.map(r => r.bookmaker))].sort();
+      const bookSelect = document.getElementById('bookFilter');
+      books.forEach(book => {{
+        const option = document.createElement('option');
+        option.value = book;
+        option.textContent = book;
+        bookSelect.appendChild(option);
+      }});
+    }}
+
+    // Consensus logic: book diverges from market, model leans with market
+    function isConsensusPlay(row) {{
+      // Need significant edge (book diverges from market)
+      const edgeBps = Math.abs(row.edge_bps);
+      if (edgeBps < 200) return false; // Minimum 200 bps edge
+
+      // Check if model and market agree on direction vs book
+      // If edge is positive, our model > market, book is lower
+      // We want: model and market both higher than book (or both lower)
+      const modelProb = row.model_prob || 0;
+      const mktProb = row.mkt_prob || 0;
+
+      // Model leans same direction as market vs book
+      const modelEdge = modelProb - mktProb;
+      const modelLeansSameWay = Math.sign(row.edge_bps) === Math.sign(modelEdge);
+
+      return modelLeansSameWay;
+    }}
+
     function renderTable() {{
       const tbody = document.getElementById('propsTableBody');
       const cardGrid = document.getElementById('cardGrid');
 
       // Get filter values
+      const gameFilter = document.getElementById('gameFilter').value;
+      const playerFilter = document.getElementById('playerFilter').value.toLowerCase();
       const marketFilter = document.getElementById('marketFilter').value;
       const sideFilter = document.getElementById('sideFilter').value;
-      const minEdge = parseFloat(document.getElementById('minEdgeFilter').value) || 0;
-      const playerFilter = document.getElementById('playerFilter').value.toLowerCase();
+      const bookFilter = document.getElementById('bookFilter').value;
+      const consensusOnly = document.getElementById('consensusFilter').checked;
 
       // Filter rows
       const filtered = propsData.filter(r => {{
+        if (gameFilter && r.game !== gameFilter) return false;
+        if (playerFilter && !r.player.toLowerCase().includes(playerFilter)) return false;
         if (marketFilter && r.market_std !== marketFilter) return false;
         if (sideFilter && r.side !== sideFilter) return false;
-        if (Math.abs(r.edge_bps) < minEdge) return false;
-        if (playerFilter && !r.player.toLowerCase().includes(playerFilter)) return false;
+        if (bookFilter && r.bookmaker !== bookFilter) return false;
+        if (consensusOnly && !isConsensusPlay(r)) return false;
         return true;
       }});
 
@@ -377,7 +467,7 @@ def build_html(rows, date_str):
         const modelProbNum = parseFloat((r.model_pct_disp || '').replace('%', ''));
         const isStrongSignal = modelProbNum >= 85;
         const fireEmoji = isStrongSignal ? ' 🔥' : '';
-        const consensusClass = r.is_consensus ? ' consensus-row' : '';
+        const consensusClass = isConsensusPlay(r) ? ' consensus-row' : '';
 
         return `
           <tr class="${{consensusClass}}">
@@ -386,12 +476,16 @@ def build_html(rows, date_str):
             <td>${{r.market_disp}}</td>
             <td>${{r.side}}</td>
             <td>${{r.line_disp}}</td>
+            <td>${{r.consensus_line_disp}}</td>
+            <td>${{r.model_line_disp}}</td>
             <td>${{r.bookmaker}}</td>
             <td>${{r.price_disp}}</td>
-            <td>${{r.model_line_disp}}</td>
-            <td>${{r.model_pct_disp}}${{fireEmoji}}</td>
             <td>${{r.fair_odds_disp}}</td>
+            <td>${{r.mkt_pct_disp}}</td>
+            <td>${{r.consensus_pct_disp}}</td>
+            <td>${{r.model_pct_disp}}${{fireEmoji}}</td>
             <td>${{r.edge_bps_disp}}</td>
+            <td>${{r.book_count_disp}}</td>
           </tr>
         `;
       }}).join('');
@@ -401,7 +495,7 @@ def build_html(rows, date_str):
         const modelProbNum = parseFloat((r.model_pct_disp || '').replace('%', ''));
         const isStrongSignal = modelProbNum >= 85;
         const fireEmoji = isStrongSignal ? ' 🔥' : '';
-        const consensusClass = r.is_consensus ? ' consensus' : '';
+        const consensusClass = isConsensusPlay(r) ? ' consensus' : '';
 
         return `
           <div class="prop-card${{consensusClass}}">
@@ -421,14 +515,18 @@ def build_html(rows, date_str):
     }}
 
     // Attach filter listeners
+    document.getElementById('gameFilter').addEventListener('change', renderTable);
+    document.getElementById('playerFilter').addEventListener('input', renderTable);
     document.getElementById('marketFilter').addEventListener('change', renderTable);
     document.getElementById('sideFilter').addEventListener('change', renderTable);
-    document.getElementById('minEdgeFilter').addEventListener('input', renderTable);
-    document.getElementById('playerFilter').addEventListener('input', renderTable);
+    document.getElementById('bookFilter').addEventListener('change', renderTable);
+    document.getElementById('consensusFilter').addEventListener('change', renderTable);
 
-    // Initial render
+    // Initialize
+    populateFilters();
     renderTable();
   </script>
+  <script src="../../nav.js?v=29"></script>
 </body>
 </html>
 """
