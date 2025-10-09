@@ -124,24 +124,147 @@ def fetch_schedule(start_date: str, end_date: str) -> List[Dict[str, Any]]:
     Returns:
         List of games with home/away teams, date, venue
     """
-    url = f"{SCHEDULE_API}/{start_date}/{end_date}"
-    print(f"[fetch_nhl_stats] Fetching schedule from {url}...")
-    data = req_json(url)
+    # NHL API requires single date calls, not ranges
+    from datetime import datetime, timedelta
+
+    start = datetime.strptime(start_date, "%Y-%m-%d")
+    end = datetime.strptime(end_date, "%Y-%m-%d")
 
     games = []
-    for game_week in data.get("gameWeek", []):
-        for game in game_week.get("games", []):
-            games.append({
-                "game_id": game.get("id"),
-                "game_date": game.get("gameDate"),
-                "start_time_utc": game.get("startTimeUTC"),
-                "home_team": game.get("homeTeam", {}).get("abbrev"),
-                "away_team": game.get("awayTeam", {}).get("abbrev"),
-                "venue": game.get("venue", {}).get("default"),
-                "game_state": game.get("gameState"),
-            })
+    current = start
 
-    return games
+    while current <= end:
+        date_str = current.strftime("%Y-%m-%d")
+        url = f"{SCHEDULE_API}/{date_str}"
+        print(f"[fetch_nhl_stats] Fetching schedule for {date_str}...")
+
+        try:
+            data = req_json(url)
+            for game_week in data.get("gameWeek", []):
+                for game in game_week.get("games", []):
+                    games.append({
+                        "game_id": game.get("id"),
+                        "game_date": game.get("gameDate") or date_str,
+                        "start_time_utc": game.get("startTimeUTC"),
+                        "home_team": game.get("homeTeam", {}).get("abbrev"),
+                        "away_team": game.get("awayTeam", {}).get("abbrev"),
+                        "venue": game.get("venue", {}).get("default"),
+                        "game_state": game.get("gameState"),
+                    })
+        except Exception as e:
+            print(f"[warn] Failed to fetch schedule for {date_str}: {e}", file=sys.stderr)
+
+        current += timedelta(days=1)
+
+    # Deduplicate by game_id (NHL API returns game week, not just single date)
+    seen_game_ids = set()
+    unique_games = []
+    for game in games:
+        if game["game_id"] not in seen_game_ids:
+            seen_game_ids.add(game["game_id"])
+            unique_games.append(game)
+
+    return unique_games
+
+
+def fetch_game_boxscore(game_id: int) -> Dict[str, Any]:
+    """
+    Fetch boxscore for a single game from NHL API.
+
+    Returns player-level stats for all skaters in the game.
+    """
+    url = f"https://api-web.nhle.com/v1/gamecenter/{game_id}/boxscore"
+    data = req_json(url)
+    return data
+
+
+def extract_skater_stats_from_boxscore(boxscore: Dict[str, Any], game_info: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Extract skater stats from a boxscore response.
+
+    Returns list of player stat dictionaries (one per player in the game).
+    """
+    skater_rows = []
+
+    # Get player stats container
+    player_stats = boxscore.get("playerByGameStats", {})
+    if not player_stats:
+        return []
+
+    # Extract home and away team data
+    for team_key in ["homeTeam", "awayTeam"]:
+        team_data = player_stats.get(team_key, {})
+        team_abbrev = boxscore.get(team_key, {}).get("abbrev")
+        is_home = (team_key == "homeTeam")
+
+        # Loop through forwards and defense
+        for position_group in ["forwards", "defense"]:
+            players = team_data.get(position_group, [])
+            for player in players:
+                skater_rows.append({
+                    "game_id": game_info["game_id"],
+                    "game_date": game_info["game_date"],
+                    "player_id": player.get("playerId"),
+                    "player": player.get("name", {}).get("default", ""),
+                    "team": team_abbrev,
+                    "opponent": game_info["away_team"] if is_home else game_info["home_team"],
+                    "is_home": is_home,
+                    "position": player.get("position"),
+                    "goals": player.get("goals", 0),
+                    "assists": player.get("assists", 0),
+                    "points": player.get("points", 0),
+                    "shots": player.get("sog", 0),  # shots on goal
+                    "plus_minus": player.get("plusMinus", 0),
+                    "pim": player.get("pim", 0),  # penalty minutes
+                    "toi": player.get("toi", "0:00"),  # time on ice MM:SS
+                    "pp_goals": player.get("powerPlayGoals", 0),
+                    "pp_points": player.get("powerPlayPoints", 0),
+                    "sh_goals": player.get("shorthandedGoals", 0),
+                    "faceoff_pct": player.get("faceoffWinningPctg", 0.0),
+                })
+
+    return skater_rows
+
+
+def fetch_game_logs(games: List[Dict[str, Any]]) -> pd.DataFrame:
+    """
+    Fetch game-by-game stats for all skaters across multiple games.
+
+    Args:
+        games: List of game dicts from fetch_schedule()
+
+    Returns:
+        DataFrame with one row per player per game
+    """
+    all_skater_rows = []
+
+    print(f"[fetch_nhl_stats] Fetching boxscores for {len(games)} games...")
+
+    for i, game in enumerate(games):
+        game_id = game["game_id"]
+        game_state = game.get("game_state")
+
+        # Only fetch completed games (OFF = final)
+        if game_state not in ["OFF", "FINAL"]:
+            continue
+
+        try:
+            print(f"[fetch_nhl_stats]   Game {i+1}/{len(games)}: {game_id} ({game['home_team']} vs {game['away_team']})")
+            boxscore = fetch_game_boxscore(game_id)
+            skater_stats = extract_skater_stats_from_boxscore(boxscore, game)
+            all_skater_rows.extend(skater_stats)
+        except Exception as e:
+            print(f"[warn] Failed to fetch game {game_id}: {e}", file=sys.stderr)
+            continue
+
+    if not all_skater_rows:
+        print(f"[warn] No game logs fetched", file=sys.stderr)
+        return pd.DataFrame()
+
+    df = pd.DataFrame(all_skater_rows)
+    print(f"[fetch_nhl_stats] Fetched {len(df)} player-game rows from {len(games)} games")
+
+    return df
 
 
 def normalize_skater_logs(raw_data: List[Dict[str, Any]]) -> pd.DataFrame:
@@ -309,29 +432,29 @@ def main():
 
     print(f"[fetch_nhl_stats] Fetching NHL stats for {date_str}, season {season}...")
 
-    # Fetch skater and goalie logs
-    skater_data = fetch_skater_logs(season=season)
-    goalie_data = fetch_goalie_logs(season=season)
-
-    print(f"[fetch_nhl_stats] Fetched {len(skater_data)} skater records, {len(goalie_data)} goalie records")
-
-    # Fetch schedule (last 30 days + next 7 days)
-    # Use real current date for API, not simulated date
+    # Fetch schedule (from season start: Oct 7, 2025)
+    # 2025-26 season started Oct 7, so don't go back further
     now = datetime.now()
-    start_date = (now - timedelta(days=args.days_back)).strftime("%Y-%m-%d")
-    end_date = (now + timedelta(days=7)).strftime("%Y-%m-%d")
+    season_start = datetime(2025, 10, 7)
+
+    # Use max of (season_start, now - days_back) to avoid fetching offseason
+    earliest_date = max(season_start, now - timedelta(days=args.days_back))
+    start_date = earliest_date.strftime("%Y-%m-%d")
+    end_date = now.strftime("%Y-%m-%d")
 
     try:
         schedule_data = fetch_schedule(start_date, end_date)
+        print(f"[fetch_nhl_stats] Fetched {len(schedule_data)} scheduled games")
     except Exception as e:
-        print(f"[warn] Schedule fetch failed: {e}. Continuing without schedule.", file=sys.stderr)
+        print(f"[error] Schedule fetch failed: {e}", file=sys.stderr)
         schedule_data = []
 
-    print(f"[fetch_nhl_stats] Fetched {len(schedule_data)} scheduled games")
+    # Fetch game-by-game logs from boxscores
+    skater_df = fetch_game_logs(schedule_data)
 
-    # Normalize
-    skater_df = normalize_skater_logs(skater_data)
-    goalie_df = normalize_goalie_logs(goalie_data)
+    # Skip goalies for now (not needed for skater prop modeling)
+    goalie_df = pd.DataFrame()
+
     schedule_df = pd.DataFrame(schedule_data)
 
     # Compute rest/b2b
@@ -345,18 +468,15 @@ def main():
     proc_dir = Path("data/nhl/processed")
     proc_dir.mkdir(parents=True, exist_ok=True)
 
-    # Write raw JSON
-    with open(raw_dir / f"nhl_api_skaters_{date_str}.json", "w") as f:
-        json.dump(skater_data, f, indent=2)
+    # Write raw JSON (schedule data)
+    with open(raw_dir / f"nhl_schedule_{date_str}.json", "w") as f:
+        json.dump(schedule_data, f, indent=2)
 
-    with open(raw_dir / f"nhl_api_goalies_{date_str}.json", "w") as f:
-        json.dump(goalie_data, f, indent=2)
-
-    # Write normalized parquet
+    # Write normalized parquet (game logs)
     if not skater_df.empty:
         skater_path = proc_dir / f"skater_logs_{date_str}.parquet"
         skater_df.to_parquet(skater_path, index=False)
-        print(f"[fetch_nhl_stats] Wrote {len(skater_df)} skaters to {skater_path}")
+        print(f"[fetch_nhl_stats] Wrote {len(skater_df)} skater game-log rows to {skater_path}")
 
     if not goalie_df.empty:
         goalie_path = proc_dir / f"goalie_logs_{date_str}.parquet"
