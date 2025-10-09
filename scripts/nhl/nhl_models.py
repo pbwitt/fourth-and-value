@@ -36,23 +36,84 @@ class SimpleSOGModel:
         self.skater_stats = None
         self.calibrator = None  # Isotonic regression calibrator
 
-    def fit(self, skater_df: pd.DataFrame):
+    def fit(self, skater_df: pd.DataFrame, game_logs: pd.DataFrame = None):
         """
-        Fit model on season stats.
+        Fit model on season stats or game logs.
 
-        For Phase B, just stores reference stats.
-        Future: Train on game logs with historical data.
+        Args:
+            skater_df: Season aggregate stats (fallback for sparse data)
+            game_logs: Game-by-game logs (optional, for rolling averages)
         """
-        self.skater_stats = skater_df.set_index("player")[
-            ["shots", "games_played", "position", "toi_per_game"]
-        ].copy()
+        # If game logs provided, compute rolling averages
+        if game_logs is not None and len(game_logs) > 0:
+            self.skater_stats = self._compute_rolling_stats(game_logs)
+        else:
+            # Fallback: use season aggregates
+            self.skater_stats = skater_df.set_index("player")[
+                ["shots", "games_played", "position", "toi_per_game"]
+            ].copy()
 
-        # Compute shots per game
-        self.skater_stats["shots_per_game"] = (
-            self.skater_stats["shots"] / self.skater_stats["games_played"]
-        )
+            # Compute shots per game
+            self.skater_stats["shots_per_game"] = (
+                self.skater_stats["shots"] / self.skater_stats["games_played"]
+            )
 
         return self
+
+    def _compute_rolling_stats(self, game_logs: pd.DataFrame) -> pd.DataFrame:
+        """
+        Compute rolling SOG averages from game logs.
+
+        For each player, compute:
+        - L5 average (last 5 games)
+        - L10 average (last 10 games)
+        - Home/away splits
+        - Season average (fallback)
+        """
+        # Sort by player and date (most recent last)
+        game_logs = game_logs.sort_values(["player", "game_date"])
+
+        player_stats = []
+
+        for player, player_games in game_logs.groupby("player"):
+            n_games = len(player_games)
+
+            # Get position (assume constant for player)
+            position = player_games["position"].iloc[0] if "position" in player_games.columns else "F"
+
+            # Season average
+            season_avg = player_games["shots"].mean() if n_games > 0 else 0.0
+
+            # L5 average (last 5 games)
+            l5_avg = player_games["shots"].tail(5).mean() if n_games >= 3 else season_avg
+
+            # L10 average (last 10 games)
+            l10_avg = player_games["shots"].tail(10).mean() if n_games >= 5 else l5_avg
+
+            # Home/away splits
+            home_games = player_games[player_games["is_home"]]
+            away_games = player_games[~player_games["is_home"]]
+
+            home_avg = home_games["shots"].mean() if len(home_games) > 0 else season_avg
+            away_avg = away_games["shots"].mean() if len(away_games) > 0 else season_avg
+
+            # Use L5 as primary rate (most recent form)
+            primary_rate = l5_avg if n_games >= 3 else (l10_avg if n_games >= 2 else season_avg)
+
+            player_stats.append({
+                "player": player,
+                "position": position,
+                "games_played": n_games,
+                "shots_per_game": primary_rate,
+                "shots_l5": l5_avg,
+                "shots_l10": l10_avg,
+                "shots_home": home_avg,
+                "shots_away": away_avg,
+                "shots_season": season_avg,
+            })
+
+        df = pd.DataFrame(player_stats)
+        return df.set_index("player")
 
     def calibrate(self, props_df: pd.DataFrame):
         """
@@ -158,8 +219,14 @@ class SimpleScoringModel:
         self.skater_stats = None
         self.calibrator = None  # Isotonic regression calibrator
 
-    def fit(self, skater_df: pd.DataFrame):
-        """Fit model on season stats."""
+    def fit(self, skater_df: pd.DataFrame, game_logs: pd.DataFrame = None):
+        """
+        Fit model on season stats or game logs.
+
+        Args:
+            skater_df: Season aggregate stats (fallback for sparse data)
+            game_logs: Game-by-game logs (optional, for rolling averages)
+        """
         stat_col_map = {
             "goals": "goals",
             "assists": "assists",
@@ -167,19 +234,90 @@ class SimpleScoringModel:
         }
 
         stat_col = stat_col_map.get(self.stat_name)
-        if stat_col not in skater_df.columns:
-            raise ValueError(f"Stat column {stat_col} not found in data")
 
-        self.skater_stats = skater_df.set_index("player")[
-            [stat_col, "games_played", "position"]
-        ].copy()
+        # If game logs provided, compute rolling averages
+        if game_logs is not None and len(game_logs) > 0:
+            if stat_col not in game_logs.columns:
+                raise ValueError(f"Stat column {stat_col} not found in game logs")
+            self.skater_stats = self._compute_rolling_stats(game_logs, stat_col)
+        else:
+            # Fallback: use season aggregates
+            if stat_col not in skater_df.columns:
+                raise ValueError(f"Stat column {stat_col} not found in data")
 
-        # Compute rate per game
-        self.skater_stats[f"{self.stat_name}_per_game"] = (
-            self.skater_stats[stat_col] / self.skater_stats["games_played"]
-        )
+            self.skater_stats = skater_df.set_index("player")[
+                [stat_col, "games_played", "position"]
+            ].copy()
+
+            # Compute rate per game
+            self.skater_stats[f"{self.stat_name}_per_game"] = (
+                self.skater_stats[stat_col] / self.skater_stats["games_played"]
+            )
 
         return self
+
+    def _compute_rolling_stats(self, game_logs: pd.DataFrame, stat_col: str) -> pd.DataFrame:
+        """
+        Compute rolling averages from game logs.
+
+        For each player, compute:
+        - L5 average (last 5 games)
+        - L10 average (last 10 games)
+        - Home/away splits
+        - Season average (fallback)
+
+        Args:
+            game_logs: DataFrame with columns [player, game_date, goals, assists, points, is_home]
+            stat_col: Stat column to compute rolling average for
+
+        Returns:
+            DataFrame indexed by player with rolling stats
+        """
+        # Sort by player and date (most recent last)
+        game_logs = game_logs.sort_values(["player", "game_date"])
+
+        player_stats = []
+
+        for player, player_games in game_logs.groupby("player"):
+            n_games = len(player_games)
+
+            # Get position (assume constant for player)
+            position = player_games["position"].iloc[0] if "position" in player_games.columns else "F"
+
+            # Season average
+            season_avg = player_games[stat_col].mean() if n_games > 0 else 0.0
+
+            # L5 average (last 5 games)
+            l5_avg = player_games[stat_col].tail(5).mean() if n_games >= 3 else season_avg
+
+            # L10 average (last 10 games)
+            l10_avg = player_games[stat_col].tail(10).mean() if n_games >= 5 else l5_avg
+
+            # Home/away splits
+            home_games = player_games[player_games["is_home"]]
+            away_games = player_games[~player_games["is_home"]]
+
+            home_avg = home_games[stat_col].mean() if len(home_games) > 0 else season_avg
+            away_avg = away_games[stat_col].mean() if len(away_games) > 0 else season_avg
+
+            # Use L5 as primary rate (most recent form)
+            # Fallback to L10 if insufficient L5 data, then season
+            primary_rate = l5_avg if n_games >= 3 else (l10_avg if n_games >= 2 else season_avg)
+
+            player_stats.append({
+                "player": player,
+                "position": position,
+                "games_played": n_games,
+                f"{self.stat_name}_per_game": primary_rate,
+                f"{self.stat_name}_l5": l5_avg,
+                f"{self.stat_name}_l10": l10_avg,
+                f"{self.stat_name}_home": home_avg,
+                f"{self.stat_name}_away": away_avg,
+                f"{self.stat_name}_season": season_avg,
+            })
+
+        df = pd.DataFrame(player_stats)
+        return df.set_index("player")
 
     def calibrate(self, props_df: pd.DataFrame):
         """

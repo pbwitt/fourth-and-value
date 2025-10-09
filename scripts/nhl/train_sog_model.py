@@ -49,25 +49,29 @@ def main():
 
     print(f"[train_sog_model] Training SOG model for {date_str}...")
 
-    # Load skater stats
-    skater_path = Path(f"data/nhl/processed/skater_logs_{date_str}.parquet")
-    if not skater_path.exists():
-        print(f"[ERROR] Skater logs not found: {skater_path}", file=sys.stderr)
+    # Load skater game logs
+    logs_path = Path(f"data/nhl/processed/skater_logs_{date_str}.parquet")
+    if not logs_path.exists():
+        print(f"[ERROR] Skater logs not found: {logs_path}", file=sys.stderr)
         sys.exit(1)
 
-    skater_df = pd.read_parquet(skater_path)
-    print(f"[train_sog_model] Loaded {len(skater_df)} skaters")
+    game_logs = pd.read_parquet(logs_path)
+    print(f"[train_sog_model] Loaded {len(game_logs)} player-game rows from {game_logs['game_id'].nunique()} games")
 
     # Normalize player names for matching
-    skater_df["player"] = skater_df["player"].apply(
+    game_logs["player"] = game_logs["player"].apply(
         lambda x: " ".join(x.strip().lower().split())
     )
 
+    # Create empty aggregate DataFrame for backward compatibility
+    skater_df = pd.DataFrame()
+
     # Train model
     model = SimpleSOGModel()
-    model.fit(skater_df)
+    model.fit(skater_df, game_logs=game_logs)
 
     print(f"[train_sog_model] Model fitted on {len(model.skater_stats)} players")
+    print(f"[train_sog_model]   Using rolling averages from game logs")
 
     # Save model
     models_dir = Path("data/nhl/models")
@@ -89,7 +93,7 @@ def main():
 
     # Test predictions on a few players
     print("\n[train_sog_model] Sample predictions:")
-    test_players = skater_df.head(5)["player"].tolist()
+    test_players = game_logs["player"].drop_duplicates().head(5).tolist()
     for player in test_players:
         prob_over_3 = model.predict_prob_over(player, 3.5)
         print(f"  {player:30s} P(SOG > 3.5) = {prob_over_3:.3f}")
