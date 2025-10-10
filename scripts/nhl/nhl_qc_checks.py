@@ -117,6 +117,68 @@ def check_book_diversity(props_df: pd.DataFrame) -> dict:
     }
 
 
+def check_game_log_dates(date_str: str) -> dict:
+    """
+    Check that game logs have correct dates (no duplicate player-date rows).
+
+    This validates that the fetch script correctly parses game dates from
+    start_time_utc instead of using the schedule fetch date.
+    """
+    from pathlib import Path
+
+    logs_path = Path(f"data/nhl/processed/skater_logs_{date_str}.parquet")
+
+    if not logs_path.exists():
+        return {
+            "name": "Game Log Dates",
+            "passed": False,
+            "blocking": True,
+            "threshold": "No duplicate player-date rows",
+            "actual": "Game logs file not found",
+            "details": f"Missing: {logs_path}",
+        }
+
+    try:
+        df = pd.read_parquet(logs_path)
+
+        # Check for duplicate (player, game_date) pairs
+        # Each player should appear at most once per date
+        duplicates = df.groupby(["player", "game_date"]).size()
+        duplicate_rows = duplicates[duplicates > 1]
+
+        if len(duplicate_rows) > 0:
+            # Show sample duplicates
+            sample = duplicate_rows.head(3).to_dict()
+            passed = False
+            actual = f"{len(duplicate_rows)} player-date duplicates found"
+            details = f"Sample duplicates: {sample}"
+        else:
+            passed = True
+            unique_dates = df["game_date"].nunique()
+            total_rows = len(df)
+            actual = f"{total_rows} rows across {unique_dates} unique dates"
+            details = f"All game dates validated correctly"
+
+        return {
+            "name": "Game Log Dates",
+            "passed": bool(passed),
+            "blocking": True,
+            "threshold": "No duplicate player-date rows",
+            "actual": actual,
+            "details": details,
+        }
+
+    except Exception as e:
+        return {
+            "name": "Game Log Dates",
+            "passed": False,
+            "blocking": True,
+            "threshold": "No duplicate player-date rows",
+            "actual": "Error loading game logs",
+            "details": str(e),
+        }
+
+
 def main():
     parser = argparse.ArgumentParser(description="NHL QC checks")
     parser.add_argument(
@@ -144,6 +206,7 @@ def main():
 
     # Run checks
     checks = [
+        check_game_log_dates(date_str),  # BLOCKING: validate dates first
         check_coverage(props_df),
         check_joins(props_df),
         check_edge_sanity(props_df),

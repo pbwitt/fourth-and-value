@@ -82,6 +82,58 @@ def req_json(url: str, timeout: float = 20.0, retry_429: bool = True) -> Any:
     return r.json()
 
 
+def fetch_season_stats(season: str = "20252026") -> pd.DataFrame:
+    """
+    Fetch season aggregate stats for all players across all teams.
+
+    Returns DataFrame with columns:
+        - player: Full name (e.g., "Brad Marchand")
+        - team: Team code
+        - position: Position code (L/R/C/D)
+        - games_played: Games played
+        - shots: Total shots
+        - goals: Total goals
+        - assists: Total assists
+        - points: Total points
+        - toi_per_game: Average TOI per game (seconds)
+    """
+    print(f"[fetch_nhl_stats] Fetching season stats for {season}...", file=sys.stderr)
+
+    all_skaters = []
+
+    for team_code in TEAM_CODES.keys():
+        try:
+            url = f"https://api-web.nhle.com/v1/club-stats/{team_code}/{season}/2"
+            data = req_json(url)
+
+            for skater in data.get("skaters", []):
+                first_name = skater.get("firstName", {}).get("default", "")
+                last_name = skater.get("lastName", {}).get("default", "")
+                player_name = f"{first_name} {last_name}".strip()
+
+                if not player_name:
+                    continue
+
+                all_skaters.append({
+                    "player": player_name,
+                    "team": team_code,
+                    "position": skater.get("positionCode", "F"),
+                    "games_played": skater.get("gamesPlayed", 0),
+                    "shots": skater.get("shots", 0),
+                    "goals": skater.get("goals", 0),
+                    "assists": skater.get("assists", 0),
+                    "points": skater.get("points", 0),
+                    "toi_per_game": skater.get("avgTimeOnIcePerGame", 0),
+                })
+
+        except Exception as e:
+            print(f"[warn] Failed to fetch season stats for {team_code}: {e}", file=sys.stderr)
+            continue
+
+    print(f"[fetch_nhl_stats] Fetched season stats for {len(all_skaters)} players", file=sys.stderr)
+    return pd.DataFrame(all_skaters)
+
+
 def fetch_skater_logs(season: str = "20252026", days_back: int = 30) -> List[Dict[str, Any]]:
     """
     Fetch skater game logs from NHL API.
@@ -178,11 +230,71 @@ def fetch_game_boxscore(game_id: int) -> Dict[str, Any]:
     return data
 
 
-def extract_skater_stats_from_boxscore(boxscore: Dict[str, Any], game_info: Dict[str, Any]) -> List[Dict[str, Any]]:
+def fetch_player_name(player_id: int) -> str:
+    """
+    Fetch full player name from NHL API using player ID.
+
+    Returns full name like "Sam Bennett" or empty string on error.
+    """
+    try:
+        url = f"https://api-web.nhle.com/v1/player/{player_id}/landing"
+        data = req_json(url)
+
+        # Extract first and last name
+        first_name = data.get("firstName", {}).get("default", "")
+        last_name = data.get("lastName", {}).get("default", "")
+
+        if first_name and last_name:
+            return f"{first_name} {last_name}"
+        return ""
+
+    except Exception as e:
+        print(f"[warn] Failed to fetch player name for ID {player_id}: {e}", file=sys.stderr)
+        return ""
+
+
+def build_player_name_map(player_ids: List[int]) -> Dict[int, str]:
+    """
+    Build mapping of player_id -> full_name by fetching from player API.
+
+    The boxscore API returns abbreviated names like "S. Bennett",
+    but we need full names like "Sam Bennett" for matching with odds/props data.
+
+    Args:
+        player_ids: List of unique player IDs to resolve
+
+    Returns:
+        Dict mapping player_id to full name
+    """
+    print(f"[fetch_nhl_stats] Resolving {len(player_ids)} player names...", file=sys.stderr)
+
+    name_map = {}
+    for i, player_id in enumerate(player_ids):
+        if (i + 1) % 50 == 0:
+            print(f"[fetch_nhl_stats]   Resolved {i+1}/{len(player_ids)} players...", file=sys.stderr)
+
+        full_name = fetch_player_name(player_id)
+        if full_name:
+            name_map[player_id] = full_name
+
+    print(f"[fetch_nhl_stats] Resolved {len(name_map)}/{len(player_ids)} player names", file=sys.stderr)
+    return name_map
+
+
+def extract_skater_stats_from_boxscore(
+    boxscore: Dict[str, Any],
+    game_info: Dict[str, Any],
+    player_name_map: Dict[int, str]
+) -> List[Dict[str, Any]]:
     """
     Extract skater stats from a boxscore response.
 
     Returns list of player stat dictionaries (one per player in the game).
+
+    Args:
+        boxscore: Boxscore data from NHL API
+        game_info: Game metadata (must include start_time_utc for accurate date)
+        player_name_map: Mapping of player_id -> full_name for name resolution
     """
     skater_rows = []
 
@@ -190,6 +302,16 @@ def extract_skater_stats_from_boxscore(boxscore: Dict[str, Any], game_info: Dict
     player_stats = boxscore.get("playerByGameStats", {})
     if not player_stats:
         return []
+
+    # Parse actual game date from start_time_utc (ISO format)
+    # Convert UTC timestamp to date string in local time
+    try:
+        from datetime import datetime
+        game_datetime = datetime.fromisoformat(game_info["start_time_utc"].replace("Z", "+00:00"))
+        game_date_str = game_datetime.strftime("%Y-%m-%d")
+    except Exception:
+        # Fallback to game_date if parsing fails
+        game_date_str = game_info.get("game_date", "")
 
     # Extract home and away team data
     for team_key in ["homeTeam", "awayTeam"]:
@@ -201,11 +323,19 @@ def extract_skater_stats_from_boxscore(boxscore: Dict[str, Any], game_info: Dict
         for position_group in ["forwards", "defense"]:
             players = team_data.get(position_group, [])
             for player in players:
+                player_id = player.get("playerId")
+
+                # Resolve full name from player_id map, fallback to abbreviated name
+                player_name = player_name_map.get(
+                    player_id,
+                    player.get("name", {}).get("default", "")
+                )
+
                 skater_rows.append({
                     "game_id": game_info["game_id"],
-                    "game_date": game_info["game_date"],
-                    "player_id": player.get("playerId"),
-                    "player": player.get("name", {}).get("default", ""),
+                    "game_date": game_date_str,
+                    "player_id": player_id,
+                    "player": player_name,
                     "team": team_abbrev,
                     "opponent": game_info["away_team"] if is_home else game_info["home_team"],
                     "is_home": is_home,
@@ -226,20 +356,24 @@ def extract_skater_stats_from_boxscore(boxscore: Dict[str, Any], game_info: Dict
     return skater_rows
 
 
-def fetch_game_logs(games: List[Dict[str, Any]]) -> pd.DataFrame:
+def fetch_game_logs(games: List[Dict[str, Any]], season: str = "20252026") -> pd.DataFrame:
     """
     Fetch game-by-game stats for all skaters across multiple games.
 
     Args:
         games: List of game dicts from fetch_schedule()
+        season: NHL season ID (unused - kept for compatibility)
 
     Returns:
         DataFrame with one row per player per game
     """
     all_skater_rows = []
+    all_player_ids = set()
 
     print(f"[fetch_nhl_stats] Fetching boxscores for {len(games)} games...")
 
+    # First pass: fetch all boxscores with abbreviated names and collect player IDs
+    temp_name_map = {}  # Empty map for first pass
     for i, game in enumerate(games):
         game_id = game["game_id"]
         game_state = game.get("game_state")
@@ -251,8 +385,14 @@ def fetch_game_logs(games: List[Dict[str, Any]]) -> pd.DataFrame:
         try:
             print(f"[fetch_nhl_stats]   Game {i+1}/{len(games)}: {game_id} ({game['home_team']} vs {game['away_team']})")
             boxscore = fetch_game_boxscore(game_id)
-            skater_stats = extract_skater_stats_from_boxscore(boxscore, game)
+            skater_stats = extract_skater_stats_from_boxscore(boxscore, game, temp_name_map)
             all_skater_rows.extend(skater_stats)
+
+            # Collect unique player IDs
+            for row in skater_stats:
+                if row.get("player_id"):
+                    all_player_ids.add(row["player_id"])
+
         except Exception as e:
             print(f"[warn] Failed to fetch game {game_id}: {e}", file=sys.stderr)
             continue
@@ -261,7 +401,33 @@ def fetch_game_logs(games: List[Dict[str, Any]]) -> pd.DataFrame:
         print(f"[warn] No game logs fetched", file=sys.stderr)
         return pd.DataFrame()
 
+    # Build player name map from collected IDs
+    player_name_map = build_player_name_map(list(all_player_ids))
+
+    # Second pass: replace abbreviated names with full names
+    for row in all_skater_rows:
+        player_id = row.get("player_id")
+        if player_id and player_id in player_name_map:
+            row["player"] = player_name_map[player_id]
+
     df = pd.DataFrame(all_skater_rows)
+
+    # Deduplicate: NHL API sometimes returns same player twice in one game
+    # Keep row with max stats (shots, goals, etc) in case of duplicates
+    if not df.empty and 'player_id' in df.columns and 'game_id' in df.columns:
+        original_count = len(df)
+
+        # Sort by shots DESC so we keep the row with more shots
+        if 'shots' in df.columns:
+            df = df.sort_values('shots', ascending=False)
+
+        # Drop duplicates based on (player_id, game_id), keeping first (highest shots)
+        df = df.drop_duplicates(subset=['player_id', 'game_id'], keep='first')
+
+        deduped_count = original_count - len(df)
+        if deduped_count > 0:
+            print(f"[fetch_nhl_stats] Removed {deduped_count} duplicate player-game rows", file=sys.stderr)
+
     print(f"[fetch_nhl_stats] Fetched {len(df)} player-game rows from {len(games)} games")
 
     return df
@@ -450,7 +616,10 @@ def main():
         schedule_data = []
 
     # Fetch game-by-game logs from boxscores
-    skater_df = fetch_game_logs(schedule_data)
+    skater_df = fetch_game_logs(schedule_data, season=season)
+
+    # Fetch season aggregate stats (fallback for players without game logs)
+    season_stats_df = fetch_season_stats(season=season)
 
     # Skip goalies for now (not needed for skater prop modeling)
     goalie_df = pd.DataFrame()
@@ -487,6 +656,12 @@ def main():
         schedule_path = proc_dir / f"schedule_{date_str}.csv"
         schedule_df.to_csv(schedule_path, index=False)
         print(f"[fetch_nhl_stats] Wrote {len(schedule_df)} games to {schedule_path}")
+
+    # Write season stats (fallback data)
+    if not season_stats_df.empty:
+        season_stats_path = proc_dir / f"season_stats_{date_str}.parquet"
+        season_stats_df.to_parquet(season_stats_path, index=False)
+        print(f"[fetch_nhl_stats] Wrote season stats for {len(season_stats_df)} players to {season_stats_path}")
 
     print("[fetch_nhl_stats] Done!")
 
