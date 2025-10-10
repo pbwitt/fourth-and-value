@@ -433,26 +433,30 @@ def build_html(rows, date_str):
       consensusOnly: false
     }};
 
-    // Consensus logic: book diverges from market, model agrees with market
+    // Consensus logic: directional alignment where book diverges from consensus & model
     function isConsensusPlay(row) {{
-      // Need significant edge (book diverges from market)
-      const edgeBps = Math.abs(row.edge_bps || 0);
-      if (edgeBps < 200) return false; // Minimum 200 bps edge
+      try {{
+        const bookLine = parseFloat(row.line);
+        const consensusLine = parseFloat(row.consensus_line);
+        const modelLine = parseFloat(row.model_line);
+        const side = (row.side || '').toLowerCase().trim();
 
-      const modelProb = row.model_prob || 0;
-      const consensusProb = row.consensus_prob || 0;
-      const mktProb = row.mkt_prob || 0;
+        // Need valid lines
+        if (isNaN(bookLine) || isNaN(consensusLine) || isNaN(modelLine)) return false;
 
-      // Use consensus if available, otherwise market
-      const marketRef = consensusProb || mktProb;
+        // For "over" bets: book < consensus < model (book is pessimistic, consensus/model optimistic)
+        if (side === 'over') {{
+          return bookLine < consensusLine && consensusLine < modelLine;
+        }}
+        // For "under" bets: book > consensus > model (book is optimistic, consensus/model pessimistic)
+        else if (side === 'under') {{
+          return bookLine > consensusLine && consensusLine > modelLine;
+        }}
 
-      // Model and market must agree on direction vs book
-      // Positive edge = model thinks probability is higher than book's implied prob
-      // We want model and market both on same side
-      const modelEdge = modelProb - marketRef;
-      const bookEdge = row.edge_bps || 0;
-
-      return Math.sign(modelEdge) === Math.sign(bookEdge);
+        return false;
+      }} catch (e) {{
+        return false;
+      }}
     }}
 
     // Populate book filter with checkboxes
