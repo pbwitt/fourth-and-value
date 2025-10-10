@@ -35,7 +35,7 @@ INCOH_CSV  := data/qc/incoherent_books.csv
 
 # ---- Phony targets ----
 .PHONY: monday_all monday_all_pub weekly qc publish_pages props_now_pages serve_preview clean_pages clean
-.PHONY: nhl_daily nhl_odds nhl_stats nhl_consensus nhl_edges nhl_page
+.PHONY: nhl_daily nhl_daily_pub nhl_odds nhl_stats nhl_consensus nhl_edges nhl_page
 
 # Main weekly build (no publish)
 monday_all: weekly qc
@@ -192,6 +192,27 @@ nhl_daily: $(NHL_PAGE)
 	@echo "✓ Edges:     $(NHL_PROPS_MODEL)"
 	@echo "✓ Page:      $(NHL_PAGE)"
 	@echo "===================================================================="
+	@echo "Running QC checks..."
+	@$(PY) scripts/nhl/nhl_qc_checks.py --date $(DATE)
+
+# NHL daily build + publish to prod (requires LIVE=1)
+nhl_daily_pub: nhl_daily
+ifeq ($(LIVE),1)
+	@echo "===================================================================="
+	@echo "Publishing NHL props page to production..."
+	@echo "===================================================================="
+	@git add $(NHL_PAGE) $(NHL_PROPS_MODEL) $(NHL_QC_REPORT) || true
+	@git commit -m "NHL: Update props page for $(DATE)" || echo "No changes to commit"
+	@git push
+	@echo "✓ Published to GitHub Pages"
+else
+	@echo "===================================================================="
+	@echo "DRY RUN - NHL page built but not published"
+	@echo "===================================================================="
+	@echo "To publish to production, run:"
+	@echo "  make nhl_daily_pub DATE=$(DATE) LIVE=1"
+	@echo "===================================================================="
+endif
 
 # Individual steps
 nhl_odds: $(NHL_ODDS_PROPS) $(NHL_ODDS_GAMES)
