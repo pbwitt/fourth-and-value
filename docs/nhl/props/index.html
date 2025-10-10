@@ -29956,24 +29956,18 @@
     // Consensus logic: directional alignment where book diverges from consensus & model
     function isConsensusPlay(row) {
       try {
-        const bookLine = parseFloat(row.line);
-        const consensusLine = parseFloat(row.consensus_line);
-        const modelLine = parseFloat(row.model_line);
-        const side = (row.side || '').toLowerCase().trim();
+        // NHL uses probabilities instead of lines for consensus
+        // (consensus_line and model_line are always the same)
+        const bookProb = parseFloat(row.mkt_prob);
+        const consensusProb = parseFloat(row.consensus_prob);
+        const modelProb = parseFloat(row.model_prob);
 
-        // Need valid lines
-        if (isNaN(bookLine) || isNaN(consensusLine) || isNaN(modelLine)) return false;
+        // Need valid probabilities
+        if (isNaN(bookProb) || isNaN(consensusProb) || isNaN(modelProb)) return false;
 
-        // For "over" bets: book < consensus < model (book is pessimistic, consensus/model optimistic)
-        if (side === 'over') {
-          return bookLine < consensusLine && consensusLine < modelLine;
-        }
-        // For "under" bets: book > consensus > model (book is optimistic, consensus/model pessimistic)
-        else if (side === 'under') {
-          return bookLine > consensusLine && consensusLine > modelLine;
-        }
-
-        return false;
+        // Consensus: book is pessimistic, consensus and model are more optimistic
+        // This works for both Over and Under bets
+        return bookProb < consensusProb && consensusProb < modelProb;
       } catch (e) {
         return false;
       }
