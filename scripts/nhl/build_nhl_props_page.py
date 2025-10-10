@@ -145,7 +145,7 @@ def main():
             "consensus_prob": row.get("consensus_prob", 0),
             "mkt_prob": row.get("mkt_prob", 0),
             "book_count": row.get("book_count", 0),
-            "is_consensus": row.get("book_count", 0) >= 3,  # 3+ books = consensus
+            "is_consensus": False,  # Will be calculated in JS based on edge + model/market agreement
         })
 
     # Write HTML page
@@ -303,6 +303,19 @@ def build_html(rows, date_str):
       color: #999;
     }}
 
+    /* Multi-select book dropdown */
+    .checkbox-dropdown {{ position: relative; min-width: 180px; }}
+    .checkbox-dropdown-button {{ width: 100%; background: #14141c; color: #e8eaed; border: 1px solid #23232e; border-radius: 10px; padding: 10px 12px; outline: none; cursor: pointer; text-align: left; display: flex; justify-content: space-between; align-items: center; }}
+    .checkbox-dropdown-button:hover {{ border-color: #6ee7ff; }}
+    .checkbox-dropdown-button::after {{ content: '▼'; font-size: 10px; opacity: 0.6; }}
+    .checkbox-dropdown.open .checkbox-dropdown-button::after {{ content: '▲'; }}
+    .checkbox-group {{ display: none; position: absolute; z-index: 1000; flex-direction: column; gap: 6px; background: #14141c; border: 1px solid #23232e; border-radius: 10px; padding: 10px; max-height: 250px; overflow-y: auto; min-width: 100%; margin-top: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.3); }}
+    .checkbox-dropdown.open .checkbox-group {{ display: flex; }}
+    .checkbox-item {{ display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 4px 6px; border-radius: 6px; transition: background .15s; }}
+    .checkbox-item:hover {{ background: rgba(255,255,255,.05); }}
+    .checkbox-item input[type="checkbox"] {{ width: 16px; height: 16px; cursor: pointer; accent-color: #34d399; }}
+    .checkbox-item label {{ cursor: pointer; flex: 1; font-size: 13px; color: #e8eaed; margin: 0; white-space: nowrap; }}
+
     @media (max-width: 768px) {{
       .table-wrapper {{ display: none; }}
       .card-grid {{ display: flex; flex-direction: column; }}
@@ -351,9 +364,12 @@ def build_html(rows, date_str):
 
       <div class="filter-group">
         <label>Book</label>
-        <select id="bookFilter">
-          <option value="">All Books</option>
-        </select>
+        <div id="bookDropdown" class="checkbox-dropdown">
+          <button type="button" id="bookButton" class="checkbox-dropdown-button">
+            <span id="bookButtonText">All Books</span>
+          </button>
+          <div id="bookFilter" class="checkbox-group"></div>
+        </div>
       </div>
 
       <div class="filter-group">
@@ -399,7 +415,35 @@ def build_html(rows, date_str):
   <script>
     const propsData = {rows_json};
 
-    // Populate game filter
+    // State management
+    const state = {{
+      selectedBooks: new Set(),
+      consensusOnly: false
+    }};
+
+    // Consensus logic: book diverges from market, model agrees with market
+    function isConsensusPlay(row) {{
+      // Need significant edge (book diverges from market)
+      const edgeBps = Math.abs(row.edge_bps || 0);
+      if (edgeBps < 200) return false; // Minimum 200 bps edge
+
+      const modelProb = row.model_prob || 0;
+      const consensusProb = row.consensus_prob || 0;
+      const mktProb = row.mkt_prob || 0;
+
+      // Use consensus if available, otherwise market
+      const marketRef = consensusProb || mktProb;
+
+      // Model and market must agree on direction vs book
+      // Positive edge = model thinks probability is higher than book's implied prob
+      // We want model and market both on same side
+      const modelEdge = modelProb - marketRef;
+      const bookEdge = row.edge_bps || 0;
+
+      return Math.sign(modelEdge) === Math.sign(bookEdge);
+    }}
+
+    // Populate book filter with checkboxes
     function populateFilters() {{
       const games = [...new Set(propsData.map(r => r.game))].sort();
       const gameSelect = document.getElementById('gameFilter');
@@ -411,33 +455,70 @@ def build_html(rows, date_str):
       }});
 
       const books = [...new Set(propsData.map(r => r.bookmaker))].sort();
-      const bookSelect = document.getElementById('bookFilter');
+      const bookGroup = document.getElementById('bookFilter');
+
       books.forEach(book => {{
-        const option = document.createElement('option');
-        option.value = book;
-        option.textContent = book;
-        bookSelect.appendChild(option);
+        const div = document.createElement('div');
+        div.className = 'checkbox-item';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `book-${{book}}`;
+        checkbox.value = book;
+        checkbox.checked = true; // All selected by default
+        state.selectedBooks.add(book);
+
+        checkbox.addEventListener('change', e => {{
+          if (e.target.checked) {{
+            state.selectedBooks.add(book);
+          }} else {{
+            state.selectedBooks.delete(book);
+          }}
+          updateBookButtonText();
+          renderTable();
+        }});
+
+        const label = document.createElement('label');
+        label.htmlFor = `book-${{book}}`;
+        label.textContent = book;
+
+        div.appendChild(checkbox);
+        div.appendChild(label);
+        bookGroup.appendChild(div);
       }});
+
+      updateBookButtonText();
     }}
 
-    // Consensus logic: book diverges from market, model leans with market
-    function isConsensusPlay(row) {{
-      // Need significant edge (book diverges from market)
-      const edgeBps = Math.abs(row.edge_bps);
-      if (edgeBps < 200) return false; // Minimum 200 bps edge
+    // Update book button text based on selections
+    function updateBookButtonText() {{
+      const buttonText = document.getElementById('bookButtonText');
+      const totalBooks = [...new Set(propsData.map(r => r.bookmaker))].length;
 
-      // Check if model and market agree on direction vs book
-      // If edge is positive, our model > market, book is lower
-      // We want: model and market both higher than book (or both lower)
-      const modelProb = row.model_prob || 0;
-      const mktProb = row.mkt_prob || 0;
-
-      // Model leans same direction as market vs book
-      const modelEdge = modelProb - mktProb;
-      const modelLeansSameWay = Math.sign(row.edge_bps) === Math.sign(modelEdge);
-
-      return modelLeansSameWay;
+      if (state.selectedBooks.size === 0) {{
+        buttonText.textContent = 'No Books Selected';
+      }} else if (state.selectedBooks.size === totalBooks) {{
+        buttonText.textContent = 'All Books';
+      }} else {{
+        buttonText.textContent = `${{state.selectedBooks.size}} Books`;
+      }}
     }}
+
+    // Dropdown toggle
+    const bookDropdown = document.getElementById('bookDropdown');
+    const bookButton = document.getElementById('bookButton');
+
+    bookButton.addEventListener('click', e => {{
+      e.stopPropagation();
+      bookDropdown.classList.toggle('open');
+    }});
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', e => {{
+      if (!bookDropdown.contains(e.target)) {{
+        bookDropdown.classList.remove('open');
+      }}
+    }});
 
     function renderTable() {{
       const tbody = document.getElementById('propsTableBody');
@@ -448,8 +529,6 @@ def build_html(rows, date_str):
       const playerFilter = document.getElementById('playerFilter').value.toLowerCase();
       const marketFilter = document.getElementById('marketFilter').value;
       const sideFilter = document.getElementById('sideFilter').value;
-      const bookFilter = document.getElementById('bookFilter').value;
-      const consensusOnly = document.getElementById('consensusFilter').checked;
 
       // Filter rows
       const filtered = propsData.filter(r => {{
@@ -457,8 +536,8 @@ def build_html(rows, date_str):
         if (playerFilter && !r.player.toLowerCase().includes(playerFilter)) return false;
         if (marketFilter && r.market_std !== marketFilter) return false;
         if (sideFilter && r.side !== sideFilter) return false;
-        if (bookFilter && r.bookmaker !== bookFilter) return false;
-        if (consensusOnly && !isConsensusPlay(r)) return false;
+        if (state.selectedBooks.size > 0 && !state.selectedBooks.has(r.bookmaker)) return false;
+        if (state.consensusOnly && !isConsensusPlay(r)) return false;
         return true;
       }});
 
@@ -519,8 +598,10 @@ def build_html(rows, date_str):
     document.getElementById('playerFilter').addEventListener('input', renderTable);
     document.getElementById('marketFilter').addEventListener('change', renderTable);
     document.getElementById('sideFilter').addEventListener('change', renderTable);
-    document.getElementById('bookFilter').addEventListener('change', renderTable);
-    document.getElementById('consensusFilter').addEventListener('change', renderTable);
+    document.getElementById('consensusFilter').addEventListener('change', e => {{
+      state.consensusOnly = e.target.checked;
+      renderTable();
+    }});
 
     // Initialize
     populateFilters();
