@@ -97,6 +97,18 @@ def main():
     df = pd.read_csv(props_path)
     print(f"[build_nhl_props_page] Loaded {len(df)} prop rows")
 
+    # Filter to balanced top props per market (for performance)
+    # Top 500 goals, 200 assists, 200 points, 200 sog = 1100 total
+    df['abs_edge'] = df['edge_bps'].abs()
+
+    top_goals = df[df['market_std'] == 'goals'].nlargest(500, 'abs_edge')
+    top_assists = df[df['market_std'] == 'assists'].nlargest(200, 'abs_edge')
+    top_points = df[df['market_std'] == 'points'].nlargest(200, 'abs_edge')
+    top_sog = df[df['market_std'] == 'sog'].nlargest(200, 'abs_edge')
+
+    df = pd.concat([top_goals, top_assists, top_points, top_sog]).drop(columns=['abs_edge'])
+    print(f"[build_nhl_props_page] Filtered to {len(df)} props (500 goals, 200 assists, 200 points, 200 sog)")
+
     # Add display columns
     df["price_disp"] = df["price"].apply(fmt_odds)
     df["fair_odds_disp"] = df["fair_odds"].apply(fmt_odds)
@@ -373,7 +385,7 @@ def build_html(rows, date_str):
       </div>
 
       <div class="filter-group">
-        <label>
+        <label style="color: #6ee7ff;">
           <input type="checkbox" id="consensusFilter">
           Consensus Only
         </label>
