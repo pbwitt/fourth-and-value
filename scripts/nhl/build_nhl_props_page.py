@@ -270,10 +270,10 @@ def build_html(rows, date_str):
       background: #333;
     }}
     .consensus-row {{
-      background: #1a3a1a;
+      background: #1a2a3a;
     }}
     .consensus-row:hover {{
-      background: #234a23;
+      background: #234a5a;
     }}
 
     /* Mobile cards */
@@ -288,8 +288,8 @@ def build_html(rows, date_str):
       padding: 1rem;
     }}
     .prop-card.consensus {{
-      background: #1a3a1a;
-      border-color: #2a5a2a;
+      background: #1a2a3a;
+      border-color: #2a4a5a;
     }}
     .prop-card-header {{
       font-size: 1rem;
