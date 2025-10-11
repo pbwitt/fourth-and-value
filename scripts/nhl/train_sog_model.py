@@ -58,17 +58,28 @@ def main():
     game_logs = pd.read_parquet(logs_path)
     print(f"[train_sog_model] Loaded {len(game_logs)} player-game rows from {game_logs['game_id'].nunique()} games")
 
+    # Load season stats (fallback for players without game logs)
+    season_stats_path = Path(f"data/nhl/processed/season_stats_{date_str}.parquet")
+    if season_stats_path.exists():
+        season_stats = pd.read_parquet(season_stats_path)
+        print(f"[train_sog_model] Loaded season stats for {len(season_stats)} players (fallback)")
+    else:
+        print(f"[warn] Season stats not found: {season_stats_path}", file=sys.stderr)
+        season_stats = pd.DataFrame()
+
     # Normalize player names for matching
     game_logs["player"] = game_logs["player"].apply(
         lambda x: " ".join(x.strip().lower().split())
     )
 
-    # Create empty aggregate DataFrame for backward compatibility
-    skater_df = pd.DataFrame()
+    if not season_stats.empty:
+        season_stats["player"] = season_stats["player"].apply(
+            lambda x: " ".join(x.strip().lower().split())
+        )
 
     # Train model
     model = SimpleSOGModel()
-    model.fit(skater_df, game_logs=game_logs)
+    model.fit(season_stats, game_logs=game_logs)
 
     print(f"[train_sog_model] Model fitted on {len(model.skater_stats)} players")
     print(f"[train_sog_model]   Using rolling averages from game logs")

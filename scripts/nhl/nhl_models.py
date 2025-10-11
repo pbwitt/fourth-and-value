@@ -4,6 +4,7 @@ NHL prop prediction models.
 Shared module for training and inference.
 """
 
+import sys
 import pandas as pd
 import numpy as np
 from scipy.stats import norm, poisson
@@ -41,14 +42,43 @@ class SimpleSOGModel:
         Fit model on season stats or game logs.
 
         Args:
-            skater_df: Season aggregate stats (fallback for sparse data)
-            game_logs: Game-by-game logs (optional, for rolling averages)
+            skater_df: Season aggregate stats (fallback for players without game logs)
+            game_logs: Game-by-game logs (preferred, for rolling averages)
         """
         # If game logs provided, compute rolling averages
         if game_logs is not None and len(game_logs) > 0:
-            self.skater_stats = self._compute_rolling_stats(game_logs)
+            game_log_stats = self._compute_rolling_stats(game_logs)
+
+            # If season stats also provided, merge them as fallback
+            if not skater_df.empty:
+                # Prepare season stats
+                season_stats = skater_df.copy()
+                season_stats["player"] = season_stats["player"].apply(
+                    lambda x: " ".join(x.strip().lower().split()) if isinstance(x, str) else ""
+                )
+                season_stats = season_stats.set_index("player")
+
+                # Compute shots per game from season stats
+                season_stats["shots_per_game"] = (
+                    season_stats["shots"] / season_stats["games_played"].replace(0, 1)
+                )
+
+                # Select only players NOT in game logs
+                players_in_game_logs = set(game_log_stats.index)
+                players_in_season_only = season_stats.index.difference(players_in_game_logs)
+
+                # Add season-only players to model
+                season_only = season_stats.loc[players_in_season_only, ["shots_per_game", "position", "games_played"]].copy()
+
+                # Combine: game logs (preferred) + season stats (fallback)
+                self.skater_stats = pd.concat([game_log_stats, season_only])
+
+                print(f"[Model] Using {len(game_log_stats)} players from game logs + {len(season_only)} from season stats", file=sys.stderr)
+            else:
+                # Only game logs, no season stats
+                self.skater_stats = game_log_stats
         else:
-            # Fallback: use season aggregates
+            # Fallback: use season aggregates only
             self.skater_stats = skater_df.set_index("player")[
                 ["shots", "games_played", "position", "toi_per_game"]
             ].copy()
@@ -224,8 +254,8 @@ class SimpleScoringModel:
         Fit model on season stats or game logs.
 
         Args:
-            skater_df: Season aggregate stats (fallback for sparse data)
-            game_logs: Game-by-game logs (optional, for rolling averages)
+            skater_df: Season aggregate stats (fallback for players without game logs)
+            game_logs: Game-by-game logs (preferred, for rolling averages)
         """
         stat_col_map = {
             "goals": "goals",
@@ -239,9 +269,37 @@ class SimpleScoringModel:
         if game_logs is not None and len(game_logs) > 0:
             if stat_col not in game_logs.columns:
                 raise ValueError(f"Stat column {stat_col} not found in game logs")
-            self.skater_stats = self._compute_rolling_stats(game_logs, stat_col)
+
+            game_log_stats = self._compute_rolling_stats(game_logs, stat_col)
+
+            # If season stats also provided, merge them as fallback
+            if not skater_df.empty and stat_col in skater_df.columns:
+                # Prepare season stats
+                season_stats = skater_df.copy()
+                season_stats["player"] = season_stats["player"].apply(
+                    lambda x: " ".join(x.strip().lower().split()) if isinstance(x, str) else ""
+                )
+                season_stats = season_stats.set_index("player")
+
+                # Compute rate per game from season stats
+                season_stats[f"{self.stat_name}_per_game"] = (
+                    season_stats[stat_col] / season_stats["games_played"].replace(0, 1)
+                )
+
+                # Select only players NOT in game logs
+                players_in_game_logs = set(game_log_stats.index)
+                players_in_season_only = season_stats.index.difference(players_in_game_logs)
+
+                # Add season-only players to model
+                season_only = season_stats.loc[players_in_season_only, [f"{self.stat_name}_per_game", "position", "games_played"]].copy()
+
+                # Combine: game logs (preferred) + season stats (fallback)
+                self.skater_stats = pd.concat([game_log_stats, season_only])
+            else:
+                # Only game logs, no season stats
+                self.skater_stats = game_log_stats
         else:
-            # Fallback: use season aggregates
+            # Fallback: use season aggregates only
             if stat_col not in skater_df.columns:
                 raise ValueError(f"Stat column {stat_col} not found in data")
 

@@ -5,6 +5,7 @@ QC checks for NHL daily build with blocking rules.
 Validates:
 - Coverage: ≥80% of props have consensus data
 - Join integrity: 100% of props join successfully
+- Probability sanity: Model probabilities are reasonable
 - Edge sanity: P95 absolute edge <3500 bps
 - Market distribution: All expected markets present
 
@@ -21,6 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
+from scipy.stats import poisson
 import numpy as np
 
 
@@ -61,21 +63,21 @@ def check_joins(props_df: pd.DataFrame) -> dict:
 
 
 def check_edge_sanity(props_df: pd.DataFrame) -> dict:
-    """Check that P95 absolute edge is <4950 bps (Phase D: calibrated models)."""
+    """Check that P95 absolute edge is <6000 bps (uncalibrated models)."""
     edges = props_df["edge_bps"].abs()
     p95_edge = edges.quantile(0.95)
 
-    # Phase D threshold: calibrated models with isotonic regression
-    # Future: Improve goal model to tighten further toward 3500 bps
-    passed = p95_edge < 4950.0
+    # Threshold for uncalibrated models (raw model probabilities vs market)
+    # Calibration was disabled to avoid circular logic (model matching market)
+    passed = p95_edge < 6000.0
 
     return {
         "name": "Edge Sanity",
         "passed": bool(passed),
         "blocking": True,
-        "threshold": "<4950 bps",
+        "threshold": "<6000 bps",
         "actual": f"{p95_edge:.1f} bps",
-        "details": f"P95 absolute edge: {p95_edge:.1f} bps (Phase D calibrated)",
+        "details": f"P95 absolute edge: {p95_edge:.1f} bps (uncalibrated)",
     }
 
 
@@ -114,6 +116,65 @@ def check_book_diversity(props_df: pd.DataFrame) -> dict:
         "threshold": "Avg ≥2 books",
         "actual": f"Avg {avg_books:.1f}, Min {min_books:.0f}",
         "details": f"Average {avg_books:.1f} books per prop",
+    }
+
+
+def check_probability_sanity(props_df: pd.DataFrame) -> dict:
+    """
+    Check that model probabilities are reasonable.
+
+    Flags issues like:
+    - Model says >50% for Over when line is ABOVE the model prediction
+    - Model says >50% for Under when line is BELOW the model prediction
+    - Model probabilities don't align with model line
+    """
+    issues = []
+
+    # Check for nonsensical probabilities relative to model line
+    positive_edge = props_df[props_df['edge_bps'] > 0]
+
+    for _, row in positive_edge.iterrows():
+        player = row['player']
+        market = row['market_std']
+        side = row['side']
+        line = row['point']
+        model_line = row['model_line']
+        model_prob = row['model_prob']
+
+        # Check if probability makes sense relative to model prediction
+        if side == 'Over':
+            # If model line is BELOW the bet line, probability should be <50%
+            # Example: Model predicts 2.0, Over 2.5 should have <50% chance
+            if model_line < line and model_prob > 0.5:
+                issues.append(f"{player} {market}: Over {line} has {model_prob:.1%} prob but model predicts {model_line}")
+        else:  # Under
+            # If model line is ABOVE the bet line, probability should be <50%
+            # Example: Model predicts 2.0, Under 1.5 should have <50% chance
+            if model_line > line and model_prob > 0.5:
+                issues.append(f"{player} {market}: Under {line} has {model_prob:.1%} prob but model predicts {model_line}")
+
+    # Limit to first 5 issues for readability
+    if len(issues) > 0:
+        sample_issues = issues[:5]
+        if len(issues) > 5:
+            sample_issues.append(f"... and {len(issues) - 5} more")
+
+        return {
+            "name": "Probability Sanity",
+            "passed": False,
+            "blocking": True,
+            "threshold": "Probabilities align with model predictions",
+            "actual": f"{len(issues)} nonsensical probabilities",
+            "details": "; ".join(sample_issues),
+        }
+
+    return {
+        "name": "Probability Sanity",
+        "passed": True,
+        "blocking": True,
+        "threshold": "Probabilities align with model predictions",
+        "actual": "All probabilities reasonable",
+        "details": "No issues found",
     }
 
 
@@ -209,6 +270,7 @@ def main():
         check_game_log_dates(date_str),  # BLOCKING: validate dates first
         check_coverage(props_df),
         check_joins(props_df),
+        check_probability_sanity(props_df),  # BLOCKING: validate probabilities
         check_edge_sanity(props_df),
         check_market_distribution(props_df),
         check_book_diversity(props_df),

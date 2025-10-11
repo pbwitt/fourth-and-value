@@ -91,6 +91,38 @@ def load_models():
     return models
 
 
+def compute_model_line(row, models):
+    """
+    Compute model's expected value (prediction).
+
+    Returns the model's point estimate for the stat.
+    """
+    market_std = row.get("market_std")
+    player = row.get("player")
+
+    # Check if we have a model for this market
+    if market_std in models:
+        model = models[market_std]
+        try:
+            # Get the model's expected value
+            if hasattr(model, 'predict_expected_value'):
+                return model.predict_expected_value(player)
+            elif hasattr(model, 'skater_stats') and model.skater_stats is not None:
+                # Fallback: get mean from model stats
+                player_norm = " ".join(player.strip().lower().split())
+                if player_norm in model.skater_stats.index:
+                    stats = model.skater_stats.loc[player_norm]
+                    if market_std == "sog":
+                        return stats.get("shots_per_game", np.nan)
+                    else:
+                        return stats.get(f"{market_std}_per_game", np.nan)
+        except Exception:
+            pass
+
+    # Fallback: use consensus line
+    return row.get("consensus_line", np.nan)
+
+
 def compute_model_prob(row, models, consensus_prob):
     """
     Compute model probability for a prop.
@@ -107,10 +139,12 @@ def compute_model_prob(row, models, consensus_prob):
     if market_std in models:
         model = models[market_std]
         try:
+            # Use UNCALIBRATED probabilities for edge calculation
+            # We want our raw model opinion vs market, not calibrated-to-match-market
             if side == "Over":
-                prob = model.predict_prob_over(player, line)
+                prob = model.predict_prob_over(player, line, calibrated=False)
             else:  # Under
-                prob = 1 - model.predict_prob_over(player, line)
+                prob = 1 - model.predict_prob_over(player, line, calibrated=False)
             return prob
         except Exception as e:
             # Fallback to consensus on error
@@ -175,6 +209,12 @@ def main():
     # Load trained models
     models = load_models()
 
+    # Compute model lines (expected values)
+    merged["model_line"] = merged.apply(
+        lambda row: compute_model_line(row, models),
+        axis=1,
+    )
+
     # Compute model probabilities (Phase B: use models where available)
     merged["model_prob"] = merged.apply(
         lambda row: compute_model_prob(row, models, row["consensus_prob"]),
@@ -190,9 +230,6 @@ def main():
     # Add display columns
     merged["model_pct"] = (merged["model_prob"] * 100).round(1)
     merged["consensus_pct"] = (merged["consensus_prob"] * 100).round(1)
-
-    # Model line (for Phase A, use consensus line)
-    merged["model_line"] = merged["consensus_line"]
 
     # Select final columns for output
     output_cols = [

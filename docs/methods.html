@@ -12,380 +12,504 @@
     a:hover { text-decoration: underline; }
     .wrap { max-width: 980px; margin: 48px auto; padding: 0 20px; }
     .card { background:var(--card); border-radius:16px; padding:24px; box-shadow: 0 4px 16px rgba(0,0,0,.25); }
-    h1 { font-size: 2rem; margin: 0 0 8px; }
+    h1 { font-size: 2rem; margin: 0 0 16px; }
     h2 { font-size: 1.25rem; margin: 28px 0 8px; }
     h3 { font-size: 1.05rem; margin: 20px 0 6px; }
+    h4 { font-size: 0.95rem; margin: 16px 0 6px; }
     .updated { color: var(--muted); font-size: 0.95rem; margin-bottom: 18px; }
     ul { margin: 8px 0 8px 1.25rem; }
+    ol { margin: 8px 0 8px 1.25rem; }
     code { background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 6px; }
+    pre code { display: block; padding: 12px; overflow-x: auto; }
     .note { color: var(--muted); font-size: 0.95rem; }
     .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .95em; }
     hr { border: 0; border-top: 1px solid rgba(255,255,255,.08); margin: 28px 0; }
     .highlight { background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; padding: 12px; margin: 12px 0; border-radius: 4px; }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      border-bottom: 2px solid rgba(255,255,255,0.1);
+    }
+    .tab-button {
+      padding: 12px 24px;
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 600;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.2s;
+    }
+    .tab-button:hover {
+      color: var(--text);
+      background: rgba(255,255,255,0.03);
+    }
+    .tab-button.active {
+      color: var(--text);
+      border-bottom-color: #22c55e;
+    }
+    .tab-button.active.nhl-tab {
+      border-bottom-color: #4FC3F7;
+    }
+    .tab-content {
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+
+    /* Sport-specific highlight colors */
+    .nfl-content .highlight {
+      background: rgba(34, 197, 94, 0.1);
+      border-left-color: #22c55e;
+    }
+    .nhl-content .highlight {
+      background: rgba(79, 195, 247, 0.1);
+      border-left-color: #4FC3F7;
+    }
   </style>
 </head>
 <body>
   <div id="nav-root"></div>
-  <script src="./nav.js?v=6"></script>
+  <script src="./nav.js?v=29"></script>
 
   <main class="wrap">
     <div class="card">
       <h1>Methods</h1>
-      <div class="updated">Last updated: Oct 8, 2025</div>
 
-      <p>This page describes how Fourth &amp; Value models player props and calculates "value." It's intentionally general (no week-specific numbers) so it stays accurate as we update models.</p>
-
-      <div class="highlight">
-        <strong>🆕 Latest Update (Oct 8, 2025):</strong> Home/away field advantage adjustments are now live! We apply evidence-based multipliers (±3% to ±6%) based on game location, resulting in 6-12% spreads between home and away projections. Combined with defensive adjustments, this brings our model significantly closer to market consensus. See the Matchup Adjustments section for full details.
+      <div class="tabs">
+        <button class="tab-button active" data-tab="nfl">NFL 🏈</button>
+        <button class="tab-button nhl-tab" data-tab="nhl">NHL 🏒</button>
       </div>
 
-      <h2 id="what-we-model">1) What we model</h2>
-      <p>We focus on common player-prop markets, normalized to canonical keys (<code>market_std</code>):</p>
-      <ul>
-        <li><strong>Normal/Gaussian</strong>: <code>rush_yds</code>, <code>recv_yds</code>, <code>pass_yds</code>, <code>receptions</code>, <code>rush_attempts</code>, <code>pass_attempts</code>, <code>pass_completions</code>.</li>
-        <li><strong>Poisson</strong>: <code>anytime_td</code>, <code>pass_tds</code>, <code>pass_interceptions</code>.</li>
-      </ul>
-      <p>We map sportsbook labels (e.g., "player_rushing_yards") to these keys so we can merge and compare across books.</p>
+      <!-- NFL Tab Content -->
+      <div id="nfl-tab" class="tab-content active nfl-content">
+        <div class="updated">Last updated: Oct 8, 2025</div>
 
-      <h2 id="data-sources">2) Data sources (high level)</h2>
-      <ul>
-        <li><strong>Odds (per book):</strong> Player props and prices from multiple sportsbooks via The Odds API.</li>
-        <li><strong>Player game logs:</strong> Weekly player stats from nflverse (official NFL data).</li>
-        <li><strong>Schedule &amp; kickoff:</strong> Used for display (ET) and filtering upcoming games.</li>
-        <li><strong>Defensive stats:</strong> Computed from opponent performance (yards allowed per game).</li>
-      </ul>
+        <p>This page describes how Fourth &amp; Value models NFL player props and calculates "value." It's intentionally general (no week-specific numbers) so it stays accurate as we update models.</p>
 
-      <h2 id="modeling">3) Modeling approach</h2>
+        <div class="highlight">
+          <strong>🆕 Latest Update (Oct 8, 2025):</strong> Home/away field advantage adjustments are now live! We apply evidence-based multipliers (±3% to ±6%) based on game location, resulting in 6-12% spreads between home and away projections. Combined with defensive adjustments, this brings our model significantly closer to market consensus. See the Matchup Adjustments section for full details.
+        </div>
 
-      <h3>Family-based multi-market modeling (Oct 2024):</h3>
-      <p>Instead of modeling each market independently, we now model <strong>linked market families</strong> through shared latent factors:</p>
+        <h2 id="what-we-model">1) What we model</h2>
+        <p>We focus on common player-prop markets, normalized to canonical keys (<code>market_std</code>):</p>
+        <ul>
+          <li><strong>Normal/Gaussian</strong>: <code>rush_yds</code>, <code>recv_yds</code>, <code>pass_yds</code>, <code>receptions</code>, <code>rush_attempts</code>, <code>pass_attempts</code>, <code>pass_completions</code>.</li>
+          <li><strong>Poisson</strong>: <code>anytime_td</code>, <code>pass_tds</code>, <code>pass_interceptions</code>.</li>
+        </ul>
+        <p>We map sportsbook labels (e.g., "player_rushing_yards") to these keys so we can merge and compare across books.</p>
 
-      <ul>
-        <li><strong>Rush family:</strong> <code>rush_attempts</code> and <code>rush_yds</code> are linked through:
-          <ul>
-            <li>Volume latent: expected carries (μ, σ)</li>
-            <li>Efficiency latent: yards per carry (μ, σ) bounded [2.5, 6.5]</li>
-            <li>Derived relationship: <code>rush_yds = rush_attempts × YPC</code></li>
-          </ul>
-        </li>
-        <li><strong>Receive family:</strong> <code>receptions</code> and <code>recv_yds</code> linked through:
-          <ul>
-            <li>Volume latent: expected targets</li>
-            <li>Catch rate: receptions/targets bounded [0.50, 0.95]</li>
-            <li>Yards per reception: bounded [6.0, 18.0]</li>
-            <li>Derived: <code>recv_yds = targets × catch_rate × YPR</code></li>
-          </ul>
-        </li>
-        <li><strong>Pass family:</strong> <code>pass_attempts</code>, <code>pass_completions</code>, and <code>pass_yds</code> linked through:
-          <ul>
-            <li>Volume latent: expected attempts</li>
-            <li>Completion percentage: bounded [0.50, 0.75]</li>
-            <li>Yards per completion: bounded [5.0, 12.0]</li>
-            <li>Derived: <code>pass_yds = attempts × comp% × Y/C</code></li>
-          </ul>
-        </li>
-      </ul>
+        <h2 id="data-sources">2) Data sources (high level)</h2>
+        <ul>
+          <li><strong>Odds (per book):</strong> Player props and prices from multiple sportsbooks via The Odds API.</li>
+          <li><strong>Player game logs:</strong> Weekly player stats from nflverse (official NFL data).</li>
+          <li><strong>Schedule &amp; kickoff:</strong> Used for display (ET) and filtering upcoming games.</li>
+          <li><strong>Defensive stats:</strong> Computed from opponent performance (yards allowed per game).</li>
+        </ul>
 
-      <p><strong>Why this matters:</strong> When a sportsbook moves the rush attempts line but not rush yards, our model detects the implied efficiency change. If a book prices 18 carries at 120 yards (6.67 YPC—above our max bound), we know they're mispricing at least one market. This surfaces arbitrage opportunities where both linked markets show value.</p>
+        <h2 id="modeling">3) Modeling approach</h2>
 
-      <h3>Core methodology:</h3>
-      <ul>
-        <li><strong>Recency-weighted L4:</strong> Per player × market, we use only the <strong>last 4 games</strong> (L4) with <strong>exponential weighting</strong> (alpha=0.4). Most recent game receives ~64% of the total weight.</li>
-        <li><strong>Normal markets:</strong> Estimate mean <code>μ</code> and standard deviation <code>σ</code> → assume <em>Normal(μ,σ)</em>.</li>
-        <li><strong>Poisson markets:</strong> Estimate rate <code>λ</code> for counts (TDs, INTs) → assume <em>Poisson(λ)</em>.</li>
-        <li><strong>Sanity guards:</strong> Efficiency metrics are bounded to realistic ranges; floor <code>σ</code> to avoid overconfidence.</li>
-      </ul>
+        <h3>Family-based multi-market modeling (Oct 2024):</h3>
+        <p>Instead of modeling each market independently, we now model <strong>linked market families</strong> through shared latent factors:</p>
 
-      <h3>Exponential weighting:</h3>
-      <p>Recent games receive exponentially more weight than older games. For a 4-game window:</p>
-      <ul>
-        <li>Oldest game (Week N-3): <strong>10.3%</strong> weight</li>
-        <li>2nd oldest (Week N-2): <strong>25.6%</strong> weight</li>
-        <li>Most recent (Week N-1): <strong>64.1%</strong> weight</li>
-      </ul>
-      <p>This captures form changes, hot streaks, and role adjustments much faster than simple averages.</p>
+        <ul>
+          <li><strong>Rush family:</strong> <code>rush_attempts</code> and <code>rush_yds</code> are linked through:
+            <ul>
+              <li>Volume latent: expected carries (μ, σ)</li>
+              <li>Efficiency latent: yards per carry (μ, σ) bounded [2.5, 6.5]</li>
+              <li>Derived relationship: <code>rush_yds = rush_attempts × YPC</code></li>
+            </ul>
+          </li>
+          <li><strong>Receive family:</strong> <code>receptions</code> and <code>recv_yds</code> linked through:
+            <ul>
+              <li>Volume latent: expected targets</li>
+              <li>Catch rate: receptions/targets bounded [0.50, 0.95]</li>
+              <li>Yards per reception: bounded [6.0, 18.0]</li>
+              <li>Derived: <code>recv_yds = targets × catch_rate × YPR</code></li>
+            </ul>
+          </li>
+          <li><strong>Pass family:</strong> <code>pass_attempts</code>, <code>pass_completions</code>, and <code>pass_yds</code> linked through:
+            <ul>
+              <li>Volume latent: expected attempts</li>
+              <li>Completion percentage: bounded [0.50, 0.75]</li>
+              <li>Yards per completion: bounded [5.0, 12.0]</li>
+              <li>Derived: <code>pass_yds = attempts × comp% × Y/C</code></li>
+            </ul>
+          </li>
+        </ul>
 
-      <h3>Matchup adjustments:</h3>
-      <p>We apply two layers of matchup adjustments to account for both opponent strength and game location:</p>
+        <p><strong>Why this matters:</strong> When a sportsbook moves the rush attempts line but not rush yards, our model detects the implied efficiency change. If a book prices 18 carries at 120 yards (6.67 YPC—above our max bound), we know they're mispricing at least one market. This surfaces arbitrage opportunities where both linked markets show value.</p>
 
-      <h4>A. Defensive adjustments</h4>
-      <p>Player projections are adjusted based on opponent defensive strength.</p>
+        <h3>Core methodology:</h3>
+        <ul>
+          <li><strong>Recency-weighted L4:</strong> Per player × market, we use only the <strong>last 4 games</strong> (L4) with <strong>exponential weighting</strong> (alpha=0.4). Most recent game receives ~64% of the total weight.</li>
+          <li><strong>Normal markets:</strong> Estimate mean <code>μ</code> and standard deviation <code>σ</code> → assume <em>Normal(μ,σ)</em>.</li>
+          <li><strong>Poisson markets:</strong> Estimate rate <code>λ</code> for counts (TDs, INTs) → assume <em>Poisson(λ)</em>.</li>
+          <li><strong>Sanity guards:</strong> Efficiency metrics are bounded to realistic ranges; floor <code>σ</code> to avoid overconfidence.</li>
+        </ul>
 
-      <p><strong>Defensive rating calculation:</strong></p>
-      <ul>
-        <li>Computed from <strong>current season yards allowed per game</strong> (weeks 1 to N-1)</li>
-        <li>Normalized using z-scores to a <strong>0.5–2.0 scale</strong>:
-          <ul>
-            <li>0.5 = Easiest defense (most yards allowed)</li>
-            <li>1.0 = League average defense</li>
-            <li>2.0 = Toughest defense (fewest yards allowed)</li>
-          </ul>
-        </li>
-        <li>Separate ratings for pass defense and rush defense</li>
-        <li>Updated weekly as more games are played</li>
-      </ul>
+        <h3>Exponential weighting:</h3>
+        <p>Recent games receive exponentially more weight than older games. For a 4-game window:</p>
+        <ul>
+          <li>Oldest game (Week N-3): <strong>10.3%</strong> weight</li>
+          <li>2nd oldest (Week N-2): <strong>25.6%</strong> weight</li>
+          <li>Most recent (Week N-1): <strong>64.1%</strong> weight</li>
+        </ul>
+        <p>This captures form changes, hot streaks, and role adjustments much faster than simple averages.</p>
 
-      <p><strong>Adjustment formula:</strong></p>
-      <ul>
-        <li><code>adjustment_factor = 1.0 - (def_rating - 1.0) × 0.3</code></li>
-        <li>Applied to μ after deriving from latent factors: <code>μ_adjusted = μ × adjustment_factor</code></li>
-        <li>Market mapping:
-          <ul>
-            <li>Receptions, receiving yards: use <strong>pass_def_rating</strong></li>
-            <li>Rush yards, rush attempts: use <strong>rush_def_rating</strong></li>
-            <li>QB passing markets: use <strong>pass_def_rating</strong></li>
-          </ul>
-        </li>
-      </ul>
+        <h3>Matchup adjustments:</h3>
+        <p>We apply two layers of matchup adjustments to account for both opponent strength and game location:</p>
 
-      <p><strong>Examples:</strong></p>
-      <ul>
-        <li>Easiest defense (0.5 rating) → <code>1.0 - (0.5 - 1.0) × 0.3 = 1.15</code> → <strong>+15% boost</strong></li>
-        <li>Average defense (1.0 rating) → <code>1.0 - (1.0 - 1.0) × 0.3 = 1.00</code> → <strong>No change</strong></li>
-        <li>Tough defense (1.5 rating) → <code>1.0 - (1.5 - 1.0) × 0.3 = 0.85</code> → <strong>-15% penalty</strong></li>
-      </ul>
+        <h4>A. Defensive adjustments</h4>
+        <p>Player projections are adjusted based on opponent defensive strength.</p>
 
-      <p class="note"><em>Note: In practice, defensive ratings typically range from 0.5 to ~1.5 early in the season, so actual adjustments are usually in the ±7% to ±15% range.</em></p>
+        <p><strong>Defensive rating calculation:</strong></p>
+        <ul>
+          <li>Computed from <strong>current season yards allowed per game</strong> (weeks 1 to N-1)</li>
+          <li>Normalized using z-scores to a <strong>0.5–2.0 scale</strong>:
+            <ul>
+              <li>0.5 = Easiest defense (most yards allowed)</li>
+              <li>1.0 = League average defense</li>
+              <li>2.0 = Toughest defense (fewest yards allowed)</li>
+            </ul>
+          </li>
+          <li>Separate ratings for pass defense and rush defense</li>
+          <li>Updated weekly as more games are played</li>
+        </ul>
 
-      <h4>B. Home/Away field advantage adjustments</h4>
-      <p>After defensive adjustments, we apply home field advantage multipliers to account for location-based performance differences.</p>
+        <p><strong>Adjustment formula:</strong></p>
+        <ul>
+          <li><code>adjustment_factor = 1.0 - (def_rating - 1.0) × 0.3</code></li>
+          <li>Applied to μ after deriving from latent factors: <code>μ_adjusted = μ × adjustment_factor</code></li>
+          <li>Market mapping:
+            <ul>
+              <li>Receptions, receiving yards: use <strong>pass_def_rating</strong></li>
+              <li>Rush yards, rush attempts: use <strong>rush_def_rating</strong></li>
+              <li>QB passing markets: use <strong>pass_def_rating</strong></li>
+            </ul>
+          </li>
+        </ul>
 
-      <p><strong>Why this matters:</strong> NFL data shows consistent home field advantage across all positions. Home teams score 2-4 more points per game on average. This stems from:</p>
-      <ul>
-        <li>Crowd noise disrupting opponent communication (helps your offense)</li>
-        <li>Familiarity with field conditions, locker rooms, and routine</li>
-        <li>Reduced travel fatigue and timezone changes</li>
-        <li>Referee bias (subtle but measurable)</li>
-      </ul>
+        <p><strong>Examples:</strong></p>
+        <ul>
+          <li>Easiest defense (0.5 rating) → <code>1.0 - (0.5 - 1.0) × 0.3 = 1.15</code> → <strong>+15% boost</strong></li>
+          <li>Average defense (1.0 rating) → <code>1.0 - (1.0 - 1.0) × 0.3 = 1.00</code> → <strong>No change</strong></li>
+          <li>Tough defense (1.5 rating) → <code>1.0 - (1.5 - 1.0) × 0.3 = 0.85</code> → <strong>-15% penalty</strong></li>
+        </ul>
 
-      <p><strong>Implementation approach:</strong> We use evidence-based multipliers applied to player expectations (μ) after defensive adjustments:</p>
+        <p class="note"><em>Note: In practice, defensive ratings typically range from 0.5 to ~1.5 early in the season, so actual adjustments are usually in the ±7% to ±15% range.</em></p>
 
-      <table style="border-collapse: collapse; width: 100%; margin: 12px 0;">
-        <thead>
-          <tr style="border-bottom: 2px solid rgba(255,255,255,0.1);">
-            <th style="text-align: left; padding: 8px;">Market</th>
-            <th style="text-align: center; padding: 8px;">Home Multiplier</th>
-            <th style="text-align: center; padding: 8px;">Away Multiplier</th>
-            <th style="text-align: center; padding: 8px;">Total Spread</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-            <td style="padding: 8px;">Pass Yards</td>
-            <td style="text-align: center; padding: 8px;">+6.0%</td>
-            <td style="text-align: center; padding: 8px;">-6.0%</td>
-            <td style="text-align: center; padding: 8px;"><strong>12.0%</strong></td>
-          </tr>
-          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-            <td style="padding: 8px;">Pass TDs</td>
-            <td style="text-align: center; padding: 8px;">+6.0%</td>
-            <td style="text-align: center; padding: 8px;">-6.0%</td>
-            <td style="text-align: center; padding: 8px;"><strong>12.0%</strong></td>
-          </tr>
-          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-            <td style="padding: 8px;">Interceptions</td>
-            <td style="text-align: center; padding: 8px;">-5.0%</td>
-            <td style="text-align: center; padding: 8px;">+5.0%</td>
-            <td style="text-align: center; padding: 8px;"><strong>10.0%</strong></td>
-          </tr>
-          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-            <td style="padding: 8px;">Rush Yards</td>
-            <td style="text-align: center; padding: 8px;">+4.0%</td>
-            <td style="text-align: center; padding: 8px;">-4.0%</td>
-            <td style="text-align: center; padding: 8px;"><strong>8.0%</strong></td>
-          </tr>
-          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-            <td style="padding: 8px;">Rush Attempts</td>
-            <td style="text-align: center; padding: 8px;">+2.0%</td>
-            <td style="text-align: center; padding: 8px;">-2.0%</td>
-            <td style="text-align: center; padding: 8px;"><strong>4.0%</strong></td>
-          </tr>
-          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-            <td style="padding: 8px;">Receiving Yards</td>
-            <td style="text-align: center; padding: 8px;">+6.0%</td>
-            <td style="text-align: center; padding: 8px;">-6.0%</td>
-            <td style="text-align: center; padding: 8px;"><strong>12.0%</strong></td>
-          </tr>
-          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
-            <td style="padding: 8px;">Receptions</td>
-            <td style="text-align: center; padding: 8px;">+3.0%</td>
-            <td style="text-align: center; padding: 8px;">-3.0%</td>
-            <td style="text-align: center; padding: 8px;"><strong>6.0%</strong></td>
-          </tr>
-          <tr>
-            <td style="padding: 8px;">Anytime TD</td>
-            <td style="text-align: center; padding: 8px;">+5.0%</td>
-            <td style="text-align: center; padding: 8px;">-5.0%</td>
-            <td style="text-align: center; padding: 8px;"><strong>10.0%</strong></td>
-          </tr>
-        </tbody>
-      </table>
+        <h4>B. Home/Away field advantage adjustments</h4>
+        <p>After defensive adjustments, we apply home field advantage multipliers to account for location-based performance differences.</p>
 
-      <p><strong>Real-world impact (Week 6 data):</strong></p>
-      <ul>
-        <li><strong>Coverage:</strong> 80.5% of props (206/256) have home/away data
-          <ul>
-            <li>Missing data primarily from D/ST units and recently traded players</li>
-          </ul>
-        </li>
-        <li><strong>Passing yards:</strong> Home QBs average 152.1 yards vs 134.6 away (+13.1% actual difference)</li>
-        <li><strong>Receiving yards:</strong> Home WRs/TEs average 42.0 yards vs 36.6 away (+14.8%)</li>
-        <li><strong>Rush yards:</strong> Home RBs average 54.4 yards vs 50.8 away (+6.9%)</li>
-      </ul>
+        <p><strong>Why this matters:</strong> NFL data shows consistent home field advantage across all positions. Home teams score 2-4 more points per game on average. This stems from:</p>
+        <ul>
+          <li>Crowd noise disrupting opponent communication (helps your offense)</li>
+          <li>Familiarity with field conditions, locker rooms, and routine</li>
+          <li>Reduced travel fatigue and timezone changes</li>
+          <li>Referee bias (subtle but measurable)</li>
+        </ul>
 
-      <p><strong>Data pipeline:</strong></p>
-      <ol>
-        <li>Fetch NFL schedule data (home_team/away_team for each game)</li>
-        <li>Enrich historical game logs with <code>is_home</code> flag by joining on team/opponent/week</li>
-        <li>Build player params from L4 weighted history</li>
-        <li>Apply defensive adjustments (opponent strength)</li>
-        <li>Apply home/away multipliers (game location) ← <strong>New step</strong></li>
-        <li>Generate final probabilities for O/U props</li>
-      </ol>
+        <p><strong>Implementation approach:</strong> We use evidence-based multipliers applied to player expectations (μ) after defensive adjustments:</p>
 
-      <p><strong>Why simple multipliers (vs full home/away splits)?</strong></p>
-      <ul>
-        <li>✅ Requires less historical data (4 games vs 8+ for statistical significance)</li>
-        <li>✅ Lower risk of overfitting early in the season</li>
-        <li>✅ Easier to tune and validate against backtest results</li>
-        <li>✅ More transparent for users</li>
-        <li>🔜 Future phase: Full home/away distribution splits when we have sufficient data</li>
-      </ul>
+        <table style="border-collapse: collapse; width: 100%; margin: 12px 0;">
+          <thead>
+            <tr style="border-bottom: 2px solid rgba(255,255,255,0.1);">
+              <th style="text-align: left; padding: 8px;">Market</th>
+              <th style="text-align: center; padding: 8px;">Home Multiplier</th>
+              <th style="text-align: center; padding: 8px;">Away Multiplier</th>
+              <th style="text-align: center; padding: 8px;">Total Spread</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <td style="padding: 8px;">Pass Yards</td>
+              <td style="text-align: center; padding: 8px;">+6.0%</td>
+              <td style="text-align: center; padding: 8px;">-6.0%</td>
+              <td style="text-align: center; padding: 8px;"><strong>12.0%</strong></td>
+            </tr>
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <td style="padding: 8px;">Pass TDs</td>
+              <td style="text-align: center; padding: 8px;">+6.0%</td>
+              <td style="text-align: center; padding: 8px;">-6.0%</td>
+              <td style="text-align: center; padding: 8px;"><strong>12.0%</strong></td>
+            </tr>
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <td style="padding: 8px;">Interceptions</td>
+              <td style="text-align: center; padding: 8px;">-5.0%</td>
+              <td style="text-align: center; padding: 8px;">+5.0%</td>
+              <td style="text-align: center; padding: 8px;"><strong>10.0%</strong></td>
+            </tr>
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <td style="padding: 8px;">Rush Yards</td>
+              <td style="text-align: center; padding: 8px;">+4.0%</td>
+              <td style="text-align: center; padding: 8px;">-4.0%</td>
+              <td style="text-align: center; padding: 8px;"><strong>8.0%</strong></td>
+            </tr>
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <td style="padding: 8px;">Rush Attempts</td>
+              <td style="text-align: center; padding: 8px;">+2.0%</td>
+              <td style="text-align: center; padding: 8px;">-2.0%</td>
+              <td style="text-align: center; padding: 8px;"><strong>4.0%</strong></td>
+            </tr>
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <td style="padding: 8px;">Receiving Yards</td>
+              <td style="text-align: center; padding: 8px;">+6.0%</td>
+              <td style="text-align: center; padding: 8px;">-6.0%</td>
+              <td style="text-align: center; padding: 8px;"><strong>12.0%</strong></td>
+            </tr>
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+              <td style="padding: 8px;">Receptions</td>
+              <td style="text-align: center; padding: 8px;">+3.0%</td>
+              <td style="text-align: center; padding: 8px;">-3.0%</td>
+              <td style="text-align: center; padding: 8px;"><strong>6.0%</strong></td>
+            </tr>
+            <tr>
+              <td style="padding: 8px;">Anytime TD</td>
+              <td style="text-align: center; padding: 8px;">+5.0%</td>
+              <td style="text-align: center; padding: 8px;">-5.0%</td>
+              <td style="text-align: center; padding: 8px;"><strong>10.0%</strong></td>
+            </tr>
+          </tbody>
+        </table>
 
-      <p class="note"><em>Note: Home/away adjustments are applied multiplicatively after defensive adjustments. A player facing a tough defense on the road receives both penalties (e.g., -15% defensive × -6% away = -20.1% total).</em></p>
+        <h2 id="edge-nfl">4) Edge calculation &amp; consensus</h2>
 
-      <h3>Manual adjustments (injuries/role changes):</h3>
-      <ul>
-        <li><strong>Config-driven overrides:</strong> We maintain a JSON configuration for known injuries, suspensions, or role changes.</li>
-        <li><strong>Multiplier system:</strong> Adjust player μ by any factor (0.0 = out, 0.5-0.8 = limited, 1.0+ = increased role).</li>
-        <li><strong>Transparency:</strong> All adjustments logged with reason codes.</li>
-      </ul>
+        <h3>Converting probabilities to odds:</h3>
+        <p>For each prop, we:</p>
+        <ol>
+          <li>Compute <strong>model probability</strong> of Over (e.g., <code>P(rush_yds ≥ 50.5)</code>).</li>
+          <li>Convert to <strong>fair odds</strong> via <code>fair_odds = round(100/p - 100)</code> for p ≥ 50%, or <code>100×(1-p)/p</code> for p < 50%.</li>
+          <li>Compare to sportsbook's American odds to compute basis-point edge.</li>
+        </ol>
 
-      <h2 id="probabilities">4) From parameters to probabilities</h2>
-      <ul>
-        <li><strong>Normal O/U:</strong> Over uses <code>P(X &gt; L)</code>; Under uses <code>P(X &lt; L)</code> where <code>X ~ Normal(μ,σ)</code> and <code>L</code> is the book's line.</li>
-        <li><strong>Poisson:</strong> "Yes" (e.g., anytime TD) uses <code>P(X ≥ 1) = 1 − e^{−λ}</code>; thresholds use the Poisson CDF.</li>
-        <li><strong>Model line (display):</strong> For Normal markets we show μ (mean) as our model line; for Poisson we show median.</li>
-      </ul>
+        <h3>Edge (basis points):</h3>
+        <pre><code>edge_bps = 10000 × (model_prob - market_prob)</code></pre>
+        <p>A positive edge means our model thinks the Over is more likely than the book's implied probability. Negative edge suggests the Under is favorable.</p>
 
-      <h2 id="edge">5) Prices, consensus, and "value"</h2>
-      <ul>
-        <li><strong>Book-implied probability:</strong> Convert American odds → implied probability for each book row.</li>
-        <li><strong>De-vig factor:</strong> We apply a 0.9524 factor (~5% vig removal) to get fair market probability.</li>
-        <li><strong>Edge (bps):</strong> <code>(model_prob − devigged_market_prob) × 10,000</code> (1% = 100 bps). Primary ranking signal.</li>
-        <li><strong>Fair odds:</strong> Invert <code>model_prob</code> to a no-vig "fair" price for quick comparison.</li>
-        <li><strong>Consensus:</strong> Aggregate de-vigged probabilities across books by <code>(name_std, market_std, side)</code>. Consensus line = median across all books.</li>
-      </ul>
+        <h3>Consensus view:</h3>
+        <p>When 3+ books offer the same player × market × side × line:</p>
+        <ul>
+          <li>We show the <strong>median price</strong> across books.</li>
+          <li>Calculate consensus market probability from median odds.</li>
+          <li>Highlight these props with a green background in the UI.</li>
+        </ul>
+        <p>Consensus props provide confidence that the line is well-established across the market, reducing the risk of stale or outlier pricing.</p>
 
-      <h2 id="directional-filter">6) Directional alignment filter (Consensus page)</h2>
-      <p>On the Consensus page, we only show bets where the <strong>model, consensus, and book all agree on direction</strong>:</p>
-      <ul>
-        <li><strong>For OVER bets:</strong> Book line &lt; Consensus line &lt; Model line (all lean over)</li>
-        <li><strong>For UNDER bets:</strong> Book line &gt; Consensus line &gt; Model line (all lean under)</li>
-      </ul>
-      <p>This filters for high-conviction signals where multiple data sources agree.</p>
+        <h2 id="limits">5) Known limitations</h2>
+        <ul>
+          <li><strong>Sample size:</strong> Early in the season (Weeks 1-4), we have limited data. Model confidence is lower.</li>
+          <li><strong>Team context:</strong> We don't yet adjust for pace, game script, or team totals/spreads.</li>
+          <li><strong>Weather:</strong> No weather adjustments (particularly important for passing games).</li>
+          <li><strong>Venue effects:</strong> Dome vs outdoor conditions not yet factored.</li>
+        </ul>
 
-      <h2 id="family-opportunities">7) Family-based opportunity detection</h2>
-      <p>Our family modeling enables three types of edge detection that traditional independent-market models miss:</p>
+        <h2 id="roadmap">6) Roadmap</h2>
+        <ul>
+          <li>✅ <strike>Exponential weighting for recent form</strike> (Oct 2024)</li>
+          <li>✅ <strike>L4 rolling window</strike> (Oct 2024)</li>
+          <li>✅ <strike>Injury/role adjustment framework</strike> (Oct 2024)</li>
+          <li>✅ <strike>Defensive matchup framework</strike> (Oct 2024)</li>
+          <li>✅ <strike>Family-based multi-market modeling</strike> (Oct 2024)</li>
+          <li>✅ <strike>Home/away field advantage adjustments</strike> (Oct 2024)</li>
+          <li>🔄 Team context (pace, pass rate, game totals)</li>
+          <li>🔜 Market fusion (weak Bayesian updates from consensus lines)</li>
+          <li>🔜 Monte Carlo joint simulation with correlated shocks</li>
+          <li>🔜 Weather and dome/outdoor venue adjustments</li>
+        </ul>
 
-      <h3>A. Family arbitrage (high-conviction plays):</h3>
-      <p>When <strong>both</strong> linked markets show strong edge in the same direction, we flag it as a family arbitrage opportunity. Example from Week 5:</p>
-      <ul>
-        <li><strong>James Cook (Rush family):</strong>
-          <ul>
-            <li>Rush attempts Over: +5,073 bps edge</li>
-            <li>Rush yards Over: +5,228 bps edge</li>
-            <li><strong>Combined: +10,301 bps</strong> (volume AND efficiency both point up)</li>
-          </ul>
-        </li>
-      </ul>
-      <p>These are higher-conviction bets because the edge isn't coming from a single market quirk—both volume and efficiency projections align.</p>
+        <hr />
+        <p class="note">
+          <strong>Why transparency matters:</strong> By documenting our methods, we hold ourselves accountable to users and enable informed decision-making. If you find issues with our projections or have suggestions for improvements, please reach out via <a href="https://x.com/fourthandvalue" target="_blank">@fourthandvalue</a> on X.
+        </p>
+      </div>
 
-      <h3>B. Incoherent book lines:</h3>
-      <p>When a sportsbook's lines imply physically impossible or highly unlikely efficiency metrics, we flag them:</p>
-      <ul>
-        <li><strong>Cam Ward (Bovada):</strong> 3.5 attempts → 4.5 yards = <strong>1.29 YPC</strong>
-          <ul><li>NFL minimum realistic YPC is ~2.5. This line is incoherent.</li></ul>
-        </li>
-        <li><strong>Chase Brown (BetRivers):</strong> 5.5 receptions → 20.5 yards = <strong>3.73 YPR</strong>
-          <ul><li>Realistic YPR bounds are 6–18. This implies impossible inefficiency.</li></ul>
-        </li>
-      </ul>
-      <p>When books are incoherent, there's often value on <em>both</em> sides of the linked markets (e.g., Over on attempts, Under on yards).</p>
+      <!-- NHL Tab Content -->
+      <div id="nhl-tab" class="tab-content nhl-content">
+        <div class="updated">Last updated: Oct 9, 2025</div>
 
-      <h3>C. Model coherence validation:</h3>
-      <p>We continuously validate that our own projections stay within realistic bounds:</p>
-      <ul>
-        <li>YPC: [2.5, 6.5] yards per carry</li>
-        <li>YPR: [6.0, 18.0] yards per reception</li>
-        <li>Comp%: [50%, 75%] completion percentage</li>
-        <li>Y/C: [5.0, 12.0] yards per completion (QB)</li>
-      </ul>
-      <p>Week 5 result: <strong>0 violations</strong>—all 100+ player projections fell within bounds.</p>
+        <p>This page describes how Fourth &amp; Value models NHL player props and calculates "value." Our approach leverages rolling game-by-game performance data and home/away adjustments to project player statistics.</p>
 
-      <h3>Real-world impact (Week 5):</h3>
-      <ul>
-        <li><strong>2,277 family arbitrage opportunities</strong> detected across Rush/Receive/Pass families</li>
-        <li><strong>51 incoherent book lines</strong> flagged (most at BetRivers, Bovada, DraftKings)</li>
-        <li>Top combined edge: <strong>Zay Jones</strong> receptions + yards on Bovada = +12,056 bps</li>
-      </ul>
+        <div class="highlight">
+          <strong>🆕 Latest Update (Oct 9, 2025):</strong> NHL props now use rolling averages from the last 5 and 10 games (L5/L10) along with home/away splits to capture recent form and venue effects. Season-long stats provide additional context for player baseline performance.
+        </div>
 
-      <h2 id="display">8) What you see on the site</h2>
-      <ul>
-        <li><strong>Props:</strong> Per-book rows with Model %, Market %, Edge (bps), Fair Odds, Consensus data. Filter by game, market, player, and books you have access to.</li>
-        <li><strong>Top Picks:</strong> One card per player × market × side; ranked by edge. Shows best available book/price with copy-bet functionality.</li>
-        <li><strong>Consensus:</strong> Filtered for directional alignment. Shows model vs book vs consensus with multi-book aggregation.</li>
-      </ul>
+        <h2 id="what-we-model-nhl">1) What we model</h2>
+        <p>We focus on four core NHL player-prop markets, normalized to canonical keys (<code>market_std</code>):</p>
+        <ul>
+          <li><strong>Poisson</strong>: <code>goals</code>, <code>assists</code>, <code>points</code> (goals + assists).</li>
+          <li><strong>Normal/Gaussian</strong>: <code>sog</code> (shots on goal).</li>
+        </ul>
+        <p>We map sportsbook labels (e.g., "player_goals", "player_shots_on_goal") to these keys so we can merge and compare across books.</p>
 
-      <h2 id="example">9) Real example: How the model behaves</h2>
-      <p><strong>Player:</strong> DeMario Douglas, Receptions, Over 1.5</p>
-      <p><strong>Recent games (2024 Weeks 1-3):</strong> 2, 1, 2 receptions</p>
+        <h2 id="data-sources-nhl">2) Data sources (high level)</h2>
+        <ul>
+          <li><strong>Odds (per book):</strong> Player props and prices from multiple sportsbooks via The Odds API.</li>
+          <li><strong>Player game logs:</strong> Game-by-game NHL skater stats including goals, assists, points, and shots on goal.</li>
+          <li><strong>Schedule &amp; start times:</strong> Used for display (ET) and filtering upcoming games.</li>
+          <li><strong>Venue information:</strong> Home/away designation for adjusting player performance based on game location.</li>
+        </ul>
 
-      <p><strong>Old model (simple average):</strong></p>
-      <ul>
-        <li>μ = (2 + 1 + 2) / 3 = <strong>1.67 receptions</strong></li>
-        <li>P(Over 1.5) = <strong>61.4%</strong></li>
-      </ul>
+        <h2 id="modeling-nhl">3) Modeling approach</h2>
 
-      <p><strong>New model (L4 exponential weighted):</strong></p>
-      <ul>
-        <li>μ = 2×10.3% + 1×25.6% + 2×64.1% = <strong>1.74 receptions</strong></li>
-        <li>P(Over 1.5) = <strong>71.2%</strong></li>
-      </ul>
+        <h3>Rolling averages with recency:</h3>
+        <p>Per player × market, we compute rolling statistics from recent games:</p>
 
-      <p>The most recent game (2 receptions) gets 64% weight, pulling the expectation up and increasing our model's confidence in the Over.</p>
+        <ul>
+          <li><strong>Last 5 games (L5):</strong> Short-term form capturing recent hot/cold streaks.</li>
+          <li><strong>Last 10 games (L10):</strong> Medium-term performance providing more stable baseline.</li>
+          <li><strong>Season totals:</strong> Full season stats for broader context and regression to player baseline.</li>
+        </ul>
 
-      <h2 id="limits">10) Known limitations</h2>
-      <ul>
-        <li><strong>Sample size:</strong> Early in the season (Weeks 1-4), we have limited data. Model confidence is lower.</li>
-        <li><strong>Team context:</strong> We don't yet adjust for pace, game script, or team totals/spreads.</li>
-        <li><strong>Weather:</strong> No weather adjustments (particularly important for passing games).</li>
-        <li><strong>Venue effects:</strong> Dome vs outdoor conditions not yet factored.</li>
-      </ul>
+        <p>These rolling windows are calculated separately for <strong>home</strong> and <strong>away</strong> games to capture venue-specific effects.</p>
 
-      <h2 id="roadmap">11) Roadmap</h2>
-      <ul>
-        <li>✅ <strike>Exponential weighting for recent form</strike> (Oct 2024)</li>
-        <li>✅ <strike>L4 rolling window</strike> (Oct 2024)</li>
-        <li>✅ <strike>Injury/role adjustment framework</strike> (Oct 2024)</li>
-        <li>✅ <strike>Defensive matchup framework</strike> (Oct 2024)</li>
-        <li>✅ <strike>Family-based multi-market modeling</strike> (Oct 2024)</li>
-        <li>✅ <strike>Coherence validation &amp; opportunity detection</strike> (Oct 2024)</li>
-        <li>✅ <strike>Defensive stats integrated into production</strike> (Oct 2024)</li>
-        <li>✅ <strike>Home/away field advantage adjustments</strike> (Oct 2024)</li>
-        <li>🔄 Team context (pace, pass rate, game totals)</li>
-        <li>🔜 Market fusion (weak Bayesian updates from consensus lines)</li>
-        <li>🔜 Monte Carlo joint simulation with correlated shocks</li>
-        <li>🔜 Usage-based priors (target share, routes, red-zone touches)</li>
-        <li>🔜 Weather and dome/outdoor venue adjustments</li>
-        <li>🔜 Systematic calibration tracking (Brier scores, log loss)</li>
-        <li>🔜 Public post-game grading and calibration charts</li>
-        <li>🔜 Expanded markets (alt lines, first/last TD)</li>
-      </ul>
+        <h3>Core methodology:</h3>
+        <ul>
+          <li><strong>Poisson markets (goals, assists, points):</strong> Estimate rate <code>λ</code> from rolling averages → assume <em>Poisson(λ)</em> distribution for counting events.</li>
+          <li><strong>Normal markets (shots on goal):</strong> Estimate mean <code>μ</code> and standard deviation <code>σ</code> from rolling data → assume <em>Normal(μ,σ)</em>.</li>
+          <li><strong>Home/away adjustments:</strong> Model separately tracks performance at home vs. away venues, reflecting well-documented home-ice advantage effects.</li>
+          <li><strong>Position awareness:</strong> Player position (L/C/D/R) is tracked to provide context for expected production patterns.</li>
+        </ul>
 
-      <hr />
-      <p class="note">Questions or suggestions? Find us on GitHub or reach out via the site. We're continuously improving the model and always open to feedback from sharp bettors.</p>
+        <h3>Why rolling averages?</h3>
+        <p>NHL player performance varies significantly game-to-game due to factors like:</p>
+        <ul>
+          <li>Recent injury recovery or return from absence</li>
+          <li>Line changes and ice-time adjustments</li>
+          <li>Hot/cold shooting streaks</li>
+          <li>Matchup-specific deployment</li>
+        </ul>
+        <p>L5 and L10 windows capture these short-term dynamics better than season-long averages alone. Combining multiple time horizons provides both recency bias and stability.</p>
+
+        <h2 id="matchup-adjustments-nhl">4) Matchup adjustments</h2>
+
+        <h3>Home/away venue effects:</h3>
+        <p>We separately track player performance at home vs. away venues:</p>
+        <ul>
+          <li><strong>Home performance:</strong> Based on L5/L10 home games and season home splits.</li>
+          <li><strong>Away performance:</strong> Based on L5/L10 away games and season away splits.</li>
+        </ul>
+        <p>This captures documented home-ice advantage effects including:</p>
+        <ul>
+          <li>Last line change advantage (favorable matchups)</li>
+          <li>Crowd energy and familiarity</li>
+          <li>Travel fatigue for road teams</li>
+          <li>Typical 5-10% boost in home team performance metrics</li>
+        </ul>
+
+        <h3>Back-to-back considerations:</h3>
+        <p>Our schedule data tracks whether teams are playing on consecutive nights (B2B):</p>
+        <ul>
+          <li><strong>First game of B2B:</strong> Generally normal performance expected.</li>
+          <li><strong>Second game of B2B:</strong> Known fatigue effects, especially for goalies and defensemen with heavy ice time.</li>
+        </ul>
+        <p class="note"><em>Note: Future versions may explicitly adjust for B2B effects. Currently available as context in schedule data.</em></p>
+
+        <h2 id="edge-calculation-nhl">5) Edge calculation &amp; consensus</h2>
+
+        <h3>Converting probabilities to odds:</h3>
+        <p>For each prop, we:</p>
+        <ol>
+          <li>Compute <strong>model probability</strong> of Over (e.g., <code>P(goals ≥ 0.5)</code> for anytime goal scorer).</li>
+          <li>Convert to <strong>fair odds</strong> via <code>fair_odds = round(100/p - 100)</code> for p ≥ 50%, or <code>100×(1-p)/p</code> for p < 50%.</li>
+          <li>Compare to sportsbook's American odds to compute basis-point edge.</li>
+        </ol>
+
+        <h3>Edge (basis points):</h3>
+        <pre><code>edge_bps = 10000 × (model_prob - market_prob)</code></pre>
+        <p>A positive edge means our model thinks the Over is more likely than the book's implied probability. Negative edge suggests the Under is favorable.</p>
+
+        <h3>Consensus view:</h3>
+        <p>When 3+ books offer the same player × market × side × line:</p>
+        <ul>
+          <li>We show the <strong>median price</strong> across books.</li>
+          <li>Calculate consensus market probability from median odds.</li>
+          <li>Highlight these props with a green background in the UI.</li>
+        </ul>
+        <p>Consensus props provide confidence that the line is well-established across the market, reducing the risk of stale or outlier pricing.</p>
+
+        <h2 id="interpretation-nhl">6) Interpretation guide</h2>
+
+        <h3>Edge magnitude:</h3>
+        <ul>
+          <li><strong>&lt; 200 bps:</strong> Marginal edge, within typical model noise and vig.</li>
+          <li><strong>200-500 bps:</strong> Moderate edge, worth considering for action.</li>
+          <li><strong>500-1000 bps:</strong> Strong edge, high-confidence model disagreement with market.</li>
+          <li><strong>&gt; 1000 bps:</strong> Extreme edge, warrants investigation for stale lines or model issues.</li>
+        </ul>
+
+        <h3>Model confidence indicators:</h3>
+        <ul>
+          <li><strong>🔥 Fire emoji (≥85% model prob):</strong> Very high confidence prediction.</li>
+          <li><strong>Consensus highlighting:</strong> 3+ books agree on the line, suggesting market efficiency.</li>
+          <li><strong>Games played:</strong> Players with more recent games have more reliable rolling averages.</li>
+        </ul>
+
+        <h3>What to watch out for:</h3>
+        <ul>
+          <li><strong>Limited sample sizes:</strong> Early season or players with few recent games may have unstable estimates.</li>
+          <li><strong>Line movements:</strong> If a line moves significantly after our data snapshot, edge may be stale.</li>
+          <li><strong>Injury news:</strong> Player availability changes can invalidate projections.</li>
+          <li><strong>Lineup changes:</strong> Line combinations and ice time allocation affect opportunity.</li>
+        </ul>
+
+        <h2 id="limitations-nhl">7) Known limitations &amp; roadmap</h2>
+
+        <h3>Current limitations:</h3>
+        <ul>
+          <li><strong>No opponent adjustments:</strong> We don't yet account for opposing team's defensive strength (goals allowed, shots allowed rates).</li>
+          <li><strong>No line-mate effects:</strong> Playing with elite centers/wingers significantly impacts production but isn't modeled.</li>
+          <li><strong>No power-play modeling:</strong> Power-play opportunity and effectiveness not explicitly tracked.</li>
+          <li><strong>No goalie matchup effects:</strong> Opposing goalie quality affects goal-scoring probabilities.</li>
+          <li><strong>Basic B2B handling:</strong> Back-to-back fatigue effects known but not explicitly adjusted for.</li>
+        </ul>
+
+        <h3>Planned improvements:</h3>
+        <ul>
+          <li><strong>Defensive matchup adjustments:</strong> Factor in opponent's goals-against and shots-against per game.</li>
+          <li><strong>Power-play weighting:</strong> Separate PP and even-strength rates, weighted by expected PP time.</li>
+          <li><strong>Goalie-aware projections:</strong> Adjust goal/assist rates based on starting goalie's save percentage.</li>
+          <li><strong>Line-mate quality:</strong> Boost projections for players skating with elite offensive talent.</li>
+          <li><strong>B2B fatigue multipliers:</strong> Explicit downward adjustments for second game of back-to-backs.</li>
+          <li><strong>Time-on-ice (TOI) tracking:</strong> Weight projections by expected ice time rather than just game-by-game stats.</li>
+        </ul>
+
+        <hr />
+        <p class="note">
+          <strong>Why transparency matters:</strong> By documenting our methods, we hold ourselves accountable to users and enable informed decision-making. If you find issues with our projections or have suggestions for improvements, please reach out via <a href="https://x.com/fourthandvalue" target="_blank">@fourthandvalue</a> on X.
+        </p>
+
+        <p class="note">
+          <strong>Reminder:</strong> Sports betting involves risk. Our models provide information and analysis, not guarantees. Always bet responsibly and within your means.
+        </p>
+      </div>
     </div>
   </main>
+
+  <script>
+    // Tab switching functionality
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    tabButtons.forEach(button => {
+      button.addEventListener('click', () => {
+        const targetTab = button.getAttribute('data-tab');
+
+        // Remove active class from all buttons and contents
+        tabButtons.forEach(btn => btn.classList.remove('active'));
+        tabContents.forEach(content => content.classList.remove('active'));
+
+        // Add active class to clicked button and corresponding content
+        button.classList.add('active');
+        document.getElementById(`${targetTab}-tab`).classList.add('active');
+      });
+    });
+  </script>
 </body>
 </html>

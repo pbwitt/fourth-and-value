@@ -54,14 +54,24 @@ def main():
     game_logs = pd.read_parquet(logs_path)
     print(f"[train_scoring_models] Loaded {len(game_logs)} player-game rows from {game_logs['game_id'].nunique()} games")
 
+    # Load season stats (fallback for players without game logs)
+    season_stats_path = Path(f"data/nhl/processed/season_stats_{date_str}.parquet")
+    if season_stats_path.exists():
+        season_stats = pd.read_parquet(season_stats_path)
+        print(f"[train_scoring_models] Loaded season stats for {len(season_stats)} players (fallback)")
+    else:
+        print(f"[warn] Season stats not found: {season_stats_path}", file=sys.stderr)
+        season_stats = pd.DataFrame()
+
     # Normalize player names for matching
     game_logs["player"] = game_logs["player"].apply(
         lambda x: " ".join(x.strip().lower().split())
     )
 
-    # Create empty aggregate DataFrame for backward compatibility
-    # (models will use game logs if provided)
-    skater_df = pd.DataFrame()
+    if not season_stats.empty:
+        season_stats["player"] = season_stats["player"].apply(
+            lambda x: " ".join(x.strip().lower().split())
+        )
 
     # Ensure directories exist
     models_dir = Path("data/nhl/models")
@@ -72,7 +82,7 @@ def main():
         print(f"\n[train_scoring_models] Training {stat_name} model...")
 
         model = SimpleScoringModel(stat_name=stat_name)
-        model.fit(skater_df, game_logs=game_logs)
+        model.fit(season_stats, game_logs=game_logs)
 
         print(f"[train_scoring_models] {stat_name.capitalize()} model fitted on {len(model.skater_stats)} players")
         print(f"[train_scoring_models]   Using rolling averages from game logs")

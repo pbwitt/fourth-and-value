@@ -99,14 +99,19 @@ def main():
 
     # Filter to balanced top props per market (for performance)
     # Top 500 goals, 200 assists, 200 points, 200 sog = 1100 total
-    # Use positive edge only (not absolute) to show only +EV bets
-    top_goals = df[df['market_std'] == 'goals'].nlargest(500, 'edge_bps')
-    top_assists = df[df['market_std'] == 'assists'].nlargest(200, 'edge_bps')
-    top_points = df[df['market_std'] == 'points'].nlargest(200, 'edge_bps')
-    top_sog = df[df['market_std'] == 'sog'].nlargest(200, 'edge_bps')
+    # IMPORTANT: Only show positive edge bets (filter out negative edge first)
+    positive_edge = df[df['edge_bps'] > 0]
+
+    # For each player+market, keep only the highest edge bet (avoid showing contradictory Over/Under)
+    positive_edge = positive_edge.sort_values('edge_bps', ascending=False).groupby(['player', 'market_std'], as_index=False).first()
+
+    top_goals = positive_edge[positive_edge['market_std'] == 'goals'].nlargest(500, 'edge_bps')
+    top_assists = positive_edge[positive_edge['market_std'] == 'assists'].nlargest(200, 'edge_bps')
+    top_points = positive_edge[positive_edge['market_std'] == 'points'].nlargest(200, 'edge_bps')
+    top_sog = positive_edge[positive_edge['market_std'] == 'sog'].nlargest(200, 'edge_bps')
 
     df = pd.concat([top_goals, top_assists, top_points, top_sog])
-    print(f"[build_nhl_props_page] Filtered to {len(df)} props (500 goals, 200 assists, 200 points, 200 sog)")
+    print(f"[build_nhl_props_page] Filtered to {len(df)} positive-edge props ({len(top_goals)} goals, {len(top_assists)} assists, {len(top_points)} points, {len(top_sog)} sog)")
 
     # Add display columns
     df["price_disp"] = df["price"].apply(fmt_odds)
@@ -421,6 +426,13 @@ def build_html(rows, date_str):
     <!-- Mobile cards -->
     <div class="card-grid" id="cardGrid">
     </div>
+
+    <!-- Load More button -->
+    <div style="text-align: center; margin: 2rem 0;">
+      <button id="loadMoreBtn" style="display: none; padding: 0.75rem 2rem; background: #4FC3F7; color: #0f0f0f; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer;">
+        Load More
+      </button>
+    </div>
   </div>
 
   <script>
@@ -429,7 +441,8 @@ def build_html(rows, date_str):
     // State management
     const state = {{
       selectedBooks: new Set(),
-      consensusOnly: false
+      consensusOnly: false,
+      visibleCount: 50  // Start with 50 props
     }};
 
     // Consensus logic: directional alignment where book diverges from consensus & model
@@ -532,6 +545,7 @@ def build_html(rows, date_str):
     function renderTable() {{
       const tbody = document.getElementById('propsTableBody');
       const cardGrid = document.getElementById('cardGrid');
+      const loadMoreBtn = document.getElementById('loadMoreBtn');
 
       // Get filter values
       const gameFilter = document.getElementById('gameFilter').value;
@@ -550,8 +564,21 @@ def build_html(rows, date_str):
         return true;
       }});
 
+      // Pagination: show first PAGE_SIZE items, then more when "Load More" is clicked
+      const PAGE_SIZE = 50;
+      const visible = filtered.slice(0, state.visibleCount);
+      const hasMore = filtered.length > state.visibleCount;
+
+      // Update load more button
+      if (hasMore) {{
+        loadMoreBtn.style.display = 'block';
+        loadMoreBtn.textContent = `Load More (${{filtered.length - state.visibleCount}} remaining)`;
+      }} else {{
+        loadMoreBtn.style.display = 'none';
+      }}
+
       // Render table
-      tbody.innerHTML = filtered.map(r => {{
+      tbody.innerHTML = visible.map(r => {{
         const modelProbNum = parseFloat((r.model_pct_disp || '').replace('%', ''));
         const isStrongSignal = modelProbNum >= 85;
         const fireEmoji = isStrongSignal ? ' 🔥' : '';
@@ -579,7 +606,7 @@ def build_html(rows, date_str):
       }}).join('');
 
       // Render mobile cards
-      cardGrid.innerHTML = filtered.map(r => {{
+      cardGrid.innerHTML = visible.map(r => {{
         const modelProbNum = parseFloat((r.model_pct_disp || '').replace('%', ''));
         const isStrongSignal = modelProbNum >= 85;
         const fireEmoji = isStrongSignal ? ' 🔥' : '';
@@ -602,13 +629,25 @@ def build_html(rows, date_str):
       }}).join('');
     }}
 
-    // Attach filter listeners
-    document.getElementById('gameFilter').addEventListener('change', renderTable);
-    document.getElementById('playerFilter').addEventListener('input', renderTable);
-    document.getElementById('marketFilter').addEventListener('change', renderTable);
-    document.getElementById('sideFilter').addEventListener('change', renderTable);
+    // Load More button handler
+    document.getElementById('loadMoreBtn').addEventListener('click', () => {{
+      state.visibleCount += 50;
+      renderTable();
+    }});
+
+    // Attach filter listeners (reset pagination on filter change)
+    const resetAndRender = () => {{
+      state.visibleCount = 50;
+      renderTable();
+    }};
+
+    document.getElementById('gameFilter').addEventListener('change', resetAndRender);
+    document.getElementById('playerFilter').addEventListener('input', resetAndRender);
+    document.getElementById('marketFilter').addEventListener('change', resetAndRender);
+    document.getElementById('sideFilter').addEventListener('change', resetAndRender);
     document.getElementById('consensusFilter').addEventListener('change', e => {{
       state.consensusOnly = e.target.checked;
+      state.visibleCount = 50;
       renderTable();
     }});
 
