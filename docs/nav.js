@@ -1,6 +1,6 @@
-// docs/nav.js (v=28) — Consensus tab removed, week headers cleaned up
+// docs/nav.js (v=29) — Consensus tab removed, week headers cleaned up
 (function () {
-  // --- Find script & compute base (works locally + GitHub Pages) ---
+  // --- Find script & compute base (works locally and deployed) ---
   const scriptEl =
     document.currentScript ||
     Array.from(document.querySelectorAll('script[src]')).find(s => s.src.includes('nav.js'));
