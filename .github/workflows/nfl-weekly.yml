@@ -46,6 +46,7 @@ jobs:
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: |
+          export ODDS_API_KEY="${ODDS_API_KEY}"
           WEEK=${{ steps.week.outputs.week }}
           DATE=$(date +%Y-%m-%d)
           make monday_all SEASON=2025 WEEK=$WEEK
