@@ -39,6 +39,11 @@ jobs:
             exit 1
           fi
 
+      - name: Fetch weekly player stats
+        run: |
+          python3 scripts/fetch_weekly_player_stats.py --season 2025
+          python3 scripts/fetch_defensive_stats.py --season 2025
+
       - name: Run NFL weekly pipeline
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
