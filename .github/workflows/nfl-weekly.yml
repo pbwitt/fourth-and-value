@@ -45,10 +45,12 @@ jobs:
       - name: Run NFL weekly pipeline
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           git config user.name "GitHub Actions Bot"
           git config user.email "actions@github.com"
           export ODDS_API_KEY="${ODDS_API_KEY}"
+          export OPENAI_API_KEY="${OPENAI_API_KEY}"
           WEEK=${{ steps.week.outputs.week }}
           DATE=$(date +%Y-%m-%d)
           make monday_all SEASON=2025 WEEK=$WEEK
