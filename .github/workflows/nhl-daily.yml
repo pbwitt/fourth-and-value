@@ -1,0 +1,40 @@
+name: NHL Daily Update
+
+on:
+  schedule:
+    # Run at 4 PM UTC (12 PM ET / 9 AM PT) every day during NHL season
+    - cron: '0 16 * * *'
+  workflow_dispatch:  # Allow manual triggers
+
+jobs:
+  update-nhl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run NHL daily pipeline
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: |
+          DATE=$(date +%Y-%m-%d)
+          make nhl_daily_pub DATE=$DATE LIVE=1
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+          git add docs/nhl/props/index.html
+          git diff --staged --quiet || git commit -m "Update NHL props for $(date +%Y-%m-%d)
+
+🤖 Generated with GitHub Actions"
+          git push
