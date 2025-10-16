@@ -35,8 +35,8 @@ jobs:
           if [ -n "${{ github.event.inputs.week }}" ]; then
             echo "week=${{ github.event.inputs.week }}" >> $GITHUB_OUTPUT
           else
-            # Default to week 7 (can be updated manually when needed)
-            echo "week=7" >> $GITHUB_OUTPUT
+            echo "Error: Week number is required. Please specify week in manual trigger."
+            exit 1
           fi
 
       - name: Run NFL weekly pipeline
