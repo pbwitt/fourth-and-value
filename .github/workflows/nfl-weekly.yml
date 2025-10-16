@@ -41,8 +41,9 @@ jobs:
 
       - name: Fetch weekly player stats
         run: |
+          WEEK=${{ steps.week.outputs.week }}
           python3 scripts/fetch_weekly_player_stats.py --season 2025
-          python3 scripts/fetch_defensive_stats.py --season 2025
+          python3 scripts/fetch_defensive_stats.py --season 2025 --week $WEEK
 
       - name: Run NFL weekly pipeline
         env:
