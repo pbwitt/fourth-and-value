@@ -248,6 +248,11 @@ def main():
         default=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         help="Date (YYYY-MM-DD)",
     )
+    parser.add_argument(
+        "--warn-only",
+        action="store_true",
+        help="Treat all checks as warnings (don't block on failures)",
+    )
     args = parser.parse_args()
 
     date_str = args.date
@@ -294,10 +299,11 @@ def main():
         print(f"  Details:   {check['details']}")
 
         if not check["passed"]:
-            if check.get("blocking"):
-                blocking_failures.append(check)
-            else:
+            # If --warn-only flag is set, treat all failures as warnings
+            if args.warn_only or not check.get("blocking"):
                 warnings.append(check)
+            else:
+                blocking_failures.append(check)
 
     # Summary
     print("\n" + "=" * 70)

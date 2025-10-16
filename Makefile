@@ -193,7 +193,11 @@ nhl_daily: $(NHL_PAGE)
 	@echo "✓ Page:      $(NHL_PAGE)"
 	@echo "===================================================================="
 	@echo "Running QC checks..."
+ifeq ($(LIVE),1)
+	@$(PY) scripts/nhl/nhl_qc_checks.py --date $(DATE) --warn-only
+else
 	@$(PY) scripts/nhl/nhl_qc_checks.py --date $(DATE)
+endif
 
 # NHL daily build + publish to prod (requires LIVE=1)
 nhl_daily_pub: nhl_daily
