@@ -437,7 +437,7 @@ def main():
     merged.to_csv(args.out, index=False)
 
     # ensure folder exists
-    out_dir = "/Users/pwitt/fourth-and-value/data/preds_historical"
+    out_dir = "data/preds_historical"
     os.makedirs(out_dir, exist_ok=True)
 
     # pick up week from argparse/env/df (in that order)
