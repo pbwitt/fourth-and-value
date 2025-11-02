@@ -76,6 +76,8 @@ $(ODDS_CSV): scripts/fetch_odds.py | $(ODDS_DIR)
 $(PROPS_ALL): scripts/fetch_all_player_props.py | $(PROPS_DIR) $(ODDS_CSV)
 	$(PY) scripts/fetch_all_player_props.py
 	@test -s $(PROPS_ALL) || (echo "[ERR] $(PROPS_ALL) not created"; exit 1)
+	@echo "[VALIDATION] Checking props data freshness..."
+	@$(PY) scripts/validate_data_freshness.py --props $(PROPS_ALL) || (echo "[ERR] Props data is stale!"; exit 1)
 
 # 3) Build params
 $(PARAMS): scripts/make_player_prop_params.py $(PROPS_ALL) | $(PROPS_DIR)
