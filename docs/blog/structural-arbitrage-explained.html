@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Fourth & Value — What is Structural Arbitrage?</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Understanding how sportsbooks contradict themselves and how to exploit pricing errors in correlated props." />
+  <link rel="icon" href="../favicon.ico" />
+  <style>
+    :root { --max: 860px; --bg:#0b0b0b; --fg:#e9e9e9; --muted:#b9b9b9; --line:#222; --input:#121212; --link:#8ab4ff; }
+    html,body { margin:0; background:var(--bg); color:var(--fg); }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; line-height:1.65; }
+    a { color: var(--link); text-decoration: underline; }
+    .wrap { max-width: var(--max); margin: 0 auto; padding: 16px; }
+    h1 { margin: 8px 0 4px; }
+    .meta { font-size:.9rem; color: var(--muted); margin: 6px 0 18px; }
+    article h2, article h3 { margin-top: 1.4em; }
+    code, pre { background:#0f0f0f; border:1px solid var(--line); border-radius:8px; color:#e6e6e6; }
+    pre { padding:12px; overflow:auto; }
+    .back { display:inline-block; margin-top: 28px; color: var(--link); }
+    .example { background:#1a1a1a; border-left:3px solid #4ade80; padding:16px; margin:20px 0; border-radius:8px; }
+    .warning { background:#1a1a1a; border-left:3px solid #f59e0b; padding:16px; margin:20px 0; border-radius:8px; }
+  </style>
+</head>
+<body>
+  <div id="nav-root"></div>
+  <script src="../nav.js?v=26"></script>
+
+  <main class="wrap">
+    <article>
+      <header>
+        <h1>What is Structural Arbitrage? When Sportsbooks Contradict Themselves</h1>
+        <div class="meta"><time datetime="2025-11-06">Nov 6, 2025</time> • 6 min read</div>
+      </header>
+
+      <p>Structural arbitrage sounds complicated, but it's actually one of the simplest edges in sports betting: <strong>finding situations where a sportsbook's own lines contradict each other</strong>. When a book prices two related props in a way that's mathematically impossible, you have an opportunity to exploit the error.</p>
+
+      <p>Let's break down exactly what this means and how to recognize it.</p>
+
+      <h2>The Basic Concept</h2>
+
+      <p>Some player props are inherently related. For a wide receiver, receptions and receiving yards are connected by a simple formula:</p>
+
+      <p><strong>Receiving Yards ÷ Receptions = Yards Per Reception (YPR)</strong></p>
+
+      <p>If a book offers separate lines for receptions and receiving yards, those lines imply a specific YPR. And here's the key: <strong>that implied YPR has to be realistic</strong>. If it's not, the book has made a pricing error you can exploit.</p>
+
+      <h2>A Real Example: Adam Trautman</h2>
+
+      <div class="example">
+        <strong>BetMGM Lines (Raiders @ Broncos):</strong><br>
+        • Receptions: 1.5 (Over -130, Under +100)<br>
+        • Receiving Yards: 6.5 (Over -115, Under -115)<br>
+        <br>
+        <strong>Market Consensus:</strong> 1.5 receptions (only BetMGM offers this prop)<br>
+        <strong>Our Model:</strong> 1.35 receptions (43% over, 57% under)<br>
+        <br>
+        <strong>Implied YPR:</strong> 6.5 ÷ 1.5 = <span style="color:#f59e0b">4.33 yards per reception</span><br>
+        <br>
+        <strong>Realistic NFL TE Range:</strong> <span style="color:#4ade80">6-18 yards per reception</span>
+      </div>
+
+      <p>The book is pricing Trautman's props as if he'll average 4.33 yards per catch. That's impossibly low for an NFL tight end. Even the shortest-target TEs in the league average 6+ yards per reception. This is a structural error.</p>
+
+      <p>Now here's where it gets interesting: <strong>our model projects 1.35 receptions, essentially confirming the 1.5 line is accurate</strong>. The market consensus also sits at 1.5 receptions. Both our model and the market agree on the receptions number—which means the receiving yards line must be the mispriced one.</p>
+
+      <h2>What Makes It "Structural"?</h2>
+
+      <p>The term "structural" means the error is built into the relationship between the two props. The book hasn't just mispriced one prop—they've priced two related props in a way that <strong>creates a mathematical contradiction</strong>.</p>
+
+      <p>Let's think through what happens in this game:</p>
+
+      <h3>Scenario 1: Trautman Gets Volume</h3>
+
+      <p>If Trautman catches 2 passes (hitting the over on 1.5 receptions), what happens to his receiving yards?</p>
+
+      <ul>
+        <li>At a realistic 8 YPR (low for a TE): 2 catches × 8 = <strong>16 yards</strong></li>
+        <li>At 10 YPR (average for a TE): 2 catches × 10 = <strong>20 yards</strong></li>
+        <li>At the book's implied 4.33 YPR: 2 catches × 4.33 = <strong>8.66 yards</strong></li>
+      </ul>
+
+      <p>For Trautman to stay under 6.5 yards while catching 2 passes, he'd need to average just 3.25 yards per catch. That would require both catches to be immediate tackles at or near the line of scrimmage. Possible? Sure. Likely? Not at all.</p>
+
+      <p><strong>The receptions line and the yards line can't both be accurate.</strong> If the receptions over hits, the yards over almost certainly hits too—which means the yards line is mispriced.</p>
+
+      <h3>Scenario 2: Trautman Gets No Volume</h3>
+
+      <p>If Trautman catches 0-1 passes, he's very unlikely to reach 7+ yards. In this case, the under on receiving yards is the right side, but the receptions line was probably accurate all along.</p>
+
+      <h2>How to Actually Bet This</h2>
+
+      <div class="warning">
+        <strong>Important:</strong> This is NOT about betting both sides. You don't get a guaranteed profit by betting over receptions and under yards. One of those bets will lose.
+      </div>
+
+      <p>What you're doing is <strong>identifying which side of the contradiction to exploit</strong>. You pick the prop that benefits most from the book's error.</p>
+
+      <h3>The Decision Process</h3>
+
+      <p>In Trautman's case, we have strong evidence pointing us in one direction:</p>
+
+      <p><strong>Market consensus:</strong> 1.5 receptions<br>
+      <strong>Our model:</strong> 1.35 receptions (basically a wash—slight lean to under, but close enough to call it accurate)<br>
+      <strong>Conclusion:</strong> The receptions line at 1.5 is correctly priced.</p>
+
+      <p>If the receptions line is correct at 1.5, and Trautman catches 1-2 passes at a realistic yards-per-reception rate for an NFL tight end, what happens to his receiving yards?</p>
+
+      <ul>
+        <li>1 catch at 8 YPR = <strong>8 yards</strong> (over 6.5 ✓)</li>
+        <li>1 catch at 12 YPR = <strong>12 yards</strong> (over 6.5 ✓)</li>
+        <li>2 catches at 8 YPR = <strong>16 yards</strong> (over 6.5 ✓)</li>
+        <li>2 catches at 10 YPR = <strong>20 yards</strong> (over 6.5 ✓)</li>
+      </ul>
+
+      <p><strong>The play: OVER 6.5 receiving yards at -115</strong></p>
+
+      <p>We're not betting the receptions over—our model says that's roughly 50/50. We're betting that if Trautman hits anywhere near the 1.5 receptions line the market has set, he'll almost certainly exceed 6.5 yards because the implied 4.33 YPR is unrealistically low.</p>
+
+      <p>This is the essence of structural arbitrage analysis: <strong>use your model and market consensus to identify which line is accurate, then bet the contradictory line that must be mispriced</strong>.</p>
+
+      <h2>Why This Happens</h2>
+
+      <p>Sportsbooks often set lines for different prop markets independently. The team pricing receptions might not coordinate with the team pricing receiving yards. When they don't properly correlate these lines, you get situations like this where the implied stats become unrealistic.</p>
+
+      <p>It's more common with:</p>
+      <ul>
+        <li>Secondary receivers or tight ends (less liquidity, less market attention)</li>
+        <li>Lower-volume props where books are less worried about being off by a yard or two</li>
+        <li>Books that copy lines from competitors without checking internal consistency</li>
+      </ul>
+
+      <h2>Other Examples of Structural Arbitrage</h2>
+
+      <p>The receptions/yards relationship is the most common, but similar opportunities exist elsewhere:</p>
+
+      <h3>Rush Attempts vs Rush Yards (YPC)</h3>
+
+      <p>If a book prices a running back at 15.5 attempts and 45.5 yards, they're implying 3.0 yards per carry. If that RB typically averages 4.5 YPC, the rush attempts over becomes attractive—because hitting 16 carries likely means 70+ yards, making both overs viable.</p>
+
+      <h3>Pass Attempts vs Completions (Completion %)</h3>
+
+      <p>If a QB is priced at 35.5 attempts and 28.5 completions, that's an 80% completion rate. If the QB normally completes 65%, the completions under might be the play—because hitting 36 attempts at his real completion rate means only 23-24 completions.</p>
+
+      <h3>Receptions vs Targets (Catch Rate)</h3>
+
+      <p>Less commonly offered, but if a receiver is priced at 8.5 targets and 6.5 receptions, that's a 76% catch rate. If the player typically catches 55% of targets, something's off.</p>
+
+      <h2>How to Find These Opportunities</h2>
+
+      <p>Our model automatically calculates implied rates for correlated props and flags situations where the implied metric falls outside realistic ranges. That's what powers the <strong>Arbitrage page</strong>—it's not about betting both sides, it's about surfacing these internal contradictions so you can pick the mispriced side.</p>
+
+      <p>When you see a prop flagged for structural arbitrage:</p>
+      <ol>
+        <li>Check the implied rate (YPR, YPC, completion %, etc.)</li>
+        <li>Compare it to the player's historical average and the realistic range for their position</li>
+        <li>Decide which line is more likely correct based on game context, usage, matchup</li>
+        <li>Bet the side that benefits from the book's pricing error</li>
+      </ol>
+
+      <h2>The Bottom Line</h2>
+
+      <p>Structural arbitrage isn't magic and it's not a guaranteed profit. It's pattern recognition: spotting when sportsbooks have priced related props in ways that don't make mathematical sense.</p>
+
+      <p>When you see these contradictions, you're not betting both sides—you're making an informed decision about which side of the book's error to exploit. The edge comes from recognizing the mistake before the market corrects it.</p>
+
+      <p>Look for implied metrics that fall outside realistic ranges. When you find them, you've found a pricing error. Then it's just a matter of figuring out which prop is mispriced and betting accordingly.</p>
+
+      <a class="back" href="./index.html">← Back to Blog</a>
+    </article>
+  </main>
+</body>
+</html>
