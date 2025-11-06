@@ -191,7 +191,7 @@ def _prompt_for_weekly_overview(df: pd.DataFrame, season: int, week: int) -> str
 
 def _prompt_for_game(game: str, rows: pd.DataFrame, season: int, week: int) -> str:
     """
-    Build a compact, model-led paragraph prompt for GPT-5, using the rows for this matchup.
+    Build a compact, model-led paragraph prompt for GPT-4, using the rows for this matchup.
     """
     df = rows.copy()
 
@@ -259,7 +259,7 @@ def _prompt_for_game(game: str, rows: pd.DataFrame, season: int, week: int) -> s
 def _call_llm(client, model, prompt: str) -> str:
     try:
         resp = client.chat.completions.create(
-            model=model,  # e.g., "gpt-5"
+            model=model,  # e.g., "gpt-4o-mini"
             messages=[
                 {"role": "system", "content": "You're a knowledgeable friend who follows NFL closely and helps casual fans find smart player prop bets. You're analytical but conversational, honest about uncertainty, and avoid sounding robotic or overly formal."},
                 {"role": "user", "content": prompt},
@@ -287,7 +287,7 @@ def main(argv=None):
     ap.add_argument("--week", type=int, required=True)
     ap.add_argument("--merged_csv", type=str, required=True)
     ap.add_argument("--top_n", type=int, default=10)
-    ap.add_argument("--model", type=str, default="gpt-5")
+    ap.add_argument("--model", type=str, default="gpt-4o-mini")
     ap.add_argument("--out_json", type=str, required=True, help="Output path for {game_norm: text} JSON")
     ap.add_argument("--force", action="store_true", help="Overwrite existing out_json")
     args = ap.parse_args(argv)
