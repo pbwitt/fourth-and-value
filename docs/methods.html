@@ -89,7 +89,7 @@
 
       <!-- NFL Tab Content -->
       <div id="nfl-tab" class="tab-content active nfl-content">
-        <div class="updated">Last updated: Oct 8, 2025</div>
+        <div class="updated">Last updated: Nov 8, 2025</div>
 
         <p>This page describes how Fourth &amp; Value models NFL player props and calculates "value." It's intentionally general (no week-specific numbers) so it stays accurate as we update models.</p>
 
@@ -304,6 +304,10 @@
 
         <h2 id="team-totals">5) Team Totals (Game Totals)</h2>
 
+        <div class="highlight">
+          <strong>🆕 Updated (Nov 2025):</strong> NFL game totals now integrate market consensus data from multiple sportsbooks, enabling edge detection and line shopping opportunities. Model predictions are compared against real-time market lines.
+        </div>
+
         <p>In addition to player props, we model NFL game totals by predicting each team's score independently and summing them.</p>
 
         <h3>Modeling approach:</h3>
@@ -333,11 +337,40 @@
         <ul>
           <li><strong>Data source:</strong> Play-by-play data from nfl_data_py covering full 2024-2025 season (421 games, 72,808 plays).</li>
           <li><strong>Model performance:</strong> MAE of 7.64 points per team (RMSE: 9.67 points).</li>
-          <li><strong>Predictions:</strong> Generated weekly for upcoming games, showing model total vs market consensus (when available).</li>
+          <li><strong>Predictions:</strong> Generated weekly for upcoming games, showing model total vs market consensus.</li>
         </ul>
 
-        <h3>Consensus edges:</h3>
-        <p>When market data is available, we identify books offering lines that diverge from market consensus by ≥0.5 points, filtering for cases where our model agrees with the market (within 0.3 points). These represent opportunities to bet with the consensus before stale lines move.</p>
+        <h3>Market integration &amp; consensus edges:</h3>
+        <p>We fetch live game totals and spreads from multiple sportsbooks via The Odds API, then calculate market consensus:</p>
+
+        <ul>
+          <li><strong>Data collection:</strong> Totals and spreads from 8-11 books (DraftKings, FanDuel, BetMGM, Caesars, BetRivers, etc.)</li>
+          <li><strong>Consensus calculation:</strong> Mean line across all books offering the market (minimum 3 books required)</li>
+          <li><strong>Outlier detection:</strong> Books with lines differing from consensus by ≥0.5 points flagged for line shopping</li>
+          <li><strong>Model edge:</strong> <code>edge = model_total - consensus_total</code> shown for each game</li>
+        </ul>
+
+        <h3>Edge interpretation:</h3>
+        <p><strong>How to read model edges:</strong></p>
+        <ul>
+          <li><strong>Positive edge (+3 to +7 points):</strong> Model projects higher scoring than market. Potential Over value.</li>
+          <li><strong>Negative edge (-3 to -7 points):</strong> Model projects lower scoring than market. Potential Under value.</li>
+          <li><strong>Small edge (-2 to +2 points):</strong> Model and market align. Look for outlier book lines to bet with consensus.</li>
+          <li><strong>Large edge (&gt;7 points):</strong> Significant model disagreement. Warrants investigation (could indicate injury news, weather, or model limitation).</li>
+        </ul>
+
+        <h3>Consensus edge strategy:</h3>
+        <p>The most reliable edges come from betting <strong>with the consensus</strong> at books offering stale lines:</p>
+
+        <p><strong>Example scenario:</strong></p>
+        <ul>
+          <li>Model prediction: 48.5 total points</li>
+          <li>Market consensus: 48.0 (average across 9 books)</li>
+          <li>Outlier books: Book A has 50.5, Book B has 45.5</li>
+          <li><strong>Play:</strong> Bet Under 50.5 at Book A (consensus + model agree it's too high)</li>
+        </ul>
+
+        <p>This approach exploits <strong>market inefficiency</strong> rather than betting against market wisdom. Books typically correct stale lines within hours, so timing matters.</p>
 
         <h2 id="limits">6) Known limitations</h2>
         <ul>
