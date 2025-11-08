@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NFL Totals - Fourth & Value</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #0f0f0f;
+      color: #fff;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem 1rem;
+    }
+
+    /* Header */
+    .header {
+      margin-bottom: 2rem;
+    }
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      color: #4FC3F7;
+    }
+    .subtitle {
+      color: #999;
+      margin-bottom: 1rem;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+      border-bottom: 2px solid #2a2a2a;
+    }
+    .tab {
+      padding: 0.75rem 1.5rem;
+      background: transparent;
+      color: #999;
+      text-decoration: none;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+    }
+    .tab:hover {
+      color: #fff;
+    }
+    .tab.active {
+      color: #4FC3F7;
+      border-bottom-color: #4FC3F7;
+    }
+
+    /* Stats summary */
+    .stats-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .stat-card {
+      background: #1a1a1a;
+      padding: 1.5rem;
+      border-radius: 8px;
+      border: 1px solid #2a2a2a;
+    }
+    .stat-label {
+      font-size: 0.875rem;
+      color: #999;
+      margin-bottom: 0.5rem;
+    }
+    .stat-value {
+      font-size: 1.75rem;
+      font-weight: bold;
+      color: #4FC3F7;
+    }
+
+    /* Edge plays section */
+    .edge-plays {
+      background: #1a1a1a;
+      border: 2px solid #4FC3F7;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .edge-plays h2 {
+      color: #4FC3F7;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .edge-plays h2::before {
+      content: "🎯";
+    }
+
+    /* Game cards */
+    .games-grid {
+      display: grid;
+      gap: 1rem;
+    }
+    .game-card {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 1.5rem;
+      transition: border-color 0.2s;
+    }
+    .game-card:hover {
+      border-color: #4FC3F7;
+    }
+    .game-card.has-edge {
+      border: 2px solid #4FC3F7;
+      background: linear-gradient(135deg, #1a1a1a 0%, #1a2a3a 100%);
+    }
+
+    .game-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid #2a2a2a;
+    }
+    .matchup {
+      font-size: 1.25rem;
+      font-weight: bold;
+    }
+
+    .totals-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .total-item {
+      background: #2a2a2a;
+      padding: 0.75rem;
+      border-radius: 4px;
+    }
+    .total-label {
+      font-size: 0.75rem;
+      color: #999;
+      margin-bottom: 0.25rem;
+    }
+    .total-value {
+      font-size: 1.25rem;
+      font-weight: bold;
+    }
+    .total-value.model {
+      color: #4FC3F7;
+    }
+    .total-value.market {
+      color: #FFA726;
+    }
+    .total-value.edge {
+      color: #66BB6A;
+    }
+
+    /* Edge plays in card */
+    .edge-play-list {
+      background: #2a2a2a;
+      border-radius: 4px;
+      padding: 1rem;
+      margin-top: 1rem;
+    }
+    .edge-play-item {
+      padding: 0.75rem;
+      background: #1a1a1a;
+      border-left: 3px solid #4FC3F7;
+      margin-bottom: 0.75rem;
+      border-radius: 4px;
+    }
+    .edge-play-item:last-child {
+      margin-bottom: 0;
+    }
+    .play-bet {
+      font-size: 1.125rem;
+      font-weight: bold;
+      color: #4FC3F7;
+      margin-bottom: 0.5rem;
+    }
+    .play-details {
+      font-size: 0.875rem;
+      color: #999;
+    }
+
+    .no-data {
+      text-align: center;
+      padding: 3rem;
+      color: #999;
+    }
+
+    .updated {
+      text-align: center;
+      color: #666;
+      font-size: 0.875rem;
+      margin-top: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>NFL Totals - Week 10</h1>
+      <p class="subtitle">Model predictions vs market consensus • Find outlier books before lines move</p>
+    </div>
+
+    <div class="tabs">
+      <a href="../../props/index.html" class="tab">Props</a>
+      <a href="../../nfl/totals/index.html" class="tab active">Totals</a>
+    </div>
+
+    <div class="stats-summary">
+      <div class="stat-card">
+        <div class="stat-label">Games This Week</div>
+        <div class="stat-value">14</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Consensus Edges</div>
+        <div class="stat-value">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Avg Model Total</div>
+        <div class="stat-value">92.7</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Avg Market Total</div>
+        <div class="stat-value">0.0</div>
+      </div>
+    </div>
+
+    <div class="games-grid">
+
+      <div class="game-card">
+        <div class="game-header">
+          <div class="matchup">LV @ DEN</div>
+        </div>
+
+        <div class="totals-row">
+          <div class="total-item">
+            <div class="total-label">Model Prediction</div>
+            <div class="total-value model">90.1</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">DEN</div>
+            <div class="total-value">47.5</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">LV</div>
+            <div class="total-value">42.6</div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <div class="game-card">
+        <div class="game-header">
+          <div class="matchup">NO @ CAR</div>
+        </div>
+
+        <div class="totals-row">
+          <div class="total-item">
+            <div class="total-label">Model Prediction</div>
+            <div class="total-value model">88.1</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">CAR</div>
+            <div class="total-value">45.0</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">NO</div>
+            <div class="total-value">43.1</div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <div class="game-card">
+        <div class="game-header">
+          <div class="matchup">NYG @ CHI</div>
+        </div>
+
+        <div class="totals-row">
+          <div class="total-item">
+            <div class="total-label">Model Prediction</div>
+            <div class="total-value model">86.3</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">CHI</div>
+            <div class="total-value">42.9</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">NYG</div>
+            <div class="total-value">43.4</div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <div class="game-card">
+        <div class="game-header">
+          <div class="matchup">JAX @ HOU</div>
+        </div>
+
+        <div class="totals-row">
+          <div class="total-item">
+            <div class="total-label">Model Prediction</div>
+            <div class="total-value model">92.1</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">HOU</div>
+            <div class="total-value">46.1</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">JAX</div>
+            <div class="total-value">46.0</div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <div class="game-card">
+        <div class="game-header">
+          <div class="matchup">ATL @ IND</div>
+        </div>
+
+        <div class="totals-row">
+          <div class="total-item">
+            <div class="total-label">Model Prediction</div>
+            <div class="total-value model">94.8</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">IND</div>
+            <div class="total-value">47.1</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">ATL</div>
+            <div class="total-value">47.6</div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <div class="game-card">
+        <div class="game-header">
+          <div class="matchup">PIT @ LAC</div>
+        </div>
+
+        <div class="totals-row">
+          <div class="total-item">
+            <div class="total-label">Model Prediction</div>
+            <div class="total-value model">92.1</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">LAC</div>
+            <div class="total-value">48.1</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">PIT</div>
+            <div class="total-value">44.0</div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <div class="game-card">
+        <div class="game-header">
+          <div class="matchup">BUF @ MIA</div>
+        </div>
+
+        <div class="totals-row">
+          <div class="total-item">
+            <div class="total-label">Model Prediction</div>
+            <div class="total-value model">92.9</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">MIA</div>
+            <div class="total-value">44.1</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">BUF</div>
+            <div class="total-value">48.8</div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <div class="game-card">
+        <div class="game-header">
+          <div class="matchup">BAL @ MIN</div>
+        </div>
+
+        <div class="totals-row">
+          <div class="total-item">
+            <div class="total-label">Model Prediction</div>
+            <div class="total-value model">98.1</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">MIN</div>
+            <div class="total-value">47.0</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">BAL</div>
+            <div class="total-value">51.1</div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <div class="game-card">
+        <div class="game-header">
+          <div class="matchup">CLE @ NYJ</div>
+        </div>
+
+        <div class="totals-row">
+          <div class="total-item">
+            <div class="total-label">Model Prediction</div>
+            <div class="total-value model">89.2</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">NYJ</div>
+            <div class="total-value">45.1</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">CLE</div>
+            <div class="total-value">44.1</div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <div class="game-card">
+        <div class="game-header">
+          <div class="matchup">ARI @ SEA</div>
+        </div>
+
+        <div class="totals-row">
+          <div class="total-item">
+            <div class="total-label">Model Prediction</div>
+            <div class="total-value model">92.8</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">SEA</div>
+            <div class="total-value">45.4</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">ARI</div>
+            <div class="total-value">47.4</div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <div class="game-card">
+        <div class="game-header">
+          <div class="matchup">LA @ SF</div>
+        </div>
+
+        <div class="totals-row">
+          <div class="total-item">
+            <div class="total-label">Model Prediction</div>
+            <div class="total-value model">91.3</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">SF</div>
+            <div class="total-value">46.1</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">LA</div>
+            <div class="total-value">45.2</div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <div class="game-card">
+        <div class="game-header">
+          <div class="matchup">NE @ TB</div>
+        </div>
+
+        <div class="totals-row">
+          <div class="total-item">
+            <div class="total-label">Model Prediction</div>
+            <div class="total-value model">92.1</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">TB</div>
+            <div class="total-value">49.8</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">NE</div>
+            <div class="total-value">42.4</div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <div class="game-card">
+        <div class="game-header">
+          <div class="matchup">DET @ WAS</div>
+        </div>
+
+        <div class="totals-row">
+          <div class="total-item">
+            <div class="total-label">Model Prediction</div>
+            <div class="total-value model">99.4</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">WAS</div>
+            <div class="total-value">48.4</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">DET</div>
+            <div class="total-value">51.0</div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <div class="game-card">
+        <div class="game-header">
+          <div class="matchup">PHI @ GB</div>
+        </div>
+
+        <div class="totals-row">
+          <div class="total-item">
+            <div class="total-label">Model Prediction</div>
+            <div class="total-value model">98.0</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">GB</div>
+            <div class="total-value">47.7</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">PHI</div>
+            <div class="total-value">50.2</div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    <div class="updated">
+      Last updated: 2025-11-08 08:43 AM ET
+    </div>
+  </div>
+</body>
+</html>

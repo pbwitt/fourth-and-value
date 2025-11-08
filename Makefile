@@ -367,6 +367,92 @@ nhl_totals_daily: nhl_totals_predict nhl_totals_consensus nhl_totals_page
 # ========================================================================
 
 
+# ========================================================================
+# NFL Team Totals Pipeline
+# ========================================================================
+
+NFL_PBP := data/pbp/pbp_2024_2025.parquet
+NFL_TEAM_FEATURES := data/nfl/processed/team_features.csv
+NFL_TOTALS_MODEL := data/nfl/models/ridge_totals.pkl
+NFL_TOTALS_PREDS := data/nfl/predictions/week_predictions.csv
+NFL_TOTALS_CONSENSUS := data/nfl/consensus/consensus.csv
+NFL_TOTALS_EDGES := data/nfl/consensus/edges.csv
+NFL_TOTALS_PAGE := docs/nfl/totals/index.html
+
+# Phony targets
+.PHONY: nfl_totals_fetch nfl_totals_features nfl_totals_train nfl_totals_predict nfl_totals_consensus nfl_totals_page nfl_totals_daily
+
+# Fetch PBP data (one-time or when new season starts)
+nfl_totals_fetch:
+	@echo "====================================================================="
+	@echo "Fetching NFL play-by-play data..."
+	@echo "====================================================================="
+	$(PY) -c "import nfl_data_py as nfl; pbp = nfl.import_pbp_data([2024, 2025]); pbp.to_parquet('$(NFL_PBP)'); print(f'✓ Fetched {len(pbp)} plays')"
+	@echo "✓ PBP data saved to $(NFL_PBP)"
+
+# Build team features from PBP
+nfl_totals_features: $(NFL_TEAM_FEATURES)
+
+$(NFL_TEAM_FEATURES): $(NFL_PBP) scripts/nfl_build_team_features.py
+	@echo "====================================================================="
+	@echo "Building NFL team features..."
+	@echo "====================================================================="
+	$(PY) scripts/nfl_build_team_features.py --pbp $(NFL_PBP) --output $(NFL_TEAM_FEATURES)
+
+# Train model
+nfl_totals_train: $(NFL_TOTALS_MODEL)
+
+$(NFL_TOTALS_MODEL): $(NFL_TEAM_FEATURES) scripts/nfl_train_totals_model.py
+	@echo "====================================================================="
+	@echo "Training NFL totals model..."
+	@echo "====================================================================="
+	$(PY) scripts/nfl_train_totals_model.py --input $(NFL_TEAM_FEATURES) --output-dir data/nfl/models
+
+# Generate predictions for specific week
+nfl_totals_predict:
+	@echo "====================================================================="
+	@echo "Generating NFL totals predictions for Week $(WEEK)..."
+	@echo "====================================================================="
+	$(PY) scripts/nfl_predict_totals.py \
+		--model $(NFL_TOTALS_MODEL) \
+		--team-features $(NFL_TEAM_FEATURES) \
+		--week $(WEEK) \
+		--output $(NFL_TOTALS_PREDS)
+
+# Find consensus edges
+nfl_totals_consensus:
+	@echo "====================================================================="
+	@echo "Finding NFL consensus edges..."
+	@echo "====================================================================="
+	$(PY) scripts/nfl_find_consensus_edges.py \
+		--predictions $(NFL_TOTALS_PREDS) \
+		--odds $(ODDS_CSV) \
+		--output $(NFL_TOTALS_EDGES)
+
+# Build HTML page
+nfl_totals_page:
+	@echo "====================================================================="
+	@echo "Building NFL totals page..."
+	@echo "====================================================================="
+	$(PY) scripts/nfl_build_totals_page.py \
+		--predictions $(NFL_TOTALS_PREDS) \
+		--consensus $(NFL_TOTALS_CONSENSUS) \
+		--edges $(NFL_TOTALS_EDGES) \
+		--output $(NFL_TOTALS_PAGE) \
+		--week $(WEEK)
+
+# Weekly run: predict + consensus + page
+nfl_totals_daily: nfl_totals_predict nfl_totals_consensus nfl_totals_page
+	@echo "====================================================================="
+	@echo "✓ NFL totals update complete for Week $(WEEK)"
+	@echo "====================================================================="
+	@echo "View at: $(NFL_TOTALS_PAGE)"
+
+# ========================================================================
+# End NFL Team Totals Pipeline
+# ========================================================================
+
+
 .FORCE:
 	$(ODDS_CSV): .FORCE scripts/fetch_odds.py | $(ODDS_DIR)
 		$(PY) scripts/fetch_odds.py > $@
