@@ -76,7 +76,7 @@
 </head>
 <body>
   <div id="nav-root"></div>
-  <script src="./nav.js?v=29"></script>
+  <script src="./nav.js?v=30"></script>
 
   <main class="wrap">
     <div class="card">
@@ -302,7 +302,44 @@
         </ul>
         <p>Consensus props provide confidence that the line is well-established across the market, reducing the risk of stale or outlier pricing.</p>
 
-        <h2 id="limits">5) Known limitations</h2>
+        <h2 id="team-totals">5) Team Totals (Game Totals)</h2>
+
+        <p>In addition to player props, we model NFL game totals by predicting each team's score independently and summing them.</p>
+
+        <h3>Modeling approach:</h3>
+        <ul>
+          <li><strong>Ridge regression:</strong> L2-regularized linear model predicting individual team scores (not game totals).</li>
+          <li><strong>Features:</strong> EPA-based team performance metrics over rolling windows (L3 and L5 games):
+            <ul>
+              <li>Offensive EPA per play, success rate, pass EPA, rush EPA</li>
+              <li>Explosive play rate, third-down conversion rate, red-zone TD rate</li>
+              <li>Defensive EPA per play, success rate</li>
+              <li>Points scored and allowed (recent trends)</li>
+            </ul>
+          </li>
+          <li><strong>Home field advantage:</strong> Built-in <code>is_home</code> indicator provides ~2.4 point boost for home teams.</li>
+          <li><strong>Time series CV:</strong> 5-fold time series cross-validation preserving temporal order (MAE: ~7.6 points per team).</li>
+        </ul>
+
+        <h3>Why predict team scores separately:</h3>
+        <p>Predicting each team's score individually (rather than the game total directly) allows us to:</p>
+        <ul>
+          <li>Apply home field advantage correctly (only to the home team)</li>
+          <li>Show individual team predictions alongside the total</li>
+          <li>Capture asymmetric matchups (e.g., strong offense vs weak defense)</li>
+        </ul>
+
+        <h3>Current implementation:</h3>
+        <ul>
+          <li><strong>Data source:</strong> Play-by-play data from nfl_data_py covering full 2024-2025 season (421 games, 72,808 plays).</li>
+          <li><strong>Model performance:</strong> MAE of 7.64 points per team (RMSE: 9.67 points).</li>
+          <li><strong>Predictions:</strong> Generated weekly for upcoming games, showing model total vs market consensus (when available).</li>
+        </ul>
+
+        <h3>Consensus edges:</h3>
+        <p>When market data is available, we identify books offering lines that diverge from market consensus by ≥0.5 points, filtering for cases where our model agrees with the market (within 0.3 points). These represent opportunities to bet with the consensus before stale lines move.</p>
+
+        <h2 id="limits">6) Known limitations</h2>
         <ul>
           <li><strong>Sample size:</strong> Early in the season (Weeks 1-4), we have limited data. Model confidence is lower.</li>
           <li><strong>Team context:</strong> We don't yet adjust for pace, game script, or team totals/spreads.</li>
@@ -310,7 +347,7 @@
           <li><strong>Venue effects:</strong> Dome vs outdoor conditions not yet factored.</li>
         </ul>
 
-        <h2 id="roadmap">6) Roadmap</h2>
+        <h2 id="roadmap">7) Roadmap</h2>
         <ul>
           <li>✅ <strike>Exponential weighting for recent form</strike> (Oct 2024)</li>
           <li>✅ <strike>L4 rolling window</strike> (Oct 2024)</li>

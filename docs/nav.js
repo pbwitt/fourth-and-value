@@ -1,4 +1,4 @@
-// docs/nav.js (v=29) — Consensus tab removed, week headers cleaned up
+// docs/nav.js (v=30) — Added NFL Team Totals to navigation
 (function () {
   // --- Find script & compute base (works locally and deployed) ---
   const scriptEl =
@@ -151,6 +151,7 @@
         { href: `${base}/props/index.html`, label: 'Player Props' },
         { href: `${base}/props/top.html`, label: 'Top Picks' },
         { href: `${base}/props/arbitrage.html`, label: 'Arbitrage' },
+        { href: `${base}/nfl/totals/index.html`, label: 'Team Totals' },
       ]
     },
     {

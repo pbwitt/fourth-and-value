@@ -239,6 +239,9 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path,
   </style>
 </head>
 <body>
+  <div id="nav-root"></div>
+  <script src="../../nav.js?v=30"></script>
+
   <div class="container">
     <div class="header">
       <h1>NFL Totals - Week {week}</h1>
