@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NHL Totals - Fourth & Value</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #0f0f0f;
+      color: #fff;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem 1rem;
+    }
+
+    /* Header */
+    .header {
+      margin-bottom: 2rem;
+    }
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      color: #4FC3F7;
+    }
+    .subtitle {
+      color: #999;
+      margin-bottom: 1rem;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+      border-bottom: 2px solid #2a2a2a;
+    }
+    .tab {
+      padding: 0.75rem 1.5rem;
+      background: transparent;
+      color: #999;
+      text-decoration: none;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+    }
+    .tab:hover {
+      color: #fff;
+    }
+    .tab.active {
+      color: #4FC3F7;
+      border-bottom-color: #4FC3F7;
+    }
+
+    /* Stats summary */
+    .stats-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .stat-card {
+      background: #1a1a1a;
+      padding: 1.5rem;
+      border-radius: 8px;
+      border: 1px solid #2a2a2a;
+    }
+    .stat-label {
+      font-size: 0.875rem;
+      color: #999;
+      margin-bottom: 0.5rem;
+    }
+    .stat-value {
+      font-size: 1.75rem;
+      font-weight: bold;
+      color: #4FC3F7;
+    }
+
+    /* Edge plays section */
+    .edge-plays {
+      background: #1a1a1a;
+      border: 2px solid #4FC3F7;
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .edge-plays h2 {
+      color: #4FC3F7;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .edge-plays h2::before {
+      content: "🎯";
+    }
+
+    /* Game cards */
+    .games-grid {
+      display: grid;
+      gap: 1rem;
+    }
+    .game-card {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 1.5rem;
+      transition: border-color 0.2s;
+    }
+    .game-card:hover {
+      border-color: #4FC3F7;
+    }
+    .game-card.has-edge {
+      border: 2px solid #4FC3F7;
+      background: linear-gradient(135deg, #1a1a1a 0%, #1a2a3a 100%);
+    }
+
+    .game-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid #2a2a2a;
+    }
+    .matchup {
+      font-size: 1.25rem;
+      font-weight: bold;
+    }
+    .game-time {
+      color: #999;
+      font-size: 0.875rem;
+    }
+
+    .totals-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .total-item {
+      background: #2a2a2a;
+      padding: 0.75rem;
+      border-radius: 4px;
+    }
+    .total-label {
+      font-size: 0.75rem;
+      color: #999;
+      margin-bottom: 0.25rem;
+    }
+    .total-value {
+      font-size: 1.25rem;
+      font-weight: bold;
+    }
+    .total-value.model {
+      color: #4FC3F7;
+    }
+    .total-value.market {
+      color: #FFA726;
+    }
+    .total-value.edge {
+      color: #66BB6A;
+    }
+
+    /* Edge plays in card */
+    .edge-play-list {
+      background: #2a2a2a;
+      border-radius: 4px;
+      padding: 1rem;
+      margin-top: 1rem;
+    }
+    .edge-play-item {
+      padding: 0.75rem;
+      background: #1a1a1a;
+      border-left: 3px solid #4FC3F7;
+      margin-bottom: 0.75rem;
+      border-radius: 4px;
+    }
+    .edge-play-item:last-child {
+      margin-bottom: 0;
+    }
+    .play-bet {
+      font-size: 1.125rem;
+      font-weight: bold;
+      color: #4FC3F7;
+      margin-bottom: 0.5rem;
+    }
+    .play-details {
+      font-size: 0.875rem;
+      color: #999;
+    }
+
+    .no-data {
+      text-align: center;
+      padding: 3rem;
+      color: #999;
+    }
+
+    .updated {
+      text-align: center;
+      color: #666;
+      font-size: 0.875rem;
+      margin-top: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>NHL Totals</h1>
+      <p class="subtitle">Model predictions vs market consensus • Find outlier books before lines move</p>
+    </div>
+
+    <div class="tabs">
+      <a href="../../nhl/props/index.html" class="tab">Props</a>
+      <a href="../../nhl/totals/index.html" class="tab active">Totals</a>
+    </div>
+
+    <div class="games-grid">
+
+      <div class="no-data">
+        <h3>No games today</h3>
+        <p>Run: make nhl_totals_daily</p>
+      </div>
+
+    </div>
+
+    <div class="updated">
+      Last updated: 2025-11-08 07:50 AM ET
+    </div>
+  </div>
+</body>
+</html>

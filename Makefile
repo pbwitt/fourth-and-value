@@ -37,6 +37,7 @@ INCOH_CSV  := data/qc/incoherent_books.csv
 # ---- Phony targets ----
 .PHONY: monday_all monday_all_pub weekly qc publish_pages props_now_pages serve_preview clean_pages clean
 .PHONY: nhl_daily nhl_daily_pub nhl_odds nhl_stats nhl_consensus nhl_edges nhl_page
+.PHONY: nhl_totals_fetch nhl_totals_features nhl_totals_train nhl_totals_predict nhl_totals_consensus nhl_totals_all
 
 # Main weekly build (no publish)
 monday_all: weekly qc
@@ -274,6 +275,92 @@ $(NHL_PAGE): $(NHL_PROPS_MODEL) scripts/nhl/build_nhl_props_page.py | $(NHL_DOCS
 # Ensure NHL directories exist
 $(NHL_PROC_DIR) $(NHL_CONS_DIR) $(NHL_PROPS_DIR) $(NHL_DOCS_DIR) $(NHL_DATA_DIR)/models:
 	mkdir -p $@
+
+# ========================================================================
+# NHL Team Totals Pipeline (NEW)
+# ========================================================================
+
+NHL_SEASON ?= 20242025
+NHL_GAMES_CSV := data/nhl/raw/games.csv
+NHL_PLAYER_STATS_CSV := data/nhl/raw/player_stats.csv
+NHL_TEAM_FEATURES_CSV := data/nhl/processed/team_features.csv
+NHL_MODEL_PKL := data/nhl/models/ridge_team_totals.pkl
+NHL_PREDICTIONS_CSV := data/nhl/predictions/today.csv
+NHL_CONSENSUS_EDGES_CSV := data/nhl/consensus/edges.csv
+NHL_CONSENSUS_CSV := data/nhl/consensus/consensus.csv
+NHL_TOTALS_PAGE := docs/nhl/totals/index.html
+
+# Fetch historical games for the season
+nhl_totals_fetch:
+	@echo "===================================================================="
+	@echo "Fetching NHL games for season $(NHL_SEASON)..."
+	@echo "===================================================================="
+	$(PY) scripts/nhl_fetch_games.py --season $(NHL_SEASON) --output $(NHL_GAMES_CSV)
+	@echo "===================================================================="
+	@echo "Fetching player stats for games..."
+	@echo "===================================================================="
+	$(PY) scripts/nhl_fetch_player_stats.py --games $(NHL_GAMES_CSV) --output $(NHL_PLAYER_STATS_CSV)
+	@echo "✓ Data fetched"
+
+# Build team-level features from player stats
+nhl_totals_features:
+	@echo "===================================================================="
+	@echo "Building team-level features..."
+	@echo "===================================================================="
+	$(PY) scripts/nhl_build_features.py --input $(NHL_PLAYER_STATS_CSV) --output $(NHL_TEAM_FEATURES_CSV)
+	@echo "✓ Features built"
+
+# Train model
+nhl_totals_train:
+	@echo "===================================================================="
+	@echo "Training team totals model..."
+	@echo "===================================================================="
+	$(PY) scripts/nhl_train_model.py --input $(NHL_TEAM_FEATURES_CSV) --model-type ridge --output-dir data/nhl/models
+	@echo "✓ Model trained"
+
+# Generate predictions for today
+nhl_totals_predict:
+	@echo "===================================================================="
+	@echo "Generating predictions for today..."
+	@echo "===================================================================="
+	$(PY) scripts/nhl_predict_totals.py --model $(NHL_MODEL_PKL) --team-features $(NHL_TEAM_FEATURES_CSV) --output $(NHL_PREDICTIONS_CSV)
+	@echo "✓ Predictions generated"
+
+# Find consensus edges (books out of sync with market)
+nhl_totals_consensus:
+	@echo "===================================================================="
+	@echo "Finding consensus edges..."
+	@echo "===================================================================="
+	$(PY) scripts/nhl_find_consensus_edges.py --predictions $(NHL_PREDICTIONS_CSV) --output $(NHL_CONSENSUS_EDGES_CSV)
+	@echo "✓ Consensus edges identified"
+
+# Build HTML page
+nhl_totals_page:
+	@echo "===================================================================="
+	@echo "Building NHL totals page..."
+	@echo "===================================================================="
+	$(PY) scripts/nhl_build_totals_page.py --predictions $(NHL_PREDICTIONS_CSV) --consensus $(NHL_CONSENSUS_CSV) --edges $(NHL_CONSENSUS_EDGES_CSV) --output $(NHL_TOTALS_PAGE)
+	@echo "✓ Page built: $(NHL_TOTALS_PAGE)"
+
+# Full pipeline: fetch → features → train → predict → consensus → page
+nhl_totals_all: nhl_totals_fetch nhl_totals_features nhl_totals_train nhl_totals_predict nhl_totals_consensus nhl_totals_page
+	@echo "===================================================================="
+	@echo "✓ NHL Totals Pipeline Complete"
+	@echo "===================================================================="
+	@echo "Predictions: $(NHL_PREDICTIONS_CSV)"
+	@echo "Consensus edges: $(NHL_CONSENSUS_EDGES_CSV)"
+	@echo "Page: $(NHL_TOTALS_PAGE)"
+
+# Daily run (just predictions + consensus + page, assumes model already trained)
+nhl_totals_daily: nhl_totals_predict nhl_totals_consensus nhl_totals_page
+	@echo "===================================================================="
+	@echo "✓ Daily NHL totals update complete"
+	@echo "===================================================================="
+	@echo "View at: $(NHL_TOTALS_PAGE)"
+
+# ========================================================================
+# End NHL Team Totals Pipeline
+# ========================================================================
 
 # ========================================================================
 # End NHL Pipeline

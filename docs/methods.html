@@ -459,9 +459,121 @@
           <li><strong>Lineup changes:</strong> Line combinations and ice time allocation affect opportunity.</li>
         </ul>
 
-        <h2 id="limitations-nhl">7) Known limitations &amp; roadmap</h2>
+        <h2 id="nhl-totals">7) NHL Team Totals Modeling</h2>
 
-        <h3>Current limitations:</h3>
+        <div class="highlight">
+          <strong>🆕 NEW (Nov 2025):</strong> NHL team totals predictions using player-level data aggregated to team features, with rolling windows, exponential weighting, opponent adjustments, and consensus edge detection for finding mispriced lines.
+        </div>
+
+        <h3>What we model:</h3>
+        <p>Team total goals for each team in a game, which combines to predict the over/under line.</p>
+
+        <h3>Data aggregation approach:</h3>
+        <p><strong>Key insight:</strong> Instead of predicting individual player scores and averaging them (incorrect), we aggregate player statistics to team-level features FIRST, then predict team totals directly.</p>
+
+        <p><strong>Team features from player data:</strong></p>
+        <ul>
+          <li><strong>Forwards (aggregated):</strong>
+            <ul>
+              <li>Total goals, assists, shots (sum across all forwards)</li>
+              <li>Average goals per forward (mean)</li>
+              <li>Top scorer production (max)</li>
+              <li>Power play goals (sum)</li>
+              <li>Face-off win percentage (mean)</li>
+              <li>Takeaways, giveaways (sum)</li>
+            </ul>
+          </li>
+          <li><strong>Defense (aggregated):</strong>
+            <ul>
+              <li>Total blocked shots (sum)</li>
+              <li>Average plus/minus (mean)</li>
+              <li>Hits, goals from defensemen (sum)</li>
+            </ul>
+          </li>
+          <li><strong>Goalie (starting goalie only):</strong>
+            <ul>
+              <li>Save percentage</li>
+              <li>Goals against</li>
+              <li>Shots against</li>
+            </ul>
+          </li>
+        </ul>
+
+        <h3>Rolling windows & recency weighting:</h3>
+        <p>For each team, we calculate rolling averages with exponential weighting:</p>
+        <ul>
+          <li><strong>Last 5 games (L5):</strong> Recent form and momentum</li>
+          <li><strong>Last 10 games (L10):</strong> Medium-term performance baseline</li>
+          <li><strong>Exponential weighted moving average (EWMA):</strong> Recent games weighted more heavily (span=5)</li>
+        </ul>
+        <p>Features include: <code>goals_l5</code>, <code>goals_l10</code>, <code>goals_ewm</code>, <code>shots_l5</code>, <code>pp_goals_l5</code>, <code>save_pct_l5</code>, etc.</p>
+
+        <h3>Opponent strength adjustments:</h3>
+        <p>We track opponent defensive metrics and incorporate them as features:</p>
+        <ul>
+          <li><strong>Opponent goals allowed per game:</strong> Rolling average of opponent's defensive performance</li>
+          <li><strong>Opponent goalie save percentage:</strong> Starting goalie's recent form</li>
+          <li><strong>Opponent blocked shots:</strong> Defensive activity level</li>
+        </ul>
+
+        <h3>Home/away splits:</h3>
+        <p>Separately track team performance at home vs. away:</p>
+        <ul>
+          <li><code>home_avg_goals_for</code> - Team's scoring at home</li>
+          <li><code>away_avg_goals_for</code> - Team's scoring on road</li>
+          <li><code>is_home</code> - Binary indicator for current game location</li>
+        </ul>
+
+        <h3>Model training:</h3>
+        <ul>
+          <li><strong>Algorithm:</strong> Ridge regression (L2 regularization) for correlated features</li>
+          <li><strong>Alternative models:</strong> Lasso, Elastic Net, Random Forest, Gradient Boosting available</li>
+          <li><strong>Cross-validation:</strong> Time series CV with 5 folds (preserves temporal order, no data leakage)</li>
+          <li><strong>Target variable:</strong> Team total goals in each game</li>
+          <li><strong>Prediction:</strong> Home team total + Away team total = Game total (over/under)</li>
+        </ul>
+
+        <h3>Consensus edge detection:</h3>
+        <p><strong>Strategy:</strong> Find books with lines out of sync with market consensus before they correct.</p>
+
+        <p><strong>How it works:</strong></p>
+        <ol>
+          <li>Calculate <strong>market consensus line</strong> (mean across all books offering the total)</li>
+          <li>Identify <strong>outlier books</strong> (lines differing from consensus by ≥0.5 goals)</li>
+          <li>Check <strong>model agreement</strong> with consensus (within 0.3 goals)</li>
+          <li>Flag plays where <strong>model + consensus agree</strong> but one book is off</li>
+        </ol>
+
+        <p><strong>Example:</strong></p>
+        <ul>
+          <li>Model prediction: 5.0 goals</li>
+          <li>Market consensus: 5.0 goals (average across 8 books)</li>
+          <li>Outlier book: 6.0 goals</li>
+          <li><strong>Play:</strong> Bet Under 6.0 at outlier book before line moves to 5.0</li>
+        </ul>
+
+        <p>This is <strong>structural arbitrage on totals</strong> - betting on market inefficiency, not against the market.</p>
+
+        <h3>Why this approach works:</h3>
+        <ul>
+          <li><strong>More data:</strong> Uses all player-level information (depth scoring, special teams, defense, goaltending)</li>
+          <li><strong>Proper aggregation:</strong> Predicts at correct level (team totals, not averaged player predictions)</li>
+          <li><strong>Captures dynamics:</strong> Rolling windows catch hot/cold streaks, recent role changes</li>
+          <li><strong>Matchup aware:</strong> Opponent defensive strength directly affects predictions</li>
+          <li><strong>Market timing:</strong> Consensus edges exploit morning lines before they sync</li>
+        </ul>
+
+        <h3>Performance metrics:</h3>
+        <p>Model evaluated using time series cross-validation:</p>
+        <ul>
+          <li><strong>MAE (Mean Absolute Error):</strong> Average prediction error in goals</li>
+          <li><strong>RMSE (Root Mean Squared Error):</strong> Prediction error with penalty for large misses</li>
+          <li><strong>Typical performance:</strong> ~1.0-1.2 goal MAE on held-out test sets</li>
+        </ul>
+
+        <h2 id="limitations-nhl">8) Known limitations &amp; roadmap</h2>
+
+        <h3>Player Props - Current limitations:</h3>
         <ul>
           <li><strong>No opponent adjustments:</strong> We don't yet account for opposing team's defensive strength (goals allowed, shots allowed rates).</li>
           <li><strong>No line-mate effects:</strong> Playing with elite centers/wingers significantly impacts production but isn't modeled.</li>
@@ -470,7 +582,7 @@
           <li><strong>Basic B2B handling:</strong> Back-to-back fatigue effects known but not explicitly adjusted for.</li>
         </ul>
 
-        <h3>Planned improvements:</h3>
+        <h3>Player Props - Planned improvements:</h3>
         <ul>
           <li><strong>Defensive matchup adjustments:</strong> Factor in opponent's goals-against and shots-against per game.</li>
           <li><strong>Power-play weighting:</strong> Separate PP and even-strength rates, weighted by expected PP time.</li>
@@ -478,6 +590,15 @@
           <li><strong>Line-mate quality:</strong> Boost projections for players skating with elite offensive talent.</li>
           <li><strong>B2B fatigue multipliers:</strong> Explicit downward adjustments for second game of back-to-backs.</li>
           <li><strong>Time-on-ice (TOI) tracking:</strong> Weight projections by expected ice time rather than just game-by-game stats.</li>
+        </ul>
+
+        <h3>Team Totals - Future enhancements:</h3>
+        <ul>
+          <li><strong>Advanced metrics:</strong> Incorporate Corsi, Fenwick, expected goals (xG) from shot quality</li>
+          <li><strong>Line combinations:</strong> Track top-line vs depth production separately</li>
+          <li><strong>Rest days:</strong> Explicit adjustments for back-to-back games</li>
+          <li><strong>Venue effects:</strong> Different home ice advantages by arena</li>
+          <li><strong>Market fusion:</strong> Bayesian updates incorporating sharp money movement</li>
         </ul>
 
         <hr />
