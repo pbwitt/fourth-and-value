@@ -179,8 +179,8 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
 
     .totals-row {{
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 1rem;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 0.75rem;
       margin-bottom: 1rem;
     }}
     .total-item {{
@@ -470,7 +470,11 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
               <tr>
                 <th>Book</th>
                 <th>Total</th>
+                <th>Over</th>
+                <th>Under</th>
                 <th>Spread</th>
+                <th>Fav</th>
+                <th>Dog</th>
               </tr>
             </thead>
             <tbody>
@@ -482,19 +486,33 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
               <tr class="consensus-row">
                 <td><strong>CONSENSUS</strong></td>
                 <td>{game['consensus_total']:.1f}</td>
+                <td>-</td>
+                <td>-</td>
                 <td>{spread_str}</td>
+                <td>-</td>
+                <td>-</td>
               </tr>
 """
 
                 # Add individual book lines
                 for _, line in game_lines.iterrows():
                     total_str = f"{line['total_over_line']:.1f}" if not pd.isna(line.get('total_over_line')) else '-'
+                    over_odds = f"{int(line['total_over_price']):+d}" if not pd.isna(line.get('total_over_price')) else '-'
+                    under_odds = f"{int(line['total_under_price']):+d}" if not pd.isna(line.get('total_under_price')) else '-'
+
                     spread_str = f"{game['home_team']} {line['spread_home_line']:+.1f}" if not pd.isna(line.get('spread_home_line')) else '-'
+                    spread_home_odds = f"{int(line['spread_home_price']):+d}" if not pd.isna(line.get('spread_home_price')) else '-'
+                    spread_away_odds = f"{int(line['spread_away_price']):+d}" if not pd.isna(line.get('spread_away_price')) else '-'
+
                     html += f"""
               <tr>
                 <td>{line['book']}</td>
                 <td>{total_str}</td>
+                <td>{over_odds}</td>
+                <td>{under_odds}</td>
                 <td>{spread_str}</td>
+                <td>{spread_home_odds}</td>
+                <td>{spread_away_odds}</td>
               </tr>
 """
 
