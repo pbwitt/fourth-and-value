@@ -6,11 +6,12 @@ import pandas as pd
 import os
 from datetime import datetime
 
-def build_totals_page(predictions_path, consensus_path, edges_path, output_path, week):
+def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, output_path, week):
     """
     Build HTML page showing:
     - Model predictions
-    - Market consensus
+    - Market consensus (totals + spreads)
+    - All book lines
     - Consensus edge plays (highlighted)
     """
 
@@ -18,12 +19,18 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path,
     preds = pd.read_csv(predictions_path) if os.path.exists(predictions_path) else pd.DataFrame()
     consensus = pd.read_csv(consensus_path) if os.path.exists(consensus_path) else pd.DataFrame()
     edges = pd.read_csv(edges_path) if os.path.exists(edges_path) else pd.DataFrame()
+    lines = pd.read_csv(lines_path) if os.path.exists(lines_path) else pd.DataFrame()
 
-    # Merge predictions with consensus
+    # Merge predictions with consensus (totals only)
     if len(preds) > 0 and len(consensus) > 0:
-        merged = preds.merge(consensus[['game', 'consensus_line', 'median_line', 'num_books']],
+        totals_consensus = consensus[consensus['market'] == 'total'][['game', 'consensus_line', 'num_books']]
+        spread_consensus = consensus[consensus['market'] == 'spread'][['game', 'consensus_line', 'num_books']]
+
+        merged = preds.merge(totals_consensus.rename(columns={'consensus_line': 'consensus_total', 'num_books': 'num_books_total'}),
                             on='game', how='left')
-        merged['edge'] = merged['total_pred'] - merged['consensus_line']
+        merged = merged.merge(spread_consensus.rename(columns={'consensus_line': 'consensus_spread', 'num_books': 'num_books_spread'}),
+                            on='game', how='left')
+        merged['edge'] = merged['total_pred'] - merged['consensus_total']
     else:
         merged = preds
 
@@ -236,6 +243,50 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path,
       font-size: 0.875rem;
       margin-top: 2rem;
     }}
+
+    /* Book lines table */
+    .book-lines {{
+      margin-top: 1rem;
+      background: #2a2a2a;
+      border-radius: 4px;
+      padding: 1rem;
+    }}
+    .book-lines h4 {{
+      font-size: 0.875rem;
+      color: #4FC3F7;
+      margin-bottom: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }}
+    .book-lines-table {{
+      width: 100%;
+      border-collapse: collapse;
+    }}
+    .book-lines-table th {{
+      text-align: left;
+      font-size: 0.75rem;
+      color: #999;
+      padding: 0.5rem;
+      border-bottom: 1px solid #3a3a3a;
+    }}
+    .book-lines-table td {{
+      padding: 0.5rem;
+      font-size: 0.875rem;
+      border-bottom: 1px solid #222;
+    }}
+    .book-lines-table tr:last-child td {{
+      border-bottom: none;
+    }}
+    .book-lines-table tr:hover {{
+      background: #333;
+    }}
+    .consensus-row {{
+      background: #1a2a1a !important;
+      font-weight: bold;
+    }}
+    .consensus-row td {{
+      color: #66BB6A;
+    }}
   </style>
 </head>
 <body>
@@ -257,7 +308,7 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path,
     # Stats summary
     if len(merged) > 0:
         avg_model = merged['total_pred'].mean()
-        avg_market = merged.get('consensus_line', pd.Series([0])).mean() if 'consensus_line' in merged.columns else 0
+        avg_market = merged['consensus_total'].mean() if 'consensus_total' in merged.columns and not merged['consensus_total'].isna().all() else 0
         num_games = len(merged)
         num_edges = len(edges)
 
@@ -340,11 +391,19 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path,
           </div>
 """
 
-            if 'consensus_line' in game and not pd.isna(game['consensus_line']):
+            if 'consensus_total' in game and not pd.isna(game['consensus_total']):
                 html += f"""
           <div class="total-item">
-            <div class="total-label">Market Consensus</div>
-            <div class="total-value market">{game['consensus_line']:.1f}</div>
+            <div class="total-label">Market Total</div>
+            <div class="total-value market">{game['consensus_total']:.1f}</div>
+          </div>
+"""
+
+            if 'consensus_spread' in game and not pd.isna(game['consensus_spread']):
+                html += f"""
+          <div class="total-item">
+            <div class="total-label">Market Spread</div>
+            <div class="total-value market">{game['home_team']} {game['consensus_spread']:+.1f}</div>
           </div>
 """
 
@@ -358,6 +417,51 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path,
 """
 
             html += """
+        </div>
+"""
+
+            # Show all book lines for this game
+            game_lines = lines[lines['game'] == game['game']] if len(lines) > 0 else pd.DataFrame()
+            if len(game_lines) > 0:
+                html += """
+        <div class="book-lines">
+          <h4>📊 All Book Lines</h4>
+          <table class="book-lines-table">
+            <thead>
+              <tr>
+                <th>Book</th>
+                <th>Total</th>
+                <th>Spread</th>
+              </tr>
+            </thead>
+            <tbody>
+"""
+                # Add consensus row first if available
+                if 'consensus_total' in game and not pd.isna(game['consensus_total']):
+                    spread_str = f"{game['home_team']} {game['consensus_spread']:+.1f}" if 'consensus_spread' in game and not pd.isna(game['consensus_spread']) else '-'
+                    html += f"""
+              <tr class="consensus-row">
+                <td><strong>CONSENSUS</strong></td>
+                <td>{game['consensus_total']:.1f}</td>
+                <td>{spread_str}</td>
+              </tr>
+"""
+
+                # Add individual book lines
+                for _, line in game_lines.iterrows():
+                    total_str = f"{line['total_over_line']:.1f}" if not pd.isna(line.get('total_over_line')) else '-'
+                    spread_str = f"{game['home_team']} {line['spread_home_line']:+.1f}" if not pd.isna(line.get('spread_home_line')) else '-'
+                    html += f"""
+              <tr>
+                <td>{line['book']}</td>
+                <td>{total_str}</td>
+                <td>{spread_str}</td>
+              </tr>
+"""
+
+                html += """
+            </tbody>
+          </table>
         </div>
 """
 
@@ -414,11 +518,12 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Build NFL totals page')
     parser.add_argument('--predictions', default='data/nfl/predictions/week_predictions.csv', help='Predictions CSV')
-    parser.add_argument('--consensus', default='data/nfl/consensus/consensus.csv', help='Consensus CSV')
+    parser.add_argument('--consensus', default='data/nfl/consensus/totals_spreads_consensus.csv', help='Consensus CSV')
     parser.add_argument('--edges', default='data/nfl/consensus/edges.csv', help='Edges CSV')
+    parser.add_argument('--lines', default='data/nfl/lines/totals_spreads.csv', help='Book lines CSV')
     parser.add_argument('--output', default='docs/nfl/totals/index.html', help='Output HTML')
     parser.add_argument('--week', type=int, required=True, help='Week number')
 
     args = parser.parse_args()
 
-    build_totals_page(args.predictions, args.consensus, args.edges, args.output, args.week)
+    build_totals_page(args.predictions, args.consensus, args.edges, args.lines, args.output, args.week)

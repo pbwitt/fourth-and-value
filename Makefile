@@ -380,7 +380,7 @@ NFL_TOTALS_EDGES := data/nfl/consensus/edges.csv
 NFL_TOTALS_PAGE := docs/nfl/totals/index.html
 
 # Phony targets
-.PHONY: nfl_totals_fetch nfl_totals_features nfl_totals_train nfl_totals_predict nfl_totals_consensus nfl_totals_page nfl_totals_daily
+.PHONY: nfl_totals_fetch nfl_totals_features nfl_totals_train nfl_totals_predict nfl_totals_lines nfl_totals_consensus nfl_totals_page nfl_totals_daily
 
 # Fetch PBP data (one-time or when new season starts)
 nfl_totals_fetch:
@@ -419,15 +419,24 @@ nfl_totals_predict:
 		--week $(WEEK) \
 		--output $(NFL_TOTALS_PREDS)
 
-# Find consensus edges
-nfl_totals_consensus:
+# Fetch totals and spreads from sportsbooks
+nfl_totals_lines:
 	@echo "====================================================================="
-	@echo "Finding NFL consensus edges..."
+	@echo "Fetching NFL totals and spreads from sportsbooks..."
 	@echo "====================================================================="
-	$(PY) scripts/nfl_find_consensus_edges.py \
-		--predictions $(NFL_TOTALS_PREDS) \
-		--odds $(ODDS_CSV) \
-		--output $(NFL_TOTALS_EDGES)
+	$(PY) scripts/nfl_fetch_totals_spreads.py \
+		--output data/nfl/lines/totals_spreads.csv
+	@echo "✓ Book lines fetched"
+
+# Calculate consensus across books
+nfl_totals_consensus: nfl_totals_lines
+	@echo "====================================================================="
+	@echo "Calculating consensus totals and spreads..."
+	@echo "====================================================================="
+	$(PY) scripts/nfl_calculate_totals_consensus.py \
+		--lines data/nfl/lines/totals_spreads.csv \
+		--output data/nfl/consensus/totals_spreads_consensus.csv
+	@echo "✓ Consensus calculated"
 
 # Build HTML page
 nfl_totals_page:
@@ -436,8 +445,9 @@ nfl_totals_page:
 	@echo "====================================================================="
 	$(PY) scripts/nfl_build_totals_page.py \
 		--predictions $(NFL_TOTALS_PREDS) \
-		--consensus $(NFL_TOTALS_CONSENSUS) \
+		--consensus data/nfl/consensus/totals_spreads_consensus.csv \
 		--edges $(NFL_TOTALS_EDGES) \
+		--lines data/nfl/lines/totals_spreads.csv \
 		--output $(NFL_TOTALS_PAGE) \
 		--week $(WEEK)
 
