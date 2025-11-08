@@ -62,6 +62,10 @@ def get_season_games(season='20242025', start_date=None, end_date=None):
 
     all_games = []
 
+    # Calculate total days for progress bar
+    total_days = (end - current).days + 1
+    day_count = 0
+
     while current <= end:
         date_str = current.strftime('%Y-%m-%d')
         url = f"https://api-web.nhle.com/v1/schedule/{date_str}"
@@ -93,7 +97,17 @@ def get_season_games(season='20242025', start_date=None, end_date=None):
         except Exception as e:
             print(f"Error fetching {date_str}: {e}")
 
+        day_count += 1
+        # Progress bar
+        pct = int(100 * day_count / total_days)
+        bar_length = 50
+        filled = int(bar_length * day_count / total_days)
+        bar = '█' * filled + '░' * (bar_length - filled)
+        print(f'\r[{bar}] {pct}% ({day_count}/{total_days} days, {len(all_games)} games found)', end='', flush=True)
+
         current += timedelta(days=1)
+
+    print()  # New line after progress bar
 
     return pd.DataFrame(all_games)
 

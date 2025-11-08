@@ -130,12 +130,11 @@ def fetch_player_stats_for_games(games_csv, output_path='data/nhl/raw/player_sta
     print(f"Fetching player stats for {len(completed)} completed games...")
 
     all_player_stats = []
+    total_games = len(completed)
 
-    for idx, game in completed.iterrows():
+    for i, (idx, game) in enumerate(completed.iterrows(), 1):
         game_id = game['game_id']
         game_date = game['game_date']
-
-        print(f"[{idx+1}/{len(completed)}] Fetching game {game_id}...")
 
         url = f"https://api-web.nhle.com/v1/gamecenter/{game_id}/boxscore"
 
@@ -151,8 +150,16 @@ def fetch_player_stats_for_games(games_csv, output_path='data/nhl/raw/player_sta
             time.sleep(0.5)  # Rate limiting
 
         except Exception as e:
-            print(f"Error fetching game {game_id}: {e}")
+            print(f"\nError fetching game {game_id}: {e}")
             continue
+
+        # Progress bar
+        pct = int(100 * i / total_games)
+        bar_length = 50
+        filled = int(bar_length * i / total_games)
+        bar = '█' * filled + '░' * (bar_length - filled)
+        total_records = sum(len(df) for df in all_player_stats)
+        print(f'\r[{bar}] {pct}% ({i}/{total_games} games, {total_records} player records)', end='', flush=True)
 
     if len(all_player_stats) > 0:
         final_df = pd.concat(all_player_stats, ignore_index=True)

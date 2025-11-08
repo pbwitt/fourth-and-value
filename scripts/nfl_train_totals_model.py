@@ -36,9 +36,9 @@ def train_totals_model(features_path='data/nfl/processed/team_features.csv',
     if len(feature_cols) > 10:
         print(f"  ... and {len(feature_cols) - 10} more")
 
-    # Prepare data
+    # Prepare data - predict points_scored for each team
     X = df[feature_cols].values
-    y = df['total'].values
+    y = df['points_scored'].values  # Each team's points, not total
 
     # Time series cross-validation
     tscv = TimeSeriesSplit(n_splits=5)
