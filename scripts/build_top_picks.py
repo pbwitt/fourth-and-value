@@ -421,8 +421,13 @@ def html_page(cards_html, title, market_pairs, game_pairs, book_pairs, week=None
     book_opts   = _opts_from_pairs(book_pairs)
     book_opts_js = json.dumps(book_pairs)  # JavaScript array for checkbox population
 
-    # Week header
-    # Week header removed - redundant with page title
+    # Week header (prominent h1)
+    week_header = ""
+    if week:
+        if season:
+            week_header = f'<h1 style="margin:0 0 12px;font-size:22px;font-weight:700;letter-spacing:.2px;color:#fff;">Week {week}, {season}</h1>'
+        else:
+            week_header = f'<h1 style="margin:0 0 12px;font-size:22px;font-weight:700;letter-spacing:.2px;color:#fff;">Week {week}</h1>'
 
     consensus_note = (
         "Note: <b>market consensus</b> is the aggregated market view "
@@ -582,6 +587,7 @@ button.reset {{ background:#1a1a1d; border:1px solid #2a2a2e; color:#e7e7ea; }}
 <body>
 
 <main class="container">
+  {week_header}
   <div class="h1">{escape(title)}</div>
 
   <div class="controls">
