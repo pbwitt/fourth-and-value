@@ -218,6 +218,29 @@ def build_html(rows, date_str):
       margin-bottom: 1.5rem;
     }}
 
+    /* Tabs */
+    .tabs {{
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+      border-bottom: 2px solid #2a2a2a;
+    }}
+    .tab {{
+      padding: 0.75rem 1.5rem;
+      background: transparent;
+      color: #999;
+      text-decoration: none;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+    }}
+    .tab:hover {{
+      color: #fff;
+    }}
+    .tab.active {{
+      color: #4FC3F7;
+      border-bottom-color: #4FC3F7;
+    }}
+
     /* Filters */
     .filters {{
       background: #2a2a2a;
@@ -344,6 +367,11 @@ def build_html(rows, date_str):
   <div class="container">
     <h1>NHL Props - {date_str}</h1>
     <p>Model-driven NHL player prop picks with edge analysis.</p>
+
+    <div class="tabs">
+      <a href="../../nhl/props/index.html" class="tab active">Props</a>
+      <a href="../../nhl/totals/index.html" class="tab">Totals</a>
+    </div>
 
     <div class="filters">
       <div class="filter-group">
