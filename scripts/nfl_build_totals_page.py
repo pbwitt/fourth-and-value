@@ -31,8 +31,12 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
         merged = merged.merge(spread_consensus.rename(columns={'consensus_line': 'consensus_spread', 'num_books': 'num_books_spread'}),
                             on='game', how='left')
         merged['edge'] = merged['total_pred'] - merged['consensus_total']
+        # Calculate model spread (home team perspective)
+        merged['model_spread'] = merged['home_pred'] - merged['away_pred']
     else:
         merged = preds
+        if len(merged) > 0:
+            merged['model_spread'] = merged['home_pred'] - merged['away_pred']
 
     # Build HTML
     html = f"""<!DOCTYPE html>
@@ -287,6 +291,29 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
     .consensus-row td {{
       color: #66BB6A;
     }}
+
+    /* Search filter */
+    .search-container {{
+      margin-bottom: 1.5rem;
+    }}
+    .search-box {{
+      width: 100%;
+      max-width: 400px;
+      padding: 0.75rem 1rem;
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 1rem;
+      transition: border-color 0.2s;
+    }}
+    .search-box:focus {{
+      outline: none;
+      border-color: #4FC3F7;
+    }}
+    .search-box::placeholder {{
+      color: #666;
+    }}
   </style>
 </head>
 <body>
@@ -302,6 +329,10 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
     <div class="tabs">
       <a href="../../props/index.html" class="tab">Props</a>
       <a href="../../nfl/totals/index.html" class="tab active">Totals</a>
+    </div>
+
+    <div class="search-container">
+      <input type="text" id="gameSearch" class="search-box" placeholder="Filter games by team (e.g., KC, BUF, DAL)..." />
     </div>
 """
 
@@ -396,6 +427,14 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
           <div class="total-item">
             <div class="total-label">Market Total</div>
             <div class="total-value market">{game['consensus_total']:.1f}</div>
+          </div>
+"""
+
+            if 'model_spread' in game and not pd.isna(game['model_spread']):
+                html += f"""
+          <div class="total-item">
+            <div class="total-label">Model Spread</div>
+            <div class="total-value model">{game['home_team']} {game['model_spread']:+.1f}</div>
           </div>
 """
 
@@ -501,6 +540,26 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
       Last updated: {datetime.now().strftime('%Y-%m-%d %I:%M %p ET')}
     </div>
   </div>
+
+  <script>
+    // Game search filter
+    const searchBox = document.getElementById('gameSearch');
+    const gameCards = document.querySelectorAll('.game-card');
+
+    searchBox.addEventListener('input', (e) => {{
+      const searchTerm = e.target.value.toLowerCase().trim();
+
+      gameCards.forEach(card => {{
+        const matchup = card.querySelector('.matchup').textContent.toLowerCase();
+
+        if (searchTerm === '' || matchup.includes(searchTerm)) {{
+          card.style.display = 'block';
+        }} else {{
+          card.style.display = 'none';
+        }}
+      }});
+    }});
+  </script>
 </body>
 </html>
 """
