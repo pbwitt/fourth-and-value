@@ -616,14 +616,17 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path)
         if (visibleBookLines.length > 0) {{
           html += `
             <div class="book-lines">
-              <h4>Book Lines</h4>
+              <h4>📊 All Book Lines</h4>
               <table class="book-lines-table">
                 <thead>
                   <tr>
                     <th>Book</th>
-                    <th>Line</th>
+                    <th>Total</th>
                     <th>Over</th>
                     <th>Under</th>
+                    <th>Spread</th>
+                    <th>Fav</th>
+                    <th>Dog</th>
                   </tr>
                 </thead>
                 <tbody>`;
@@ -632,8 +635,11 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path)
           if (game.consensus_line) {{
             html += `
                   <tr class="consensus-row">
-                    <td>Consensus</td>
+                    <td><strong>CONSENSUS</strong></td>
                     <td>${{game.consensus_line.toFixed(1)}}</td>
+                    <td>—</td>
+                    <td>—</td>
+                    <td>—</td>
                     <td>—</td>
                     <td>—</td>
                   </tr>`;
@@ -641,12 +647,22 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path)
 
           // Add book lines
           visibleBookLines.forEach(line => {{
+            const totalLine = line.total_line || '-';
+            const overPrice = line.over_price ? (line.over_price >= 0 ? '+' : '') + line.over_price : '-';
+            const underPrice = line.under_price ? (line.under_price >= 0 ? '+' : '') + line.under_price : '-';
+            const spread = line.spread || '-';
+            const favPrice = line.spread_fav_price ? (line.spread_fav_price >= 0 ? '+' : '') + line.spread_fav_price : '-';
+            const dogPrice = line.spread_dog_price ? (line.spread_dog_price >= 0 ? '+' : '') + line.spread_dog_price : '-';
+
             html += `
                   <tr>
                     <td>${{line.book_name}}</td>
-                    <td>${{line.line}}</td>
-                    <td>${{line.over_price >= 0 ? '+' : ''}}${{line.over_price}}</td>
-                    <td>${{line.under_price >= 0 ? '+' : ''}}${{line.under_price}}</td>
+                    <td>${{totalLine}}</td>
+                    <td>${{overPrice}}</td>
+                    <td>${{underPrice}}</td>
+                    <td>${{spread}}</td>
+                    <td>${{favPrice}}</td>
+                    <td>${{dogPrice}}</td>
                   </tr>`;
           }});
 
