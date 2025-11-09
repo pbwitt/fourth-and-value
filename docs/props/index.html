@@ -70,6 +70,7 @@ tr.consensus-pick td:first-child::before{content:'★ ';color:#4ade80;font-size:
 <body>
   <div id="nav-root"></div>
   <script src="../nav.js?v=32"></script>
+<script src="tracking/github-api.js"></script>
   
 
 <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;letter-spacing:.2px;color:#fff;">Week 10, 2025</h1>
@@ -293,6 +294,7 @@ if (urlParams.get('consensus') === '1') {
 
 hydrateSelectors(); render();
 </script>
+<script src="tracking/github-api.js"></script>
 
 </body>
 </html><script>
@@ -399,10 +401,17 @@ window.trackNFLBet = function(prop) {
   
   const csvRow = Object.values(bet).join(',');
   
-  const message = `Bet logged! For now, manually add this row to data/bets/bets.csv:\n\n${csvRow}\n\nOr visit the bet tracker at /docs/tracking/ to see all bets.\n\nGitHub API integration coming soon!`;
+  // Auto-track bet via GitHub API
+  if (window.autoTrackBet) {
+    autoTrackBet(bet);
+  } else {
+    const csvRow = Object.values(bet).join(",");
+    alert(`Bet logged! Manually add to data/bets/bets.csv:\n\n${csvRow}`);
+  }
   alert(message);
 };
 
 // Re-render to apply Track buttons
 render();
 </script>
+<script src="tracking/github-api.js"></script>

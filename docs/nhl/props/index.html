@@ -11053,12 +11053,14 @@
         edge_bps: edgeBps
       };
 
-      // Create CSV row
-      const csvRow = Object.values(bet).join(',');
-
-      // For now, show alert with CSV row (will be replaced with GitHub API later)
-      const message = `Bet logged! For now, manually add this row to data/bets/bets.csv:\n\n${csvRow}\n\nOr visit the bet tracker at /docs/tracking/ to see all bets.\n\nGitHub API integration coming soon!`;
-      alert(message);
+      // Auto-track bet via GitHub API
+      if (window.autoTrackBet) {
+        autoTrackBet(bet);
+      } else {
+        // Fallback if github-api.js not loaded
+        const csvRow = Object.values(bet).join(',');
+        alert(`Bet logged! Manually add to data/bets/bets.csv:\n\n${csvRow}`);
+      }
     };
 
     // Load More button handler
@@ -11087,6 +11089,7 @@
     populateFilters();
     renderTable();
   </script>
+  <script src="../../tracking/github-api.js"></script>
   <script src="../../nav.js?v=32"></script>
 </body>
 </html>

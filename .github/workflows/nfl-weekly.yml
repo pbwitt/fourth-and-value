@@ -57,6 +57,8 @@ jobs:
           WEEK=${{ steps.week.outputs.week }}
           DATE=$(date +%Y-%m-%d)
           make monday_all SEASON=2025 WEEK=$WEEK
-          git add docs/props/*.html
+          echo "Grading pending NFL bets..."
+          python3 scripts/grade_bets_nfl.py --date $DATE || echo "No bets to grade"
+          git add docs/props/*.html data/bets/bets.csv || true
           git diff --staged --quiet || git commit -m "Update NFL props for Week $WEEK - Generated with GitHub Actions"
           git push
