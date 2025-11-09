@@ -100,7 +100,8 @@ def main():
     # Filter to balanced top props per market (for performance)
     # Top 500 goals, 200 assists, 200 points, 200 sog = 1100 total
     # IMPORTANT: Only show positive edge bets (filter out negative edge first)
-    positive_edge = df[df['edge_bps'] > 0]
+    # IMPORTANT: Filter out 50% model probabilities (name-matching failures)
+    positive_edge = df[(df['edge_bps'] > 0) & (np.abs(df['model_prob'] - 0.5) > 0.001)]
 
     # For each player+market, keep only the highest edge bet (avoid showing contradictory Over/Under)
     positive_edge = positive_edge.sort_values('edge_bps', ascending=False).groupby(['player', 'market_std'], as_index=False).first()

@@ -178,6 +178,56 @@ def check_probability_sanity(props_df: pd.DataFrame) -> dict:
     }
 
 
+def check_name_matching(props_df: pd.DataFrame) -> dict:
+    """
+    Check for name-matching failures (50% model probability defaults).
+
+    When a player name from odds API doesn't match the stats database,
+    the model defaults to 50% probability, creating fake massive edges.
+
+    Common causes:
+    - Spelling variants (Dmitriy vs Dmitri)
+    - Nickname vs full name (Josh vs Joshua)
+    - Players with 0 GP this season
+    """
+    # Find props with exactly 50% model probability (default for unmatched players)
+    unmatched = props_df[np.abs(props_df['model_prob'] - 0.5) < 0.001]
+
+    if len(unmatched) > 0:
+        unmatched_players = unmatched['player'].unique()
+        sample_players = list(unmatched_players[:5])
+
+        # Show sample props with their fake edges
+        sample_props = []
+        for player in sample_players[:3]:
+            player_props = unmatched[unmatched['player'] == player].head(1)
+            if len(player_props) > 0:
+                row = player_props.iloc[0]
+                sample_props.append(
+                    f"{player} {row['market_std']} {row['side']} {row['point']}: "
+                    f"edge={row['edge_bps']:.0f}bps"
+                )
+
+        return {
+            "name": "Name Matching",
+            "passed": False,
+            "blocking": True,
+            "threshold": "0 unmatched players",
+            "actual": f"{len(unmatched_players)} players with 50% default probability",
+            "details": f"Sample: {'; '.join(sample_props)}",
+            "unmatched_players": list(unmatched_players),
+        }
+
+    return {
+        "name": "Name Matching",
+        "passed": True,
+        "blocking": True,
+        "threshold": "0 unmatched players",
+        "actual": "All players matched successfully",
+        "details": "No 50% default probabilities found",
+    }
+
+
 def check_game_log_dates(date_str: str) -> dict:
     """
     Check that game logs have correct dates (no duplicate player-date rows).
@@ -275,6 +325,7 @@ def main():
         check_game_log_dates(date_str),  # BLOCKING: validate dates first
         check_coverage(props_df),
         check_joins(props_df),
+        check_name_matching(props_df),  # BLOCKING: validate player name matches
         check_probability_sanity(props_df),  # BLOCKING: validate probabilities
         check_edge_sanity(props_df),
         check_market_distribution(props_df),
