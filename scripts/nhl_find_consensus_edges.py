@@ -52,7 +52,7 @@ def fetch_all_odds(api_key):
     """
     SPORT = 'icehockey_nhl'
     REGIONS = 'us'
-    MARKETS = 'totals,h2h'  # Fetch both totals and spreads
+    MARKETS = 'totals,spreads'  # Fetch totals and puck line spreads (not h2h moneyline)
     ODDS_FORMAT = 'american'
 
     url = f'https://api.the-odds-api.com/v4/sports/{SPORT}/odds'
@@ -113,32 +113,37 @@ def parse_odds_by_book(odds_json):
                         book_data['over_price'] = over_outcome[0].get('price')
                         book_data['under_price'] = under_outcome[0].get('price')
 
-                # Parse h2h market (spreads/puck line)
-                elif market['key'] == 'h2h':
+                # Parse spreads market (puck line - typically ±1.5)
+                elif market['key'] == 'spreads':
                     outcomes = market['outcomes']
                     home_outcome = [o for o in outcomes if o['name'] == home_team]
                     away_outcome = [o for o in outcomes if o['name'] == away_team]
 
                     if home_outcome and away_outcome:
-                        # Check if there's a spread (point)
                         home_spread = home_outcome[0].get('point', 0)
                         away_spread = away_outcome[0].get('point', 0)
+                        home_price = home_outcome[0].get('price')
+                        away_price = away_outcome[0].get('price')
 
-                        if home_spread != 0 or away_spread != 0:
-                            # Format as "Team +/-X"
-                            if home_spread > 0:
-                                book_data['spread'] = f"{home_team} +{home_spread}"
-                                book_data['spread_fav_price'] = away_outcome[0].get('price')
-                                book_data['spread_dog_price'] = home_outcome[0].get('price')
-                            else:
-                                book_data['spread'] = f"{home_team} {home_spread}"
-                                book_data['spread_fav_price'] = home_outcome[0].get('price')
-                                book_data['spread_dog_price'] = away_outcome[0].get('price')
+                        # Format spread from home team perspective
+                        if home_spread > 0:
+                            # Home team is the underdog (e.g., +1.5)
+                            spread_line = home_spread
+                            book_data['spread_fav_team'] = away_team
+                            book_data['spread_dog_team'] = home_team
+                            book_data['spread_fav_price'] = away_price
+                            book_data['spread_dog_price'] = home_price
                         else:
-                            # No spread, just use team names
-                            book_data['spread'] = "PK"
-                            book_data['spread_fav_price'] = home_outcome[0].get('price')
-                            book_data['spread_dog_price'] = away_outcome[0].get('price')
+                            # Home team is the favorite (e.g., -1.5)
+                            spread_line = home_spread
+                            book_data['spread_fav_team'] = home_team
+                            book_data['spread_dog_team'] = away_team
+                            book_data['spread_fav_price'] = home_price
+                            book_data['spread_dog_price'] = away_price
+
+                        # Store spread line (home team perspective)
+                        book_data['spread_line'] = spread_line
+                        book_data['spread_display'] = f"{NHL_TEAM_ABBREV.get(home_team, home_team)} {spread_line:+.1f}"
 
             # Only add if we have at least totals data
             if 'total_line' in book_data:
@@ -149,15 +154,25 @@ def parse_odds_by_book(odds_json):
 
 def calculate_consensus(odds_df):
     """
-    Calculate market consensus line for each game (totals only for consensus edges)
+    Calculate market consensus for totals and spreads
     """
-    consensus = odds_df.groupby(['home_team', 'away_team', 'game']).agg({
+    agg_dict = {
         'total_line': ['mean', 'median', 'std', 'count'],
         'commence_time': 'first'
-    }).reset_index()
+    }
 
-    consensus.columns = ['home_team', 'away_team', 'game', 'consensus_line', 'median_line',
-                         'line_std', 'num_books', 'commence_time']
+    # Add spread consensus if spread data exists
+    if 'spread_line' in odds_df.columns:
+        agg_dict['spread_line'] = ['mean']
+
+    consensus = odds_df.groupby(['home_team', 'away_team', 'game']).agg(agg_dict).reset_index()
+
+    if 'spread_line' in odds_df.columns:
+        consensus.columns = ['home_team', 'away_team', 'game', 'consensus_total', 'median_total',
+                             'total_std', 'num_books', 'consensus_spread', 'commence_time']
+    else:
+        consensus.columns = ['home_team', 'away_team', 'game', 'consensus_total', 'median_total',
+                             'total_std', 'num_books', 'commence_time']
 
     return consensus
 
@@ -171,13 +186,13 @@ def find_outlier_books(odds_df, consensus_df, threshold=0.5):
     """
     # Merge consensus back into odds
     merged = odds_df.merge(
-        consensus_df[['home_team', 'away_team', 'consensus_line', 'median_line', 'num_books']],
+        consensus_df[['home_team', 'away_team', 'consensus_total', 'median_total', 'num_books']],
         on=['home_team', 'away_team']
     )
 
     # Calculate difference from consensus
-    merged['diff_from_consensus'] = merged['total_line'] - merged['consensus_line']
-    merged['diff_from_median'] = merged['total_line'] - merged['median_line']
+    merged['diff_from_consensus'] = merged['total_line'] - merged['consensus_total']
+    merged['diff_from_median'] = merged['total_line'] - merged['median_total']
 
     # Flag outliers
     merged['is_outlier'] = abs(merged['diff_from_consensus']) >= threshold
@@ -210,7 +225,7 @@ def add_model_predictions(outliers_df, predictions_path):
     result['model_vs_book'] = result['total_pred'] - result['total_line']
 
     # Calculate model vs consensus
-    result['model_vs_consensus'] = result['total_pred'] - result['consensus_line']
+    result['model_vs_consensus'] = result['total_pred'] - result['consensus_total']
 
     return result
 
@@ -230,7 +245,7 @@ def identify_plays(outliers_with_model, model_consensus_threshold=0.3):
         game = row['game']
         book = row['book_name']
         book_line = row['total_line']
-        consensus = row['consensus_line']
+        consensus = row['consensus_total']
         model_pred = row.get('total_pred')
 
         if pd.isna(model_pred):

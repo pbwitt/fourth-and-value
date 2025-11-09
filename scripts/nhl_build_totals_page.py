@@ -26,14 +26,19 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path)
 
     # Merge predictions with consensus
     if len(preds) > 0 and len(consensus) > 0:
-        merged = preds.merge(consensus[['home_team', 'away_team', 'consensus_line', 'median_line', 'num_books']],
-                            on=['home_team', 'away_team'], how='left')
+        merge_cols = ['home_team', 'away_team']
+        if 'consensus_total' in consensus.columns:
+            merge_cols.extend(['consensus_total', 'median_total', 'num_books'])
+        if 'consensus_spread' in consensus.columns:
+            merge_cols.append('consensus_spread')
+
+        merged = preds.merge(consensus[merge_cols], on=['home_team', 'away_team'], how='left')
     else:
         merged = preds
 
     # Calculate stats
     avg_model = merged['total_pred'].mean() if len(merged) > 0 else 0
-    avg_market = merged.get('consensus_line', pd.Series([0])).mean() if 'consensus_line' in merged.columns and len(merged) > 0 else 0
+    avg_market = merged.get('consensus_total', pd.Series([0])).mean() if 'consensus_total' in merged.columns and len(merged) > 0 else 0
     num_games = len(merged)
     num_edges = len(edges)
 
@@ -55,6 +60,9 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path)
                 edges['game'].str.contains(game['away_team'])
             ].to_dict('records') if len(edges) > 0 else []
 
+            # Calculate model spread (home team perspective)
+            model_spread = float(game['home_pred']) - float(game['away_pred'])
+
             games_data.append({
                 'home_team': game['home_team'],
                 'away_team': game['away_team'],
@@ -62,8 +70,10 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path)
                 'model_total': float(game['total_pred']),
                 'home_pred': float(game['home_pred']),
                 'away_pred': float(game['away_pred']),
-                'consensus_line': float(game.get('consensus_line', 0)) if 'consensus_line' in game and not pd.isna(game.get('consensus_line')) else None,
-                'median_line': float(game.get('median_line', 0)) if 'median_line' in game and not pd.isna(game.get('median_line')) else None,
+                'model_spread': model_spread,
+                'consensus_total': float(game.get('consensus_total', 0)) if 'consensus_total' in game and not pd.isna(game.get('consensus_total')) else None,
+                'consensus_spread': float(game.get('consensus_spread', 0)) if 'consensus_spread' in game and not pd.isna(game.get('consensus_spread')) else None,
+                'median_total': float(game.get('median_total', 0)) if 'median_total' in game and not pd.isna(game.get('median_total')) else None,
                 'edge': float(game.get('edge', 0)) if 'edge' in game and not pd.isna(game.get('edge')) else None,
                 'book_lines': game_books,
                 'edge_plays': game_edges,
@@ -569,19 +579,25 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path)
                 <div class="total-value">${{game.away_pred.toFixed(1)}}</div>
               </div>`;
 
-        if (game.consensus_line) {{
+        if (game.consensus_total) {{
           html += `
               <div class="total-item">
-                <div class="total-label">Market Consensus</div>
-                <div class="total-value market">${{game.consensus_line.toFixed(1)}}</div>
+                <div class="total-label">Market Total</div>
+                <div class="total-value market">${{game.consensus_total.toFixed(1)}}</div>
               </div>`;
         }}
 
-        if (game.median_line) {{
+        html += `
+              <div class="total-item">
+                <div class="total-label">Model Spread</div>
+                <div class="total-value model">${{game.home_team}} ${{game.model_spread >= 0 ? '+' : ''}}${{game.model_spread.toFixed(1)}}</div>
+              </div>`;
+
+        if (game.consensus_spread !== null) {{
           html += `
               <div class="total-item">
-                <div class="total-label">Median Line</div>
-                <div class="total-value">${{game.median_line.toFixed(1)}}</div>
+                <div class="total-label">Market Spread</div>
+                <div class="total-value market">${{game.home_team}} ${{game.consensus_spread >= 0 ? '+' : ''}}${{game.consensus_spread.toFixed(1)}}</div>
               </div>`;
         }}
 
@@ -632,14 +648,18 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path)
                 <tbody>`;
 
           // Add consensus row first if available
-          if (game.consensus_line) {{
+          if (game.consensus_total) {{
+            const consensusSpreadDisplay = game.consensus_spread !== null ?
+              `${{game.home_team}} ${{game.consensus_spread >= 0 ? '+' : ''}}${{game.consensus_spread.toFixed(1)}}` :
+              '—';
+
             html += `
                   <tr class="consensus-row">
                     <td><strong>CONSENSUS</strong></td>
-                    <td>${{game.consensus_line.toFixed(1)}}</td>
+                    <td>${{game.consensus_total.toFixed(1)}}</td>
                     <td>—</td>
                     <td>—</td>
-                    <td>—</td>
+                    <td>${{consensusSpreadDisplay}}</td>
                     <td>—</td>
                     <td>—</td>
                   </tr>`;
@@ -647,12 +667,12 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path)
 
           // Add book lines
           visibleBookLines.forEach(line => {{
-            const totalLine = line.total_line || '-';
+            const totalLine = line.total_line ? line.total_line.toFixed(1) : '-';
             const overPrice = line.over_price ? (line.over_price >= 0 ? '+' : '') + line.over_price : '-';
             const underPrice = line.under_price ? (line.under_price >= 0 ? '+' : '') + line.under_price : '-';
-            const spread = line.spread || '-';
-            const favPrice = line.spread_fav_price ? (line.spread_fav_price >= 0 ? '+' : '') + line.spread_fav_price : '-';
-            const dogPrice = line.spread_dog_price ? (line.spread_dog_price >= 0 ? '+' : '') + line.spread_dog_price : '-';
+            const spread = line.spread_display || '-';
+            const favPrice = line.spread_fav_price ? (line.spread_fav_price >= 0 ? '+' : '') + Math.round(line.spread_fav_price) : '-';
+            const dogPrice = line.spread_dog_price ? (line.spread_dog_price >= 0 ? '+' : '') + Math.round(line.spread_dog_price) : '-';
 
             html += `
                   <tr>
