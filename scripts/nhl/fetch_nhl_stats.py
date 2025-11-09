@@ -260,24 +260,49 @@ def build_player_name_map(player_ids: List[int]) -> Dict[int, str]:
     The boxscore API returns abbreviated names like "S. Bennett",
     but we need full names like "Sam Bennett" for matching with odds/props data.
 
+    Uses a persistent cache to avoid re-fetching player names every day.
+
     Args:
         player_ids: List of unique player IDs to resolve
 
     Returns:
         Dict mapping player_id to full name
     """
-    print(f"[fetch_nhl_stats] Resolving {len(player_ids)} player names...", file=sys.stderr)
+    from pathlib import Path
 
-    name_map = {}
-    for i, player_id in enumerate(player_ids):
-        if (i + 1) % 50 == 0:
-            print(f"[fetch_nhl_stats]   Resolved {i+1}/{len(player_ids)} players...", file=sys.stderr)
+    # Load cache
+    cache_file = Path("data/nhl/raw/player_names_cache.json")
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
 
-        full_name = fetch_player_name(player_id)
-        if full_name:
-            name_map[player_id] = full_name
+    if cache_file.exists():
+        with open(cache_file, "r") as f:
+            name_map = {int(k): v for k, v in json.load(f).items()}
+        print(f"[fetch_nhl_stats] Loaded {len(name_map)} cached player names", file=sys.stderr)
+    else:
+        name_map = {}
 
-    print(f"[fetch_nhl_stats] Resolved {len(name_map)}/{len(player_ids)} player names", file=sys.stderr)
+    # Find new player IDs not in cache
+    new_player_ids = [pid for pid in player_ids if pid not in name_map]
+
+    if new_player_ids:
+        print(f"[fetch_nhl_stats] Resolving {len(new_player_ids)} new player names...", file=sys.stderr)
+
+        for i, player_id in enumerate(new_player_ids):
+            if (i + 1) % 50 == 0:
+                print(f"[fetch_nhl_stats]   Resolved {i+1}/{len(new_player_ids)} players...", file=sys.stderr)
+
+            full_name = fetch_player_name(player_id)
+            if full_name:
+                name_map[player_id] = full_name
+
+        # Save updated cache
+        with open(cache_file, "w") as f:
+            json.dump(name_map, f)
+
+        print(f"[fetch_nhl_stats] Cached {len(name_map)} total player names", file=sys.stderr)
+    else:
+        print(f"[fetch_nhl_stats] All {len(player_ids)} player names already cached", file=sys.stderr)
+
     return name_map
 
 
