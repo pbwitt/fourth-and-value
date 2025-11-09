@@ -3,7 +3,7 @@ const GITHUB_CONFIG = {
   owner: 'pbwitt',
   repo: 'fourth-and-value',
   branch: 'main',
-  filePath: 'data/bets/bets.csv'
+  filePath: 'docs/data/bets/bets.csv'
 };
 
 function getGitHubToken() {
