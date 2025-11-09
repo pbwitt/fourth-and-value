@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings - Bet Tracker</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f0f0f;
+      color: #fff;
+      line-height: 1.6;
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      color: #4FC3F7;
+    }
+    .subtitle {
+      color: #999;
+      margin-bottom: 2rem;
+    }
+
+    .card {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 2rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .status {
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+      font-weight: 600;
+    }
+    .status.active {
+      background: rgba(102, 187, 106, 0.2);
+      color: #66BB6A;
+      border: 1px solid #66BB6A;
+    }
+    .status.inactive {
+      background: rgba(255, 107, 107, 0.2);
+      color: #ff6b6b;
+      border: 1px solid #ff6b6b;
+    }
+
+    label {
+      display: block;
+      color: #999;
+      font-size: 0.875rem;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+    }
+
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: #0f0f0f;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 1rem;
+      margin-bottom: 1rem;
+      font-family: monospace;
+    }
+    input:focus {
+      outline: none;
+      border-color: #4FC3F7;
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      margin-right: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .btn-primary {
+      background: #4FC3F7;
+      color: #000;
+    }
+    .btn-primary:hover {
+      background: #3da9d3;
+    }
+    .btn-secondary {
+      background: #2a2a2a;
+      color: #fff;
+    }
+    .btn-secondary:hover {
+      background: #3a3a3a;
+    }
+    .btn-danger {
+      background: #ff6b6b;
+      color: #fff;
+    }
+    .btn-danger:hover {
+      background: #ff5252;
+    }
+
+    .help {
+      background: #2a2a2a;
+      border-left: 3px solid #4FC3F7;
+      padding: 1rem;
+      border-radius: 4px;
+      font-size: 0.875rem;
+      line-height: 1.6;
+    }
+    .help a {
+      color: #4FC3F7;
+      text-decoration: none;
+    }
+    .help a:hover {
+      text-decoration: underline;
+    }
+    .help ol {
+      margin-left: 1.5rem;
+      margin-top: 0.5rem;
+    }
+    .help li {
+      margin-bottom: 0.5rem;
+    }
+
+    .back-link {
+      display: inline-block;
+      color: #4FC3F7;
+      text-decoration: none;
+      margin-bottom: 1rem;
+    }
+    .back-link:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div id="nav-root"></div>
+
+  <div class="container">
+    <a href="../" class="back-link">← Back to Bet Tracker</a>
+
+    <h1>⚙️ Settings</h1>
+    <p class="subtitle">Configure GitHub API auto-tracking</p>
+
+    <div id="status" class="status inactive">
+      ❌ GitHub token not set - bets will require manual CSV entry
+    </div>
+
+    <div class="card">
+      <h2 style="margin-bottom: 1rem;">GitHub Personal Access Token</h2>
+
+      <label for="tokenInput">Token</label>
+      <input
+        type="password"
+        id="tokenInput"
+        placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      />
+
+      <button class="btn btn-primary" onclick="saveToken()">💾 Save Token</button>
+      <button class="btn btn-secondary" onclick="toggleVisibility()">👁️ Show/Hide</button>
+      <button class="btn btn-danger" onclick="clearToken()">🗑️ Clear Token</button>
+    </div>
+
+    <div class="help">
+      <strong>🔐 How to get a GitHub token:</strong>
+      <ol>
+        <li>Go to <a href="https://github.com/settings/tokens/new" target="_blank">GitHub Settings → Tokens</a></li>
+        <li>Click "Generate new token (classic)"</li>
+        <li>Name it something like: <code>bet-tracker</code></li>
+        <li>Check the <strong>repo</strong> permission (full control)</li>
+        <li>Set expiration (recommended: no expiration or 1 year)</li>
+        <li>Click "Generate token"</li>
+        <li>Copy the token (starts with <code>ghp_</code>) and paste above</li>
+      </ol>
+      <p style="margin-top: 1rem;">
+        <strong>Note:</strong> The token is stored locally in your browser and never sent anywhere except GitHub's API to commit your bets.
+      </p>
+    </div>
+  </div>
+
+  <script src="github-api.js"></script>
+  <script>
+    // Check current status on load
+    function updateStatus() {
+      const token = localStorage.getItem('github_token');
+      const statusDiv = document.getElementById('status');
+
+      if (token) {
+        statusDiv.className = 'status active';
+        statusDiv.innerHTML = '✅ GitHub token is set - auto-tracking enabled!';
+      } else {
+        statusDiv.className = 'status inactive';
+        statusDiv.innerHTML = '❌ GitHub token not set - bets will require manual CSV entry';
+      }
+    }
+
+    function saveToken() {
+      const input = document.getElementById('tokenInput');
+      const token = input.value.trim();
+
+      if (!token) {
+        alert('Please enter a token');
+        return;
+      }
+
+      if (!token.startsWith('ghp_') && !token.startsWith('github_pat_')) {
+        alert('Warning: Token should start with "ghp_" or "github_pat_". Are you sure this is correct?');
+      }
+
+      setGitHubToken(token);
+      updateStatus();
+      input.value = '';
+      alert('✅ Token saved! Auto-tracking is now enabled on this device.');
+    }
+
+    function clearToken() {
+      if (confirm('Are you sure you want to remove the GitHub token? You will need to re-enter it to enable auto-tracking.')) {
+        localStorage.removeItem('github_token');
+        document.getElementById('tokenInput').value = '';
+        updateStatus();
+        alert('Token cleared');
+      }
+    }
+
+    function toggleVisibility() {
+      const input = document.getElementById('tokenInput');
+      input.type = input.type === 'password' ? 'text' : 'password';
+    }
+
+    // Initialize status
+    updateStatus();
+  </script>
+  <script src="../nav.js?v=32"></script>
+</body>
+</html>
