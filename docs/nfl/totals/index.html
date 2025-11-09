@@ -280,11 +280,11 @@
   <script src="../../nav.js?v=32"></script>
   <script>
   // Add Track buttons to NFL totals page
-  (function() {
+  document.addEventListener('DOMContentLoaded', function() {
     const isAuthenticated = sessionStorage.getItem('betTrackingAuth') === 'true';
-    
+
     if (!isAuthenticated) return;
-    
+
     // Find all book lines tables
     const tables = document.querySelectorAll('.book-lines-table');
     
@@ -340,8 +340,8 @@
         row.appendChild(trackCell);
       });
     });
-  })();
-  
+  });
+
   // Track NFL Team Total function
   window.trackNFLTotal = function(homeTeam, awayTeam, book, line, odds, side) {
     const stake = prompt('Enter stake amount ($):', '100');
