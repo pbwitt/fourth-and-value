@@ -43,10 +43,10 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path)
         for _, game in merged.iterrows():
             game_key = f"{game['away_team']} @ {game['home_team']}"
 
-            # Get book lines for this game
+            # Get book lines for this game (match using abbreviations)
             game_books = book_lines[
-                (book_lines['home_team'] == game['home_team']) &
-                (book_lines['away_team'] == game['away_team'])
+                (book_lines['home_abbrev'] == game['home_team']) &
+                (book_lines['away_abbrev'] == game['away_team'])
             ].to_dict('records') if len(book_lines) > 0 else []
 
             # Check if this game has edge plays

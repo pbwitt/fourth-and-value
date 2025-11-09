@@ -9,6 +9,43 @@ import os
 from datetime import datetime
 
 
+# NHL team name to abbreviation mapping
+NHL_TEAM_ABBREV = {
+    'Anaheim Ducks': 'ANA',
+    'Boston Bruins': 'BOS',
+    'Buffalo Sabres': 'BUF',
+    'Calgary Flames': 'CGY',
+    'Carolina Hurricanes': 'CAR',
+    'Chicago Blackhawks': 'CHI',
+    'Colorado Avalanche': 'COL',
+    'Columbus Blue Jackets': 'CBJ',
+    'Dallas Stars': 'DAL',
+    'Detroit Red Wings': 'DET',
+    'Edmonton Oilers': 'EDM',
+    'Florida Panthers': 'FLA',
+    'Los Angeles Kings': 'LAK',
+    'Minnesota Wild': 'MIN',
+    'Montreal Canadiens': 'MTL',
+    'Nashville Predators': 'NSH',
+    'New Jersey Devils': 'NJD',
+    'New York Islanders': 'NYI',
+    'New York Rangers': 'NYR',
+    'Ottawa Senators': 'OTT',
+    'Philadelphia Flyers': 'PHI',
+    'Pittsburgh Penguins': 'PIT',
+    'San Jose Sharks': 'SJS',
+    'Seattle Kraken': 'SEA',
+    'St Louis Blues': 'STL',
+    'Tampa Bay Lightning': 'TBL',
+    'Toronto Maple Leafs': 'TOR',
+    'Vancouver Canucks': 'VAN',
+    'Vegas Golden Knights': 'VGK',
+    'Washington Capitals': 'WSH',
+    'Winnipeg Jets': 'WPG',
+    'Utah Mammoth': 'UTA',  # New team
+}
+
+
 def fetch_all_odds(api_key):
     """
     Fetch NHL totals and spreads from all books
@@ -56,6 +93,8 @@ def parse_odds_by_book(odds_json):
             book_data = {
                 'home_team': home_team,
                 'away_team': away_team,
+                'home_abbrev': NHL_TEAM_ABBREV.get(home_team, home_team),
+                'away_abbrev': NHL_TEAM_ABBREV.get(away_team, away_team),
                 'game': f"{away_team} @ {home_team}",
                 'commence_time': commence_time,
                 'book_name': book_name,
