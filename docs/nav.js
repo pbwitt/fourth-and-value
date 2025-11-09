@@ -1,4 +1,4 @@
-// docs/nav.js (v=31) — Added NHL Team Totals to navigation
+// docs/nav.js (v=32) — Added Bet Tracker link (auth-only)
 (function () {
   // --- Find script & compute base (works locally and deployed) ---
   const scriptEl =
@@ -165,6 +165,7 @@
     },
     { type: 'link', href: `${base}/methods.html`, label: 'Methods' },
     { type: 'link', href: `${base}/blog/`, label: 'Blog' },
+    { type: 'link', href: `${base}/tracking/`, label: '📊 Bet Tracker', id: 'bet-tracker-link', authOnly: true },
   ];
 
   const here = location.pathname.replace(/\/index\.html$/, '/');
@@ -186,6 +187,12 @@
       const a = document.createElement('a');
       a.href = item.href;
       a.textContent = item.label;
+
+      // Hide auth-only links by default
+      if (item.authOnly) {
+        a.style.display = 'none';
+        a.setAttribute('data-auth-only', 'true');
+      }
 
       if (isCurrentPage(item.href)) {
         a.setAttribute('aria-current', 'page');
@@ -312,4 +319,21 @@
       });
     }
   });
+
+  // Check authentication and show/hide auth-only links
+  function updateAuthLinks() {
+    const isAuthenticated = sessionStorage.getItem('betTrackingAuth') === 'true';
+    document.querySelectorAll('[data-auth-only="true"]').forEach(link => {
+      link.style.display = isAuthenticated ? '' : 'none';
+    });
+  }
+
+  // Initial check
+  updateAuthLinks();
+
+  // Listen for storage changes (when user logs in on another tab or tracker page)
+  window.addEventListener('storage', updateAuthLinks);
+
+  // Also check periodically in case sessionStorage changed in same tab
+  setInterval(updateAuthLinks, 1000);
 })();
