@@ -1,4 +1,4 @@
-// docs/nav.js (v=30) — Added NFL Team Totals to navigation
+// docs/nav.js (v=31) — Added NHL Team Totals to navigation
 (function () {
   // --- Find script & compute base (works locally and deployed) ---
   const scriptEl =
@@ -160,6 +160,7 @@
       className: 'nhl-sport',
       items: [
         { href: `${base}/nhl/props/index.html`, label: 'Props' },
+        { href: `${base}/nhl/totals/index.html`, label: 'Team Totals' },
       ]
     },
     { type: 'link', href: `${base}/methods.html`, label: 'Methods' },

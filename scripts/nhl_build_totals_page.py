@@ -716,7 +716,7 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path)
     initFilters();
     renderGames();
   </script>
-  <script src="../../nav.js?v=30"></script>
+  <script src="../../nav.js?v=31"></script>
 </body>
 </html>
 """
