@@ -60,6 +60,56 @@
       border-bottom-color: #4FC3F7;
     }
 
+    /* Filters */
+    .filters {
+      background: #2a2a2a;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+    }
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .filter-group label {
+      font-size: 0.875rem;
+      color: #999;
+    }
+    .search-box {
+      padding: 0.5rem;
+      background: #1a1a1a;
+      border: 1px solid #444;
+      border-radius: 4px;
+      color: #fff;
+      font-size: 0.875rem;
+      min-width: 250px;
+    }
+    .search-box:focus {
+      outline: none;
+      border-color: #4FC3F7;
+    }
+    .search-box::placeholder {
+      color: #666;
+    }
+
+    /* Multi-select book dropdown */
+    .checkbox-dropdown { position: relative; min-width: 180px; }
+    .checkbox-dropdown-button { width: 100%; background: #1a1a1a; color: #fff; border: 1px solid #444; border-radius: 4px; padding: 10px 12px; outline: none; cursor: pointer; text-align: left; display: flex; justify-content: space-between; align-items: center; font-size: 0.875rem; }
+    .checkbox-dropdown-button:hover { border-color: #4FC3F7; }
+    .checkbox-dropdown-button::after { content: '▼'; font-size: 10px; opacity: 0.6; }
+    .checkbox-dropdown.open .checkbox-dropdown-button::after { content: '▲'; }
+    .checkbox-group { display: none; position: absolute; z-index: 1000; flex-direction: column; gap: 6px; background: #1a1a1a; border: 1px solid #444; border-radius: 4px; padding: 10px; max-height: 250px; overflow-y: auto; min-width: 100%; margin-top: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.3); }
+    .checkbox-dropdown.open .checkbox-group { display: flex; }
+    .checkbox-item { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 4px 6px; border-radius: 6px; transition: background .15s; }
+    .checkbox-item:hover { background: rgba(255,255,255,.05); }
+    .checkbox-item input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: #4FC3F7; }
+    .checkbox-item label { cursor: pointer; flex: 1; font-size: 13px; color: #fff; margin: 0; white-space: nowrap; }
+
     /* Stats summary */
     .stats-summary {
       display: grid;
@@ -135,15 +185,11 @@
       font-size: 1.25rem;
       font-weight: bold;
     }
-    .game-time {
-      color: #999;
-      font-size: 0.875rem;
-    }
 
     .totals-row {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 1rem;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 0.75rem;
       margin-bottom: 1rem;
     }
     .total-item {
@@ -167,6 +213,50 @@
       color: #FFA726;
     }
     .total-value.edge {
+      color: #66BB6A;
+    }
+
+    /* Book lines table */
+    .book-lines {
+      margin-top: 1rem;
+      background: #2a2a2a;
+      border-radius: 4px;
+      padding: 1rem;
+    }
+    .book-lines h4 {
+      font-size: 0.875rem;
+      color: #4FC3F7;
+      margin-bottom: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .book-lines-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .book-lines-table th {
+      text-align: left;
+      font-size: 0.75rem;
+      color: #999;
+      padding: 0.5rem;
+      border-bottom: 1px solid #3a3a3a;
+    }
+    .book-lines-table td {
+      padding: 0.5rem;
+      font-size: 0.875rem;
+      border-bottom: 1px solid #222;
+    }
+    .book-lines-table tr:last-child td {
+      border-bottom: none;
+    }
+    .book-lines-table tr:hover {
+      background: #333;
+    }
+    .consensus-row {
+      background: #1a2a1a !important;
+      font-weight: bold;
+    }
+    .consensus-row td {
       color: #66BB6A;
     }
 
@@ -213,6 +303,8 @@
   </style>
 </head>
 <body>
+  <div id="nav-root"></div>
+
   <div class="container">
     <div class="header">
       <h1>NHL Totals</h1>
@@ -222,6 +314,23 @@
     <div class="tabs">
       <a href="../../nhl/props/index.html" class="tab">Props</a>
       <a href="../../nhl/totals/index.html" class="tab active">Totals</a>
+    </div>
+
+    <div class="filters">
+      <div class="filter-group">
+        <label>Game</label>
+        <input type="text" id="gameSearch" class="search-box" placeholder="Filter by team (e.g., TOR, BOS)..." />
+      </div>
+
+      <div class="filter-group">
+        <label>Book</label>
+        <div id="bookDropdown" class="checkbox-dropdown">
+          <button type="button" id="bookButton" class="checkbox-dropdown-button">
+            <span id="bookButtonText">All Books</span>
+          </button>
+          <div id="bookFilter" class="checkbox-group"></div>
+        </div>
+      </div>
     </div>
 
     <div class="stats-summary">
@@ -243,1209 +352,973 @@
       </div>
     </div>
 
-    <div class="games-grid">
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">CHI @ DET</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">5.8</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">1.4</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">4.4</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">LAK @ PIT</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">3.0</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">1.1</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">1.9</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">CAR @ TOR</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">8.5</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">3.0</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">5.4</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">UTA @ OTT</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">5.5</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">3.6</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">1.9</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">SEA @ DAL</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">9.0</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">5.3</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">3.7</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">CGY @ MIN</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">4.8</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">4.6</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">0.2</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">COL @ VAN</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">12.6</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">4.1</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">8.4</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">WPG @ ANA</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">4.2</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">3.4</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">0.8</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">NYI @ NJD</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">7.2</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">1.1</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">6.1</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">NSH @ NYR</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">3.4</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">0.1</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">3.2</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">CBJ @ EDM</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">4.0</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">0.6</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">3.4</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">FLA @ VGK</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">4.0</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">2.5</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">1.5</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">TOR @ BOS</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">7.8</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">4.8</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">3.0</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">LAK @ MTL</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">7.6</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">5.7</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">1.9</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">DAL @ OTT</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">8.8</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">3.6</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">5.3</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">WSH @ CAR</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">7.1</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">5.5</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">1.6</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">CGY @ STL</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">3.0</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">2.8</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">0.2</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">SJS @ MIN</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">7.8</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">4.6</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">3.2</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">ANA @ COL</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">11.8</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">8.5</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">3.3</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">WPG @ VAN</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">4.9</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">4.1</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">0.8</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">CBJ @ SEA</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">7.1</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">3.7</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">3.4</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">NYR @ TBL</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">2.8</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">2.7</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">0.1</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">EDM @ PHI</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">3.0</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">2.4</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">0.6</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">BUF @ UTA</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">4.1</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">1.9</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">2.1</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">NJD @ CHI</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">5.5</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">4.4</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">1.1</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">LAK @ TOR</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">4.9</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">3.0</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">1.9</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">DAL @ MTL</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">10.9</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">5.7</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">5.3</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">BOS @ OTT</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">8.4</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">3.6</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">4.8</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">ANA @ DET</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">4.7</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">1.4</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">3.3</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">WSH @ FLA</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">3.2</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">1.6</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">1.6</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">EDM @ CBJ</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">4.0</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">3.4</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">0.6</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">BUF @ COL</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">10.6</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">8.5</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">2.1</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">SJS @ CGY</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">3.5</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">0.2</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">3.2</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">NYI @ VGK</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">8.6</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">2.5</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">6.1</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">WPG @ SEA</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">4.5</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">3.7</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">0.8</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">PIT @ NSH</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">4.3</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">3.3</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">1.1</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">VAN @ CAR</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">9.6</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">5.5</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">4.1</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">PHI @ STL</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">5.1</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">2.8</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">2.4</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">NYI @ UTA</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">8.0</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">1.9</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">6.1</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">TBL @ FLA</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">4.2</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">1.6</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">2.7</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">ANA @ MIN</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">7.9</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">4.6</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">3.3</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">BOS @ MTL</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">10.4</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">5.7</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">4.8</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">LAK @ OTT</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">5.5</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">3.6</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">1.9</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">BUF @ DET</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">3.5</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">1.4</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">2.1</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">NJD @ WSH</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">2.8</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">1.7</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">1.1</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">EDM @ CAR</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">6.0</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">5.5</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">0.6</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">NYR @ CBJ</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">3.5</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">3.4</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">0.1</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">TOR @ CHI</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">7.4</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">4.4</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">3.0</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">VGK @ STL</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">5.2</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">2.8</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">2.5</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">PHI @ DAL</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">7.7</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">5.3</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">2.4</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">WPG @ CGY</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">1.0</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">0.2</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">0.8</div>
-          </div>
-
-        </div>
-
-      </div>
-
-      <div class="game-card">
-        <div class="game-header">
-          <div class="matchup">SJS @ SEA</div>
-        </div>
-
-        <div class="totals-row">
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">7.0</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Home Team</div>
-            <div class="total-value">3.7</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Away Team</div>
-            <div class="total-value">3.2</div>
-          </div>
-
-        </div>
-
-      </div>
-
-    </div>
+    <div id="gamesContainer"></div>
 
     <div class="updated">
-      Last updated: 2025-11-09 12:12 PM ET
+      Last updated: 2025-11-09 12:22 PM ET
     </div>
   </div>
+
+  <script>
+    const gamesData = [
+  {
+    "home_team": "DET",
+    "away_team": "CHI",
+    "matchup": "CHI @ DET",
+    "model_total": 5.75,
+    "home_pred": 1.36,
+    "away_pred": 4.39,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "PIT",
+    "away_team": "LAK",
+    "matchup": "LAK @ PIT",
+    "model_total": 3.02,
+    "home_pred": 1.12,
+    "away_pred": 1.9,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "TOR",
+    "away_team": "CAR",
+    "matchup": "CAR @ TOR",
+    "model_total": 8.46,
+    "home_pred": 3.02,
+    "away_pred": 5.44,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "OTT",
+    "away_team": "UTA",
+    "matchup": "UTA @ OTT",
+    "model_total": 5.45,
+    "home_pred": 3.58,
+    "away_pred": 1.87,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "DAL",
+    "away_team": "SEA",
+    "matchup": "SEA @ DAL",
+    "model_total": 9.01,
+    "home_pred": 5.32,
+    "away_pred": 3.7,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "MIN",
+    "away_team": "CGY",
+    "matchup": "CGY @ MIN",
+    "model_total": 4.76,
+    "home_pred": 4.57,
+    "away_pred": 0.2,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "VAN",
+    "away_team": "COL",
+    "matchup": "COL @ VAN",
+    "model_total": 12.56,
+    "home_pred": 4.12,
+    "away_pred": 8.44,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "ANA",
+    "away_team": "WPG",
+    "matchup": "WPG @ ANA",
+    "model_total": 4.16,
+    "home_pred": 3.39,
+    "away_pred": 0.77,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "NJD",
+    "away_team": "NYI",
+    "matchup": "NYI @ NJD",
+    "model_total": 7.23,
+    "home_pred": 1.11,
+    "away_pred": 6.11,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "NYR",
+    "away_team": "NSH",
+    "matchup": "NSH @ NYR",
+    "model_total": 3.36,
+    "home_pred": 0.12,
+    "away_pred": 3.23,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "EDM",
+    "away_team": "CBJ",
+    "matchup": "CBJ @ EDM",
+    "model_total": 4.0,
+    "home_pred": 0.61,
+    "away_pred": 3.39,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "VGK",
+    "away_team": "FLA",
+    "matchup": "FLA @ VGK",
+    "model_total": 4.04,
+    "home_pred": 2.5,
+    "away_pred": 1.54,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "BOS",
+    "away_team": "TOR",
+    "matchup": "TOR @ BOS",
+    "model_total": 7.81,
+    "home_pred": 4.84,
+    "away_pred": 2.97,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "MTL",
+    "away_team": "LAK",
+    "matchup": "LAK @ MTL",
+    "model_total": 7.56,
+    "home_pred": 5.65,
+    "away_pred": 1.9,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "OTT",
+    "away_team": "DAL",
+    "matchup": "DAL @ OTT",
+    "model_total": 8.85,
+    "home_pred": 3.58,
+    "away_pred": 5.27,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "CAR",
+    "away_team": "WSH",
+    "matchup": "WSH @ CAR",
+    "model_total": 7.13,
+    "home_pred": 5.49,
+    "away_pred": 1.64,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "STL",
+    "away_team": "CGY",
+    "matchup": "CGY @ STL",
+    "model_total": 2.96,
+    "home_pred": 2.77,
+    "away_pred": 0.2,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "MIN",
+    "away_team": "SJS",
+    "matchup": "SJS @ MIN",
+    "model_total": 7.8,
+    "home_pred": 4.57,
+    "away_pred": 3.24,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "COL",
+    "away_team": "ANA",
+    "matchup": "ANA @ COL",
+    "model_total": 11.83,
+    "home_pred": 8.49,
+    "away_pred": 3.34,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "VAN",
+    "away_team": "WPG",
+    "matchup": "WPG @ VAN",
+    "model_total": 4.89,
+    "home_pred": 4.12,
+    "away_pred": 0.77,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "SEA",
+    "away_team": "CBJ",
+    "matchup": "CBJ @ SEA",
+    "model_total": 7.13,
+    "home_pred": 3.74,
+    "away_pred": 3.39,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "TBL",
+    "away_team": "NYR",
+    "matchup": "NYR @ TBL",
+    "model_total": 2.78,
+    "home_pred": 2.7,
+    "away_pred": 0.07,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "PHI",
+    "away_team": "EDM",
+    "matchup": "EDM @ PHI",
+    "model_total": 2.95,
+    "home_pred": 2.4,
+    "away_pred": 0.56,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "UTA",
+    "away_team": "BUF",
+    "matchup": "BUF @ UTA",
+    "model_total": 4.06,
+    "home_pred": 1.92,
+    "away_pred": 2.14,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "CHI",
+    "away_team": "NJD",
+    "matchup": "NJD @ CHI",
+    "model_total": 5.51,
+    "home_pred": 4.44,
+    "away_pred": 1.06,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "TOR",
+    "away_team": "LAK",
+    "matchup": "LAK @ TOR",
+    "model_total": 4.92,
+    "home_pred": 3.02,
+    "away_pred": 1.9,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "MTL",
+    "away_team": "DAL",
+    "matchup": "DAL @ MTL",
+    "model_total": 10.92,
+    "home_pred": 5.65,
+    "away_pred": 5.27,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "OTT",
+    "away_team": "BOS",
+    "matchup": "BOS @ OTT",
+    "model_total": 8.37,
+    "home_pred": 3.58,
+    "away_pred": 4.79,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "DET",
+    "away_team": "ANA",
+    "matchup": "ANA @ DET",
+    "model_total": 4.7,
+    "home_pred": 1.36,
+    "away_pred": 3.34,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "FLA",
+    "away_team": "WSH",
+    "matchup": "WSH @ FLA",
+    "model_total": 3.23,
+    "home_pred": 1.59,
+    "away_pred": 1.64,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "CBJ",
+    "away_team": "EDM",
+    "matchup": "EDM @ CBJ",
+    "model_total": 4.0,
+    "home_pred": 3.44,
+    "away_pred": 0.56,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "COL",
+    "away_team": "BUF",
+    "matchup": "BUF @ COL",
+    "model_total": 10.63,
+    "home_pred": 8.49,
+    "away_pred": 2.14,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "CGY",
+    "away_team": "SJS",
+    "matchup": "SJS @ CGY",
+    "model_total": 3.48,
+    "home_pred": 0.24,
+    "away_pred": 3.24,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "VGK",
+    "away_team": "NYI",
+    "matchup": "NYI @ VGK",
+    "model_total": 8.61,
+    "home_pred": 2.5,
+    "away_pred": 6.11,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "SEA",
+    "away_team": "WPG",
+    "matchup": "WPG @ SEA",
+    "model_total": 4.51,
+    "home_pred": 3.74,
+    "away_pred": 0.77,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "NSH",
+    "away_team": "PIT",
+    "matchup": "PIT @ NSH",
+    "model_total": 4.35,
+    "home_pred": 3.28,
+    "away_pred": 1.07,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "CAR",
+    "away_team": "VAN",
+    "matchup": "VAN @ CAR",
+    "model_total": 9.56,
+    "home_pred": 5.49,
+    "away_pred": 4.07,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "STL",
+    "away_team": "PHI",
+    "matchup": "PHI @ STL",
+    "model_total": 5.12,
+    "home_pred": 2.77,
+    "away_pred": 2.35,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "UTA",
+    "away_team": "NYI",
+    "matchup": "NYI @ UTA",
+    "model_total": 8.03,
+    "home_pred": 1.92,
+    "away_pred": 6.11,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "FLA",
+    "away_team": "TBL",
+    "matchup": "TBL @ FLA",
+    "model_total": 4.24,
+    "home_pred": 1.59,
+    "away_pred": 2.66,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "MIN",
+    "away_team": "ANA",
+    "matchup": "ANA @ MIN",
+    "model_total": 7.91,
+    "home_pred": 4.57,
+    "away_pred": 3.34,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "MTL",
+    "away_team": "BOS",
+    "matchup": "BOS @ MTL",
+    "model_total": 10.45,
+    "home_pred": 5.65,
+    "away_pred": 4.79,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "OTT",
+    "away_team": "LAK",
+    "matchup": "LAK @ OTT",
+    "model_total": 5.48,
+    "home_pred": 3.58,
+    "away_pred": 1.9,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "DET",
+    "away_team": "BUF",
+    "matchup": "BUF @ DET",
+    "model_total": 3.5,
+    "home_pred": 1.36,
+    "away_pred": 2.14,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "WSH",
+    "away_team": "NJD",
+    "matchup": "NJD @ WSH",
+    "model_total": 2.75,
+    "home_pred": 1.69,
+    "away_pred": 1.06,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "CAR",
+    "away_team": "EDM",
+    "matchup": "EDM @ CAR",
+    "model_total": 6.04,
+    "home_pred": 5.49,
+    "away_pred": 0.56,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "CBJ",
+    "away_team": "NYR",
+    "matchup": "NYR @ CBJ",
+    "model_total": 3.51,
+    "home_pred": 3.44,
+    "away_pred": 0.07,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "CHI",
+    "away_team": "TOR",
+    "matchup": "TOR @ CHI",
+    "model_total": 7.41,
+    "home_pred": 4.44,
+    "away_pred": 2.97,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "STL",
+    "away_team": "VGK",
+    "matchup": "VGK @ STL",
+    "model_total": 5.22,
+    "home_pred": 2.77,
+    "away_pred": 2.45,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "DAL",
+    "away_team": "PHI",
+    "matchup": "PHI @ DAL",
+    "model_total": 7.66,
+    "home_pred": 5.32,
+    "away_pred": 2.35,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "CGY",
+    "away_team": "WPG",
+    "matchup": "WPG @ CGY",
+    "model_total": 1.01,
+    "home_pred": 0.24,
+    "away_pred": 0.77,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  },
+  {
+    "home_team": "SEA",
+    "away_team": "SJS",
+    "matchup": "SJS @ SEA",
+    "model_total": 6.98,
+    "home_pred": 3.74,
+    "away_pred": 3.24,
+    "consensus_line": null,
+    "median_line": null,
+    "edge": null,
+    "book_lines": [],
+    "edge_plays": [],
+    "has_edge": false
+  }
+];
+
+    // State
+    const state = {
+      selectedBooks: new Set(),
+      gameSearch: ''
+    };
+
+    // Get all unique books
+    const allBooks = new Set();
+    gamesData.forEach(game => {
+      game.book_lines.forEach(line => allBooks.add(line.book_name));
+    });
+
+    // Initialize filters
+    function initFilters() {
+      // Populate book filter
+      const bookGroup = document.getElementById('bookFilter');
+      Array.from(allBooks).sort().forEach(book => {
+        const div = document.createElement('div');
+        div.className = 'checkbox-item';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `book-${book}`;
+        checkbox.value = book;
+        checkbox.checked = true;
+        state.selectedBooks.add(book);
+
+        checkbox.addEventListener('change', e => {
+          if (e.target.checked) {
+            state.selectedBooks.add(book);
+          } else {
+            state.selectedBooks.delete(book);
+          }
+          updateBookButtonText();
+          renderGames();
+        });
+
+        const label = document.createElement('label');
+        label.htmlFor = `book-${book}`;
+        label.textContent = book;
+
+        div.appendChild(checkbox);
+        div.appendChild(label);
+        bookGroup.appendChild(div);
+      });
+
+      updateBookButtonText();
+
+      // Book dropdown toggle
+      const bookDropdown = document.getElementById('bookDropdown');
+      const bookButton = document.getElementById('bookButton');
+
+      bookButton.addEventListener('click', e => {
+        e.stopPropagation();
+        bookDropdown.classList.toggle('open');
+      });
+
+      document.addEventListener('click', e => {
+        if (!bookDropdown.contains(e.target)) {
+          bookDropdown.classList.remove('open');
+        }
+      });
+
+      // Game search
+      document.getElementById('gameSearch').addEventListener('input', e => {
+        state.gameSearch = e.target.value.toLowerCase();
+        renderGames();
+      });
+    }
+
+    function updateBookButtonText() {
+      const buttonText = document.getElementById('bookButtonText');
+      const totalBooks = allBooks.size;
+
+      if (state.selectedBooks.size === 0) {
+        buttonText.textContent = 'No Books Selected';
+      } else if (state.selectedBooks.size === totalBooks) {
+        buttonText.textContent = 'All Books';
+      } else {
+        buttonText.textContent = `${state.selectedBooks.size} Books`;
+      }
+    }
+
+    function renderGames() {
+      const container = document.getElementById('gamesContainer');
+
+      // Filter games by search
+      const filtered = gamesData.filter(game => {
+        if (state.gameSearch) {
+          return game.matchup.toLowerCase().includes(state.gameSearch) ||
+                 game.home_team.toLowerCase().includes(state.gameSearch) ||
+                 game.away_team.toLowerCase().includes(state.gameSearch);
+        }
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="no-data">
+            <h3>No games match your filters</h3>
+            <p>Try adjusting your search</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = '<div class="games-grid">' + filtered.map(game => {
+        const cardClass = game.has_edge ? 'game-card has-edge' : 'game-card';
+
+        // Filter book lines by selected books
+        const visibleBookLines = game.book_lines.filter(line => state.selectedBooks.has(line.book_name));
+
+        let html = `
+          <div class="${cardClass}">
+            <div class="game-header">
+              <div class="matchup">${game.matchup}</div>
+            </div>
+
+            <div class="totals-row">
+              <div class="total-item">
+                <div class="total-label">Model Total</div>
+                <div class="total-value model">${game.model_total.toFixed(1)}</div>
+              </div>
+              <div class="total-item">
+                <div class="total-label">Home (${game.home_team})</div>
+                <div class="total-value">${game.home_pred.toFixed(1)}</div>
+              </div>
+              <div class="total-item">
+                <div class="total-label">Away (${game.away_team})</div>
+                <div class="total-value">${game.away_pred.toFixed(1)}</div>
+              </div>`;
+
+        if (game.consensus_line) {
+          html += `
+              <div class="total-item">
+                <div class="total-label">Market Consensus</div>
+                <div class="total-value market">${game.consensus_line.toFixed(1)}</div>
+              </div>`;
+        }
+
+        if (game.median_line) {
+          html += `
+              <div class="total-item">
+                <div class="total-label">Median Line</div>
+                <div class="total-value">${game.median_line.toFixed(1)}</div>
+              </div>`;
+        }
+
+        if (game.edge !== null) {
+          const edgeClass = Math.abs(game.edge) > 0.3 ? 'edge' : '';
+          html += `
+              <div class="total-item">
+                <div class="total-label">Model Edge</div>
+                <div class="total-value ${edgeClass}">${game.edge >= 0 ? '+' : ''}${game.edge.toFixed(1)}</div>
+              </div>`;
+        }
+
+        html += '</div>';
+
+        // Show edge plays
+        if (game.edge_plays.length > 0) {
+          html += '<div class="edge-play-list">';
+          html += '<div style="font-size: 0.875rem; color: #4FC3F7; margin-bottom: 0.5rem; font-weight: bold;">🎯 Consensus Edge Plays:</div>';
+          game.edge_plays.forEach(play => {
+            const bet_emoji = play.bet === 'UNDER' ? '📉' : '📈';
+            html += `
+              <div style="margin-bottom: 0.5rem; padding: 0.5rem; background: #0f0f0f; border-radius: 4px;">
+                <div style="color: #4FC3F7; font-weight: bold;">${bet_emoji} ${play.bet} ${play.line} at ${play.book} (${play.under_price >= 0 ? '+' : ''}${play.under_price})</div>
+                <div style="font-size: 0.8rem; color: #999;">Consensus: ${play.consensus.toFixed(1)} | Model: ${play.model.toFixed(1)} | Edge: ${play.edge.toFixed(1)} goals</div>
+              </div>
+            `;
+          });
+          html += '</div>';
+        }
+
+        // Show book lines table
+        if (visibleBookLines.length > 0) {
+          html += `
+            <div class="book-lines">
+              <h4>Book Lines</h4>
+              <table class="book-lines-table">
+                <thead>
+                  <tr>
+                    <th>Book</th>
+                    <th>Line</th>
+                    <th>Over</th>
+                    <th>Under</th>
+                  </tr>
+                </thead>
+                <tbody>`;
+
+          // Add consensus row first if available
+          if (game.consensus_line) {
+            html += `
+                  <tr class="consensus-row">
+                    <td>Consensus</td>
+                    <td>${game.consensus_line.toFixed(1)}</td>
+                    <td>—</td>
+                    <td>—</td>
+                  </tr>`;
+          }
+
+          // Add book lines
+          visibleBookLines.forEach(line => {
+            html += `
+                  <tr>
+                    <td>${line.book_name}</td>
+                    <td>${line.line}</td>
+                    <td>${line.over_price >= 0 ? '+' : ''}${line.over_price}</td>
+                    <td>${line.under_price >= 0 ? '+' : ''}${line.under_price}</td>
+                  </tr>`;
+          });
+
+          html += `
+                </tbody>
+              </table>
+            </div>`;
+        }
+
+        html += '</div>';
+        return html;
+      }).join('') + '</div>';
+    }
+
+    // Initialize
+    initFilters();
+    renderGames();
+  </script>
+  <script src="../../nav.js?v=30"></script>
 </body>
 </html>

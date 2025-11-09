@@ -299,6 +299,11 @@ def main():
     consensus_df.to_csv(consensus_path, index=False)
     print(f"✓ Saved consensus lines to {consensus_path}")
 
+    # Save all book lines for display on website
+    book_lines_path = args.output.replace('edges.csv', 'book_lines.csv')
+    totals_df.to_csv(book_lines_path, index=False)
+    print(f"✓ Saved all book lines to {book_lines_path}")
+
 
 if __name__ == '__main__':
     main()
