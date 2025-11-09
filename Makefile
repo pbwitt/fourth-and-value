@@ -211,6 +211,10 @@ ifeq ($(LIVE),1)
 else
 	@$(PY) scripts/nhl/nhl_qc_checks.py --date $(DATE)
 endif
+	@echo "===================================================================="
+	@echo "Grading pending bets..."
+	@echo "===================================================================="
+	@$(PY) scripts/grade_bets_nhl.py --date $(DATE) || echo "No bets to grade"
 
 # NHL daily build + publish to prod (requires LIVE=1)
 nhl_daily_pub: nhl_daily
@@ -218,7 +222,7 @@ ifeq ($(LIVE),1)
 	@echo "===================================================================="
 	@echo "Publishing NHL props page to production..."
 	@echo "===================================================================="
-	@git add $(NHL_PAGE) $(NHL_PROPS_MODEL) $(NHL_QC_REPORT) || true
+	@git add $(NHL_PAGE) $(NHL_PROPS_MODEL) $(NHL_QC_REPORT) data/bets/bets.csv || true
 	@git commit -m "NHL: Update props page for $(DATE)" || echo "No changes to commit"
 	@git push
 	@echo "✓ Published to GitHub Pages"

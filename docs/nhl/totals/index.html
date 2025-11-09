@@ -2874,6 +2874,7 @@
                     <th>Spread</th>
                     <th>Fav</th>
                     <th>Dog</th>
+                    <th id="trackHeader-${game.home_team}" style="display:none;">Track</th>
                   </tr>
                 </thead>
                 <tbody>`;
@@ -2897,13 +2898,25 @@
           }
 
           // Add book lines
-          visibleBookLines.forEach(line => {
+          const isAuthenticated = sessionStorage.getItem('betTrackingAuth') === 'true';
+
+          visibleBookLines.forEach((line, lineIdx) => {
             const totalLine = line.total_line ? line.total_line.toFixed(1) : '-';
             const overPrice = line.over_price ? (line.over_price >= 0 ? '+' : '') + line.over_price : '-';
             const underPrice = line.under_price ? (line.under_price >= 0 ? '+' : '') + line.under_price : '-';
             const spread = line.spread_display || '-';
             const favPrice = line.spread_fav_price ? (line.spread_fav_price >= 0 ? '+' : '') + Math.round(line.spread_fav_price) : '-';
             const dogPrice = line.spread_dog_price ? (line.spread_dog_price >= 0 ? '+' : '') + Math.round(line.spread_dog_price) : '-';
+
+            // Track buttons (only shown if authenticated)
+            const trackCell = isAuthenticated
+              ? `<td style="display:flex; gap:0.25rem;">
+                   <button onclick="trackTeamTotal('${game.home_team}', '${game.away_team}', '${line.book_name}', ${totalLine}, ${line.over_price}, 'over')"
+                           style="padding: 0.3rem 0.5rem; background: #4FC3F7; color: #000; border: none; border-radius: 3px; font-size: 0.7rem; font-weight: 600; cursor: pointer;">O</button>
+                   <button onclick="trackTeamTotal('${game.home_team}', '${game.away_team}', '${line.book_name}', ${totalLine}, ${line.under_price}, 'under')"
+                           style="padding: 0.3rem 0.5rem; background: #4FC3F7; color: #000; border: none; border-radius: 3px; font-size: 0.7rem; font-weight: 600; cursor: pointer;">U</button>
+                 </td>`
+              : '';
 
             html += `
                   <tr>
@@ -2914,6 +2927,7 @@
                     <td>${spread}</td>
                     <td>${favPrice}</td>
                     <td>${dogPrice}</td>
+                    ${trackCell}
                   </tr>`;
           });
 
@@ -2926,7 +2940,56 @@
         html += '</div>';
         return html;
       }).join('') + '</div>';
+
+      // Show/hide track column headers based on authentication
+      const isAuth = sessionStorage.getItem('betTrackingAuth') === 'true';
+      document.querySelectorAll('[id^="trackHeader-"]').forEach(el => {
+        el.style.display = isAuth ? '' : 'none';
+      });
     }
+
+    // Track Team Total function
+    window.trackTeamTotal = function(homeTeam, awayTeam, book, line, odds, side) {
+      // Prompt for stake amount
+      const stake = prompt('Enter stake amount ($):', '100');
+      if (!stake || isNaN(parseFloat(stake))) {
+        alert('Invalid stake amount');
+        return;
+      }
+
+      // Get today's date
+      const today = new Date().toISOString().split('T')[0];
+
+      // Build bet object (team totals use empty player field)
+      const bet = {
+        bet_id: 'bet_' + Date.now(),
+        timestamp: new Date().toISOString(),
+        league: 'NHL',
+        game_date: today,
+        team_home: homeTeam,
+        team_away: awayTeam,
+        player: '',  // Empty for team totals
+        market_type: 'team_total',
+        side: side,
+        line: line,
+        book: book,
+        odds: odds,
+        stake_dollars: parseFloat(stake).toFixed(2),
+        status: 'pending',
+        actual_result: '',
+        payout: '',
+        graded_timestamp: '',
+        model_prob: '',
+        edge_bps: ''
+      };
+
+      // Create CSV row
+      const csvRow = Object.values(bet).join(',');
+
+      // Show alert with CSV row (will be replaced with GitHub API later)
+      const message = `Team Total Bet logged!\n\nFor now, manually add this row to data/bets/bets.csv:\n\n${csvRow}\n\nOr visit the bet tracker at /docs/tracking/ to see all bets.\n\nNote: Team totals require manual grading (auto-grading coming soon!)`;
+      alert(message);
+    };
 
     // Initialize
     initFilters();

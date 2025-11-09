@@ -113,7 +113,7 @@ tr.consensus-pick td:first-child::before{content:'★ ';color:#4ade80;font-size:
           <th class="num">Edge (bps)</th>
           <th class="num">Market %</th><th class="num">Books</th>
           <th>Kick (ET)</th>
-        </tr>
+          <th id="trackHeader" style="display:none;">Track</th>        </tr>
       </thead>
       <tbody></tbody>
     </table>
@@ -295,4 +295,114 @@ hydrateSelectors(); render();
 </script>
 
 </body>
-</html>
+</html><script>
+// Override the render function to add Track buttons
+const originalRender = render;
+window.render = function() {
+  originalRender();
+  
+  const isAuthenticated = sessionStorage.getItem('betTrackingAuth') === 'true';
+  
+  // Show/hide track header
+  const trackHeader = document.getElementById('trackHeader');
+  if (trackHeader) {
+    trackHeader.style.display = isAuthenticated ? '' : 'none';
+  }
+  
+  // Add track buttons to each row
+  if (isAuthenticated) {
+    const tbody = document.getElementById('propsTableBody') || tbody;
+    const rows = tbody.querySelectorAll('tr');
+    const filteredData = DATA.filter(r =>
+      (!state.market || r.market_std===state.market) &&
+      (!state.game   || r.game===state.game) &&
+      (!state.player || r.player===state.player) &&
+      (state.books.size===0 || state.books.has(r.bookmaker)) &&
+      (!state.q.trim() || (r.player+" "+r.bookmaker+" "+r.game).toLowerCase().includes(state.q.trim().toLowerCase()))
+    ).filter(r => !state.consensusOnly || r.is_consensus).sort((a,b)=> (b.edge_bps ?? -1) - (a.edge_bps ?? -1));
+    
+    rows.forEach((row, idx) => {
+      if (idx < filteredData.length && !row.querySelector('.track-btn')) {
+        const prop = filteredData[idx];
+        const cell = document.createElement('td');
+        const btn = document.createElement('button');
+        btn.className = 'track-btn';
+        btn.textContent = 'Track';
+        btn.style.cssText = 'padding:0.4rem 0.75rem;background:#4FC3F7;color:#000;border:none;border-radius:4px;font-size:0.75rem;font-weight:600;cursor:pointer;';
+        btn.onclick = () => trackNFLBet(prop);
+        cell.appendChild(btn);
+        row.appendChild(cell);
+      }
+    });
+    
+    // Add track buttons to mobile cards
+    const cards = document.querySelectorAll('.prop-card');
+    cards.forEach((card, idx) => {
+      if (idx < filteredData.length && !card.querySelector('.track-btn')) {
+        const prop = filteredData[idx];
+        const btn = document.createElement('button');
+        btn.className = 'track-btn';
+        btn.textContent = 'Track Bet';
+        btn.style.cssText = 'width:100%;margin-top:0.75rem;padding:0.6rem;background:#4FC3F7;color:#000;border:none;border-radius:6px;font-size:0.875rem;font-weight:600;cursor:pointer;';
+        btn.onclick = () => trackNFLBet(prop);
+        card.appendChild(btn);
+      }
+    });
+  }
+};
+
+// Track NFL Bet function
+window.trackNFLBet = function(prop) {
+  const stake = prompt('Enter stake amount ($):', '100');
+  if (!stake || isNaN(parseFloat(stake))) {
+    alert('Invalid stake amount');
+    return;
+  }
+
+  // Extract teams from game string
+  const gameParts = (prop.game || '').split(' @ ');
+  const teamAway = gameParts[0] || '';
+  const teamHome = gameParts[1] || '';
+  
+  // Parse odds (remove + sign)
+  const oddsStr = (prop.mkt_odds || '').replace('+', '');
+  
+  // Get today's date
+  const today = new Date().toISOString().split('T')[0];
+  
+  // Calculate model probability and edge
+  const modelProb = (parseFloat((prop.model_prob || 0) * 100) / 100).toFixed(4);
+  const edgeBps = Math.round(prop.edge_bps || 0);
+  
+  // Build bet object
+  const bet = {
+    bet_id: 'bet_' + Date.now(),
+    timestamp: new Date().toISOString(),
+    league: 'NFL',
+    game_date: today,
+    team_home: teamHome,
+    team_away: teamAway,
+    player: prop.player || '',
+    market_type: prop.market_std || '',
+    side: (prop.name || '').toLowerCase().includes('over') ? 'over' : 'under',
+    line: prop.line_disp || '',
+    book: prop.bookmaker || '',
+    odds: oddsStr,
+    stake_dollars: parseFloat(stake).toFixed(2),
+    status: 'pending',
+    actual_result: '',
+    payout: '',
+    graded_timestamp: '',
+    model_prob: modelProb,
+    edge_bps: edgeBps
+  };
+  
+  const csvRow = Object.values(bet).join(',');
+  
+  const message = `Bet logged! For now, manually add this row to data/bets/bets.csv:\n\n${csvRow}\n\nOr visit the bet tracker at /docs/tracking/ to see all bets.\n\nGitHub API integration coming soon!`;
+  alert(message);
+};
+
+// Re-render to apply Track buttons
+render();
+</script>

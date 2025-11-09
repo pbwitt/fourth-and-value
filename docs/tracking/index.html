@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bet Tracker - Fourth & Value</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f0f0f;
+      color: #fff;
+      line-height: 1.6;
+    }
+
+    /* Password Prompt */
+    #passwordPrompt {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    .password-box {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 12px;
+      padding: 3rem;
+      max-width: 400px;
+      width: 100%;
+    }
+    .password-box h2 {
+      color: #4FC3F7;
+      margin-bottom: 1.5rem;
+      text-align: center;
+    }
+    .password-box input {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: #0f0f0f;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 1rem;
+      margin-bottom: 1rem;
+    }
+    .password-box input:focus {
+      outline: none;
+      border-color: #4FC3F7;
+    }
+    .password-box button {
+      width: 100%;
+      padding: 0.75rem;
+      background: #4FC3F7;
+      border: none;
+      border-radius: 8px;
+      color: #000;
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    .password-box button:hover {
+      background: #3da9d3;
+    }
+    .error-msg {
+      color: #ff6b6b;
+      font-size: 0.875rem;
+      margin-top: 0.5rem;
+      text-align: center;
+    }
+
+    /* Main Tracker */
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 2rem 1rem;
+    }
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      color: #4FC3F7;
+    }
+    .subtitle {
+      color: #999;
+      margin-bottom: 2rem;
+    }
+
+    /* Stats Dashboard */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .stat-card {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 1.5rem;
+    }
+    .stat-label {
+      color: #999;
+      font-size: 0.875rem;
+      margin-bottom: 0.5rem;
+    }
+    .stat-value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #4FC3F7;
+    }
+    .stat-value.positive { color: #66BB6A; }
+    .stat-value.negative { color: #ff6b6b; }
+
+    /* Bet Table */
+    .table-container {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin-bottom: 2rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th {
+      background: #0f0f0f;
+      padding: 1rem;
+      text-align: left;
+      font-size: 0.875rem;
+      color: #999;
+      border-bottom: 1px solid #2a2a2a;
+    }
+    td {
+      padding: 1rem;
+      border-bottom: 1px solid #222;
+      font-size: 0.875rem;
+    }
+    tr:hover {
+      background: #222;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .status-pending { background: #3a3a3a; color: #ccc; }
+    .status-won { background: rgba(102, 187, 106, 0.2); color: #66BB6A; }
+    .status-lost { background: rgba(255, 107, 107, 0.2); color: #ff6b6b; }
+    .status-push { background: rgba(255, 193, 7, 0.2); color: #FFC107; }
+
+    /* Add Bet Form */
+    .add-bet-section {
+      background: #1a1a1a;
+      border: 1px solid #2a2a2a;
+      border-radius: 8px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+    }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .form-group label {
+      display: block;
+      color: #999;
+      font-size: 0.875rem;
+      margin-bottom: 0.5rem;
+    }
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 0.5rem;
+      background: #0f0f0f;
+      border: 1px solid #2a2a2a;
+      border-radius: 4px;
+      color: #fff;
+      font-size: 0.875rem;
+    }
+    .btn {
+      padding: 0.75rem 1.5rem;
+      background: #4FC3F7;
+      border: none;
+      border-radius: 8px;
+      color: #000;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .btn:hover {
+      background: #3da9d3;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Password Prompt -->
+  <div id="passwordPrompt">
+    <div class="password-box">
+      <h2>🔒 Bet Tracker Access</h2>
+      <input type="password" id="passwordInput" placeholder="Enter password" />
+      <button onclick="checkPassword()">Unlock</button>
+      <div id="errorMsg" class="error-msg"></div>
+    </div>
+  </div>
+
+  <!-- Main Tracker (hidden until authenticated) -->
+  <div id="betTracker" style="display:none;">
+    <div class="container">
+      <h1>📊 Bet Tracker</h1>
+      <p class="subtitle">Track performance • Measure edge • Grade bets automatically</p>
+
+      <!-- Stats Dashboard -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Total Bets</div>
+          <div class="stat-value" id="totalBets">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Staked</div>
+          <div class="stat-value" id="totalStaked">$0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Returned</div>
+          <div class="stat-value" id="totalReturned">$0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">ROI</div>
+          <div class="stat-value" id="roi">0%</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Win Rate</div>
+          <div class="stat-value" id="winRate">0%</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Profit/Loss</div>
+          <div class="stat-value" id="profitLoss">$0</div>
+        </div>
+      </div>
+
+      <!-- Add Bet Form -->
+      <div class="add-bet-section">
+        <h3 style="margin-bottom: 1rem; color: #4FC3F7;">Log New Bet</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>League</label>
+            <select id="league">
+              <option value="NHL">NHL</option>
+              <option value="NFL">NFL</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Game Date</label>
+            <input type="date" id="gameDate" />
+          </div>
+          <div class="form-group">
+            <label>Home Team</label>
+            <input type="text" id="teamHome" placeholder="e.g., TOR" />
+          </div>
+          <div class="form-group">
+            <label>Away Team</label>
+            <input type="text" id="teamAway" placeholder="e.g., BOS" />
+          </div>
+          <div class="form-group">
+            <label>Player (leave empty for team totals)</label>
+            <input type="text" id="player" placeholder="e.g., Connor McDavid" />
+          </div>
+          <div class="form-group">
+            <label>Market</label>
+            <input type="text" id="marketType" placeholder="e.g., goals, rush_yds" />
+          </div>
+          <div class="form-group">
+            <label>Side</label>
+            <select id="side">
+              <option value="over">Over</option>
+              <option value="under">Under</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Line</label>
+            <input type="number" step="0.5" id="line" placeholder="e.g., 2.5" />
+          </div>
+          <div class="form-group">
+            <label>Book</label>
+            <input type="text" id="book" placeholder="e.g., DraftKings" />
+          </div>
+          <div class="form-group">
+            <label>Odds (American)</label>
+            <input type="number" id="odds" placeholder="e.g., -110" />
+          </div>
+          <div class="form-group">
+            <label>Stake ($)</label>
+            <input type="number" step="0.01" id="stake" placeholder="e.g., 100" />
+          </div>
+        </div>
+        <button class="btn" onclick="addBet()">Add Bet</button>
+      </div>
+
+      <!-- Bet Log Table -->
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>League</th>
+              <th>Game</th>
+              <th>Player</th>
+              <th>Market</th>
+              <th>Side</th>
+              <th>Line</th>
+              <th>Odds</th>
+              <th>Book</th>
+              <th>Stake</th>
+              <th>Status</th>
+              <th>Result</th>
+              <th>Payout</th>
+            </tr>
+          </thead>
+          <tbody id="betsTableBody">
+            <!-- Bets populated here -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const CORRECT_PASSWORD = 'Wittyboyz6669';
+    let betsData = [];
+
+    // Check authentication on load
+    window.onload = function() {
+      const isAuth = sessionStorage.getItem('betTrackingAuth') === 'true';
+
+      if (isAuth) {
+        showTracker();
+      } else {
+        document.getElementById('passwordPrompt').style.display = 'flex';
+      }
+    };
+
+    function checkPassword() {
+      const input = document.getElementById('passwordInput').value;
+
+      if (input === CORRECT_PASSWORD) {
+        sessionStorage.setItem('betTrackingAuth', 'true');
+        document.getElementById('passwordPrompt').style.display = 'none';
+        showTracker();
+      } else {
+        document.getElementById('errorMsg').textContent = 'Incorrect password';
+      }
+    }
+
+    function showTracker() {
+      document.getElementById('betTracker').style.display = 'block';
+      loadBets();
+    }
+
+    async function loadBets() {
+      try {
+        const response = await fetch('../../data/bets/bets.csv');
+        const csvText = await response.text();
+        betsData = parseCSV(csvText);
+
+        renderBets();
+        updateStats();
+      } catch (error) {
+        console.error('Error loading bets:', error);
+      }
+    }
+
+    function parseCSV(csv) {
+      const lines = csv.trim().split('\n');
+      if (lines.length <= 1) return [];
+
+      const headers = lines[0].split(',');
+      const bets = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',');
+        const bet = {};
+        headers.forEach((header, index) => {
+          bet[header] = values[index];
+        });
+        bets.push(bet);
+      }
+
+      return bets;
+    }
+
+    function renderBets() {
+      const tbody = document.getElementById('betsTableBody');
+
+      if (betsData.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="13" style="text-align:center; color:#999;">No bets logged yet</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = betsData.map(bet => `
+        <tr>
+          <td>${bet.timestamp?.split('T')[0] || '-'}</td>
+          <td>${bet.league || '-'}</td>
+          <td>${bet.team_away || '-'} @ ${bet.team_home || '-'}</td>
+          <td>${bet.player || 'Team Total'}</td>
+          <td>${bet.market_type || '-'}</td>
+          <td>${bet.side || '-'}</td>
+          <td>${bet.line || '-'}</td>
+          <td>${bet.odds || '-'}</td>
+          <td>${bet.book || '-'}</td>
+          <td>$${bet.stake_dollars || '0'}</td>
+          <td><span class="status-badge status-${bet.status || 'pending'}">${bet.status || 'pending'}</span></td>
+          <td>${bet.actual_result || '-'}</td>
+          <td>${bet.payout ? '$' + bet.payout : '-'}</td>
+        </tr>
+      `).join('');
+    }
+
+    function updateStats() {
+      const totalBets = betsData.length;
+      const totalStaked = betsData.reduce((sum, bet) => sum + parseFloat(bet.stake_dollars || 0), 0);
+      const totalReturned = betsData.reduce((sum, bet) => sum + parseFloat(bet.payout || 0), 0);
+      const profitLoss = totalReturned - totalStaked;
+      const roi = totalStaked > 0 ? ((profitLoss / totalStaked) * 100) : 0;
+
+      const gradedBets = betsData.filter(b => ['won', 'lost', 'push'].includes(b.status));
+      const wonBets = betsData.filter(b => b.status === 'won').length;
+      const winRate = gradedBets.length > 0 ? (wonBets / gradedBets.length * 100) : 0;
+
+      document.getElementById('totalBets').textContent = totalBets;
+      document.getElementById('totalStaked').textContent = '$' + totalStaked.toFixed(2);
+      document.getElementById('totalReturned').textContent = '$' + totalReturned.toFixed(2);
+
+      const roiEl = document.getElementById('roi');
+      roiEl.textContent = roi.toFixed(1) + '%';
+      roiEl.className = 'stat-value ' + (roi > 0 ? 'positive' : roi < 0 ? 'negative' : '');
+
+      document.getElementById('winRate').textContent = winRate.toFixed(1) + '%';
+
+      const plEl = document.getElementById('profitLoss');
+      plEl.textContent = (profitLoss >= 0 ? '+' : '') + '$' + profitLoss.toFixed(2);
+      plEl.className = 'stat-value ' + (profitLoss > 0 ? 'positive' : profitLoss < 0 ? 'negative' : '');
+    }
+
+    function addBet() {
+      // For now, just download as CSV row
+      // TODO: Integrate with GitHub API to append to bets.csv
+
+      const bet = {
+        bet_id: 'bet_' + Date.now(),
+        timestamp: new Date().toISOString(),
+        league: document.getElementById('league').value,
+        game_date: document.getElementById('gameDate').value,
+        team_home: document.getElementById('teamHome').value,
+        team_away: document.getElementById('teamAway').value,
+        player: document.getElementById('player').value,
+        market_type: document.getElementById('marketType').value,
+        side: document.getElementById('side').value,
+        line: document.getElementById('line').value,
+        book: document.getElementById('book').value,
+        odds: document.getElementById('odds').value,
+        stake_dollars: document.getElementById('stake').value,
+        status: 'pending',
+        actual_result: '',
+        payout: '',
+        graded_timestamp: '',
+        model_prob: '',
+        edge_bps: ''
+      };
+
+      // Create CSV row
+      const csvRow = Object.values(bet).join(',');
+
+      alert('Bet logged! For now, manually add this row to data/bets/bets.csv:\\n\\n' + csvRow + '\\n\\nWe will automate this with GitHub API integration soon.');
+
+      // Clear form
+      document.getElementById('player').value = '';
+      document.getElementById('marketType').value = '';
+      document.getElementById('line').value = '';
+      document.getElementById('odds').value = '';
+      document.getElementById('stake').value = '';
+    }
+
+    // Allow Enter key on password field
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('passwordInput')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') checkPassword();
+      });
+    });
+  </script>
+</body>
+</html>

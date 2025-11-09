@@ -278,6 +278,110 @@
 <body>
   <div id="nav-root"></div>
   <script src="../../nav.js?v=30"></script>
+  // Add Track buttons to NFL totals page
+  (function() {
+    const isAuthenticated = sessionStorage.getItem('betTrackingAuth') === 'true';
+    
+    if (!isAuthenticated) return;
+    
+    // Find all book lines tables
+    const tables = document.querySelectorAll('.book-lines-table');
+    
+    tables.forEach(table => {
+      // Add Track header
+      const headerRow = table.querySelector('thead tr');
+      if (headerRow && !headerRow.querySelector('.track-header')) {
+        const th = document.createElement('th');
+        th.className = 'track-header';
+        th.textContent = 'Track';
+        headerRow.appendChild(th);
+      }
+      
+      // Find parent game card to get team info
+      const gameCard = table.closest('.game-card');
+      if (!gameCard) return;
+      
+      const matchup = gameCard.querySelector('.matchup')?.textContent || '';
+      const [awayTeam, homeTeam] = matchup.split(' @ ').map(s => s.trim());
+      
+      // Add Track buttons to each book line row (skip consensus row)
+      const rows = table.querySelectorAll('tbody tr:not(.consensus-row)');
+      rows.forEach(row => {
+        if (row.querySelector('.track-cell')) return; // Already added
+        
+        const cells = row.querySelectorAll('td');
+        if (cells.length < 7) return;
+        
+        const book = cells[0].textContent.trim();
+        const totalLine = parseFloat(cells[1].textContent) || 0;
+        const overPrice = cells[2].textContent.trim();
+        const underPrice = cells[3].textContent.trim();
+        
+        // Create track cell with O/U buttons
+        const trackCell = document.createElement('td');
+        trackCell.className = 'track-cell';
+        trackCell.style.cssText = 'display:flex; gap:0.25rem;';
+        
+        // Over button
+        const overBtn = document.createElement('button');
+        overBtn.textContent = 'O';
+        overBtn.style.cssText = 'padding:0.3rem 0.5rem;background:#4FC3F7;color:#000;border:none;border-radius:3px;font-size:0.7rem;font-weight:600;cursor:pointer;';
+        overBtn.onclick = () => window.trackNFLTotal(homeTeam, awayTeam, book, totalLine, overPrice, 'over');
+        
+        // Under button
+        const underBtn = document.createElement('button');
+        underBtn.textContent = 'U';
+        underBtn.style.cssText = 'padding:0.3rem 0.5rem;background:#4FC3F7;color:#000;border:none;border-radius:3px;font-size:0.7rem;font-weight:600;cursor:pointer;';
+        underBtn.onclick = () => window.trackNFLTotal(homeTeam, awayTeam, book, totalLine, underPrice, 'under');
+        
+        trackCell.appendChild(overBtn);
+        trackCell.appendChild(underBtn);
+        row.appendChild(trackCell);
+      });
+    });
+  })();
+  
+  // Track NFL Team Total function
+  window.trackNFLTotal = function(homeTeam, awayTeam, book, line, odds, side) {
+    const stake = prompt('Enter stake amount ($):', '100');
+    if (!stake || isNaN(parseFloat(stake))) {
+      alert('Invalid stake amount');
+      return;
+    }
+    
+    // Parse odds (remove + or -)
+    const oddsNum = parseInt(odds.replace('+', '').replace('-', ''));
+    const oddsStr = odds.includes('-') ? `-${oddsNum}` : oddsNum.toString();
+    
+    const today = new Date().toISOString().split('T')[0];
+    
+    const bet = {
+      bet_id: 'bet_' + Date.now(),
+      timestamp: new Date().toISOString(),
+      league: 'NFL',
+      game_date: today,
+      team_home: homeTeam,
+      team_away: awayTeam,
+      player: '',
+      market_type: 'team_total',
+      side: side,
+      line: line,
+      book: book,
+      odds: oddsStr,
+      stake_dollars: parseFloat(stake).toFixed(2),
+      status: 'pending',
+      actual_result: '',
+      payout: '',
+      graded_timestamp: '',
+      model_prob: '',
+      edge_bps: ''
+    };
+    
+    const csvRow = Object.values(bet).join(',');
+    
+    const message = `Team Total Bet logged!\n\nFor now, manually add this row to data/bets/bets.csv:\n\n${csvRow}\n\nOr visit the bet tracker at /docs/tracking/ to see all bets.\n\nNote: Team totals require manual grading (auto-grading coming soon!)`;
+    alert(message);
+  };
 
   <div class="container">
     <div class="header">
@@ -2748,5 +2852,109 @@
       });
     });
   </script>
+  // Add Track buttons to NFL totals page
+  (function() {
+    const isAuthenticated = sessionStorage.getItem('betTrackingAuth') === 'true';
+    
+    if (!isAuthenticated) return;
+    
+    // Find all book lines tables
+    const tables = document.querySelectorAll('.book-lines-table');
+    
+    tables.forEach(table => {
+      // Add Track header
+      const headerRow = table.querySelector('thead tr');
+      if (headerRow && !headerRow.querySelector('.track-header')) {
+        const th = document.createElement('th');
+        th.className = 'track-header';
+        th.textContent = 'Track';
+        headerRow.appendChild(th);
+      }
+      
+      // Find parent game card to get team info
+      const gameCard = table.closest('.game-card');
+      if (!gameCard) return;
+      
+      const matchup = gameCard.querySelector('.matchup')?.textContent || '';
+      const [awayTeam, homeTeam] = matchup.split(' @ ').map(s => s.trim());
+      
+      // Add Track buttons to each book line row (skip consensus row)
+      const rows = table.querySelectorAll('tbody tr:not(.consensus-row)');
+      rows.forEach(row => {
+        if (row.querySelector('.track-cell')) return; // Already added
+        
+        const cells = row.querySelectorAll('td');
+        if (cells.length < 7) return;
+        
+        const book = cells[0].textContent.trim();
+        const totalLine = parseFloat(cells[1].textContent) || 0;
+        const overPrice = cells[2].textContent.trim();
+        const underPrice = cells[3].textContent.trim();
+        
+        // Create track cell with O/U buttons
+        const trackCell = document.createElement('td');
+        trackCell.className = 'track-cell';
+        trackCell.style.cssText = 'display:flex; gap:0.25rem;';
+        
+        // Over button
+        const overBtn = document.createElement('button');
+        overBtn.textContent = 'O';
+        overBtn.style.cssText = 'padding:0.3rem 0.5rem;background:#4FC3F7;color:#000;border:none;border-radius:3px;font-size:0.7rem;font-weight:600;cursor:pointer;';
+        overBtn.onclick = () => window.trackNFLTotal(homeTeam, awayTeam, book, totalLine, overPrice, 'over');
+        
+        // Under button
+        const underBtn = document.createElement('button');
+        underBtn.textContent = 'U';
+        underBtn.style.cssText = 'padding:0.3rem 0.5rem;background:#4FC3F7;color:#000;border:none;border-radius:3px;font-size:0.7rem;font-weight:600;cursor:pointer;';
+        underBtn.onclick = () => window.trackNFLTotal(homeTeam, awayTeam, book, totalLine, underPrice, 'under');
+        
+        trackCell.appendChild(overBtn);
+        trackCell.appendChild(underBtn);
+        row.appendChild(trackCell);
+      });
+    });
+  })();
+  
+  // Track NFL Team Total function
+  window.trackNFLTotal = function(homeTeam, awayTeam, book, line, odds, side) {
+    const stake = prompt('Enter stake amount ($):', '100');
+    if (!stake || isNaN(parseFloat(stake))) {
+      alert('Invalid stake amount');
+      return;
+    }
+    
+    // Parse odds (remove + or -)
+    const oddsNum = parseInt(odds.replace('+', '').replace('-', ''));
+    const oddsStr = odds.includes('-') ? `-${oddsNum}` : oddsNum.toString();
+    
+    const today = new Date().toISOString().split('T')[0];
+    
+    const bet = {
+      bet_id: 'bet_' + Date.now(),
+      timestamp: new Date().toISOString(),
+      league: 'NFL',
+      game_date: today,
+      team_home: homeTeam,
+      team_away: awayTeam,
+      player: '',
+      market_type: 'team_total',
+      side: side,
+      line: line,
+      book: book,
+      odds: oddsStr,
+      stake_dollars: parseFloat(stake).toFixed(2),
+      status: 'pending',
+      actual_result: '',
+      payout: '',
+      graded_timestamp: '',
+      model_prob: '',
+      edge_bps: ''
+    };
+    
+    const csvRow = Object.values(bet).join(',');
+    
+    const message = `Team Total Bet logged!\n\nFor now, manually add this row to data/bets/bets.csv:\n\n${csvRow}\n\nOr visit the bet tracker at /docs/tracking/ to see all bets.\n\nNote: Team totals require manual grading (auto-grading coming soon!)`;
+    alert(message);
+  };
 </body>
 </html>

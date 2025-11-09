@@ -259,6 +259,7 @@
             <th>Model %</th>
             <th>Edge</th>
             <th>Books</th>
+            <th id="trackHeader" style="display:none;">Track</th>
           </tr>
         </thead>
         <tbody id="propsTableBody">
@@ -10916,6 +10917,9 @@
       const visible = filtered.slice(0, state.visibleCount);
       const hasMore = filtered.length > state.visibleCount;
 
+      // Store visible props for tracking functionality
+      visibleProps = visible;
+
       // Update load more button
       if (hasMore) {
         loadMoreBtn.style.display = 'block';
@@ -10925,11 +10929,18 @@
       }
 
       // Render table
-      tbody.innerHTML = visible.map(r => {
+      const isAuthenticated = sessionStorage.getItem('betTrackingAuth') === 'true';
+
+      tbody.innerHTML = visible.map((r, idx) => {
         const modelProbNum = parseFloat((r.model_pct_disp || '').replace('%', ''));
         const isStrongSignal = modelProbNum >= 85;
         const fireEmoji = isStrongSignal ? ' 🔥' : '';
         const consensusClass = isConsensusPlay(r) ? ' consensus-row' : '';
+
+        // Track button cell (only shown if authenticated)
+        const trackCell = isAuthenticated
+          ? `<td><button onclick="trackBet(${idx})" style="padding: 0.4rem 0.75rem; background: #4FC3F7; color: #000; border: none; border-radius: 4px; font-size: 0.75rem; font-weight: 600; cursor: pointer;">Track</button></td>`
+          : '';
 
         return `
           <tr class="${consensusClass}">
@@ -10948,16 +10959,22 @@
             <td>${r.model_pct_disp}${fireEmoji}</td>
             <td>${r.edge_bps_disp}</td>
             <td>${r.book_count_disp}</td>
+            ${trackCell}
           </tr>
         `;
       }).join('');
 
       // Render mobile cards
-      cardGrid.innerHTML = visible.map(r => {
+      cardGrid.innerHTML = visible.map((r, idx) => {
         const modelProbNum = parseFloat((r.model_pct_disp || '').replace('%', ''));
         const isStrongSignal = modelProbNum >= 85;
         const fireEmoji = isStrongSignal ? ' 🔥' : '';
         const consensusClass = isConsensusPlay(r) ? ' consensus' : '';
+
+        // Track button for mobile (only shown if authenticated)
+        const trackButton = isAuthenticated
+          ? `<button onclick="trackBet(${idx})" style="width: 100%; margin-top: 0.75rem; padding: 0.6rem; background: #4FC3F7; color: #000; border: none; border-radius: 6px; font-size: 0.875rem; font-weight: 600; cursor: pointer;">Track Bet</button>`
+          : '';
 
         return `
           <div class="prop-card${consensusClass}">
@@ -10971,10 +10988,78 @@
               <div>Fair Odds</div><div>${r.fair_odds_disp}</div>
               <div>Edge</div><div>${r.edge_bps_disp} bps</div>
             </div>
+            ${trackButton}
           </div>
         `;
       }).join('');
+
+      // Show/hide track column header based on authentication
+      const trackHeader = document.getElementById('trackHeader');
+      if (trackHeader) {
+        trackHeader.style.display = isAuthenticated ? '' : 'none';
+      }
     }
+
+    // Global variable to store currently visible props for tracking
+    let visibleProps = [];
+
+    // Track Bet function
+    window.trackBet = function(idx) {
+      const prop = visibleProps[idx];
+      if (!prop) return;
+
+      // Prompt for stake amount
+      const stake = prompt('Enter stake amount ($):', '100');
+      if (!stake || isNaN(parseFloat(stake))) {
+        alert('Invalid stake amount');
+        return;
+      }
+
+      // Extract team names from game string (format: "Away Team @ Home Team")
+      const gameParts = prop.game.split(' @ ');
+      const teamAway = gameParts[0] || '';
+      const teamHome = gameParts[1] || '';
+
+      // Parse odds (remove + sign for positive odds)
+      const oddsStr = (prop.price_disp || '').replace('+', '');
+
+      // Get today's date in YYYY-MM-DD format (game_date - we'll use kick time if available)
+      const today = new Date().toISOString().split('T')[0];
+
+      // Calculate model probability and edge
+      const modelProb = (parseFloat((prop.model_prob || 0) * 100) / 100).toFixed(4);
+      const edgeBps = Math.round(prop.edge_bps || 0);
+
+      // Build bet object
+      const bet = {
+        bet_id: 'bet_' + Date.now(),
+        timestamp: new Date().toISOString(),
+        league: 'NHL',
+        game_date: today,
+        team_home: teamHome,
+        team_away: teamAway,
+        player: prop.player || '',
+        market_type: prop.market_std || '',
+        side: (prop.side || '').toLowerCase(),
+        line: prop.line_disp || '',
+        book: prop.bookmaker || '',
+        odds: oddsStr,
+        stake_dollars: parseFloat(stake).toFixed(2),
+        status: 'pending',
+        actual_result: '',
+        payout: '',
+        graded_timestamp: '',
+        model_prob: modelProb,
+        edge_bps: edgeBps
+      };
+
+      // Create CSV row
+      const csvRow = Object.values(bet).join(',');
+
+      // For now, show alert with CSV row (will be replaced with GitHub API later)
+      const message = `Bet logged! For now, manually add this row to data/bets/bets.csv:\n\n${csvRow}\n\nOr visit the bet tracker at /docs/tracking/ to see all bets.\n\nGitHub API integration coming soon!`;
+      alert(message);
+    };
 
     // Load More button handler
     document.getElementById('loadMoreBtn').addEventListener('click', () => {
