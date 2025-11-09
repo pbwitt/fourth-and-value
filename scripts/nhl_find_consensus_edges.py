@@ -169,10 +169,14 @@ def calculate_consensus(odds_df):
 
     if 'spread_line' in odds_df.columns:
         consensus.columns = ['home_team', 'away_team', 'game', 'consensus_total', 'median_total',
-                             'total_std', 'num_books', 'consensus_spread', 'commence_time']
+                             'total_std', 'num_books', 'commence_time', 'consensus_spread']
     else:
         consensus.columns = ['home_team', 'away_team', 'game', 'consensus_total', 'median_total',
                              'total_std', 'num_books', 'commence_time']
+
+    # Add abbreviation columns for easier merging
+    consensus['home_abbrev'] = consensus['home_team'].map(NHL_TEAM_ABBREV)
+    consensus['away_abbrev'] = consensus['away_team'].map(NHL_TEAM_ABBREV)
 
     return consensus
 

@@ -24,25 +24,23 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path)
     book_lines_path = consensus_path.replace('consensus.csv', 'book_lines.csv')
     book_lines = pd.read_csv(book_lines_path) if os.path.exists(book_lines_path) else pd.DataFrame()
 
-    # Merge predictions with consensus
+    # Merge predictions with consensus using abbreviations
     if len(preds) > 0 and len(consensus) > 0:
-        merge_cols = ['home_team', 'away_team']
+        merge_cols = ['home_abbrev', 'away_abbrev']
         if 'consensus_total' in consensus.columns:
             merge_cols.extend(['consensus_total', 'median_total', 'num_books'])
         if 'consensus_spread' in consensus.columns:
             merge_cols.append('consensus_spread')
 
-        merged = preds.merge(consensus[merge_cols], on=['home_team', 'away_team'], how='left')
+        # Rename abbreviation columns to match predictions (home_team, away_team)
+        consensus_for_merge = consensus[merge_cols].copy()
+        consensus_for_merge = consensus_for_merge.rename(columns={'home_abbrev': 'home_team', 'away_abbrev': 'away_team'})
+
+        merged = preds.merge(consensus_for_merge, on=['home_team', 'away_team'], how='left')
     else:
         merged = preds
 
-    # Calculate stats
-    avg_model = merged['total_pred'].mean() if len(merged) > 0 else 0
-    avg_market = merged.get('consensus_total', pd.Series([0])).mean() if 'consensus_total' in merged.columns and len(merged) > 0 else 0
-    num_games = len(merged)
-    num_edges = len(edges)
-
-    # Build game data with book lines
+    # Build game data with book lines (only include games with book lines)
     games_data = []
     if len(merged) > 0:
         for _, game in merged.iterrows():
@@ -59,6 +57,10 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path)
                 edges['game'].str.contains(game['home_team']) &
                 edges['game'].str.contains(game['away_team'])
             ].to_dict('records') if len(edges) > 0 else []
+
+            # Only include games that have book lines available
+            if len(game_books) == 0:
+                continue
 
             # Calculate model spread (home team perspective)
             model_spread = float(game['home_pred']) - float(game['away_pred'])
@@ -79,6 +81,19 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path)
                 'edge_plays': game_edges,
                 'has_edge': len(game_edges) > 0
             })
+
+    # Calculate stats from games with book lines
+    num_games = len(games_data)
+    num_edges = len(edges)
+
+    if num_games > 0:
+        avg_model = sum(g['model_total'] for g in games_data) / num_games
+        # Filter out None values for consensus_total
+        consensus_totals = [g['consensus_total'] for g in games_data if g['consensus_total'] is not None]
+        avg_market = sum(consensus_totals) / len(consensus_totals) if len(consensus_totals) > 0 else 0
+    else:
+        avg_model = 0
+        avg_market = 0
 
     games_json = json.dumps(games_data, indent=2)
 
