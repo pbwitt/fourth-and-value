@@ -47,7 +47,10 @@ def aggregate_player_stats_to_team(player_stats_df):
         'toi_seconds': 'mean',
         'plus_minus': 'mean'
     })
-    defense_agg.columns = ['_'.join(col).strip() for col in defense_agg.columns.values]
+    # Single agg functions create flat columns (strings), not tuples
+    # Add '_sum' or '_mean' suffix to match expected column names
+    defense_agg.columns = [f'{col}_sum' if col in ['goals', 'assists', 'points', 'shots', 'hits', 'blocked_shots']
+                           else f'{col}_mean' for col in defense_agg.columns]
     defense_agg = defense_agg.add_prefix('def_')
     defense_agg = defense_agg.reset_index()
 
@@ -60,7 +63,8 @@ def aggregate_player_stats_to_team(player_stats_df):
         'save_pct': 'first',
         'decision': 'first'
     })
-    goalie_agg.columns = ['_'.join(col).strip() for col in goalie_agg.columns.values]
+    # Single agg functions create flat columns (strings), not tuples
+    goalie_agg.columns = [f'{col}_first' for col in goalie_agg.columns]
     goalie_agg = goalie_agg.add_prefix('goalie_')
     goalie_agg = goalie_agg.reset_index()
 
