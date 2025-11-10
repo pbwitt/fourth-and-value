@@ -195,7 +195,7 @@ NHL_PROPS_MODEL := $(NHL_PROPS_DIR)/props_with_model_$(DATE).csv
 NHL_PAGE := $(NHL_DOCS_DIR)/index.html
 
 # Full daily pipeline
-nhl_daily: $(NHL_PAGE)
+nhl_daily: $(NHL_PAGE) nhl_totals_daily
 	@echo "===================================================================="
 	@echo "NHL daily build complete for $(DATE)"
 	@echo "===================================================================="
@@ -203,7 +203,8 @@ nhl_daily: $(NHL_PAGE)
 	@echo "✓ Stats:     $(NHL_STATS_SKATERS)"
 	@echo "✓ Consensus: $(NHL_CONSENSUS_PROPS)"
 	@echo "✓ Edges:     $(NHL_PROPS_MODEL)"
-	@echo "✓ Page:      $(NHL_PAGE)"
+	@echo "✓ Props Page: $(NHL_PAGE)"
+	@echo "✓ Totals Page: $(NHL_TOTALS_PAGE)"
 	@echo "===================================================================="
 	@echo "Running QC checks..."
 ifeq ($(LIVE),1)
@@ -222,8 +223,8 @@ ifeq ($(LIVE),1)
 	@echo "===================================================================="
 	@echo "Publishing NHL props page to production..."
 	@echo "===================================================================="
-	@git add $(NHL_PAGE) $(NHL_PROPS_MODEL) $(NHL_QC_REPORT) docs/data/bets/bets.csv || true
-	@git commit -m "NHL: Update props page for $(DATE)" || echo "No changes to commit"
+	@git add $(NHL_PAGE) $(NHL_TOTALS_PAGE) $(NHL_PROPS_MODEL) $(NHL_QC_REPORT) docs/data/bets/bets.csv || true
+	@git commit -m "NHL: Update props and totals pages for $(DATE)" || echo "No changes to commit"
 	@git push
 	@echo "✓ Published to GitHub Pages"
 else

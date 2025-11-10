@@ -24,6 +24,10 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path)
     book_lines_path = consensus_path.replace('consensus.csv', 'book_lines.csv')
     book_lines = pd.read_csv(book_lines_path) if os.path.exists(book_lines_path) else pd.DataFrame()
 
+    # Load schedule to get game dates
+    schedule_path = 'data/nhl/processed/schedule_' + datetime.now().strftime('%Y-%m-%d') + '.csv'
+    schedule = pd.read_csv(schedule_path) if os.path.exists(schedule_path) else pd.DataFrame()
+
     # Merge predictions with consensus using abbreviations
     if len(preds) > 0 and len(consensus) > 0:
         merge_cols = ['home_abbrev', 'away_abbrev']
@@ -65,10 +69,21 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path)
             # Calculate model spread (home team perspective)
             model_spread = float(game['home_pred']) - float(game['away_pred'])
 
+            # Get game date from schedule
+            game_date = None
+            if len(schedule) > 0:
+                sched_match = schedule[
+                    (schedule['home_team'] == game['home_team']) &
+                    (schedule['away_team'] == game['away_team'])
+                ]
+                if len(sched_match) > 0:
+                    game_date = sched_match.iloc[0]['game_date']
+
             games_data.append({
                 'home_team': game['home_team'],
                 'away_team': game['away_team'],
                 'matchup': game_key,
+                'game_date': game_date,
                 'model_total': float(game['total_pred']),
                 'home_pred': float(game['home_pred']),
                 'away_pred': float(game['away_pred']),
@@ -574,10 +589,13 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path)
         // Filter book lines by selected books
         const visibleBookLines = game.book_lines.filter(line => state.selectedBooks.has(line.book_name));
 
+        const gameDate = game.game_date ? new Date(game.game_date).toLocaleDateString('en-US', {{month: 'short', day: 'numeric'}}) : '';
+
         let html = `
           <div class="${{cardClass}}">
             <div class="game-header">
               <div class="matchup">${{game.matchup}}</div>
+              ${{gameDate ? `<div style="color: #888; font-size: 0.85rem;">${{gameDate}}</div>` : ''}}
             </div>
 
             <div class="totals-row">
