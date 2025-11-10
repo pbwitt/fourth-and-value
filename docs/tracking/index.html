@@ -325,6 +325,7 @@
               <th>Status</th>
               <th>Result</th>
               <th>Payout</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody id="betsTableBody">
@@ -403,11 +404,11 @@
       const tbody = document.getElementById('betsTableBody');
 
       if (betsData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="13" style="text-align:center; color:#999;">No bets logged yet</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="14" style="text-align:center; color:#999;">No bets logged yet</td></tr>';
         return;
       }
 
-      tbody.innerHTML = betsData.map(bet => `
+      tbody.innerHTML = betsData.map((bet, index) => `
         <tr>
           <td>${bet.timestamp?.split('T')[0] || '-'}</td>
           <td>${bet.league || '-'}</td>
@@ -422,6 +423,7 @@
           <td><span class="status-badge status-${bet.status || 'pending'}">${bet.status || 'pending'}</span></td>
           <td>${bet.actual_result || '-'}</td>
           <td>${bet.payout ? '$' + bet.payout : '-'}</td>
+          <td><button onclick="deleteBet('${bet.bet_id}')" style="background:#d32f2f;color:white;border:none;padding:0.3rem 0.6rem;border-radius:3px;cursor:pointer;font-size:0.8rem;">Delete</button></td>
         </tr>
       `).join('');
     }
@@ -450,6 +452,78 @@
       const plEl = document.getElementById('profitLoss');
       plEl.textContent = (profitLoss >= 0 ? '+' : '') + '$' + profitLoss.toFixed(2);
       plEl.className = 'stat-value ' + (profitLoss > 0 ? 'positive' : profitLoss < 0 ? 'negative' : '');
+    }
+
+    async function deleteBet(betId) {
+      if (!confirm('Are you sure you want to delete this bet?')) {
+        return;
+      }
+
+      const token = localStorage.getItem('github_token');
+      if (!token) {
+        alert('GitHub token not set. Cannot delete bet.');
+        return;
+      }
+
+      try {
+        // Remove bet from array
+        betsData = betsData.filter(bet => bet.bet_id !== betId);
+
+        // Convert to CSV
+        const headers = 'bet_id,timestamp,league,game_date,team_home,team_away,player,market_type,side,line,book,odds,stake_dollars,status,actual_result,payout,graded_timestamp,model_prob,edge_bps';
+        const rows = betsData.map(bet =>
+          `${bet.bet_id},${bet.timestamp},${bet.league},${bet.game_date},${bet.team_home},${bet.team_away},${bet.player},${bet.market_type},${bet.side},${bet.line},${bet.book},${bet.odds},${bet.stake_dollars},${bet.status},${bet.actual_result},${bet.payout},${bet.graded_timestamp},${bet.model_prob},${bet.edge_bps}`
+        );
+        const csvContent = headers + '\n' + rows.join('\n') + '\n';
+
+        // Update docs/data/bets/bets.csv via GitHub API
+        const owner = 'pbwitt';
+        const repo = 'fourth-and-value';
+        const filePath = 'docs/data/bets/bets.csv';
+        const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
+
+        // Get current file SHA
+        const getResponse = await fetch(apiUrl, {
+          headers: {
+            'Authorization': `token ${token}`,
+            'Accept': 'application/vnd.github.v3+json'
+          }
+        });
+
+        if (!getResponse.ok) {
+          throw new Error(`Failed to fetch file: ${getResponse.statusText}`);
+        }
+
+        const fileData = await getResponse.json();
+
+        // Update file
+        const updateResponse = await fetch(apiUrl, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `token ${token}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            message: `Delete bet: ${betId}`,
+            content: btoa(csvContent),
+            sha: fileData.sha
+          })
+        });
+
+        if (!updateResponse.ok) {
+          const errorData = await updateResponse.json();
+          throw new Error(errorData.message || updateResponse.statusText);
+        }
+
+        alert('Bet deleted successfully!');
+
+        // Reload bets
+        loadBets();
+      } catch (error) {
+        console.error('Error deleting bet:', error);
+        alert(`Error deleting bet: ${error.message}`);
+      }
     }
 
     function addBet() {
