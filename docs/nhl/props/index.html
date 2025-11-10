@@ -6089,5 +6089,109 @@
     renderTable();
   </script>
   <script src="../../nav.js?v=29"></script>
+  <script src="../../tracking/github-api.js"></script>
+  <script>
+  // Add Track column to NHL props page
+  document.addEventListener('DOMContentLoaded', function() {
+    const isAuthenticated = sessionStorage.getItem('betTrackingAuth') === 'true';
+    if (!isAuthenticated) return;
+
+    const propsTable = document.querySelector('.props-table');
+    if (!propsTable) return;
+
+    // Add Track header
+    const headerRow = propsTable.querySelector('thead tr');
+    if (headerRow && !headerRow.querySelector('.track-header')) {
+      const th = document.createElement('th');
+      th.className = 'track-header';
+      th.textContent = 'Track';
+      headerRow.appendChild(th);
+    }
+
+    // Add Track buttons to each prop row
+    const rows = propsTable.querySelectorAll('tbody tr');
+    rows.forEach(row => {
+      if (row.querySelector('.track-cell')) return;
+
+      const cells = row.querySelectorAll('td');
+      if (cells.length < 8) return;
+
+      const game = cells[0].textContent.trim();
+      const player = cells[1].textContent.trim();
+      const market = cells[2].textContent.trim();
+      const line = parseFloat(cells[3].textContent) || 0;
+      const overBook = cells[4].textContent.trim();
+      const overPrice = cells[5].textContent.trim();
+      const underBook = cells[6].textContent.trim();
+      const underPrice = cells[7].textContent.trim();
+
+      const [awayTeam, homeTeam] = game.includes('@') ? game.split('@').map(s => s.trim()) : [game, game];
+
+      const trackCell = document.createElement('td');
+      trackCell.className = 'track-cell';
+      trackCell.style.cssText = 'display:flex; gap:0.25rem;';
+
+      // Over button
+      if (overBook !== '-' && overPrice !== '-') {
+        const overBtn = document.createElement('button');
+        overBtn.textContent = 'O';
+        overBtn.style.cssText = 'padding:0.3rem 0.5rem;background:#4FC3F7;color:#000;border:none;border-radius:3px;font-size:0.7rem;font-weight:600;cursor:pointer;';
+        overBtn.onclick = () => window.trackNHLProp(homeTeam, awayTeam, player, market, line, overBook, overPrice, 'over');
+        trackCell.appendChild(overBtn);
+      }
+
+      // Under button
+      if (underBook !== '-' && underPrice !== '-') {
+        const underBtn = document.createElement('button');
+        underBtn.textContent = 'U';
+        underBtn.style.cssText = 'padding:0.3rem 0.5rem;background:#4FC3F7;color:#000;border:none;border-radius:3px;font-size:0.7rem;font-weight:600;cursor:pointer;';
+        underBtn.onclick = () => window.trackNHLProp(homeTeam, awayTeam, player, market, line, underBook, underPrice, 'under');
+        trackCell.appendChild(underBtn);
+      }
+
+      row.appendChild(trackCell);
+    });
+  });
+
+  window.trackNHLProp = function(homeTeam, awayTeam, player, market, line, book, odds, side) {
+    const stake = prompt('Enter stake amount ($):', '100');
+    if (!stake || isNaN(parseFloat(stake))) {
+      alert('Invalid stake amount');
+      return;
+    }
+
+    const oddsNum = parseInt(odds.replace('+', '').replace('-', ''));
+    const oddsStr = odds.includes('-') ? `-${oddsNum}` : oddsNum.toString();
+    const today = new Date().toISOString().split('T')[0];
+
+    const bet = {
+      bet_id: 'bet_' + Date.now(),
+      timestamp: new Date().toISOString(),
+      league: 'NHL',
+      game_date: today,
+      team_home: homeTeam,
+      team_away: awayTeam,
+      player: player,
+      market_type: market,
+      side: side,
+      line: line,
+      book: book,
+      odds: oddsStr,
+      stake_dollars: parseFloat(stake).toFixed(2),
+      status: 'pending',
+      actual_result: '',
+      payout: '',
+      graded_timestamp: '',
+      model_prob: '',
+      edge_bps: ''
+    };
+
+    if (window.autoTrackBet) {
+      autoTrackBet(bet);
+    } else {
+      alert('Error: Auto-tracking unavailable. Please refresh the page and try again.');
+    }
+  };
+  </script>
 </body>
 </html>
