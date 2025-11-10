@@ -151,7 +151,7 @@ def main():
 
     # Paths
     repo_root = Path(__file__).parent.parent
-    bets_csv = repo_root / 'data' / 'bets' / 'bets.csv'
+    bets_csv = repo_root / 'docs' / 'data' / 'bets' / 'bets.csv'
     nfl_data_dir = repo_root / 'data' / 'weekly'
 
     print("=" * 70)
@@ -239,16 +239,21 @@ def main():
     print(f"📈 Grading Summary: {graded_count} bets graded")
     print("=" * 70)
 
-    # Write updated bets back to CSV
+    # Write updated bets back to CSV (both locations)
     if graded_count > 0 and not args.dry_run:
         fieldnames = list(bets[0].keys())
 
-        with open(bets_csv, 'w', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(bets)
+        # Write to both docs/data/bets/bets.csv and data/bets/bets.csv
+        bets_csv_backup = repo_root / 'data' / 'bets' / 'bets.csv'
+
+        for csv_path in [bets_csv, bets_csv_backup]:
+            with open(csv_path, 'w', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(bets)
 
         print(f"✓ Updated bets written to {bets_csv}")
+        print(f"✓ Updated bets written to {bets_csv_backup}")
     elif args.dry_run:
         print("🔍 DRY RUN - No changes written")
     else:
