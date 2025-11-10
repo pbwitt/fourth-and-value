@@ -33,6 +33,20 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
         merged['edge'] = merged['total_pred'] - merged['consensus_total']
         # Calculate model spread (home team perspective)
         merged['model_spread'] = merged['home_pred'] - merged['away_pred']
+    elif len(consensus) > 0:
+        # No predictions - use consensus as base
+        totals_consensus = consensus[consensus['market'] == 'total'][['game', 'home_team', 'away_team', 'consensus_line', 'num_books']].copy()
+        totals_consensus = totals_consensus.rename(columns={'consensus_line': 'consensus_total', 'num_books': 'num_books_total'})
+        spread_consensus = consensus[consensus['market'] == 'spread'][['game', 'consensus_line', 'num_books']]
+
+        merged = totals_consensus.merge(spread_consensus.rename(columns={'consensus_line': 'consensus_spread', 'num_books': 'num_books_spread'}),
+                                       on='game', how='left')
+        # Add empty prediction columns
+        merged['home_pred'] = None
+        merged['away_pred'] = None
+        merged['total_pred'] = None
+        merged['model_spread'] = None
+        merged['edge'] = None
     else:
         merged = preds
         if len(merged) > 0:
@@ -408,6 +422,9 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
         </div>
 
         <div class="totals-row">
+"""
+            if 'total_pred' in game and not pd.isna(game['total_pred']):
+                html += f"""
           <div class="total-item">
             <div class="total-label">Model Prediction</div>
             <div class="total-value model">{game['total_pred']:.1f}</div>
