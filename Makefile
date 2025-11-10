@@ -222,7 +222,7 @@ ifeq ($(LIVE),1)
 	@echo "===================================================================="
 	@echo "Publishing NHL props page to production..."
 	@echo "===================================================================="
-	@git add $(NHL_PAGE) $(NHL_PROPS_MODEL) $(NHL_QC_REPORT) data/bets/bets.csv || true
+	@git add $(NHL_PAGE) $(NHL_PROPS_MODEL) $(NHL_QC_REPORT) docs/data/bets/bets.csv || true
 	@git commit -m "NHL: Update props page for $(DATE)" || echo "No changes to commit"
 	@git push
 	@echo "✓ Published to GitHub Pages"
