@@ -69,25 +69,99 @@ def calculate_payout(stake, odds, won):
         return stake * decimal_odds
 
 
-def grade_bet(bet_row, stats_df):
+def grade_bet(bet_row, stats_df=None, scores_df=None):
     """
-    Grade a single bet against actual player stats.
+    Grade a single bet against actual player stats or game totals.
 
     Args:
         bet_row: Dictionary containing bet data
-        stats_df: DataFrame of player stats for the game date
+        stats_df: DataFrame of player stats for the game date (optional, for player props)
+        scores_df: DataFrame of game scores (optional, for game totals)
 
     Returns:
         Updated bet_row dictionary, or None if cannot grade yet
     """
-    player_name = bet_row['player']
     market = bet_row['market_type']
     side = bet_row['side'].lower()
     line = float(bet_row['line'])
 
+    # Handle game totals
+    if market == 'team_total':
+        if scores_df is None:
+            print(f"  ⚠️  No scores data provided for game total bet")
+            return None
+
+        team_home = bet_row['team_home']
+        team_away = bet_row['team_away']
+
+        # Find game in scores
+        game_scores = scores_df[
+            ((scores_df['home_team'] == team_home) & (scores_df['away_team'] == team_away)) |
+            ((scores_df['home_team'] == team_away) & (scores_df['away_team'] == team_home))
+        ]
+
+        if len(game_scores) == 0:
+            print(f"  ⚠️  Game {team_home} vs {team_away} not found in scores")
+            return None
+
+        if not game_scores.iloc[0]['completed']:
+            print(f"  ⚠️  Game {team_home} vs {team_away} not completed yet")
+            return None
+
+        # Get combined score (game total)
+        game_row = game_scores.iloc[0]
+        home_score = float(game_row['home_score'])
+        away_score = float(game_row['away_score'])
+        actual_value = home_score + away_score
+
+        # Determine won/lost/push
+        won = None  # None = push
+        if side == 'over':
+            if actual_value > line:
+                won = True
+            elif actual_value < line:
+                won = False
+        elif side == 'under':
+            if actual_value < line:
+                won = True
+            elif actual_value > line:
+                won = False
+        else:
+            print(f"  ⚠️  Unknown side: {side}")
+            return None
+
+        # Calculate payout
+        payout = calculate_payout(bet_row['stake_dollars'], bet_row['odds'], won)
+
+        # Determine status
+        if won is None:
+            status = 'push'
+        elif won:
+            status = 'won'
+        else:
+            status = 'lost'
+
+        # Update bet row
+        bet_row['status'] = status
+        bet_row['actual_result'] = str(actual_value)
+        bet_row['payout'] = f"{payout:.2f}"
+        bet_row['graded_timestamp'] = datetime.now().isoformat()
+
+        result_str = f"{'WON' if won else 'LOST' if won is False else 'PUSH'}"
+        print(f"  ✓ {team_away} @ {team_home} total {side} {line}: {actual_value} → {result_str} (${payout:.2f})")
+
+        return bet_row
+
+    # Handle player props
+    player_name = bet_row['player']
+
     # Check if market is supported
     if market not in MARKET_MAP:
         print(f"  ⚠️  Unsupported market type: {market}")
+        return None
+
+    if stats_df is None:
+        print(f"  ⚠️  No stats data provided for player prop bet")
         return None
 
     stat_col = MARKET_MAP[market]
@@ -187,43 +261,86 @@ def main():
 
     print(f"📅 Checking game dates: {', '.join(check_dates[:3])}...")
 
+    # Load scores once for all team totals
+    scores_file = repo_root / 'data' / 'nfl' / 'scores' / 'scores_latest.csv'
+    all_scores_df = None
+    if scores_file.exists():
+        try:
+            all_scores_df = pd.read_csv(scores_file)
+            print(f"✓ Loaded {len(all_scores_df)} game scores")
+        except Exception as e:
+            print(f"⚠️  Error reading scores: {e}")
+    else:
+        print(f"⚠️  Scores file not found: {scores_file}")
+
     # Grade bets
     graded_count = 0
     for bet in pending_nfl_bets:
         game_date = bet['game_date']
 
-        # Skip if game hasn't happened yet
-        if game_date not in check_dates:
-            continue
-
         print(f"\n🎲 Grading bet {bet['bet_id']}:")
-        print(f"   {bet['player']} {bet['market_type']} {bet['side']} {bet['line']} @ {bet['book']}")
+        player_display = bet.get('player', '')
+        print(f"   {player_display} {bet['market_type']} {bet['side']} {bet['line']} @ {bet['book']}")
 
-        # Try to find stats file for this game date
-        # NFL stats are in weekly files, so we need to find the right week
-        # For now, try common locations
-        possible_stats_files = [
-            nfl_data_dir / f"logs_{game_date}.parquet",
-            nfl_data_dir / "logs_latest.parquet",
-        ]
-
+        # Load data based on bet type
         stats_df = None
-        for stats_file in possible_stats_files:
-            if stats_file.exists():
-                try:
-                    stats_df = pd.read_parquet(stats_file)
-                    break
-                except Exception as e:
-                    print(f"  ⚠️  Error reading {stats_file}: {e}")
-                    continue
+        scores_df = None
 
-        if stats_df is None:
-            print(f"  ⚠️  Stats not available yet for {game_date}")
-            continue
+        if bet['market_type'] == 'team_total':
+            # Team totals need scores, not player stats
+            # Check if this game has a score available (by team matchup, not date)
+            if all_scores_df is None:
+                print(f"  ⚠️  Scores not available")
+                continue
+
+            team_home = bet['team_home']
+            team_away = bet['team_away']
+
+            print(f"  Looking for: {team_away} @ {team_home}")
+
+            # Find game in scores by teams
+            game_match = all_scores_df[
+                ((all_scores_df['home_team'] == team_home) & (all_scores_df['away_team'] == team_away)) |
+                ((all_scores_df['home_team'] == team_away) & (all_scores_df['away_team'] == team_home))
+            ]
+
+            print(f"  Found {len(game_match)} matching games")
+
+            if len(game_match) == 0:
+                print(f"  ⚠️  Game {team_away} @ {team_home} not found in scores")
+                print(f"  Available teams in scores:")
+                for _, row in all_scores_df.head(5).iterrows():
+                    print(f"    {row['away_team']} @ {row['home_team']}")
+                continue
+
+            if not game_match.iloc[0]['completed']:
+                print(f"  ⚠️  Game {team_away} @ {team_home} not completed yet")
+                continue
+
+            scores_df = all_scores_df
+        else:
+            # Player props need player stats
+            possible_stats_files = [
+                nfl_data_dir / f"logs_{game_date}.parquet",
+                nfl_data_dir / "logs_latest.parquet",
+            ]
+
+            for stats_file in possible_stats_files:
+                if stats_file.exists():
+                    try:
+                        stats_df = pd.read_parquet(stats_file)
+                        break
+                    except Exception as e:
+                        print(f"  ⚠️  Error reading {stats_file}: {e}")
+                        continue
+
+            if stats_df is None:
+                print(f"  ⚠️  Stats not available yet for {game_date}")
+                continue
 
         try:
             # Grade the bet
-            updated_bet = grade_bet(bet, stats_df)
+            updated_bet = grade_bet(bet, stats_df=stats_df, scores_df=scores_df)
 
             if updated_bet:
                 # Update in main list
