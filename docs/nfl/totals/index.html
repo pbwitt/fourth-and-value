@@ -278,6 +278,7 @@
 <body>
   <div id="nav-root"></div>
   <script src="../../nav.js?v=32"></script>
+  <script src="../tracking/github-api.js"></script>
   <script>
   // Add Track buttons to NFL totals page
   document.addEventListener('DOMContentLoaded', function() {
@@ -381,13 +382,11 @@
     const csvRow = Object.values(bet).join(',');
     
     // Auto-track bet via GitHub API
-      if (window.autoTrackBet) {
-        autoTrackBet(bet);
-      } else {
-        const csvRow = Object.values(bet).join(",");
-        alert(`Bet logged! Manually add to data/bets/bets.csv:\n\n${csvRow}`);
-      }
-    // Replaced with autoTrackBet
+    if (window.autoTrackBet) {
+      autoTrackBet(bet);
+    } else {
+      alert('Error: Auto-tracking unavailable. Please refresh the page and try again.');
+    }
   };
   </script>
 
@@ -2860,6 +2859,5 @@
       });
     });
   </script>
-  <script src="../tracking/github-api.js"></script>
 </body>
 </html>
