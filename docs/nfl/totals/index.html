@@ -277,118 +277,7 @@
 </head>
 <body>
   <div id="nav-root"></div>
-  <script src="../../nav.js?v=32"></script>
-  <script src="../../tracking/github-api.js"></script>
-  <script>
-  // Add Track buttons to NFL totals page
-  document.addEventListener('DOMContentLoaded', function() {
-    const isAuthenticated = sessionStorage.getItem('betTrackingAuth') === 'true';
-
-    if (!isAuthenticated) return;
-
-    // Find all book lines tables
-    const tables = document.querySelectorAll('.book-lines-table');
-    
-    tables.forEach(table => {
-      // Add Track header
-      const headerRow = table.querySelector('thead tr');
-      if (headerRow && !headerRow.querySelector('.track-header')) {
-        const th = document.createElement('th');
-        th.className = 'track-header';
-        th.textContent = 'Track';
-        headerRow.appendChild(th);
-      }
-      
-      // Find parent game card to get team info
-      const gameCard = table.closest('.game-card');
-      if (!gameCard) return;
-      
-      const matchup = gameCard.querySelector('.matchup')?.textContent || '';
-      const [awayTeam, homeTeam] = matchup.split(' @ ').map(s => s.trim());
-      
-      // Add Track buttons to each book line row (skip consensus row)
-      const rows = table.querySelectorAll('tbody tr:not(.consensus-row)');
-      rows.forEach(row => {
-        if (row.querySelector('.track-cell')) return; // Already added
-        
-        const cells = row.querySelectorAll('td');
-        if (cells.length < 7) return;
-        
-        const book = cells[0].textContent.trim();
-        const totalLine = parseFloat(cells[1].textContent) || 0;
-        const overPrice = cells[2].textContent.trim();
-        const underPrice = cells[3].textContent.trim();
-        
-        // Create track cell with O/U buttons
-        const trackCell = document.createElement('td');
-        trackCell.className = 'track-cell';
-        trackCell.style.cssText = 'display:flex; gap:0.25rem;';
-        
-        // Over button
-        const overBtn = document.createElement('button');
-        overBtn.textContent = 'O';
-        overBtn.style.cssText = 'padding:0.3rem 0.5rem;background:#4FC3F7;color:#000;border:none;border-radius:3px;font-size:0.7rem;font-weight:600;cursor:pointer;';
-        overBtn.onclick = () => window.trackNFLTotal(homeTeam, awayTeam, book, totalLine, overPrice, 'over');
-        
-        // Under button
-        const underBtn = document.createElement('button');
-        underBtn.textContent = 'U';
-        underBtn.style.cssText = 'padding:0.3rem 0.5rem;background:#4FC3F7;color:#000;border:none;border-radius:3px;font-size:0.7rem;font-weight:600;cursor:pointer;';
-        underBtn.onclick = () => window.trackNFLTotal(homeTeam, awayTeam, book, totalLine, underPrice, 'under');
-        
-        trackCell.appendChild(overBtn);
-        trackCell.appendChild(underBtn);
-        row.appendChild(trackCell);
-      });
-    });
-  });
-
-  // Track NFL Team Total function
-  window.trackNFLTotal = function(homeTeam, awayTeam, book, line, odds, side) {
-    const stake = prompt('Enter stake amount ($):', '100');
-    if (!stake || isNaN(parseFloat(stake))) {
-      alert('Invalid stake amount');
-      return;
-    }
-    
-    // Parse odds (remove + or -)
-    const oddsNum = parseInt(odds.replace('+', '').replace('-', ''));
-    const oddsStr = odds.includes('-') ? `-${oddsNum}` : oddsNum.toString();
-    
-    const today = new Date().toISOString().split('T')[0];
-    
-    const bet = {
-      bet_id: 'bet_' + Date.now(),
-      timestamp: new Date().toISOString(),
-      league: 'NFL',
-      game_date: today,
-      team_home: homeTeam,
-      team_away: awayTeam,
-      player: '',
-      market_type: 'team_total',
-      side: side,
-      line: line,
-      book: book,
-      odds: oddsStr,
-      stake_dollars: parseFloat(stake).toFixed(2),
-      status: 'pending',
-      actual_result: '',
-      payout: '',
-      graded_timestamp: '',
-      model_prob: '',
-      edge_bps: ''
-    };
-    
-    const csvRow = Object.values(bet).join(',');
-    
-    // Auto-track bet via GitHub API
-    if (window.autoTrackBet) {
-      autoTrackBet(bet);
-    } else {
-      alert('Error: Auto-tracking unavailable. Please refresh the page and try again.');
-    }
-  };
-  </script>
+  <script src="../../nav.js?v=30"></script>
 
   <div class="container">
     <div class="header">
@@ -420,7 +309,7 @@
       </div>
       <div class="stat-card">
         <div class="stat-label">Avg Market Total</div>
-        <div class="stat-value">45.3</div>
+        <div class="stat-value">45.5</div>
       </div>
     </div>
 
@@ -474,165 +363,10 @@
           </div>
 
           <div class="total-item">
-            <div class="total-label">Market Total</div>
-            <div class="total-value market">38.5</div>
-          </div>
-
-          <div class="total-item">
             <div class="total-label">Model Spread</div>
             <div class="total-value model">CAR +4.4</div>
           </div>
 
-          <div class="total-item">
-            <div class="total-label">Market Spread</div>
-            <div class="total-value market">CAR -5.5</div>
-          </div>
-
-          <div class="total-item">
-            <div class="total-label">Model Edge</div>
-            <div class="total-value ">+2.1</div>
-          </div>
-
-        </div>
-
-        <div class="book-lines">
-          <h4>📊 All Book Lines</h4>
-          <table class="book-lines-table">
-            <thead>
-              <tr>
-                <th>Book</th>
-                <th>Total</th>
-                <th>Over</th>
-                <th>Under</th>
-                <th>Spread</th>
-                <th>Fav</th>
-                <th>Dog</th>
-              </tr>
-            </thead>
-            <tbody>
-
-              <tr class="consensus-row">
-                <td><strong>CONSENSUS</strong></td>
-                <td>38.5</td>
-                <td>-</td>
-                <td>-</td>
-                <td>CAR -5.5</td>
-                <td>-</td>
-                <td>-</td>
-              </tr>
-
-              <tr>
-                <td>draftkings</td>
-                <td>38.5</td>
-                <td>-108</td>
-                <td>-112</td>
-                <td>CAR -5.5</td>
-                <td>-105</td>
-                <td>-115</td>
-              </tr>
-
-              <tr>
-                <td>betmgm</td>
-                <td>38.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>CAR -5.5</td>
-                <td>-105</td>
-                <td>-115</td>
-              </tr>
-
-              <tr>
-                <td>betus</td>
-                <td>38.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>CAR -5.5</td>
-                <td>-105</td>
-                <td>-115</td>
-              </tr>
-
-              <tr>
-                <td>williamhill_us</td>
-                <td>38.5</td>
-                <td>+100</td>
-                <td>-120</td>
-                <td>CAR -5.0</td>
-                <td>-110</td>
-                <td>-109</td>
-              </tr>
-
-              <tr>
-                <td>fanduel</td>
-                <td>38.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>CAR -5.5</td>
-                <td>-105</td>
-                <td>-115</td>
-              </tr>
-
-              <tr>
-                <td>mybookieag</td>
-                <td>38.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>CAR -5.5</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>lowvig</td>
-                <td>38.0</td>
-                <td>-113</td>
-                <td>-102</td>
-                <td>CAR -5.5</td>
-                <td>+101</td>
-                <td>-112</td>
-              </tr>
-
-              <tr>
-                <td>betonlineag</td>
-                <td>38.0</td>
-                <td>-115</td>
-                <td>-105</td>
-                <td>CAR -5.5</td>
-                <td>-104</td>
-                <td>-116</td>
-              </tr>
-
-              <tr>
-                <td>betrivers</td>
-                <td>38.5</td>
-                <td>-112</td>
-                <td>-114</td>
-                <td>CAR -5.0</td>
-                <td>-112</td>
-                <td>-114</td>
-              </tr>
-
-              <tr>
-                <td>fanatics</td>
-                <td>38.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>CAR -5.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>bovada</td>
-                <td>38.5</td>
-                <td>-105</td>
-                <td>-115</td>
-                <td>CAR -5.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-            </tbody>
-          </table>
         </div>
 
       </div>
@@ -657,165 +391,10 @@
           </div>
 
           <div class="total-item">
-            <div class="total-label">Market Total</div>
-            <div class="total-value market">46.5</div>
-          </div>
-
-          <div class="total-item">
             <div class="total-label">Model Spread</div>
             <div class="total-value model">CHI +1.7</div>
           </div>
 
-          <div class="total-item">
-            <div class="total-label">Market Spread</div>
-            <div class="total-value market">CHI -4.5</div>
-          </div>
-
-          <div class="total-item">
-            <div class="total-label">Model Edge</div>
-            <div class="total-value edge">-5.9</div>
-          </div>
-
-        </div>
-
-        <div class="book-lines">
-          <h4>📊 All Book Lines</h4>
-          <table class="book-lines-table">
-            <thead>
-              <tr>
-                <th>Book</th>
-                <th>Total</th>
-                <th>Over</th>
-                <th>Under</th>
-                <th>Spread</th>
-                <th>Fav</th>
-                <th>Dog</th>
-              </tr>
-            </thead>
-            <tbody>
-
-              <tr class="consensus-row">
-                <td><strong>CONSENSUS</strong></td>
-                <td>46.5</td>
-                <td>-</td>
-                <td>-</td>
-                <td>CHI -4.5</td>
-                <td>-</td>
-                <td>-</td>
-              </tr>
-
-              <tr>
-                <td>draftkings</td>
-                <td>46.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>CHI -4.5</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>williamhill_us</td>
-                <td>46.5</td>
-                <td>-102</td>
-                <td>-115</td>
-                <td>CHI -4.5</td>
-                <td>-109</td>
-                <td>-112</td>
-              </tr>
-
-              <tr>
-                <td>fanduel</td>
-                <td>46.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>CHI -4.5</td>
-                <td>-105</td>
-                <td>-115</td>
-              </tr>
-
-              <tr>
-                <td>mybookieag</td>
-                <td>46.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>CHI -4.5</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>lowvig</td>
-                <td>46.5</td>
-                <td>-105</td>
-                <td>-109</td>
-                <td>CHI -4.5</td>
-                <td>-105</td>
-                <td>-105</td>
-              </tr>
-
-              <tr>
-                <td>betonlineag</td>
-                <td>46.5</td>
-                <td>-108</td>
-                <td>-112</td>
-                <td>CHI -4.5</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>betus</td>
-                <td>46.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>CHI -4.5</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>betrivers</td>
-                <td>47.0</td>
-                <td>-109</td>
-                <td>-117</td>
-                <td>CHI -4.5</td>
-                <td>-113</td>
-                <td>-112</td>
-              </tr>
-
-              <tr>
-                <td>fanatics</td>
-                <td>46.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>CHI -4.5</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>betmgm</td>
-                <td>46.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>CHI -4.5</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>bovada</td>
-                <td>46.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>CHI -4.5</td>
-                <td>-105</td>
-                <td>-115</td>
-              </tr>
-
-            </tbody>
-          </table>
         </div>
 
       </div>
@@ -840,165 +419,10 @@
           </div>
 
           <div class="total-item">
-            <div class="total-label">Market Total</div>
-            <div class="total-value market">37.5</div>
-          </div>
-
-          <div class="total-item">
             <div class="total-label">Model Spread</div>
             <div class="total-value model">HOU +0.9</div>
           </div>
 
-          <div class="total-item">
-            <div class="total-label">Market Spread</div>
-            <div class="total-value market">HOU +1.0</div>
-          </div>
-
-          <div class="total-item">
-            <div class="total-label">Model Edge</div>
-            <div class="total-value edge">+7.5</div>
-          </div>
-
-        </div>
-
-        <div class="book-lines">
-          <h4>📊 All Book Lines</h4>
-          <table class="book-lines-table">
-            <thead>
-              <tr>
-                <th>Book</th>
-                <th>Total</th>
-                <th>Over</th>
-                <th>Under</th>
-                <th>Spread</th>
-                <th>Fav</th>
-                <th>Dog</th>
-              </tr>
-            </thead>
-            <tbody>
-
-              <tr class="consensus-row">
-                <td><strong>CONSENSUS</strong></td>
-                <td>37.5</td>
-                <td>-</td>
-                <td>-</td>
-                <td>HOU +1.0</td>
-                <td>-</td>
-                <td>-</td>
-              </tr>
-
-              <tr>
-                <td>draftkings</td>
-                <td>37.5</td>
-                <td>-108</td>
-                <td>-112</td>
-                <td>HOU +1.5</td>
-                <td>-120</td>
-                <td>+100</td>
-              </tr>
-
-              <tr>
-                <td>betmgm</td>
-                <td>37.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>HOU +1.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>williamhill_us</td>
-                <td>37.5</td>
-                <td>-112</td>
-                <td>-109</td>
-                <td>HOU +1.0</td>
-                <td>-120</td>
-                <td>-102</td>
-              </tr>
-
-              <tr>
-                <td>fanduel</td>
-                <td>37.5</td>
-                <td>-105</td>
-                <td>-115</td>
-                <td>HOU +1.5</td>
-                <td>-120</td>
-                <td>-102</td>
-              </tr>
-
-              <tr>
-                <td>mybookieag</td>
-                <td>37.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>HOU +1.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>lowvig</td>
-                <td>37.5</td>
-                <td>-102</td>
-                <td>-113</td>
-                <td>HOU +1.0</td>
-                <td>-112</td>
-                <td>+101</td>
-              </tr>
-
-              <tr>
-                <td>betonlineag</td>
-                <td>37.5</td>
-                <td>-105</td>
-                <td>-115</td>
-                <td>HOU +1.0</td>
-                <td>-116</td>
-                <td>-104</td>
-              </tr>
-
-              <tr>
-                <td>betus</td>
-                <td>37.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>HOU +0.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>betrivers</td>
-                <td>37.5</td>
-                <td>-112</td>
-                <td>-113</td>
-                <td>HOU +0.5</td>
-                <td>-112</td>
-                <td>-114</td>
-              </tr>
-
-              <tr>
-                <td>fanatics</td>
-                <td>37.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>HOU +0.5</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>bovada</td>
-                <td>37.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>HOU -1.0</td>
-                <td>-105</td>
-                <td>-115</td>
-              </tr>
-
-            </tbody>
-          </table>
         </div>
 
       </div>
@@ -1023,165 +447,10 @@
           </div>
 
           <div class="total-item">
-            <div class="total-label">Market Total</div>
-            <div class="total-value market">48.0</div>
-          </div>
-
-          <div class="total-item">
             <div class="total-label">Model Spread</div>
             <div class="total-value model">IND +1.0</div>
           </div>
 
-          <div class="total-item">
-            <div class="total-label">Market Spread</div>
-            <div class="total-value market">IND -6.5</div>
-          </div>
-
-          <div class="total-item">
-            <div class="total-label">Model Edge</div>
-            <div class="total-value edge">-3.5</div>
-          </div>
-
-        </div>
-
-        <div class="book-lines">
-          <h4>📊 All Book Lines</h4>
-          <table class="book-lines-table">
-            <thead>
-              <tr>
-                <th>Book</th>
-                <th>Total</th>
-                <th>Over</th>
-                <th>Under</th>
-                <th>Spread</th>
-                <th>Fav</th>
-                <th>Dog</th>
-              </tr>
-            </thead>
-            <tbody>
-
-              <tr class="consensus-row">
-                <td><strong>CONSENSUS</strong></td>
-                <td>48.0</td>
-                <td>-</td>
-                <td>-</td>
-                <td>IND -6.5</td>
-                <td>-</td>
-                <td>-</td>
-              </tr>
-
-              <tr>
-                <td>draftkings</td>
-                <td>48.5</td>
-                <td>-108</td>
-                <td>-112</td>
-                <td>IND -6.5</td>
-                <td>-108</td>
-                <td>-112</td>
-              </tr>
-
-              <tr>
-                <td>fanduel</td>
-                <td>48.5</td>
-                <td>-104</td>
-                <td>-118</td>
-                <td>IND -6.5</td>
-                <td>-106</td>
-                <td>-114</td>
-              </tr>
-
-              <tr>
-                <td>mybookieag</td>
-                <td>48.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>IND -6.0</td>
-                <td>-115</td>
-                <td>-105</td>
-              </tr>
-
-              <tr>
-                <td>williamhill_us</td>
-                <td>48.0</td>
-                <td>-113</td>
-                <td>-107</td>
-                <td>IND -6.5</td>
-                <td>-109</td>
-                <td>-112</td>
-              </tr>
-
-              <tr>
-                <td>bovada</td>
-                <td>48.5</td>
-                <td>-105</td>
-                <td>-115</td>
-                <td>IND -6.0</td>
-                <td>-115</td>
-                <td>-105</td>
-              </tr>
-
-              <tr>
-                <td>lowvig</td>
-                <td>48.0</td>
-                <td>-107</td>
-                <td>-107</td>
-                <td>IND -6.5</td>
-                <td>-103</td>
-                <td>-107</td>
-              </tr>
-
-              <tr>
-                <td>betonlineag</td>
-                <td>48.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>IND -6.5</td>
-                <td>-108</td>
-                <td>-112</td>
-              </tr>
-
-              <tr>
-                <td>betus</td>
-                <td>48.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>IND -6.5</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>betrivers</td>
-                <td>48.0</td>
-                <td>-115</td>
-                <td>-110</td>
-                <td>IND -6.5</td>
-                <td>-110</td>
-                <td>-115</td>
-              </tr>
-
-              <tr>
-                <td>betmgm</td>
-                <td>48.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>IND -6.5</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>fanatics</td>
-                <td>48.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>IND -6.5</td>
-                <td>-105</td>
-                <td>-115</td>
-              </tr>
-
-            </tbody>
-          </table>
         </div>
 
       </div>
@@ -1206,165 +475,10 @@
           </div>
 
           <div class="total-item">
-            <div class="total-label">Market Total</div>
-            <div class="total-value market">44.5</div>
-          </div>
-
-          <div class="total-item">
             <div class="total-label">Model Spread</div>
             <div class="total-value model">LAC +7.8</div>
           </div>
 
-          <div class="total-item">
-            <div class="total-label">Market Spread</div>
-            <div class="total-value market">LAC -2.5</div>
-          </div>
-
-          <div class="total-item">
-            <div class="total-label">Model Edge</div>
-            <div class="total-value ">+1.1</div>
-          </div>
-
-        </div>
-
-        <div class="book-lines">
-          <h4>📊 All Book Lines</h4>
-          <table class="book-lines-table">
-            <thead>
-              <tr>
-                <th>Book</th>
-                <th>Total</th>
-                <th>Over</th>
-                <th>Under</th>
-                <th>Spread</th>
-                <th>Fav</th>
-                <th>Dog</th>
-              </tr>
-            </thead>
-            <tbody>
-
-              <tr class="consensus-row">
-                <td><strong>CONSENSUS</strong></td>
-                <td>44.5</td>
-                <td>-</td>
-                <td>-</td>
-                <td>LAC -2.5</td>
-                <td>-</td>
-                <td>-</td>
-              </tr>
-
-              <tr>
-                <td>draftkings</td>
-                <td>45.5</td>
-                <td>-105</td>
-                <td>-115</td>
-                <td>LAC -3.0</td>
-                <td>-105</td>
-                <td>-115</td>
-              </tr>
-
-              <tr>
-                <td>betus</td>
-                <td>44.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>LAC -2.5</td>
-                <td>-120</td>
-                <td>+100</td>
-              </tr>
-
-              <tr>
-                <td>williamhill_us</td>
-                <td>44.5</td>
-                <td>-117</td>
-                <td>-104</td>
-                <td>LAC -2.5</td>
-                <td>-112</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>fanduel</td>
-                <td>44.5</td>
-                <td>-112</td>
-                <td>-108</td>
-                <td>LAC -2.5</td>
-                <td>-120</td>
-                <td>-102</td>
-              </tr>
-
-              <tr>
-                <td>mybookieag</td>
-                <td>45.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>LAC -3.0</td>
-                <td>+100</td>
-                <td>-120</td>
-              </tr>
-
-              <tr>
-                <td>betonlineag</td>
-                <td>44.5</td>
-                <td>-115</td>
-                <td>-105</td>
-                <td>LAC -2.5</td>
-                <td>-120</td>
-                <td>+100</td>
-              </tr>
-
-              <tr>
-                <td>lowvig</td>
-                <td>44.5</td>
-                <td>-113</td>
-                <td>-102</td>
-                <td>LAC -3.0</td>
-                <td>+104</td>
-                <td>-115</td>
-              </tr>
-
-              <tr>
-                <td>betrivers</td>
-                <td>45.0</td>
-                <td>-113</td>
-                <td>-113</td>
-                <td>LAC -3.0</td>
-                <td>-107</td>
-                <td>-120</td>
-              </tr>
-
-              <tr>
-                <td>fanatics</td>
-                <td>45.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>LAC -3.0</td>
-                <td>-105</td>
-                <td>-115</td>
-              </tr>
-
-              <tr>
-                <td>betmgm</td>
-                <td>44.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>LAC -2.5</td>
-                <td>-118</td>
-                <td>-102</td>
-              </tr>
-
-              <tr>
-                <td>bovada</td>
-                <td>45.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>LAC -2.5</td>
-                <td>-120</td>
-                <td>+100</td>
-              </tr>
-
-            </tbody>
-          </table>
         </div>
 
       </div>
@@ -1389,165 +503,10 @@
           </div>
 
           <div class="total-item">
-            <div class="total-label">Market Total</div>
-            <div class="total-value market">50.0</div>
-          </div>
-
-          <div class="total-item">
             <div class="total-label">Model Spread</div>
             <div class="total-value model">MIA +0.1</div>
           </div>
 
-          <div class="total-item">
-            <div class="total-label">Market Spread</div>
-            <div class="total-value market">MIA +9.5</div>
-          </div>
-
-          <div class="total-item">
-            <div class="total-label">Model Edge</div>
-            <div class="total-value ">-0.7</div>
-          </div>
-
-        </div>
-
-        <div class="book-lines">
-          <h4>📊 All Book Lines</h4>
-          <table class="book-lines-table">
-            <thead>
-              <tr>
-                <th>Book</th>
-                <th>Total</th>
-                <th>Over</th>
-                <th>Under</th>
-                <th>Spread</th>
-                <th>Fav</th>
-                <th>Dog</th>
-              </tr>
-            </thead>
-            <tbody>
-
-              <tr class="consensus-row">
-                <td><strong>CONSENSUS</strong></td>
-                <td>50.0</td>
-                <td>-</td>
-                <td>-</td>
-                <td>MIA +9.5</td>
-                <td>-</td>
-                <td>-</td>
-              </tr>
-
-              <tr>
-                <td>draftkings</td>
-                <td>50.5</td>
-                <td>-105</td>
-                <td>-115</td>
-                <td>MIA +9.5</td>
-                <td>-108</td>
-                <td>-112</td>
-              </tr>
-
-              <tr>
-                <td>betmgm</td>
-                <td>50.0</td>
-                <td>-115</td>
-                <td>-105</td>
-                <td>MIA +9.5</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>williamhill_us</td>
-                <td>50.0</td>
-                <td>-110</td>
-                <td>-109</td>
-                <td>MIA +9.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>fanduel</td>
-                <td>49.5</td>
-                <td>-120</td>
-                <td>-102</td>
-                <td>MIA +9.5</td>
-                <td>-115</td>
-                <td>-105</td>
-              </tr>
-
-              <tr>
-                <td>mybookieag</td>
-                <td>50.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>MIA +9.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>lowvig</td>
-                <td>50.0</td>
-                <td>-102</td>
-                <td>-113</td>
-                <td>MIA +9.5</td>
-                <td>-116</td>
-                <td>+105</td>
-              </tr>
-
-              <tr>
-                <td>betonlineag</td>
-                <td>50.0</td>
-                <td>-105</td>
-                <td>-115</td>
-                <td>MIA +9.5</td>
-                <td>-120</td>
-                <td>+100</td>
-              </tr>
-
-              <tr>
-                <td>betus</td>
-                <td>50.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>MIA +9.5</td>
-                <td>-120</td>
-                <td>+100</td>
-              </tr>
-
-              <tr>
-                <td>betrivers</td>
-                <td>50.0</td>
-                <td>-115</td>
-                <td>-110</td>
-                <td>MIA +9.0</td>
-                <td>-112</td>
-                <td>-114</td>
-              </tr>
-
-              <tr>
-                <td>fanatics</td>
-                <td>50.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>MIA +9.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>bovada</td>
-                <td>50.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>MIA +8.5</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-            </tbody>
-          </table>
         </div>
 
       </div>
@@ -1572,165 +531,10 @@
           </div>
 
           <div class="total-item">
-            <div class="total-label">Market Total</div>
-            <div class="total-value market">49.0</div>
-          </div>
-
-          <div class="total-item">
             <div class="total-label">Model Spread</div>
             <div class="total-value model">MIN -2.6</div>
           </div>
 
-          <div class="total-item">
-            <div class="total-label">Market Spread</div>
-            <div class="total-value market">MIN +4.0</div>
-          </div>
-
-          <div class="total-item">
-            <div class="total-label">Model Edge</div>
-            <div class="total-value edge">+4.6</div>
-          </div>
-
-        </div>
-
-        <div class="book-lines">
-          <h4>📊 All Book Lines</h4>
-          <table class="book-lines-table">
-            <thead>
-              <tr>
-                <th>Book</th>
-                <th>Total</th>
-                <th>Over</th>
-                <th>Under</th>
-                <th>Spread</th>
-                <th>Fav</th>
-                <th>Dog</th>
-              </tr>
-            </thead>
-            <tbody>
-
-              <tr class="consensus-row">
-                <td><strong>CONSENSUS</strong></td>
-                <td>49.0</td>
-                <td>-</td>
-                <td>-</td>
-                <td>MIN +4.0</td>
-                <td>-</td>
-                <td>-</td>
-              </tr>
-
-              <tr>
-                <td>draftkings</td>
-                <td>48.5</td>
-                <td>-115</td>
-                <td>-105</td>
-                <td>MIN +3.5</td>
-                <td>-105</td>
-                <td>-115</td>
-              </tr>
-
-              <tr>
-                <td>betus</td>
-                <td>49.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>MIN +4.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>williamhill_us</td>
-                <td>49.0</td>
-                <td>-110</td>
-                <td>-109</td>
-                <td>MIN +4.0</td>
-                <td>-109</td>
-                <td>-112</td>
-              </tr>
-
-              <tr>
-                <td>fanduel</td>
-                <td>48.5</td>
-                <td>-115</td>
-                <td>-105</td>
-                <td>MIN +4.5</td>
-                <td>-114</td>
-                <td>-106</td>
-              </tr>
-
-              <tr>
-                <td>mybookieag</td>
-                <td>49.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>MIN +4.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>lowvig</td>
-                <td>49.0</td>
-                <td>-102</td>
-                <td>-113</td>
-                <td>MIN +4.0</td>
-                <td>-102</td>
-                <td>-108</td>
-              </tr>
-
-              <tr>
-                <td>betonlineag</td>
-                <td>49.0</td>
-                <td>-105</td>
-                <td>-115</td>
-                <td>MIN +4.0</td>
-                <td>-107</td>
-                <td>-113</td>
-              </tr>
-
-              <tr>
-                <td>betrivers</td>
-                <td>49.0</td>
-                <td>-112</td>
-                <td>-114</td>
-                <td>MIN +4.0</td>
-                <td>-110</td>
-                <td>-115</td>
-              </tr>
-
-              <tr>
-                <td>fanatics</td>
-                <td>49.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>MIN +4.5</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>betmgm</td>
-                <td>49.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>MIN +4.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>bovada</td>
-                <td>49.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>MIN +4.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-            </tbody>
-          </table>
         </div>
 
       </div>
@@ -1755,165 +559,10 @@
           </div>
 
           <div class="total-item">
-            <div class="total-label">Market Total</div>
-            <div class="total-value market">37.5</div>
-          </div>
-
-          <div class="total-item">
             <div class="total-label">Model Spread</div>
             <div class="total-value model">NYJ +6.5</div>
           </div>
 
-          <div class="total-item">
-            <div class="total-label">Market Spread</div>
-            <div class="total-value market">NYJ +1.5</div>
-          </div>
-
-          <div class="total-item">
-            <div class="total-label">Model Edge</div>
-            <div class="total-value ">+1.7</div>
-          </div>
-
-        </div>
-
-        <div class="book-lines">
-          <h4>📊 All Book Lines</h4>
-          <table class="book-lines-table">
-            <thead>
-              <tr>
-                <th>Book</th>
-                <th>Total</th>
-                <th>Over</th>
-                <th>Under</th>
-                <th>Spread</th>
-                <th>Fav</th>
-                <th>Dog</th>
-              </tr>
-            </thead>
-            <tbody>
-
-              <tr class="consensus-row">
-                <td><strong>CONSENSUS</strong></td>
-                <td>37.5</td>
-                <td>-</td>
-                <td>-</td>
-                <td>NYJ +1.5</td>
-                <td>-</td>
-                <td>-</td>
-              </tr>
-
-              <tr>
-                <td>draftkings</td>
-                <td>37.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>NYJ +1.5</td>
-                <td>-105</td>
-                <td>-115</td>
-              </tr>
-
-              <tr>
-                <td>williamhill_us</td>
-                <td>37.5</td>
-                <td>-110</td>
-                <td>-112</td>
-                <td>NYJ +1.5</td>
-                <td>-105</td>
-                <td>-115</td>
-              </tr>
-
-              <tr>
-                <td>fanduel</td>
-                <td>37.5</td>
-                <td>-115</td>
-                <td>-105</td>
-                <td>NYJ +2.5</td>
-                <td>-115</td>
-                <td>-105</td>
-              </tr>
-
-              <tr>
-                <td>mybookieag</td>
-                <td>38.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>NYJ +2.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>lowvig</td>
-                <td>37.5</td>
-                <td>-107</td>
-                <td>-107</td>
-                <td>NYJ +1.5</td>
-                <td>-102</td>
-                <td>-108</td>
-              </tr>
-
-              <tr>
-                <td>betonlineag</td>
-                <td>37.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>NYJ +1.5</td>
-                <td>-107</td>
-                <td>-113</td>
-              </tr>
-
-              <tr>
-                <td>betus</td>
-                <td>37.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>NYJ +1.0</td>
-                <td>+100</td>
-                <td>-120</td>
-              </tr>
-
-              <tr>
-                <td>betrivers</td>
-                <td>37.5</td>
-                <td>-112</td>
-                <td>-113</td>
-                <td>NYJ +2.0</td>
-                <td>-113</td>
-                <td>-113</td>
-              </tr>
-
-              <tr>
-                <td>fanatics</td>
-                <td>37.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>NYJ +2.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>betmgm</td>
-                <td>38.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>NYJ +2.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>bovada</td>
-                <td>37.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>NYJ +1.5</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-            </tbody>
-          </table>
         </div>
 
       </div>
@@ -1938,165 +587,10 @@
           </div>
 
           <div class="total-item">
-            <div class="total-label">Market Total</div>
-            <div class="total-value market">45.5</div>
-          </div>
-
-          <div class="total-item">
             <div class="total-label">Model Spread</div>
             <div class="total-value model">SEA +1.1</div>
           </div>
 
-          <div class="total-item">
-            <div class="total-label">Market Spread</div>
-            <div class="total-value market">SEA -7.0</div>
-          </div>
-
-          <div class="total-item">
-            <div class="total-label">Model Edge</div>
-            <div class="total-value ">+0.1</div>
-          </div>
-
-        </div>
-
-        <div class="book-lines">
-          <h4>📊 All Book Lines</h4>
-          <table class="book-lines-table">
-            <thead>
-              <tr>
-                <th>Book</th>
-                <th>Total</th>
-                <th>Over</th>
-                <th>Under</th>
-                <th>Spread</th>
-                <th>Fav</th>
-                <th>Dog</th>
-              </tr>
-            </thead>
-            <tbody>
-
-              <tr class="consensus-row">
-                <td><strong>CONSENSUS</strong></td>
-                <td>45.5</td>
-                <td>-</td>
-                <td>-</td>
-                <td>SEA -7.0</td>
-                <td>-</td>
-                <td>-</td>
-              </tr>
-
-              <tr>
-                <td>draftkings</td>
-                <td>45.5</td>
-                <td>-115</td>
-                <td>-105</td>
-                <td>SEA -6.5</td>
-                <td>-120</td>
-                <td>+100</td>
-              </tr>
-
-              <tr>
-                <td>betmgm</td>
-                <td>45.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>SEA -7.0</td>
-                <td>-105</td>
-                <td>-115</td>
-              </tr>
-
-              <tr>
-                <td>betus</td>
-                <td>45.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>SEA -7.0</td>
-                <td>-105</td>
-                <td>-115</td>
-              </tr>
-
-              <tr>
-                <td>williamhill_us</td>
-                <td>45.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>SEA -7.0</td>
-                <td>-107</td>
-                <td>-114</td>
-              </tr>
-
-              <tr>
-                <td>fanduel</td>
-                <td>44.5</td>
-                <td>-114</td>
-                <td>-106</td>
-                <td>SEA -7.0</td>
-                <td>-105</td>
-                <td>-115</td>
-              </tr>
-
-              <tr>
-                <td>mybookieag</td>
-                <td>45.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>SEA -7.0</td>
-                <td>-105</td>
-                <td>-115</td>
-              </tr>
-
-              <tr>
-                <td>lowvig</td>
-                <td>45.5</td>
-                <td>-107</td>
-                <td>-107</td>
-                <td>SEA -7.0</td>
-                <td>-103</td>
-                <td>-107</td>
-              </tr>
-
-              <tr>
-                <td>betonlineag</td>
-                <td>45.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>SEA -7.0</td>
-                <td>-108</td>
-                <td>-112</td>
-              </tr>
-
-              <tr>
-                <td>betrivers</td>
-                <td>45.5</td>
-                <td>-113</td>
-                <td>-113</td>
-                <td>SEA -6.5</td>
-                <td>-115</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>fanatics</td>
-                <td>45.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>SEA -7.0</td>
-                <td>-105</td>
-                <td>-115</td>
-              </tr>
-
-              <tr>
-                <td>bovada</td>
-                <td>45.0</td>
-                <td>-115</td>
-                <td>-105</td>
-                <td>SEA -7.0</td>
-                <td>-105</td>
-                <td>-115</td>
-              </tr>
-
-            </tbody>
-          </table>
         </div>
 
       </div>
@@ -2121,165 +615,10 @@
           </div>
 
           <div class="total-item">
-            <div class="total-label">Market Total</div>
-            <div class="total-value market">49.5</div>
-          </div>
-
-          <div class="total-item">
             <div class="total-label">Model Spread</div>
             <div class="total-value model">SF +1.3</div>
           </div>
 
-          <div class="total-item">
-            <div class="total-label">Market Spread</div>
-            <div class="total-value market">SF +6.0</div>
-          </div>
-
-          <div class="total-item">
-            <div class="total-label">Model Edge</div>
-            <div class="total-value ">-2.8</div>
-          </div>
-
-        </div>
-
-        <div class="book-lines">
-          <h4>📊 All Book Lines</h4>
-          <table class="book-lines-table">
-            <thead>
-              <tr>
-                <th>Book</th>
-                <th>Total</th>
-                <th>Over</th>
-                <th>Under</th>
-                <th>Spread</th>
-                <th>Fav</th>
-                <th>Dog</th>
-              </tr>
-            </thead>
-            <tbody>
-
-              <tr class="consensus-row">
-                <td><strong>CONSENSUS</strong></td>
-                <td>49.5</td>
-                <td>-</td>
-                <td>-</td>
-                <td>SF +6.0</td>
-                <td>-</td>
-                <td>-</td>
-              </tr>
-
-              <tr>
-                <td>draftkings</td>
-                <td>49.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>SF +6.0</td>
-                <td>-112</td>
-                <td>-108</td>
-              </tr>
-
-              <tr>
-                <td>betmgm</td>
-                <td>49.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>SF +6.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>betus</td>
-                <td>49.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>SF +6.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>williamhill_us</td>
-                <td>49.5</td>
-                <td>-112</td>
-                <td>-109</td>
-                <td>SF +5.5</td>
-                <td>+100</td>
-                <td>-121</td>
-              </tr>
-
-              <tr>
-                <td>fanduel</td>
-                <td>49.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>SF +5.5</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>mybookieag</td>
-                <td>50.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>SF +6.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>betonlineag</td>
-                <td>49.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>SF +6.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>lowvig</td>
-                <td>49.5</td>
-                <td>-107</td>
-                <td>-107</td>
-                <td>SF +6.0</td>
-                <td>-105</td>
-                <td>-105</td>
-              </tr>
-
-              <tr>
-                <td>betrivers</td>
-                <td>49.5</td>
-                <td>-113</td>
-                <td>-112</td>
-                <td>SF +5.5</td>
-                <td>-114</td>
-                <td>-112</td>
-              </tr>
-
-              <tr>
-                <td>fanatics</td>
-                <td>49.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>SF +5.5</td>
-                <td>-105</td>
-                <td>-115</td>
-              </tr>
-
-              <tr>
-                <td>bovada</td>
-                <td>49.5</td>
-                <td>-105</td>
-                <td>-115</td>
-                <td>SF +5.5</td>
-                <td>-115</td>
-                <td>-105</td>
-              </tr>
-
-            </tbody>
-          </table>
         </div>
 
       </div>
@@ -2304,165 +643,10 @@
           </div>
 
           <div class="total-item">
-            <div class="total-label">Market Total</div>
-            <div class="total-value market">48.0</div>
-          </div>
-
-          <div class="total-item">
             <div class="total-label">Model Spread</div>
             <div class="total-value model">TB +9.4</div>
           </div>
 
-          <div class="total-item">
-            <div class="total-label">Market Spread</div>
-            <div class="total-value market">TB -2.5</div>
-          </div>
-
-          <div class="total-item">
-            <div class="total-label">Model Edge</div>
-            <div class="total-value ">-0.2</div>
-          </div>
-
-        </div>
-
-        <div class="book-lines">
-          <h4>📊 All Book Lines</h4>
-          <table class="book-lines-table">
-            <thead>
-              <tr>
-                <th>Book</th>
-                <th>Total</th>
-                <th>Over</th>
-                <th>Under</th>
-                <th>Spread</th>
-                <th>Fav</th>
-                <th>Dog</th>
-              </tr>
-            </thead>
-            <tbody>
-
-              <tr class="consensus-row">
-                <td><strong>CONSENSUS</strong></td>
-                <td>48.0</td>
-                <td>-</td>
-                <td>-</td>
-                <td>TB -2.5</td>
-                <td>-</td>
-                <td>-</td>
-              </tr>
-
-              <tr>
-                <td>draftkings</td>
-                <td>48.5</td>
-                <td>-115</td>
-                <td>-105</td>
-                <td>TB -2.5</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>betus</td>
-                <td>48.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>TB -2.0</td>
-                <td>-120</td>
-                <td>+100</td>
-              </tr>
-
-              <tr>
-                <td>williamhill_us</td>
-                <td>48.0</td>
-                <td>-113</td>
-                <td>-107</td>
-                <td>TB -2.5</td>
-                <td>-114</td>
-                <td>-107</td>
-              </tr>
-
-              <tr>
-                <td>fanduel</td>
-                <td>48.5</td>
-                <td>-104</td>
-                <td>-118</td>
-                <td>TB -2.5</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>mybookieag</td>
-                <td>48.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>TB -2.5</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>lowvig</td>
-                <td>48.0</td>
-                <td>-107</td>
-                <td>-107</td>
-                <td>TB -2.5</td>
-                <td>-110</td>
-                <td>+100</td>
-              </tr>
-
-              <tr>
-                <td>betonlineag</td>
-                <td>48.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>TB -2.5</td>
-                <td>-115</td>
-                <td>-105</td>
-              </tr>
-
-              <tr>
-                <td>betrivers</td>
-                <td>48.5</td>
-                <td>-113</td>
-                <td>-112</td>
-                <td>TB -2.5</td>
-                <td>-113</td>
-                <td>-113</td>
-              </tr>
-
-              <tr>
-                <td>fanatics</td>
-                <td>48.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>TB -2.5</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>betmgm</td>
-                <td>48.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>TB -2.5</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>bovada</td>
-                <td>48.0</td>
-                <td>-115</td>
-                <td>-105</td>
-                <td>TB -2.5</td>
-                <td>-115</td>
-                <td>-105</td>
-              </tr>
-
-            </tbody>
-          </table>
         </div>
 
       </div>
@@ -2487,165 +671,10 @@
           </div>
 
           <div class="total-item">
-            <div class="total-label">Market Total</div>
-            <div class="total-value market">49.0</div>
-          </div>
-
-          <div class="total-item">
             <div class="total-label">Model Spread</div>
             <div class="total-value model">WAS +1.2</div>
           </div>
 
-          <div class="total-item">
-            <div class="total-label">Market Spread</div>
-            <div class="total-value market">WAS +8.0</div>
-          </div>
-
-          <div class="total-item">
-            <div class="total-label">Model Edge</div>
-            <div class="total-value edge">+3.4</div>
-          </div>
-
-        </div>
-
-        <div class="book-lines">
-          <h4>📊 All Book Lines</h4>
-          <table class="book-lines-table">
-            <thead>
-              <tr>
-                <th>Book</th>
-                <th>Total</th>
-                <th>Over</th>
-                <th>Under</th>
-                <th>Spread</th>
-                <th>Fav</th>
-                <th>Dog</th>
-              </tr>
-            </thead>
-            <tbody>
-
-              <tr class="consensus-row">
-                <td><strong>CONSENSUS</strong></td>
-                <td>49.0</td>
-                <td>-</td>
-                <td>-</td>
-                <td>WAS +8.0</td>
-                <td>-</td>
-                <td>-</td>
-              </tr>
-
-              <tr>
-                <td>draftkings</td>
-                <td>49.5</td>
-                <td>-108</td>
-                <td>-112</td>
-                <td>WAS +8.5</td>
-                <td>-108</td>
-                <td>-112</td>
-              </tr>
-
-              <tr>
-                <td>williamhill_us</td>
-                <td>49.5</td>
-                <td>-107</td>
-                <td>-114</td>
-                <td>WAS +8.0</td>
-                <td>-112</td>
-                <td>-109</td>
-              </tr>
-
-              <tr>
-                <td>fanduel</td>
-                <td>48.5</td>
-                <td>-118</td>
-                <td>-104</td>
-                <td>WAS +7.5</td>
-                <td>-105</td>
-                <td>-115</td>
-              </tr>
-
-              <tr>
-                <td>mybookieag</td>
-                <td>49.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>WAS +8.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>lowvig</td>
-                <td>49.0</td>
-                <td>-113</td>
-                <td>-102</td>
-                <td>WAS +8.0</td>
-                <td>-108</td>
-                <td>-102</td>
-              </tr>
-
-              <tr>
-                <td>betonlineag</td>
-                <td>49.0</td>
-                <td>-115</td>
-                <td>-105</td>
-                <td>WAS +8.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>betus</td>
-                <td>49.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>WAS +8.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>betrivers</td>
-                <td>49.5</td>
-                <td>-112</td>
-                <td>-114</td>
-                <td>WAS +8.0</td>
-                <td>-110</td>
-                <td>-115</td>
-              </tr>
-
-              <tr>
-                <td>fanatics</td>
-                <td>49.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>WAS +8.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>betmgm</td>
-                <td>49.0</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>WAS +8.0</td>
-                <td>-110</td>
-                <td>-110</td>
-              </tr>
-
-              <tr>
-                <td>bovada</td>
-                <td>49.0</td>
-                <td>-115</td>
-                <td>-105</td>
-                <td>WAS +7.5</td>
-                <td>-105</td>
-                <td>-115</td>
-              </tr>
-
-            </tbody>
-          </table>
         </div>
 
       </div>
@@ -2681,7 +710,7 @@
 
           <div class="total-item">
             <div class="total-label">Market Spread</div>
-            <div class="total-value market">GB -1.5</div>
+            <div class="total-value market">GB -1.0</div>
           </div>
 
           <div class="total-item">
@@ -2712,7 +741,7 @@
                 <td>45.5</td>
                 <td>-</td>
                 <td>-</td>
-                <td>GB -1.5</td>
+                <td>GB -1.0</td>
                 <td>-</td>
                 <td>-</td>
               </tr>
@@ -2723,8 +752,8 @@
                 <td>-112</td>
                 <td>-108</td>
                 <td>GB -1.5</td>
-                <td>-108</td>
-                <td>-112</td>
+                <td>+100</td>
+                <td>-120</td>
               </tr>
 
               <tr>
@@ -2742,7 +771,7 @@
                 <td>45.5</td>
                 <td>-110</td>
                 <td>-110</td>
-                <td>GB +0.0</td>
+                <td>GB -1.0</td>
                 <td>-110</td>
                 <td>-110</td>
               </tr>
@@ -2750,31 +779,31 @@
               <tr>
                 <td>williamhill_us</td>
                 <td>45.5</td>
-                <td>-114</td>
-                <td>-106</td>
-                <td>GB -1.5</td>
-                <td>-109</td>
-                <td>-112</td>
+                <td>-110</td>
+                <td>-110</td>
+                <td>GB -1.0</td>
+                <td>-110</td>
+                <td>-110</td>
               </tr>
 
               <tr>
                 <td>bovada</td>
                 <td>45.5</td>
-                <td>-110</td>
-                <td>-110</td>
-                <td>GB -1.5</td>
-                <td>-110</td>
-                <td>-110</td>
+                <td>-115</td>
+                <td>-105</td>
+                <td>GB -1.0</td>
+                <td>-105</td>
+                <td>-115</td>
               </tr>
 
               <tr>
                 <td>fanduel</td>
-                <td>44.5</td>
-                <td>-120</td>
-                <td>-102</td>
+                <td>45.5</td>
+                <td>-110</td>
+                <td>-110</td>
                 <td>GB -1.5</td>
-                <td>-110</td>
-                <td>-110</td>
+                <td>-104</td>
+                <td>-118</td>
               </tr>
 
               <tr>
@@ -2782,9 +811,9 @@
                 <td>45.5</td>
                 <td>-107</td>
                 <td>-107</td>
-                <td>GB +0.0</td>
-                <td>-109</td>
-                <td>-101</td>
+                <td>GB -1.0</td>
+                <td>-105</td>
+                <td>-105</td>
               </tr>
 
               <tr>
@@ -2792,7 +821,7 @@
                 <td>45.5</td>
                 <td>-110</td>
                 <td>-110</td>
-                <td>GB +0.0</td>
+                <td>GB -1.0</td>
                 <td>-110</td>
                 <td>-110</td>
               </tr>
@@ -2800,11 +829,11 @@
               <tr>
                 <td>betrivers</td>
                 <td>45.0</td>
-                <td>-114</td>
-                <td>-110</td>
-                <td>GB -2.0</td>
-                <td>-112</td>
-                <td>-114</td>
+                <td>-113</td>
+                <td>-113</td>
+                <td>GB +0.0</td>
+                <td>-113</td>
+                <td>-113</td>
               </tr>
 
               <tr>
@@ -2822,9 +851,9 @@
                 <td>45.5</td>
                 <td>-110</td>
                 <td>-110</td>
-                <td>GB -1.5</td>
-                <td>-105</td>
-                <td>-115</td>
+                <td>GB -0.5</td>
+                <td>-110</td>
+                <td>-110</td>
               </tr>
 
             </tbody>
@@ -2836,7 +865,7 @@
     </div>
 
     <div class="updated">
-      Last updated: 2025-11-08 04:29 PM ET
+      Last updated: 2025-11-10 09:35 AM ET
     </div>
   </div>
 
