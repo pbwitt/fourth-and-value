@@ -34,22 +34,36 @@ echo ""
 echo "[4/7] Grading pending NHL bets..."
 python3 scripts/grade_bets_nhl.py
 
-# 3. Train models and generate predictions
+# 3. Fetch odds and build consensus
+TODAY=$(date '+%Y-%m-%d')
 echo ""
-echo "[5/7] Training NHL models..."
+echo "[5/10] Fetching NHL odds for ${TODAY}..."
+python3 scripts/nhl/fetch_nhl_odds.py --date "${TODAY}"
+
+echo ""
+echo "[6/10] Computing NHL consensus..."
+python3 scripts/nhl/make_nhl_consensus.py --date "${TODAY}"
+
+echo ""
+echo "[7/10] Finding consensus edges..."
+python3 scripts/nhl_find_consensus_edges.py
+
+# 4. Train models and generate predictions
+echo ""
+echo "[8/10] Training NHL models..."
 python3 scripts/nhl/train_scoring_models.py
 
 echo ""
-echo "[6/7] Generating NHL predictions..."
+echo "[9/10] Generating NHL predictions..."
 python3 scripts/nhl/predict_nhl_totals.py \
     --games data/nhl/raw/games.csv \
     --stats data/nhl/raw/player_stats.csv \
     --model data/nhl/models/goals_model_latest.pkl \
     --output data/nhl/predictions/predictions.csv
 
-# 4. Build pages
+# 5. Build pages
 echo ""
-echo "[7/7] Building NHL pages..."
+echo "[10/10] Building NHL pages..."
 python3 scripts/nhl_build_totals_page.py
 python3 scripts/nhl/build_nhl_props_page.py
 

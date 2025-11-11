@@ -112,13 +112,16 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path)
 
     games_json = json.dumps(games_data, indent=2)
 
+    # Get today's date for the title
+    today_str = datetime.now().strftime('%A, %B %d, %Y')
+
     # Build HTML
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NHL Totals - Fourth & Value</title>
+  <title>NHL Totals - {today_str} - Fourth & Value</title>
   <style>
     * {{
       margin: 0;
@@ -422,7 +425,7 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path)
 
   <div class="container">
     <div class="header">
-      <h1>NHL Totals</h1>
+      <h1>NHL Totals - {today_str}</h1>
       <p class="subtitle">Model predictions vs market consensus • Find outlier books before lines move</p>
     </div>
 
