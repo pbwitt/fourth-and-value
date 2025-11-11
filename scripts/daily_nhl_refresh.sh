@@ -55,19 +55,26 @@ python3 scripts/nhl/train_scoring_models.py
 
 echo ""
 echo "[9/10] Generating NHL predictions..."
-python3 scripts/nhl/predict_nhl_totals.py \
-    --games data/nhl/raw/games.csv \
-    --stats data/nhl/raw/player_stats.csv \
-    --model data/nhl/models/goals_model_latest.pkl \
-    --output data/nhl/predictions/predictions.csv
+python3 scripts/nhl_predict_totals.py
 
 # 5. Build pages
 echo ""
-echo "[10/10] Building NHL pages..."
+echo "[10/11] Building NHL pages..."
 python3 scripts/nhl_build_totals_page.py
 python3 scripts/nhl/build_nhl_props_page.py
 
-# 5. Commit and push to GitHub
+# 6. QC - Validate data freshness
+echo ""
+echo "[11/11] Running QC - Validating data freshness..."
+if ! python3 scripts/validate_nhl_freshness.py; then
+    echo ""
+    echo "🚨 CRITICAL: Data freshness validation FAILED"
+    echo "🚨 Deployment BLOCKED to prevent publishing stale data"
+    echo "🚨 Check the errors above and re-run the pipeline"
+    exit 1
+fi
+
+# 7. Commit and push to GitHub
 echo ""
 echo "=========================================="
 echo "Checking for changes to deploy..."
