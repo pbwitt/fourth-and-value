@@ -162,6 +162,10 @@ else:
     print(result.stderr)
     sys.exit(1)
 
+# 2.75. Grade NHL bets (after fresh data is available)
+print("\n[NHL 2.75/6] Grading NHL bets...")
+run_script('scripts/grade_bets_nhl.py', 'NHL Bet Grading')
+
 # 2. Train NHL models
 print("\n[NHL 3/6] Training NHL models...")
 run_script('scripts/nhl/train_scoring_models.py', 'NHL Scoring Models')

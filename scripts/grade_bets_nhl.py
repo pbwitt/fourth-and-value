@@ -27,6 +27,7 @@ MARKET_MAP = {
     'points': 'points',
     'sog': 'shots',
     'shots': 'shots',
+    'Shots on Goal': 'shots',
 }
 
 
@@ -62,38 +63,68 @@ def calculate_payout(stake, odds, won):
         return stake * decimal_odds
 
 
-def grade_bet(bet_row, stats_df):
+def grade_bet(bet_row, stats_df, games_df=None):
     """
-    Grade a single bet against actual player stats.
+    Grade a single bet against actual player stats or game totals.
 
     Args:
         bet_row: Dictionary containing bet data
         stats_df: DataFrame of player stats for the game date
+        games_df: DataFrame of game scores (optional, for team_total bets)
 
     Returns:
         Updated bet_row dictionary, or None if cannot grade yet
     """
-    player_name = bet_row['player']
     market = bet_row['market_type']
     side = bet_row['side'].lower()
     line = float(bet_row['line'])
 
-    # Check if market is supported
-    if market not in MARKET_MAP:
-        print(f"  ⚠️  Unsupported market type: {market}")
-        return None
+    # Handle team_total bets separately
+    if market == 'team_total':
+        if games_df is None:
+            print(f"  ⚠️  No games data provided for team_total bet")
+            return None
 
-    stat_col = MARKET_MAP[market]
+        team_home = bet_row['team_home']
+        team_away = bet_row['team_away']
+        game_date = bet_row['game_date']
 
-    # Find player in stats
-    player_stats = stats_df[stats_df['player'] == player_name]
+        # Find the game
+        game = games_df[
+            (games_df['home_team'] == team_home) &
+            (games_df['away_team'] == team_away) &
+            (games_df['game_date'] == game_date)
+        ]
 
-    if len(player_stats) == 0:
-        print(f"  ⚠️  Player {player_name} not found in stats for {bet_row['game_date']}")
-        return None
+        if len(game) == 0:
+            print(f"  ⚠️  Game {team_away} @ {team_home} not found for {game_date}")
+            return None
 
-    # Get actual stat value
-    actual_value = float(player_stats.iloc[0][stat_col])
+        # Get total score
+        home_score = float(game.iloc[0]['home_score']) if 'home_score' in game.columns else 0
+        away_score = float(game.iloc[0]['away_score']) if 'away_score' in game.columns else 0
+        actual_value = home_score + away_score
+
+    else:
+        # Player prop bet
+        player_name = bet_row['player']
+
+        # Check if market is supported
+        if market not in MARKET_MAP:
+            print(f"  ⚠️  Unsupported market type: {market}")
+            return None
+
+        stat_col = MARKET_MAP[market]
+
+        # Find player in stats
+        player_stats = stats_df[stats_df['player'] == player_name]
+
+        if len(player_stats) == 0:
+            print(f"  ⚠️  Player {player_name} not found in stats for {bet_row['game_date']}")
+            return None
+
+        # Get actual stat value
+        actual_value = float(player_stats.iloc[0][stat_col])
 
     # Determine won/lost/push
     won = None  # None = push
@@ -131,7 +162,12 @@ def grade_bet(bet_row, stats_df):
     bet_row['graded_timestamp'] = datetime.now().isoformat()
 
     result_str = f"{'WON' if won else 'LOST' if won is False else 'PUSH'}"
-    print(f"  ✓ {player_name} {market} {side} {line}: {actual_value} → {result_str} (${payout:.2f})")
+
+    # Print appropriate message based on bet type
+    if market == 'team_total':
+        print(f"  ✓ {bet_row['team_away']} @ {bet_row['team_home']} {market} {side} {line}: {actual_value} → {result_str} (${payout:.2f})")
+    else:
+        print(f"  ✓ {player_name} {market} {side} {line}: {actual_value} → {result_str} (${payout:.2f})")
 
     return bet_row
 
@@ -146,6 +182,7 @@ def main():
     repo_root = Path(__file__).parent.parent
     bets_csv = repo_root / 'data' / 'bets' / 'bets.csv'
     nhl_proc_dir = repo_root / 'data' / 'nhl' / 'processed'
+    nhl_raw_dir = repo_root / 'data' / 'nhl' / 'raw'
 
     print("=" * 70)
     print("NHL Bet Auto-Grading")
@@ -181,6 +218,58 @@ def main():
 
     print(f"📅 Checking game dates: {', '.join(check_dates)}")
 
+    # Load games data for team_total bets
+    games_csv = nhl_raw_dir / 'games.csv'
+    games_df = None
+    if games_csv.exists():
+        games_df = pd.read_csv(games_csv)
+        # Load player stats to get actual scores
+        player_stats_csv = nhl_raw_dir / 'player_stats.csv'
+        if player_stats_csv.exists():
+            player_stats = pd.read_csv(player_stats_csv)
+            # Get scores by aggregating goalie stats
+            game_scores = player_stats[player_stats['position_type'] == 'G'].groupby(
+                ['game_id', 'game_date']
+            ).agg({
+                'team': 'first',
+                'opponent': 'first',
+                'goals_against': 'first'
+            }).reset_index()
+
+            # Pivot to get home/away scores
+            games_with_scores = []
+            for game_id in game_scores['game_id'].unique():
+                game_data = game_scores[game_scores['game_id'] == game_id]
+                if len(game_data) == 2:
+                    game_date = game_data.iloc[0]['game_date']
+                    team1 = game_data.iloc[0]['team']
+                    team2 = game_data.iloc[1]['team']
+                    score1 = game_data.iloc[1]['goals_against']  # Team 1's score is team 2's goals against
+                    score2 = game_data.iloc[0]['goals_against']  # Team 2's score is team 1's goals against
+
+                    # Match to games.csv to get home/away
+                    game_info = games_df[games_df['game_id'] == game_id]
+                    if len(game_info) > 0:
+                        home_team = game_info.iloc[0]['home_team']
+                        away_team = game_info.iloc[0]['away_team']
+
+                        if team1 == home_team:
+                            home_score, away_score = score1, score2
+                        else:
+                            home_score, away_score = score2, score1
+
+                        games_with_scores.append({
+                            'game_id': game_id,
+                            'game_date': game_date,
+                            'home_team': home_team,
+                            'away_team': away_team,
+                            'home_score': home_score,
+                            'away_score': away_score
+                        })
+
+            if games_with_scores:
+                games_df = pd.DataFrame(games_with_scores)
+
     # Grade bets
     graded_count = 0
     for bet in pending_nhl_bets:
@@ -191,20 +280,25 @@ def main():
             continue
 
         print(f"\n🎲 Grading bet {bet['bet_id']}:")
-        print(f"   {bet['player']} {bet['market_type']} {bet['side']} {bet['line']} @ {bet['book']}")
+        if bet['market_type'] == 'team_total':
+            print(f"   {bet['team_away']} @ {bet['team_home']} {bet['market_type']} {bet['side']} {bet['line']} @ {bet['book']}")
+        else:
+            print(f"   {bet['player']} {bet['market_type']} {bet['side']} {bet['line']} @ {bet['book']}")
 
         # Load stats for game date
         stats_file = nhl_proc_dir / f"skater_logs_{game_date}.parquet"
 
-        if not stats_file.exists():
+        if not stats_file.exists() and bet['market_type'] != 'team_total':
             print(f"  ⚠️  Stats not available yet for {game_date}")
             continue
 
         try:
-            stats_df = pd.read_parquet(stats_file)
+            stats_df = None
+            if stats_file.exists():
+                stats_df = pd.read_parquet(stats_file)
 
             # Grade the bet
-            updated_bet = grade_bet(bet, stats_df)
+            updated_bet = grade_bet(bet, stats_df, games_df)
 
             if updated_bet:
                 # Update in main list
@@ -214,6 +308,8 @@ def main():
 
         except Exception as e:
             print(f"  ❌ Error grading bet: {e}")
+            import traceback
+            traceback.print_exc()
             continue
 
     print("\n" + "=" * 70)
