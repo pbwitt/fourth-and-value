@@ -23,6 +23,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import requests
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # NHL player prop markets (Odds API keys)
 PLAYER_PROP_MARKETS = [
