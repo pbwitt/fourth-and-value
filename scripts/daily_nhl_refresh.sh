@@ -1,5 +1,5 @@
 #!/bin/bash
-# Daily NHL Refresh - Run at 7 AM EST
+# Daily NHL Refresh - Run at 8 AM EST
 # Fetches latest data, grades bets, updates predictions, and deploys
 
 set -e  # Exit on error
@@ -45,27 +45,31 @@ echo "[6/10] Computing NHL consensus..."
 python3 scripts/nhl/make_nhl_consensus.py --date "${TODAY}"
 
 echo ""
-echo "[7/10] Finding consensus edges..."
+echo "[7/11] Finding consensus edges..."
 python3 scripts/nhl_find_consensus_edges.py
 
 # 4. Train models and generate predictions
 echo ""
-echo "[8/10] Training NHL models..."
+echo "[8/11] Training NHL models..."
 python3 scripts/nhl/train_scoring_models.py
 
 echo ""
-echo "[9/10] Generating NHL predictions..."
+echo "[9/11] Generating NHL predictions..."
 python3 scripts/nhl_predict_totals.py
+
+echo ""
+echo "[10/11] Applying model predictions to props..."
+python3 scripts/nhl/make_nhl_edges.py --date "${TODAY}"
 
 # 5. Build pages
 echo ""
-echo "[10/11] Building NHL pages..."
+echo "[11/12] Building NHL pages..."
 python3 scripts/nhl_build_totals_page.py
 python3 scripts/nhl/build_nhl_props_page.py
 
 # 6. QC - Validate data freshness
 echo ""
-echo "[11/11] Running QC - Validating data freshness..."
+echo "[12/12] Running QC - Validating data freshness..."
 if ! python3 scripts/validate_nhl_freshness.py; then
     echo ""
     echo "🚨 CRITICAL: Data freshness validation FAILED"
