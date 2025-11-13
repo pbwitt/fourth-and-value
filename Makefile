@@ -225,6 +225,7 @@ ifeq ($(LIVE),1)
 	@echo "===================================================================="
 	@git add $(NHL_PAGE) $(NHL_TOTALS_PAGE) $(NHL_PROPS_MODEL) $(NHL_QC_REPORT) docs/data/bets/bets.csv || true
 	@git commit -m "NHL: Update props and totals pages for $(DATE)" || echo "No changes to commit"
+	@git pull --rebase origin main || true
 	@git push
 	@echo "✓ Published to GitHub Pages"
 else

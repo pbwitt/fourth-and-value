@@ -108,6 +108,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
     # Push to GitHub
     echo ""
     echo "Pushing to production..."
+    git pull --rebase origin main || true
     git push
 
     echo ""
