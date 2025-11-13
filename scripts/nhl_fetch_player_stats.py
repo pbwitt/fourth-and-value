@@ -118,16 +118,39 @@ def parse_player_stats(boxscore_data, game_id, game_date):
     return pd.DataFrame(all_players)
 
 
-def fetch_player_stats_for_games(games_csv, output_path='data/nhl/raw/player_stats.csv'):
+def fetch_player_stats_for_games(games_csv, output_path='data/nhl/raw/player_stats.csv', incremental=True, days_back=2):
     """
     Fetch player stats for all games in the schedule
+
+    Args:
+        games_csv: Path to games CSV
+        output_path: Where to save player stats
+        incremental: If True, only fetch recent games and append to existing data
+        days_back: When incremental=True, fetch games from this many days back
     """
     games_df = pd.read_csv(games_csv)
 
     # Only fetch completed games
     completed = games_df[games_df['game_state'].isin(['OFF', 'FINAL'])].copy()
 
-    print(f"Fetching player stats for {len(completed)} completed games...")
+    # INCREMENTAL MODE: Only fetch recent games and append
+    if incremental and os.path.exists(output_path):
+        # Load existing stats
+        existing_stats = pd.read_csv(output_path)
+        existing_game_ids = set(existing_stats['game_id'].unique())
+
+        # Filter to only NEW completed games from last N days
+        from datetime import datetime, timedelta
+        cutoff_date = (datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')
+        completed = completed[
+            (completed['game_date'] >= cutoff_date) &
+            (~completed['game_id'].isin(existing_game_ids))
+        ].copy()
+
+        print(f"INCREMENTAL MODE: Fetching {len(completed)} NEW completed games since {cutoff_date}...")
+    else:
+        print(f"FULL MODE: Fetching player stats for {len(completed)} completed games...")
+        existing_stats = None
 
     all_player_stats = []
     total_games = len(completed)
@@ -162,14 +185,30 @@ def fetch_player_stats_for_games(games_csv, output_path='data/nhl/raw/player_sta
         print(f'\r[{bar}] {pct}% ({i}/{total_games} games, {total_records} player records)', end='', flush=True)
 
     if len(all_player_stats) > 0:
-        final_df = pd.concat(all_player_stats, ignore_index=True)
+        new_df = pd.concat(all_player_stats, ignore_index=True)
+
+        # If incremental, append to existing data
+        if incremental and existing_stats is not None:
+            final_df = pd.concat([existing_stats, new_df], ignore_index=True)
+            # Deduplicate (in case we refetched some games)
+            final_df = final_df.drop_duplicates(subset=['game_id', 'player_id'], keep='last')
+            print(f"\nAppended {len(new_df)} new records to existing {len(existing_stats)} records")
+            print(f"Total: {len(final_df)} player-game records")
+        else:
+            final_df = new_df
+            print(f"\nSaved {len(final_df)} player-game records")
+
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         final_df.to_csv(output_path, index=False)
-        print(f"\nSaved {len(final_df)} player-game records to {output_path}")
+        print(f"Written to {output_path}")
         return final_df
     else:
-        print("No player stats fetched")
-        return pd.DataFrame()
+        if incremental and existing_stats is not None:
+            print("\nNo new games to fetch - keeping existing data")
+            return existing_stats
+        else:
+            print("No player stats fetched")
+            return pd.DataFrame()
 
 
 if __name__ == '__main__':
@@ -178,7 +217,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Fetch NHL player stats')
     parser.add_argument('--games', default='data/nhl/raw/games.csv', help='Input games CSV')
     parser.add_argument('--output', default='data/nhl/raw/player_stats.csv', help='Output file')
+    parser.add_argument('--full', action='store_true', help='Fetch all games (not incremental)')
+    parser.add_argument('--days-back', type=int, default=2, help='Days back to fetch (incremental mode)')
 
     args = parser.parse_args()
 
-    fetch_player_stats_for_games(args.games, args.output)
+    fetch_player_stats_for_games(args.games, args.output, incremental=not args.full, days_back=args.days_back)

@@ -105,15 +105,21 @@ def main():
     # Check player stats
     player_stats = Path("data/nhl/raw/player_stats.csv")
     if player_stats.exists():
-        df = pd.read_csv(player_stats)
-        if 'game_date' in df.columns:
-            max_date = df['game_date'].max()
-            yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
-            if max_date < yesterday:
-                print(f"⚠️  Player Stats: Latest data is from {max_date} (expected >= {yesterday})")
-                all_fresh = False
-            else:
-                print(f"✅ Player Stats: Latest data from {max_date}")
+        try:
+            df = pd.read_csv(player_stats)
+            if 'game_date' in df.columns:
+                # Filter out NaT/empty values and convert to datetime
+                dates = pd.to_datetime(df['game_date'], errors='coerce').dropna()
+                if len(dates) > 0:
+                    max_date = dates.max().strftime('%Y-%m-%d')
+                    yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+                    if max_date < yesterday:
+                        print(f"⚠️  Player Stats: Latest data is from {max_date} (expected >= {yesterday})")
+                        all_fresh = False
+                    else:
+                        print(f"✅ Player Stats: Latest data from {max_date}")
+        except Exception as e:
+            print(f"⚠️  Player Stats: Could not validate: {e}")
 
     print()
     print("=" * 70)
