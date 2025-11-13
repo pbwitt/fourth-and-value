@@ -526,24 +526,34 @@
       }
     }
 
-    function addBet() {
-      // For now, just download as CSV row
-      // TODO: Integrate with GitHub API to append to bets.csv
+    async function addBet() {
+      // Validate required fields
+      const gameDate = document.getElementById('gameDate').value;
+      const teamHome = document.getElementById('teamHome').value;
+      const teamAway = document.getElementById('teamAway').value;
+      const line = document.getElementById('line').value;
+      const odds = document.getElementById('odds').value;
+      const stake = document.getElementById('stake').value;
+
+      if (!gameDate || !teamHome || !teamAway || !line || !odds || !stake) {
+        alert('Please fill in all required fields: Game Date, Teams, Line, Odds, and Stake');
+        return;
+      }
 
       const bet = {
         bet_id: 'bet_' + Date.now(),
         timestamp: new Date().toISOString(),
         league: document.getElementById('league').value,
-        game_date: document.getElementById('gameDate').value,
-        team_home: document.getElementById('teamHome').value,
-        team_away: document.getElementById('teamAway').value,
+        game_date: gameDate,
+        team_home: teamHome,
+        team_away: teamAway,
         player: document.getElementById('player').value,
         market_type: document.getElementById('marketType').value,
         side: document.getElementById('side').value,
-        line: document.getElementById('line').value,
+        line: line,
         book: document.getElementById('book').value,
-        odds: document.getElementById('odds').value,
-        stake_dollars: document.getElementById('stake').value,
+        odds: odds,
+        stake_dollars: parseFloat(stake).toFixed(2),
         status: 'pending',
         actual_result: '',
         payout: '',
@@ -552,17 +562,21 @@
         edge_bps: ''
       };
 
-      // Create CSV row
-      const csvRow = Object.values(bet).join(',');
+      // Use GitHub API to save bet
+      const success = await autoTrackBet(bet);
 
-      alert('Bet logged! For now, manually add this row to data/bets/bets.csv:\\n\\n' + csvRow + '\\n\\nWe will automate this with GitHub API integration soon.');
+      if (success) {
+        // Clear form
+        document.getElementById('player').value = '';
+        document.getElementById('marketType').value = '';
+        document.getElementById('line').value = '';
+        document.getElementById('odds').value = '';
+        document.getElementById('stake').value = '';
+        document.getElementById('book').value = '';
 
-      // Clear form
-      document.getElementById('player').value = '';
-      document.getElementById('marketType').value = '';
-      document.getElementById('line').value = '';
-      document.getElementById('odds').value = '';
-      document.getElementById('stake').value = '';
+        // Reload bets to show the new one
+        setTimeout(() => loadBets(), 2000);
+      }
     }
 
     // Allow Enter key on password field
