@@ -2,8 +2,8 @@ name: NFL Weekly Update
 
 on:
   schedule:
-    # Run at 8 AM UTC (4 AM ET / 1 AM PT) every Thursday
-    - cron: '0 8 * * 4'
+    # Run at 2 PM UTC (9 AM EST / 6 AM PST) every Monday during NFL season
+    - cron: '0 14 * * 1'
   workflow_dispatch:  # Allow manual triggers
     inputs:
       week:
@@ -35,8 +35,17 @@ jobs:
           if [ -n "${{ github.event.inputs.week }}" ]; then
             echo "week=${{ github.event.inputs.week }}" >> $GITHUB_OUTPUT
           else
-            echo "Error: Week number is required. Please specify week in manual trigger."
-            exit 1
+            # Auto-detect week number using Python
+            WEEK=$(python3 -c "
+from datetime import datetime, timezone
+start = datetime(2025, 9, 4, tzinfo=timezone.utc)
+now = datetime.now(timezone.utc)
+days = (now - start).days
+week = (days // 7) + 1
+print(max(1, min(week, 18)))  # Cap between 1-18
+")
+            echo "Auto-detected week: $WEEK"
+            echo "week=$WEEK" >> $GITHUB_OUTPUT
           fi
 
       - name: Fetch weekly player stats
