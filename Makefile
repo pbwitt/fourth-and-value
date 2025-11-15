@@ -340,12 +340,12 @@ nhl_totals_consensus:
 	$(PY) scripts/nhl_find_consensus_edges.py --predictions $(NHL_PREDICTIONS_CSV) --output $(NHL_CONSENSUS_EDGES_CSV)
 	@echo "✓ Consensus edges identified"
 
-# Build HTML page
+# Build HTML page (uses date-specific consensus files from props pipeline)
 nhl_totals_page:
 	@echo "===================================================================="
 	@echo "Building NHL totals page..."
 	@echo "===================================================================="
-	$(PY) scripts/nhl_build_totals_page.py --predictions $(NHL_PREDICTIONS_CSV) --consensus $(NHL_CONSENSUS_CSV) --edges $(NHL_CONSENSUS_EDGES_CSV) --output $(NHL_TOTALS_PAGE)
+	$(PY) scripts/nhl_build_totals_page.py
 	@echo "✓ Page built: $(NHL_TOTALS_PAGE)"
 
 # Full pipeline: fetch → features → train → predict → consensus → page

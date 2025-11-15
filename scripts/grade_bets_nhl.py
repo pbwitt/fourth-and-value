@@ -180,7 +180,8 @@ def main():
 
     # Paths
     repo_root = Path(__file__).parent.parent
-    bets_csv = repo_root / 'data' / 'bets' / 'bets.csv'
+    # Use production bets file (docs/data/bets/bets.csv) as source of truth
+    bets_csv = repo_root / 'docs' / 'data' / 'bets' / 'bets.csv'
     nhl_proc_dir = repo_root / 'data' / 'nhl' / 'processed'
     nhl_raw_dir = repo_root / 'data' / 'nhl' / 'raw'
 
@@ -211,10 +212,11 @@ def main():
     if args.date:
         check_dates = [args.date]
     else:
-        # Check yesterday and today (in case games finished late)
+        # Check all dates from pending bets (up to 7 days old to avoid grading very old games)
         today = datetime.now().date()
-        yesterday = today - timedelta(days=1)
-        check_dates = [yesterday.isoformat(), today.isoformat()]
+        unique_dates = sorted(set(bet['game_date'] for bet in pending_nhl_bets))
+        cutoff_date = (today - timedelta(days=7)).isoformat()
+        check_dates = [d for d in unique_dates if d >= cutoff_date]
 
     print(f"📅 Checking game dates: {', '.join(check_dates)}")
 
@@ -320,17 +322,17 @@ def main():
     if graded_count > 0 and not args.dry_run:
         fieldnames = list(bets[0].keys())
 
-        # Write to both data/bets/bets.csv and docs/data/bets/bets.csv
-        bets_csv_docs = repo_root / 'docs' / 'data' / 'bets' / 'bets.csv'
+        # Write to both docs/data/bets/bets.csv (production) and data/bets/bets.csv (backup)
+        bets_csv_backup = repo_root / 'data' / 'bets' / 'bets.csv'
 
-        for csv_path in [bets_csv, bets_csv_docs]:
+        for csv_path in [bets_csv, bets_csv_backup]:
             with open(csv_path, 'w', newline='') as f:
                 writer = csv.DictWriter(f, fieldnames=fieldnames)
                 writer.writeheader()
                 writer.writerows(bets)
 
         print(f"✓ Updated bets written to {bets_csv}")
-        print(f"✓ Updated bets written to {bets_csv_docs}")
+        print(f"✓ Updated bets written to {bets_csv_backup}")
     elif args.dry_run:
         print("🔍 DRY RUN - No changes written")
     else:
