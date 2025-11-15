@@ -529,14 +529,45 @@
     async function addBet() {
       // Validate required fields
       const gameDate = document.getElementById('gameDate').value;
-      const teamHome = document.getElementById('teamHome').value;
-      const teamAway = document.getElementById('teamAway').value;
-      const line = document.getElementById('line').value;
-      const odds = document.getElementById('odds').value;
-      const stake = document.getElementById('stake').value;
+      const teamHome = document.getElementById('teamHome').value.trim();
+      const teamAway = document.getElementById('teamAway').value.trim();
+      const line = document.getElementById('line').value.trim();
+      const odds = document.getElementById('odds').value.trim();
+      const stake = document.getElementById('stake').value.trim();
+      const book = document.getElementById('book').value.trim();
 
       if (!gameDate || !teamHome || !teamAway || !line || !odds || !stake) {
         alert('Please fill in all required fields: Game Date, Teams, Line, Odds, and Stake');
+        return;
+      }
+
+      // Validate team abbreviations (2-3 uppercase letters)
+      if (!/^[A-Z]{2,3}$/.test(teamHome) || !/^[A-Z]{2,3}$/.test(teamAway)) {
+        alert('Team abbreviations must be 2-3 uppercase letters (e.g., TOR, BOS, MTL)');
+        return;
+      }
+
+      // Validate line is a number
+      if (isNaN(parseFloat(line))) {
+        alert('Line must be a number (e.g., 0.5, 1.5, 6.5)');
+        return;
+      }
+
+      // Validate odds format
+      if (!/^[+-]?\d+$/.test(odds)) {
+        alert('Odds must be in American format (e.g., -110, +150)');
+        return;
+      }
+
+      // Validate stake
+      if (isNaN(parseFloat(stake)) || parseFloat(stake) <= 0) {
+        alert('Stake must be a positive number');
+        return;
+      }
+
+      // Validate book is provided
+      if (!book) {
+        alert('Please specify the sportsbook');
         return;
       }
 
@@ -545,13 +576,13 @@
         timestamp: new Date().toISOString(),
         league: document.getElementById('league').value,
         game_date: gameDate,
-        team_home: teamHome,
-        team_away: teamAway,
-        player: document.getElementById('player').value,
-        market_type: document.getElementById('marketType').value,
-        side: document.getElementById('side').value,
-        line: line,
-        book: document.getElementById('book').value,
+        team_home: teamHome.toUpperCase(),
+        team_away: teamAway.toUpperCase(),
+        player: document.getElementById('player').value.trim(),
+        market_type: document.getElementById('marketType').value.toLowerCase(),
+        side: document.getElementById('side').value.toLowerCase(),
+        line: parseFloat(line),
+        book: book,
         odds: odds,
         stake_dollars: parseFloat(stake).toFixed(2),
         status: 'pending',
