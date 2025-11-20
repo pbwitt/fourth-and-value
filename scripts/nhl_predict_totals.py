@@ -143,7 +143,19 @@ def generate_predictions(model_path, feature_list_path, team_features_path, toda
         away_features = away_stats[feature_cols].to_frame().T
         away_features['is_home'] = 0  # Override to away
 
-        # Fill NaN
+        # Check for missing data and warn
+        home_missing = home_features.isna().sum()
+        away_missing = away_features.isna().sum()
+
+        if home_missing.sum() > 0:
+            print(f"  ⚠️  WARNING: {home_team} has {home_missing.sum()} missing features, using column means as fallback")
+            print(f"     Missing columns: {list(home_missing[home_missing > 0].index)}")
+
+        if away_missing.sum() > 0:
+            print(f"  ⚠️  WARNING: {away_team} has {away_missing.sum()} missing features, using column means as fallback")
+            print(f"     Missing columns: {list(away_missing[away_missing > 0].index)}")
+
+        # Fill NaN with column means (fallback)
         home_features = home_features.fillna(home_features.mean())
         away_features = away_features.fillna(away_features.mean())
 

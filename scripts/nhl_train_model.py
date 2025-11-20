@@ -70,7 +70,14 @@ def train_model(features_path, model_type='ridge', output_dir='data/nhl/models')
     X = team_df[feature_cols].copy()
     y = team_df['goals_for'].copy()
 
-    # Fill any remaining NaN
+    # Check for missing data and warn
+    missing_before = X.isna().sum()
+    if missing_before.sum() > 0:
+        print(f"⚠️  WARNING: Training data has {missing_before.sum()} missing values across {(missing_before > 0).sum()} columns")
+        print(f"   Columns with missing data: {list(missing_before[missing_before > 0].index)}")
+        print(f"   Using column means as fallback")
+
+    # Fill any remaining NaN with column means (fallback)
     X = X.fillna(X.mean())
 
     # Time series split (preserve temporal order)
