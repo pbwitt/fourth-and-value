@@ -142,6 +142,8 @@ def fetch_player_stats_for_games(games_csv, output_path='data/nhl/raw/player_sta
         # Filter to only NEW completed games from last N days
         from datetime import datetime, timedelta
         cutoff_date = (datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')
+        # Ensure game_date is string type for comparison
+        completed['game_date'] = completed['game_date'].astype(str)
         completed = completed[
             (completed['game_date'] >= cutoff_date) &
             (~completed['game_id'].isin(existing_game_ids))
