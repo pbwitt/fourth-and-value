@@ -287,7 +287,7 @@ $(NHL_PROC_DIR) $(NHL_CONS_DIR) $(NHL_PROPS_DIR) $(NHL_DOCS_DIR) $(NHL_DATA_DIR)
 # NHL Team Totals Pipeline (NEW)
 # ========================================================================
 
-NHL_SEASON ?= 20242025
+NHL_SEASON ?= 20252026
 NHL_GAMES_CSV := data/nhl/raw/games.csv
 NHL_PLAYER_STATS_CSV := data/nhl/raw/player_stats.csv
 NHL_TEAM_FEATURES_CSV := data/nhl/processed/team_features.csv
@@ -358,8 +358,8 @@ nhl_totals_all: nhl_totals_fetch nhl_totals_features nhl_totals_train nhl_totals
 	@echo "Consensus edges: $(NHL_CONSENSUS_EDGES_CSV)"
 	@echo "Page: $(NHL_TOTALS_PAGE)"
 
-# Daily run (features → train model + predictions + consensus + page)
-nhl_totals_daily: nhl_totals_features nhl_totals_train nhl_totals_predict nhl_totals_consensus nhl_totals_page
+# Daily run (fetch → features → train model + predictions + consensus + page)
+nhl_totals_daily: nhl_totals_fetch nhl_totals_features nhl_totals_train nhl_totals_predict nhl_totals_consensus nhl_totals_page
 	@echo "===================================================================="
 	@echo "✓ Daily NHL totals update complete"
 	@echo "===================================================================="
