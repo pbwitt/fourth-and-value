@@ -358,8 +358,8 @@ nhl_totals_all: nhl_totals_fetch nhl_totals_features nhl_totals_train nhl_totals
 	@echo "Consensus edges: $(NHL_CONSENSUS_EDGES_CSV)"
 	@echo "Page: $(NHL_TOTALS_PAGE)"
 
-# Daily run (train model + predictions + consensus + page)
-nhl_totals_daily: nhl_totals_train nhl_totals_predict nhl_totals_consensus nhl_totals_page
+# Daily run (features → train model + predictions + consensus + page)
+nhl_totals_daily: nhl_totals_features nhl_totals_train nhl_totals_predict nhl_totals_consensus nhl_totals_page
 	@echo "===================================================================="
 	@echo "✓ Daily NHL totals update complete"
 	@echo "===================================================================="
