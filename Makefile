@@ -192,6 +192,7 @@ NHL_CONSENSUS_PROPS := $(NHL_CONS_DIR)/consensus_props_$(DATE).csv
 NHL_CONSENSUS_GAMES := $(NHL_CONS_DIR)/consensus_games_$(DATE).csv
 NHL_MODELS := $(NHL_DATA_DIR)/models/sog_model_latest.pkl
 NHL_PROPS_MODEL := $(NHL_PROPS_DIR)/props_with_model_$(DATE).csv
+NHL_QC_REPORT := $(NHL_DATA_DIR)/qc/qc_report_$(DATE).json
 NHL_PAGE := $(NHL_DOCS_DIR)/index.html
 
 # Full daily pipeline
