@@ -27,10 +27,21 @@ jobs:
       - name: Run NHL daily pipeline
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "GitHub Actions Bot"
           git config user.email "actions@github.com"
           git config pull.rebase true
+
+          # Configure git to use the GitHub token for authentication
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
+
           export ODDS_API_KEY="${ODDS_API_KEY}"
           DATE=$(date +%Y-%m-%d)
-          make nhl_daily_pub DATE=$DATE LIVE=1
+
+          echo "Running NHL daily pipeline for $DATE..."
+          make nhl_daily_pub DATE=$DATE LIVE=1 || {
+            echo "Pipeline failed, checking for partial results..."
+            git status
+            exit 1
+          }

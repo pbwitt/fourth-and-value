@@ -194,7 +194,8 @@ def main():
         print(f"❌ Bets file not found: {bets_csv}")
         return
 
-    with open(bets_csv, 'r') as f:
+    # Read with latin-1 encoding to handle any byte values, then handle unicode manually
+    with open(bets_csv, 'r', encoding='latin-1') as f:
         reader = csv.DictReader(f)
         bets = list(reader)
 
