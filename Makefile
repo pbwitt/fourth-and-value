@@ -219,16 +219,21 @@ endif
 	@$(PY) scripts/grade_bets_nhl.py --date $(DATE) || echo "No bets to grade"
 
 # NHL daily build + publish to prod (requires LIVE=1)
+# Note: Git operations should be handled by caller (e.g., GitHub Actions workflow)
 nhl_daily_pub: nhl_daily
 ifeq ($(LIVE),1)
 	@echo "===================================================================="
 	@echo "Publishing NHL props page to production..."
 	@echo "===================================================================="
 	@git add $(NHL_PAGE) $(NHL_TOTALS_PAGE) $(NHL_PROPS_MODEL) $(NHL_QC_REPORT) docs/data/bets/bets.csv || true
-	@git diff --staged --quiet || git commit -m "NHL: Update props and totals pages for $(DATE)"
-	@git pull --rebase origin main || echo "Pull skipped (local changes)"
-	@git push || echo "Push failed - check authentication"
-	@echo "✓ Published to GitHub Pages"
+	@if ! git diff --staged --quiet; then \
+		git commit -m "NHL: Update props and totals pages for $(DATE)"; \
+		git pull --rebase origin main; \
+		git push; \
+		echo "✓ Published to GitHub Pages"; \
+	else \
+		echo "No changes to commit"; \
+	fi
 else
 	@echo "===================================================================="
 	@echo "DRY RUN - NHL page built but not published"

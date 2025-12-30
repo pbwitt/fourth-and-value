@@ -27,21 +27,36 @@ jobs:
       - name: Run NHL daily pipeline
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          git config user.name "GitHub Actions Bot"
-          git config user.email "actions@github.com"
-          git config pull.rebase true
-
-          # Configure git to use the GitHub token for authentication
-          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
-
           export ODDS_API_KEY="${ODDS_API_KEY}"
           DATE=$(date +%Y-%m-%d)
 
           echo "Running NHL daily pipeline for $DATE..."
-          make nhl_daily_pub DATE=$DATE LIVE=1 || {
-            echo "Pipeline failed, checking for partial results..."
-            git status
-            exit 1
-          }
+          make nhl_daily DATE=$DATE
+
+      - name: Commit and push changes
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+
+          DATE=$(date +%Y-%m-%d)
+
+          # Check if there are changes to commit
+          if git diff --quiet docs/nhl/; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          # Stage changes
+          git add docs/nhl/props/index.html docs/nhl/totals/index.html
+          git add data/nhl/props/props_with_model_${DATE}.csv || true
+          git add data/nhl/qc/qc_report_${DATE}.json || true
+          git add data/bets/bets.csv || true
+
+          # Commit
+          git commit -m "NHL: Update props and totals pages for ${DATE}
+
+🤖 Automated update via GitHub Actions"
+
+          # Push
+          git push
