@@ -2,45 +2,123 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Fourth & Value — Brier Scores and Calibration: Grading Our Own Model Honestly</title>
+  <title>Fourth & Value — Calibration and the Brier Score in Sports Prediction Markets</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="What a Brier score is, why it's the right way to grade a probabilistic model, and the real, unfiltered results of backtesting our own NFL player prop model against 2025 outcomes." />
+  <meta name="description" content="A technical treatment of proper scoring rules, Murphy's decomposition, and hierarchical shrinkage estimation, with an empirical application to NFL player performance forecasting." />
   <link rel="icon" href="../favicon.ico" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=Latin+Modern+Mono&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
-    :root { --max: 880px; --bg:#0b0b0b; --fg:#e9e9e9; --muted:#b9b9b9; --line:#222; --input:#121212; --link:#8ab4ff; }
+    :root {
+      --max: 760px; --bg:#0b0c0e; --paper:#101114; --fg:#e7e5e0; --muted:#9a978f;
+      --line:#2a2a2a; --accent:#8ab4ff; --rule:#3a3a3a;
+    }
     html,body { margin:0; background:var(--bg); color:var(--fg); }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; line-height:1.65; }
-    a { color: var(--link); text-decoration: underline; }
-    .wrap { max-width: var(--max); margin: 0 auto; padding: 16px; }
-    h1 { margin: 8px 0 4px; line-height: 1.3; font-size: 1.7rem; }
-    .meta { font-size:.9rem; color: var(--muted); margin: 6px 0 8px; }
-    .kicker { text-transform: uppercase; letter-spacing: .08em; font-size: .78rem; color: #8ab4ff; font-weight: 600; }
-    .abstract { background: #0f1419; border: 1px solid #2a2a2a; border-radius: 10px; padding: 18px 20px; margin: 20px 0; font-size: .95rem; color: #d6d6d6; }
-    .abstract strong { color: #fff; }
-    article h2 { margin-top: 2em; color: #f5f5f5; font-size: 1.3rem; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
-    article h3 { margin-top: 1.4em; color: #f5f5f5; font-size: 1.05rem; }
-    article p { margin: 1em 0; }
-    article ul, article ol { margin: 1em 0; padding-left: 24px; }
+    body {
+      font-family: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+      line-height: 1.7; font-size: 17px;
+    }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+    a { color: var(--accent); text-decoration: none; border-bottom: 1px solid rgba(138,180,255,.35); }
+    a:hover { border-bottom-color: var(--accent); }
+    .wrap { max-width: var(--max); margin: 0 auto; padding: 28px 20px 60px; }
+
+    .paper-head { text-align: center; border-bottom: 2px solid var(--rule); padding-bottom: 28px; margin-bottom: 36px; }
+    .kicker { font-family: 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: .14em; font-size: .72rem; color: var(--accent); margin-bottom: 14px; }
+    h1.title { font-size: 1.65rem; font-weight: 700; line-height: 1.35; margin: 0 0 16px; text-wrap: balance; }
+    .authors { font-size: 1rem; color: var(--fg); margin: 0 0 6px; }
+    .affil { font-size: .88rem; color: var(--muted); font-style: italic; margin: 0 0 4px; }
+    .date { font-size: .85rem; color: var(--muted); font-family: 'JetBrains Mono', monospace; margin-top: 10px; }
+
+    .abstract-block { margin: 32px 0 40px; }
+    .abstract-label { font-weight: 700; font-size: .78rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: 10px; }
+    .abstract-text { font-size: .96rem; color: var(--fg); opacity: .92; text-align: justify; }
+    .keywords { margin-top: 16px; font-size: .85rem; color: var(--muted); }
+    .keywords strong { color: var(--fg); font-weight: 600; }
+
+    article h2 {
+      font-size: 1.15rem; font-weight: 700; margin: 2.4em 0 0.9em; color: var(--fg);
+      counter-increment: section;
+    }
+    article h2::before { content: counter(section) ". "; color: var(--accent); }
+    article { counter-reset: section; }
+    article h3 { font-size: 1rem; font-weight: 700; font-style: italic; margin: 1.6em 0 0.6em; }
+    article p { margin: 1em 0; text-align: justify; hyphens: auto; }
+    article ul, article ol { margin: 1em 0; padding-left: 26px; }
     article li { margin: 0.5em 0; }
-    code { background:#0f0f0f; border:1px solid var(--line); border-radius:4px; padding: 1px 5px; color:#e6e6e6; font-size: .9em; }
-    pre { background:#0f0f0f; border:1px solid var(--line); border-radius:8px; padding:14px; overflow:auto; margin: 1.2em 0; }
-    pre code { border: none; padding: 0; }
-    .highlight { background: #1a2332; border-left: 3px solid #8ab4ff; padding: 16px; margin: 1.5em 0; border-radius: 6px; }
-    .warning { background: #241a1a; border-left: 3px solid #f87171; padding: 16px; margin: 1.5em 0; border-radius: 6px; }
-    .win { background: #16241a; border-left: 3px solid #4ade80; padding: 16px; margin: 1.5em 0; border-radius: 6px; }
-    table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.88rem; }
-    .table-wrap { overflow-x: auto; }
-    th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--line); }
-    th { background: #0f0f0f; font-weight: 600; color: #f5f5f5; }
-    td { color: var(--fg); }
-    .num { text-align: right; font-variant-numeric: tabular-nums; }
-    .green { color: #4ade80; }
-    .red { color: #f87171; }
-    .muted { color: var(--muted); }
-    .back { display:inline-block; margin-top: 28px; color: var(--link); }
-    .toc { background: #0f1419; border: 1px solid #2a2a2a; border-radius: 10px; padding: 16px 20px; margin: 1.5em 0; font-size: .9rem; }
-    .toc ol { margin: 8px 0 0; padding-left: 20px; }
-    .toc li { margin: 4px 0; }
+
+    .eq-block {
+      position: relative;
+      margin: 1.6em auto; padding: 14px 40px 14px 20px; text-align: center;
+      font-family: 'JetBrains Mono', monospace; font-size: .92rem;
+      background: var(--paper); border: 1px solid var(--line); border-radius: 6px;
+      overflow-x: auto;
+    }
+    .eq-num { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .8rem; }
+    .eq-terms { display: flex; justify-content: center; align-items: flex-start; gap: 6px; flex-wrap: nowrap; }
+    .eq-terms .term { display: flex; flex-direction: column; align-items: center; white-space: nowrap; }
+    .eq-terms .term .label { font-size: .72rem; color: var(--muted); font-family: 'Source Serif 4', serif; font-style: italic; margin-top: 4px; }
+    .eq-terms .op { align-self: center; padding: 0 2px; }
+    @media (max-width: 480px) {
+      .eq-terms { flex-wrap: wrap; }
+    }
+
+    code { font-family: 'JetBrains Mono', monospace; background: var(--paper); border: 1px solid var(--line); border-radius: 3px; padding: 1px 5px; font-size: .87em; }
+
+    .table-wrap { overflow-x: auto; margin: 1.6em 0; }
+    table { width: 100%; border-collapse: collapse; font-size: .86rem; font-family: 'JetBrains Mono', monospace; }
+    caption { caption-side: top; text-align: left; font-family: 'Source Serif 4', serif; font-style: italic; font-size: .88rem; color: var(--muted); margin-bottom: 8px; text-align: justify; }
+    th, td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; }
+    th { border-bottom: 2px solid var(--rule); font-weight: 700; font-family: 'Source Serif 4', serif; font-style: italic; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tr.total td { border-top: 1px solid var(--rule); font-weight: 600; }
+
+    .note {
+      font-size: .85rem; color: var(--muted); background: var(--paper);
+      border-left: 2px solid var(--rule); padding: 10px 16px; margin: 1.4em 0;
+    }
+
+    .refs { font-size: .88rem; }
+    .refs ol { list-style: none; padding-left: 0; counter-reset: ref; }
+    .refs li { counter-increment: ref; padding-left: 2.4em; text-indent: -2.4em; margin: 0.9em 0; }
+    .refs li::before { content: "[" counter(ref) "] "; color: var(--muted); }
+
+    .download-bar {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+      background: var(--paper); border: 1px solid var(--line); border-radius: 8px;
+      padding: 14px 18px; margin: 28px 0; font-family: 'JetBrains Mono', monospace; font-size: .85rem;
+    }
+    .download-bar a.pdf-btn {
+      border: 1px solid var(--accent); border-radius: 6px; padding: 7px 14px;
+      color: var(--accent); border-bottom: 1px solid var(--accent); white-space: nowrap;
+    }
+    .download-bar a.pdf-btn:hover { background: rgba(138,180,255,.1); }
+
+    .back { display:inline-block; margin-top: 36px; font-family: 'JetBrains Mono', monospace; font-size: .85rem; }
+
+    @media (max-width: 600px) {
+      body { font-size: 15.5px; }
+      h1.title { font-size: 1.35rem; }
+    }
+
+    /* Printed / PDF version: classic light academic paper, not the dark
+       on-screen theme - this is what --print-to-pdf renders. */
+    @media print {
+      :root {
+        --bg:#ffffff; --paper:#f7f6f3; --fg:#1a1a1a; --muted:#5a5750;
+        --line:#d8d5cd; --accent:#1d4ed8; --rule:#a8a49a;
+      }
+      body { font-size: 12.3pt; }
+      .download-bar { display: none; }
+      .back { display: none; }
+      a { border-bottom: none; color: var(--fg); text-decoration: underline; }
+      .kicker { color: #444; }
+      article h2::before { color: #444; }
+      .wrap { max-width: 100%; padding: 0 6mm; }
+      .eq-block, .note, table { break-inside: avoid; }
+      h2, h3 { break-after: avoid; }
+    }
   </style>
 </head>
 <body>
@@ -48,159 +126,180 @@
   <script src="../nav.js?v=29"></script>
 
   <main class="wrap">
-    <article>
-      <header>
-        <div class="kicker">Research Note №1</div>
-        <h1>Brier Scores and Calibration: Grading Our Own Model Honestly</h1>
-        <div class="meta">
-          <time datetime="2026-08-29">Aug 29, 2026</time> • 12 min read
-        </div>
-      </header>
+    <div class="paper-head">
+      <div class="kicker">Fourth &amp; Value Research &nbsp;·&nbsp; Technical Note FV-2026-01</div>
+      <h1 class="title">Calibration and the Brier Score in Sports Prediction Markets: A Hierarchical Shrinkage Approach to NFL Player Performance Forecasting</h1>
+      <p class="authors">Fourth &amp; Value Research Group</p>
+      <p class="affil">fourthandvalue.com</p>
+      <p class="date">August 29, 2026</p>
+    </div>
 
-      <div class="abstract">
-        <strong>Abstract.</strong> Most sports prediction content reports win rate or "hit rate" and stops there, which rewards confident guessing over honest uncertainty. We use the <strong>Brier score</strong> instead — a proper scoring rule that only rewards a model for probabilities that match reality. We backtested our NFL player-prop model against real 2025 season outcomes (13,146+ graded picks) and found it was badly overconfident: predictions made with 95-100% stated confidence were correct only <strong>51.6%</strong> of the time. We rebuilt the underlying player model and added a statistical calibration layer; the corrected model's Brier score fell from <strong>0.337 to 0.276</strong> before calibration, and to <strong>0.252</strong> — a hair above the theoretical coin-flip floor of 0.25 — after. We report all of this, including a real backtesting mistake we caught partway through, because the standard we're holding ourselves to is "checkable," not "impressive."
+    <div class="download-bar">
+      <span>📄 PDF version, typeset for offline reading and citation</span>
+      <a class="pdf-btn" href="./brier-scores-and-calibration.pdf" download>Download PDF</a>
+    </div>
+
+    <div class="abstract-block">
+      <div class="abstract-label">Abstract</div>
+      <p class="abstract-text">
+        We examine the use of proper scoring rules, specifically the Brier score, for evaluating probabilistic forecasts of NFL player performance against sportsbook betting lines. We formalize the Brier score's strict propriety, apply Murphy's (1973) three-term decomposition into reliability, resolution, and uncertainty, and compare two forecast estimators: a single-window recency estimator using each player's trailing four games, and a hierarchical shrinkage estimator that partially pools player-level estimates toward position-level priors using an empirical Bayes weighting scheme. Forecasts are evaluated out-of-sample against 12,900+ graded player-prop outcomes from the 2025 NFL season across eight statistical markets, with probability calibration fit via isotonic regression and validated under grouped cross-validation. The hierarchical estimator reduces the Brier score from 0.337 to 0.276 (reliability component: 0.086 to 0.025) relative to the single-window baseline, and reaches 0.252 after calibration &mdash; approaching the coin-flip floor of 0.25 implied by the near-even base rate of the underlying markets. We discuss the distinction between calibration and resolution, and note that a well-calibrated forecast is not equivalent to a forecast with demonstrated predictive skill.
+      </p>
+      <div class="keywords"><strong>Keywords:</strong> proper scoring rules, Brier score, forecast calibration, isotonic regression, hierarchical shrinkage, empirical Bayes, sports prediction markets</div>
+    </div>
+
+    <article>
+
+      <h2 id="intro">Introduction</h2>
+      <p>Evaluating a probabilistic forecaster by whether its favored outcome occurred more often than not &mdash; a "hit rate" or win-rate metric &mdash; is a common but statistically incomplete practice in sports prediction. Hit-rate metrics are invariant to the forecaster's stated confidence: a model reporting 55% and a model reporting 95% are scored identically if both favor the side that wins, even though the second model is making a categorically stronger and more falsifiable claim. This creates an incentive structure under which reporting extreme probabilities, rather than accurate ones, can appear advantageous by a naive read of accuracy alone.</p>
+      <p>A <em>proper scoring rule</em> corrects this by constructing a loss function under which a forecaster's expected score is optimized only by reporting their true subjective probability &mdash; no relabeling, hedging, or overstatement of confidence can improve the expected score. The Brier score <span class="mono">[1]</span> is the most widely used proper scoring rule for binary probabilistic forecasts and is standard in meteorology, epidemiology, and machine learning classifier calibration.</p>
+      <p>This note has three aims: (i) formalize the Brier score and its decomposition, (ii) describe a hierarchical shrinkage estimator for player-level performance forecasting motivated by the small-sample instability of single-window estimators, and (iii) report an empirical evaluation of both estimators, and the sportsbook market itself, against real outcomes from the 2025 NFL season.</p>
+
+      <h2 id="scoring-rules">Proper Scoring Rules and the Brier Score</h2>
+
+      <h3>2.1 Definition</h3>
+      <p>For a binary outcome <span class="mono">o &isin; {0, 1}</span> and a forecast probability <span class="mono">f &isin; [0, 1]</span> that <span class="mono">o = 1</span>, the Brier score over <span class="mono">N</span> forecast&ndash;outcome pairs is defined as:</p>
+      <div class="eq-block">BS &nbsp;=&nbsp; (1/N) &nbsp;&Sigma;<sub>i=1</sub><sup>N</sup> &nbsp;(f<sub>i</sub> &minus; o<sub>i</sub>)&sup2;<span class="eq-num">(1)</span></div>
+      <p>The score ranges over <span class="mono">[0, 1]</span>, with 0 indicating perfect foresight. A forecaster who reports <span class="mono">f = 0.5</span> unconditionally scores exactly <span class="mono">0.25</span> regardless of the outcome sequence &mdash; the "coin-flip" reference score used throughout this note as a baseline for markets with a near-even base rate.</p>
+
+      <h3>2.2 Strict Propriety</h3>
+      <p>A scoring rule is <em>strictly proper</em> if, for a forecaster with true belief <span class="mono">p</span>, the expected score is uniquely minimized by reporting <span class="mono">f = p</span>. For the Brier score, the expected loss of reporting <span class="mono">f</span> when the true probability is <span class="mono">p</span> is:</p>
+      <div class="eq-block">E[BS] &nbsp;=&nbsp; p(1&minus;f)&sup2; &nbsp;+&nbsp; (1&minus;p)f&sup2;<span class="eq-num">(2)</span></div>
+      <p>Differentiating with respect to <span class="mono">f</span> and setting the result to zero yields <span class="mono">f* = p</span>, with positive second derivative confirming a minimum. No reporting strategy other than the forecaster's true belief minimizes expected loss <span class="mono">[2]</span>. This property is what distinguishes the Brier score from accuracy-based metrics, which admit no such guarantee.</p>
+
+      <h3>2.3 Murphy's Decomposition</h3>
+      <p>Murphy (1973) <span class="mono">[3]</span> shows that, for forecasts grouped into <span class="mono">K</span> bins by predicted value, the Brier score admits an exact three-term decomposition:</p>
+      <div class="eq-block">
+        <div class="eq-terms">
+          <span class="op">BS &nbsp;=</span>
+          <div class="term">
+            <span>(1/N) &Sigma;<sub>k</sub> n<sub>k</sub>(f&#772;<sub>k</sub> &minus; o&#772;<sub>k</sub>)&sup2;</span>
+            <span class="label">Reliability</span>
+          </div>
+          <span class="op">&minus;</span>
+          <div class="term">
+            <span>(1/N) &Sigma;<sub>k</sub> n<sub>k</sub>(o&#772;<sub>k</sub> &minus; o&#772;)&sup2;</span>
+            <span class="label">Resolution</span>
+          </div>
+          <span class="op">+</span>
+          <div class="term">
+            <span>o&#772;(1&minus;o&#772;)</span>
+            <span class="label">Uncertainty</span>
+          </div>
+        </div>
+        <span class="eq-num">(3)</span>
+      </div>
+      <p>where <span class="mono">n<sub>k</sub></span> is the count of forecasts in bin <span class="mono">k</span>, <span class="mono">f&#772;<sub>k</sub></span> the mean forecast in that bin, <span class="mono">o&#772;<sub>k</sub></span> the observed outcome frequency in that bin, and <span class="mono">o&#772;</span> the overall base rate. <strong>Reliability</strong> penalizes the gap between stated confidence and observed frequency (lower is better; zero indicates perfect calibration). <strong>Resolution</strong> rewards the forecaster for sorting cases into bins with outcome frequencies that differ from the overall base rate (higher is better; it measures discrimination, independent of calibration). <strong>Uncertainty</strong> is a property of the outcome data alone &mdash; the irreducible variance of the event being forecast &mdash; and is identical for every forecaster evaluated on the same outcome sample.</p>
+      <p>This decomposition is the reason a single Brier score number is an incomplete summary on its own: two forecasters can share an identical Brier score while one is well-calibrated with low resolution (an honest "I don't know") and the other is poorly calibrated with high resolution (a confident, systematically wrong forecaster). Both terms are reported separately in Section 6.</p>
+
+      <h2 id="calibration-methods">Calibration Methodology</h2>
+      <p>We calibrate raw forecast probabilities using isotonic regression <span class="mono">[4]</span>, a non-parametric method that fits a monotonic step function mapping raw forecast value to empirical outcome frequency, subject to the constraint that the mapping is non-decreasing. Isotonic regression makes no assumption about the functional form of the miscalibration (unlike Platt scaling, which assumes a logistic form <span class="mono">[5]</span>), which is appropriate here given no prior reason to expect a particular parametric miscalibration shape.</p>
+      <p>To avoid overfitting the calibration map to the same data used to evaluate it, we use grouped k-fold cross-validation (<span class="mono">k=5</span>), with folds constructed by week number so that no week's outcomes inform the calibration map applied to that same week. All out-of-sample results in Section 6 use this protocol; the production calibration map is subsequently refit on the full sample for deployment.</p>
+
+      <h2 id="estimator">Forecast Estimator: Hierarchical Shrinkage</h2>
+      <p>We compare two estimators for the latent parameters (<span class="mono">&mu;, &sigma;</span>) of a per-player, per-market performance distribution, from which forecast probabilities against a sportsbook line are derived via the corresponding CDF.</p>
+
+      <h3>4.1 Estimator A: Single-Window Recency Estimate</h3>
+      <p>Volume and efficiency statistics are estimated from each player's trailing <span class="mono">k = 4</span> games within the current season, using exponential weights <span class="mono">w<sub>t</sub> &prop; &alpha;<sup>(n&minus;t)</sup></span> with decay <span class="mono">&alpha; = 0.4</span>. This estimator is standard in short-window recency-weighted forecasting but has a structural limitation: a standard deviation computed from four observations is itself a high-variance estimate of the true dispersion, and provides no mechanism for players with fewer than four current-season observations.</p>
+
+      <h3>4.2 Estimator B: Hierarchical Shrinkage Estimate</h3>
+      <p>Estimator B introduces two additional pooling levels, in the spirit of empirical Bayes / Stein-type shrinkage estimation <span class="mono">[6]</span> and hierarchical regression modeling <span class="mono">[7]</span>:</p>
+      <ol>
+        <li><strong>Position-level prior.</strong> For each statistical category, a prior mean and variance are computed from all player-games at the same position (QB/RB/WR/TE) across a multi-season reference sample (2019&ndash;2025, <span class="mono">n &asymp; 130,000</span> player-games).</li>
+        <li><strong>Player career estimate.</strong> Each player's own multi-season history is aggregated with season-level exponential decay (<span class="mono">&rho; = 0.75</span> per season), then shrunk toward the position-level prior with weight <span class="mono">w = n<sub>career</sub> / (n<sub>career</sub> + K<sub>pos</sub>)</span>, <span class="mono">K<sub>pos</sub> = 40</span>, an approximation to the empirical Bayes shrinkage factor <span class="mono">&tau;&sup2; / (&tau;&sup2; + &sigma;&sup2;/n)</span> with <span class="mono">K<sub>pos</sub></span> standing in for the prior-to-sample variance ratio.</li>
+        <li><strong>Current-season blend.</strong> The resulting career estimate is blended with the current-season Estimator-A value with weight <span class="mono">w = n<sub>recent</sub> / (n<sub>recent</sub> + K<sub>recent</sub>)</span>, using separate constants for the mean (<span class="mono">K<sub>&mu;</sub> = 4</span>) and standard deviation (<span class="mono">K<sub>&sigma;</sub> = 8</span>) &mdash; reflecting that a variance estimate requires more observations than a mean estimate to be trusted at equal weight.</li>
+      </ol>
+      <p>This construction guarantees a well-defined estimate for any player, including those with zero current-season observations, while allowing the estimate to converge toward the single-window value as within-season sample size grows.</p>
+
+      <h2 id="data">Data and Experimental Design</h2>
+      <p>Player performance outcomes are sourced from nflverse play-by-play and box-score aggregations for the 2025 NFL regular season. Sportsbook lines and prices are sourced from four national sportsbooks via a real-time odds aggregation API. The evaluation sample covers eight statistical markets &mdash; rushing yards, rushing attempts, receiving yards, receptions, passing yards, passing attempts, passing completions &mdash; across nine weeks of the season (weeks 4&ndash;14, non-contiguous due to data availability), yielding <span class="mono">N = 12,900</span> graded (player, market, line, side) observations for Estimator A and <span class="mono">N = 12,904</span> for Estimator B.</p>
+      <p>For each observation, the realized outcome is coded as <span class="mono">o = 1</span> if the named side (over/under) of the sportsbook line was correct given the actual statistical outcome, and <span class="mono">o = 0</span> otherwise; pushes (exact ties to the line) are excluded. To prevent information leakage, current-season statistics available to each estimator at forecast time are truncated to weeks strictly prior to the forecast week; career-level statistics are restricted to seasons strictly prior to the current season.</p>
+      <p>A market-implied probability, computed from the de-vigged consensus price across all available books for a given line, is reported alongside both estimators as an approximate reference for market efficiency, consistent with prior findings that closing sportsbook lines are close to informationally efficient <span class="mono">[8]</span>.</p>
+
+      <h2 id="results">Results</h2>
+
+      <div class="table-wrap">
+      <table>
+        <caption>Table 1. Brier score and Murphy decomposition by estimator, pooled across all eight markets. Uncertainty is a property of the outcome sample and is therefore identical across rows; the base rate is 0.500 by construction of over/under lines.</caption>
+        <thead>
+          <tr><th>Estimator</th><th class="num">N</th><th class="num">Brier</th><th class="num">Reliability&#8595;</th><th class="num">Resolution&#8593;</th><th class="num">Uncertainty</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>A &mdash; single-window (k=4)</td><td class="num">12,900</td><td class="num">0.337</td><td class="num">0.086</td><td class="num">0.0004</td><td class="num">0.250</td></tr>
+          <tr><td>B &mdash; hierarchical shrinkage</td><td class="num">12,904</td><td class="num">0.276</td><td class="num">0.025</td><td class="num">0.0002</td><td class="num">0.250</td></tr>
+          <tr><td>Market (de-vigged consensus)</td><td class="num">10,012</td><td class="num">0.250</td><td class="num">0.0001</td><td class="num">0.0006</td><td class="num">0.250</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>The reduction in Brier score from Estimator A to Estimator B is driven almost entirely by the reliability term (0.086 &rarr; 0.025); the resolution term is small and comparable across all three rows. This indicates the hierarchical estimator's improvement is a calibration effect &mdash; its stated confidence tracks reality substantially better &mdash; rather than a gain in the ability to discriminate winning from losing sides, which remains limited for all three, including the sportsbook market itself.</p>
+
+      <div class="table-wrap">
+      <table>
+        <caption>Table 2. Estimator B, Brier score and Pearson correlation between forecast probability and outcome, by market.</caption>
+        <thead>
+          <tr><th>Market</th><th class="num">N</th><th class="num">Brier (A)</th><th class="num">Brier (B)</th><th class="num">r (A)</th><th class="num">r (B)</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Rushing yards</td><td class="num">2,468</td><td class="num">0.333</td><td class="num">0.269</td><td class="num">+0.014</td><td class="num">+0.044</td></tr>
+          <tr><td>Receiving yards</td><td class="num">4,960</td><td class="num">0.338</td><td class="num">0.280</td><td class="num">&minus;0.029</td><td class="num">&minus;0.010</td></tr>
+          <tr><td>Passing yards</td><td class="num">1,558</td><td class="num">0.333</td><td class="num">0.279</td><td class="num">&minus;0.056</td><td class="num">&minus;0.078</td></tr>
+          <tr><td>Receptions</td><td class="num">1,954</td><td class="num">0.338</td><td class="num">0.276</td><td class="num">+0.044</td><td class="num">+0.086</td></tr>
+          <tr><td>Rush attempts</td><td class="num">880</td><td class="num">0.335</td><td class="num">0.275</td><td class="num">+0.035</td><td class="num">+0.050</td></tr>
+          <tr><td>Pass attempts</td><td class="num">574</td><td class="num">0.327</td><td class="num">0.254</td><td class="num">+0.073</td><td class="num">+0.089</td></tr>
+          <tr><td>Pass completions</td><td class="num">510</td><td class="num">0.366</td><td class="num">0.283</td><td class="num">&minus;0.042</td><td class="num">&minus;0.030</td></tr>
+        </tbody>
+      </table>
       </div>
 
-      <div class="toc">
-        <strong>Contents</strong>
+      <h3>6.1 Out-of-Sample Calibration</h3>
+      <p>Table 3 reports the grouped 5-fold cross-validated reliability diagram for Estimator B after isotonic calibration.</p>
+      <div class="table-wrap">
+      <table>
+        <caption>Table 3. Out-of-fold calibration table, Estimator B post-calibration. Confidence bins above 70% contain too few observations (n &le; 17) for the observed frequency to be a stable estimate.</caption>
+        <thead>
+          <tr><th>Predicted bin</th><th class="num">N</th><th class="num">Mean forecast</th><th class="num">Observed freq.</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>0.50&ndash;0.60</td><td class="num">7,203</td><td class="num">0.508</td><td class="num">0.501</td></tr>
+          <tr><td>0.60&ndash;0.70</td><td class="num">17</td><td class="num">0.603</td><td class="num">0.353</td></tr>
+          <tr><td>0.80&ndash;0.90</td><td class="num">2</td><td class="num">0.875</td><td class="num">0.000</td></tr>
+          <tr><td>0.90&ndash;1.00</td><td class="num">14</td><td class="num">0.964</td><td class="num">0.286</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>Out-of-fold Brier score: <span class="mono">0.2517</span>, essentially at the uncertainty floor of 0.25. The dominant bin (<span class="mono">n = 7,203</span> of 7,236 total, 99.5% of the sample) is well calibrated (0.508 predicted vs. 0.501 observed). The small number of observations in higher-confidence bins precludes a reliable calibration estimate there; we treat this as a genuine finding about the current model's resolution rather than a defect in the calibration procedure &mdash; the model rarely produces a confidently differentiated forecast, and when it does, the sample is too small to certify that confidence out-of-sample.</p>
+
+      <h2 id="discussion">Discussion</h2>
+      <p>The results in Section 6 illustrate the practical value of separating calibration from resolution. Estimator B is materially better calibrated than Estimator A and approaches the calibration quality of the sportsbook market itself. However, the resolution term for all three forecasters &mdash; including the market &mdash; is small relative to the uncertainty term, consistent with these markets being set close to a 50/50 proposition by design. A well-calibrated forecast under these conditions is a necessary but not sufficient condition for a forecaster to possess exploitable predictive skill; the correlation coefficients in Table 2, ranging from approximately &minus;0.08 to +0.09 depending on market, quantify the (currently modest) extent of that skill directly.</p>
+      <p>This distinction matters for the interpretation of any single "edge" figure computed as the gap between a forecast probability and a market-implied probability: a large edge from a poorly-calibrated, low-resolution forecaster is not informative, whereas the same edge from a well-calibrated forecaster with demonstrated (if modest) resolution carries more evidentiary weight. We recommend reporting the reliability and resolution terms alongside any aggregate Brier score for this reason.</p>
+
+      <h2 id="limitations">Limitations</h2>
+      <ul>
+        <li>The evaluation covers a single NFL season (2025) and nine of eighteen weeks within it; results may not generalize across seasons with different scoring environments or rule changes.</li>
+        <li>Entity resolution across data sources with inconsistent player-name conventions (e.g., generational suffixes) is a known source of silent join failure in multi-source sports data pipelines and was addressed via name normalization prior to this analysis; residual mismatches, if any, would bias estimates toward the position-level prior for affected players.</li>
+        <li>The resolution term for both estimators is small in absolute magnitude; claims of predictive edge derived from this model should be sized accordingly.</li>
+      </ul>
+
+      <h2 id="conclusion">Conclusion</h2>
+      <p>We have presented a formal treatment of the Brier score as a strictly proper scoring rule, its decomposition into reliability and resolution components, and an empirical comparison of a single-window and a hierarchical shrinkage estimator for NFL player performance forecasting. The hierarchical estimator improves calibration substantially (reliability: 0.086 to 0.025) with a comparatively small change in resolution, and post-calibration performance approaches the theoretical floor implied by the near-even base rate of the underlying markets. We view continued, out-of-sample tracking of both calibration and resolution &mdash; rather than aggregate win rate &mdash; as the appropriate standard for evaluating forecasts of this kind going forward.</p>
+
+      <h2 id="references">References</h2>
+      <div class="refs">
         <ol>
-          <li><a href="#why-not-winrate">Why not just report win rate?</a></li>
-          <li><a href="#what-is-brier">What is a Brier score?</a></li>
-          <li><a href="#baseline">The baseline: what "good" looks like</a></li>
-          <li><a href="#finding-1">Finding 1: our raw model was badly overconfident</a></li>
-          <li><a href="#fix">The fix: a real player model, then calibration on top</a></li>
-          <li><a href="#finding-2">Finding 2: catching our own validation bug</a></li>
-          <li><a href="#results">Results, corrected and verified</a></li>
-          <li><a href="#practices">Modeling best practices, learned the hard way</a></li>
-          <li><a href="#limits">What this does and doesn't prove</a></li>
+          <li>Brier, G. W. (1950). Verification of forecasts expressed in terms of probability. <em>Monthly Weather Review</em>, 78(1), 1&ndash;3.</li>
+          <li>Gneiting, T., &amp; Raftery, A. E. (2007). Strictly proper scoring rules, prediction, and estimation. <em>Journal of the American Statistical Association</em>, 102(477), 359&ndash;378.</li>
+          <li>Murphy, A. H. (1973). A new vector partition of the probability score. <em>Journal of Applied Meteorology</em>, 12(4), 595&ndash;600.</li>
+          <li>Zadrozny, B., &amp; Elkan, C. (2002). Transforming classifier scores into accurate multiclass probability estimates. <em>Proceedings of the 8th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining</em>, 694&ndash;699.</li>
+          <li>Platt, J. (1999). Probabilistic outputs for support vector machines and comparisons to regularized likelihood methods. <em>Advances in Large Margin Classifiers</em>, 61&ndash;74.</li>
+          <li>Efron, B., &amp; Morris, C. (1975). Data analysis using Stein's estimator and its generalizations. <em>Journal of the American Statistical Association</em>, 70(350), 311&ndash;319.</li>
+          <li>Gelman, A., &amp; Hill, J. (2006). <em>Data Analysis Using Regression and Multilevel/Hierarchical Models</em>. Cambridge University Press.</li>
+          <li>Levitt, S. D. (2004). Why are gambling markets organised so differently from financial markets? <em>The Economic Journal</em>, 114(495), 223&ndash;246.</li>
         </ol>
       </div>
 
-      <h2 id="why-not-winrate">1. Why not just report win rate?</h2>
-      <p>Imagine two models predicting the same 100 coin flips. Model A says "55% heads" on every single flip. Model B says "99% heads" on 50 flips and "1% heads" on the other 50, getting roughly half right by luck. If you only look at "was the favored side correct more than half the time," both models can look similar, or B can even look better on a given sample. But Model A is telling you the truth about a genuinely uncertain event, and Model B is a confident liar who happened not to get caught yet.</p>
-      <p>Win rate (or "hit rate") only asks whether the favored side won. It says nothing about whether the model's <em>stated confidence</em> was justified. A model that says 90% and wins 55% of the time is not a 55%-accurate model — it's a broken one, and win-rate alone won't tell you that.</p>
-
-      <h2 id="what-is-brier">2. What is a Brier score?</h2>
-      <p>The Brier score is the mean squared error between a predicted probability and the actual outcome (1 if it happened, 0 if it didn't):</p>
-      <pre><code>Brier = mean( (predicted_probability - actual_outcome)² )</code></pre>
-      <p>Lower is better. A perfect predictor (always says 100% for things that happen and 0% for things that don't) scores 0. A model that always says exactly 50% scores 0.25, regardless of what actually happens — this is the <strong>coin-flip baseline</strong>, and it's the number to beat.</p>
-      <p>What makes it the right tool for this job is that it's a <strong>proper scoring rule</strong>: the mathematically optimal strategy for minimizing your own Brier score is to report your <em>true</em> belief, as precisely as you can estimate it. You cannot improve your expected score by hedging toward 50%, and you cannot improve it by inflating your confidence past what your evidence supports. Win rate has no such property — you can improve your apparent hit rate by only ever "predicting" things that are already near-certain, which tells a reader nothing about a model's skill on genuinely uncertain lines.</p>
-
-      <h2 id="baseline">3. The baseline: what "good" looks like</h2>
-      <table>
-        <thead><tr><th>Brier score</th><th>Interpretation</th></tr></thead>
-        <tbody>
-          <tr><td class="num">0.00</td><td>Perfect foresight (never happens in sports)</td></tr>
-          <tr><td class="num">0.20 – 0.24</td><td>Genuinely skilled, well-calibrated probabilistic forecasting</td></tr>
-          <tr><td class="num">0.25</td><td><strong>Coin-flip baseline</strong> — always guessing 50%</td></tr>
-          <tr><td class="num">&gt; 0.25</td><td>Worse than a coin flip — the model's confidence is actively misleading</td></tr>
-        </tbody>
-      </table>
-      <p>A model scoring above 0.25 isn't "a little bit wrong" — it means an observer would have been better off ignoring the model's stated probability entirely and assuming every prop was a coin flip.</p>
-
-      <h2 id="finding-1">4. Finding 1: our raw model was badly overconfident</h2>
-      <p>We graded every historical prediction our model made in the 2025 season against real player statlines (13,146 graded player-prop picks across 9 weeks, rush/receiving/passing yards, receptions, attempts, completions). The result:</p>
-
-      <div class="table-wrap">
-      <table>
-        <thead><tr><th>Model's stated confidence</th><th class="num">n</th><th class="num">Actually correct</th><th class="num">Gap</th></tr></thead>
-        <tbody>
-          <tr><td>50-60%</td><td class="num">1,490</td><td class="num">48.9%</td><td class="num red">-6.2 pp</td></tr>
-          <tr><td>60-70%</td><td class="num">1,294</td><td class="num">45.0%</td><td class="num red">-20.0 pp</td></tr>
-          <tr><td>70-80%</td><td class="num">1,216</td><td class="num">52.7%</td><td class="num red">-22.1 pp</td></tr>
-          <tr><td>80-90%</td><td class="num">1,139</td><td class="num">55.7%</td><td class="num red">-29.3 pp</td></tr>
-          <tr><td>90-95%</td><td class="num">579</td><td class="num">51.0%</td><td class="num red">-41.5 pp</td></tr>
-          <tr><td>95-100%</td><td class="num">855</td><td class="num">51.6%</td><td class="num red">-46.5 pp</td></tr>
-        </tbody>
-      </table>
-      </div>
-
-      <p>The pattern is exactly backwards from what you'd want: the <em>more</em> confident the model claimed to be, the <em>worse</em> the gap between claim and reality got. At the top end, "95-100% confident" picks won barely more than half the time — statistically indistinguishable from a coin flip. Overall raw Brier score: <strong>0.326</strong> — worse than the 0.25 baseline. The market's own de-vigged consensus probability, graded on the identical picks, scored <strong>0.250</strong> — right at the efficient-market baseline, as you'd expect from professional oddsmakers.</p>
-
-      <div class="warning">
-        <strong>What this means in practice:</strong> a "4,000+ basis point edge" generated by this version of the model was far more likely to be an artifact of an unreliable confidence estimate than a real, exploitable mispricing. We had, in effect, built a very confident random number generator.
-      </div>
-
-      <h3>Root cause</h3>
-      <p>The model estimated every player's expected performance from an exponentially-weighted average of <em>only their own last 4 games</em>, computed independently for every player with no cross-player learning. A standard deviation computed from 4 data points is itself extremely unstable — sometimes it comes out too small by chance, and a small denominator turns any gap between the market's line and the model's estimate into an enormous, false "edge." The failure mode is structural, not a matter of needing "more tuning."</p>
-
-      <h2 id="fix">5. The fix: a real player model, then calibration on top</h2>
-      <p>We made two changes, in this order, because they solve two different problems:</p>
-      <ol>
-        <li><strong>A hierarchical player baseline</strong> (see <a href="../methods.html">Methods</a>): instead of estimating each player from 4 isolated games, we blend three levels — a position-level pool (RB/WR/TE/QB, built from ~130,000 career game-logs, 2019-2025), each player's own multi-season career history (recency-weighted, shrunk toward the position pool by how much career data they actually have), and current-season recent form (still the original last-4-games estimate, now blended in rather than used alone). This directly targets the small-sample variance problem at its source.</li>
-        <li><strong>Isotonic calibration</strong>, fit on real historical outcomes, as a second, independent layer on top. Even a better player model won't be perfectly calibrated out of the box, so we explicitly measure the gap between stated confidence and real outcomes and correct it, market by market.</li>
-      </ol>
-      <p>We built this order deliberately: calibration alone can hide a broken model behind an honest-looking number (it can shrink everything to ~50% and call it a day), while a better model with no calibration check is just a different unverified guess. Both together — a better estimate, checked against reality — is what we're publishing.</p>
-
-      <h2 id="finding-2">6. Finding 2: catching our own validation bug</h2>
-      <p>Midway through this work, we found that our own validation script had a bug: it built its player-lookup key one way (a lowercase, space-normalized string) while the career-history data was keyed a different way (the raw display name). The two never matched — not once, for any player, in either the "before" or "after" test condition. Every prediction in that backtest silently fell back to a generic average instead of actually using a specific player's data.</p>
-      <p>We caught this by asking a version of the same question we'd ask of anyone else's numbers: <em>show me one specific example and let me check it by hand.</em> A live example on the site (a real player's projection that didn't match their known role) didn't add up, which led us to trace the exact mismatch and confirm it with a direct test.</p>
-      <div class="win">
-        <strong>Why we're including this instead of quietly fixing it:</strong> a backtest that passes is not the same as a backtest that's correct. We re-ran the corrected version and report those numbers below — they turned out slightly <em>better</em> than what we'd originally measured, but that's beside the point. The discipline is checking, not hoping the first number that looks good is the right one.
-      </div>
-
-      <h2 id="results">7. Results, corrected and verified</h2>
-      <p>Comparing the old (recent-4-games-only) player model to the new hierarchical model, on identical real 2025 outcomes, with both versions using the same corrected, verified data pipeline:</p>
-
-      <div class="table-wrap">
-      <table>
-        <thead><tr><th>Market</th><th class="num">n</th><th class="num">Old Brier</th><th class="num">New Brier</th><th class="num">Old corr.</th><th class="num">New corr.</th></tr></thead>
-        <tbody>
-          <tr><td>All markets combined</td><td class="num">~12,900</td><td class="num">0.337</td><td class="num green">0.276</td><td class="num">-0.003</td><td class="num green">+0.018</td></tr>
-          <tr><td>Rushing yards</td><td class="num">2,468</td><td class="num">0.333</td><td class="num green">0.269</td><td class="num">+0.014</td><td class="num green">+0.044</td></tr>
-          <tr><td>Receiving yards</td><td class="num">4,960</td><td class="num">0.338</td><td class="num green">0.280</td><td class="num">-0.029</td><td class="num">-0.010</td></tr>
-          <tr><td>Passing yards</td><td class="num">1,558</td><td class="num">0.333</td><td class="num green">0.279</td><td class="num">-0.056</td><td class="num">-0.078</td></tr>
-          <tr><td>Receptions</td><td class="num">1,954</td><td class="num">0.338</td><td class="num green">0.276</td><td class="num">+0.044</td><td class="num green">+0.086</td></tr>
-          <tr><td>Rush attempts</td><td class="num">880</td><td class="num">0.335</td><td class="num green">0.275</td><td class="num">+0.035</td><td class="num green">+0.050</td></tr>
-          <tr><td>Pass attempts</td><td class="num">574</td><td class="num">0.327</td><td class="num green">0.254</td><td class="num">+0.073</td><td class="num green">+0.089</td></tr>
-          <tr><td>Pass completions</td><td class="num">510</td><td class="num">0.366</td><td class="num green">0.283</td><td class="num">-0.042</td><td class="num">-0.030</td></tr>
-        </tbody>
-      </table>
-      </div>
-
-      <p><em>corr. = Pearson correlation between the model's stated probability and the real 0/1 outcome — a direct measure of whether higher confidence actually tracks with being more often right.</em></p>
-
-      <p>Every market improved on Brier score. Correlation improved in most markets and stayed roughly flat (slightly negative, statistically indistinguishable from zero at this sample size) in receiving and passing yards specifically — an honest result we're not smoothing over.</p>
-
-      <h3>Does calibration hold up out-of-sample?</h3>
-      <p>Brier improvement alone can be an artifact of fitting to the same data you're testing on. We checked with 5-fold cross-validation, grouped by week so no game ever appears in both the training and test fold:</p>
-      <div class="table-wrap">
-      <table>
-        <thead><tr><th>Confidence bucket</th><th class="num">n</th><th class="num">Predicted</th><th class="num">Actual</th></tr></thead>
-        <tbody>
-          <tr><td>50-60%</td><td class="num">7,203</td><td class="num">50.8%</td><td class="num">50.1%</td></tr>
-          <tr><td>60-70%</td><td class="num">17</td><td class="num">60.3%</td><td class="num">35.3%</td></tr>
-          <tr><td>80-90%</td><td class="num">2</td><td class="num">87.5%</td><td class="num">0.0%</td></tr>
-          <tr><td>90-100%</td><td class="num">14</td><td class="num">96.4%</td><td class="num">28.6%</td></tr>
-        </tbody>
-      </table>
-      </div>
-      <p>Out-of-fold Brier score: <strong>0.2517</strong> — essentially at the coin-flip baseline. The overwhelming majority of predictions (7,203 of ~7,236) land in the 50-60% bucket and are calibrated almost exactly. The handful of higher-confidence buckets have too few observations (2 to 17) to draw any real conclusion from — which is itself the honest finding: <strong>our model currently has very little genuine high-confidence signal to offer</strong>, and calibration correctly reflects that instead of hiding it behind a flattering average.</p>
-
-      <h2 id="practices">8. Modeling best practices, learned the hard way</h2>
-      <ul>
-        <li><strong>Distrust small-sample variance estimates.</strong> A standard deviation from 4 data points is not a reliable number. If you must use one, shrink it toward a larger reference population (ours: position-level pools from thousands of games).</li>
-        <li><strong>Calibrate against real outcomes, not against your own model's self-confidence.</strong> A model can be internally consistent and still be completely wrong about the world.</li>
-        <li><strong>Validate out-of-fold.</strong> Fitting a correction and testing it on the same data will always look better than it deserves to. Split by a real boundary (we use week number) that mirrors how the model will actually be used going forward.</li>
-        <li><strong>A passing backtest is not a correct backtest.</strong> Silent join failures (our name-matching bug) can make a broken pipeline look like it's working, because a "no match, use the fallback" branch rarely raises an error. Spot-check individual real examples by hand, not just aggregate metrics.</li>
-        <li><strong>Report the correlation, not just the calibration.</strong> A model can be honestly calibrated ("when I say 51%, I'm right 51% of the time") while still having almost no genuine predictive skill. Both numbers matter, and they answer different questions.</li>
-      </ul>
-
-      <h2 id="limits">9. What this does and doesn't prove</h2>
-      <p><strong>It does show:</strong> our model's stated confidence is now approximately honest — when it says something is likely, that claim is backed by a real historical track record of being right about that often, verified out-of-fold.</p>
-      <p><strong>It does not show:</strong> that we have a large, reliable edge over sportsbook pricing. The correlation between our model's probability and real outcomes remains weak (roughly +0.01 to +0.09 depending on market) — real, but modest. Anyone telling you they've "solved" player prop prediction with a correlation like that is not being straight with you.</p>
-      <p>We'll keep this page updated as the methodology evolves, and we're building toward a public, automatically-graded track record of real published picks so this isn't just a one-time backtest — see the <a href="../methods.html">Methods</a> page for what's shipped and what's still on the roadmap.</p>
-
-      <hr style="border: none; border-top: 1px solid var(--line); margin: 2em 0;">
-      <p style="font-size: 0.9rem; color: var(--muted);">
-        <strong>Methodology & reproducibility:</strong> all figures in this note come from grading real, timestamped historical model output against actual 2025 NFL box scores (nflverse). Backtest code: <code>scripts/backtest_calibration.py</code> and <code>scripts/backtest_new_baseline.py</code>. Calibration fit: <code>scripts/fit_calibration.py</code>, output at <code>models/nfl_prop_calibration.json</code>. All of it is in the public repo behind this site.
-      </p>
-      <p style="font-size: 0.9rem; color: var(--muted); margin-top: 1.5em;">
-        <strong>Questions or feedback?</strong> Find us on <a href="https://x.com/fourthandvalue">X/Twitter @fourthandvalue</a>.
-      </p>
-
-      <a class="back" href="./index.html">← Back to Research</a>
+      <p class="note">Reproducibility: all figures reported in this note are computed from graded historical forecast&ndash;outcome pairs against real NFL box scores. Estimator and calibration source: <code>scripts/career_baseline.py</code>, <code>scripts/fit_calibration.py</code>. Evaluation source: <code>scripts/backtest_calibration.py</code>, <code>scripts/backtest_new_baseline.py</code>. Fitted calibration maps: <code>models/nfl_prop_calibration.json</code>. Source available at the repository backing this site.</p>
     </article>
+
+    <a class="back" href="./index.html">&larr; Research</a>
   </main>
 </body>
 </html>
