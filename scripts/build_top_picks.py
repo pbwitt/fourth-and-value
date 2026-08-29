@@ -38,14 +38,40 @@ def collapse_best_across_lines_and_books(df):
     d["_edge"]  = pd.to_numeric(d.get("edge_bps"),   errors="coerce").fillna(-1e15)
     d["_price"] = pd.to_numeric(d.get("price"),      errors="coerce").fillna(-1e15)
 
-    # best first → drop dups on the line-agnostic key
+    group_cols = ["_game_key", "player_canon", "market_std", "name"]
+
+    # Line shopping compares the SAME number across books (a book at a
+    # different point is a different bet, not a better price on this one) -
+    # so offers are grouped one level finer than the card-selection group,
+    # keyed on point too. Round to avoid float-equality misses.
+    d["_point_key"] = pd.to_numeric(d.get("point"), errors="coerce").round(3)
+    offer_group_cols = group_cols + ["_point_key"]
+
+    def _offers_for_group(g):
+        rows = g.sort_values("_price", ascending=False)
+        offers, seen = [], set()
+        for _, r in rows.iterrows():
+            name_disp = str(r.get("bookmaker_title") or r.get("book") or "").strip()
+            key = name_disp.lower()
+            price = r.get("price")
+            if not name_disp or key in seen or pd.isna(price):
+                continue
+            seen.add(key)
+            offers.append({"book": name_disp, "point": r.get("point"), "price": float(price)})
+        return offers
+
+    offers_by_point = {key: _offers_for_group(g) for key, g in d.groupby(offer_group_cols, dropna=False)}
+
+    # best first → drop dups on the line-agnostic key (still picks the single
+    # best line+book+price to feature as the card's headline bet)
     d.sort_values(
         ["_game_key","player_canon","market_std","name","_ev","_edge","_price"],
         ascending=[ True,        True,          True,  True,  False,  False,  False],
         inplace=True,
     )
-    d = d.drop_duplicates(subset=["_game_key","player_canon","market_std","name"], keep="first")
-    return d.drop(columns=["_ev","_edge","_price","_game_key"], errors="ignore")
+    d = d.drop_duplicates(subset=group_cols, keep="first")
+    d["_offers"] = [offers_by_point.get(k, []) for k in d[offer_group_cols].itertuples(index=False, name=None)]
+    return d.drop(columns=["_ev","_edge","_price","_game_key","_point_key"], errors="ignore")
 
 
 def _is_numeric_total_market(mkt) -> bool:
@@ -374,6 +400,8 @@ def card(row, model_prob_col, consensus_prob_col):
 
     edge_txt = "" if (edge is None or (isinstance(edge,float) and math.isnan(edge))) else f"{edge:,.0f} bps"
 
+    shop_html = _shop_section(row.get("_offers"))
+
     return f"""
     <div class="card" {data_attrs} data-edge="{'' if (edge is None or (isinstance(edge,float) and math.isnan(edge))) else f'{float(edge):g}'}">
       <div class="meta">
@@ -397,14 +425,53 @@ def card(row, model_prob_col, consensus_prob_col):
         <div>EV / $100</div><div>{escape(ev_txt)}</div>
       </div>
 
+      {shop_html}
+
       <div class="footer">
         <button class="copy" onclick="copyCard(this)">Copy bet</button>
         <div class="right">
           {"<span class='modelline'>Model: " + escape(model_line_txt) + "</span>" if model_line_txt else ""}
-          <span class="bestbook">{"Best book: " + escape(book) if book else ""}</span>
+          <span class="bestbook">{"Best price: " + escape(book) if book else ""}</span>
         </div>
       </div>
     </div>
+    """
+
+
+def _shop_section(offers):
+    """Renders the line-shopping list: every book's price for this exact
+    pick, best price first, with the $ saved vs. the worst price on offer.
+    offers is already sorted best-first by collapse_best_across_lines_and_books."""
+    if not isinstance(offers, list) or len(offers) < 2:
+        return ""
+
+    best_price = offers[0]["price"]
+    worst_price = offers[-1]["price"]
+
+    def _payout(odds):
+        return (odds / 100.0) * 100.0 if odds > 0 else (100.0 / abs(odds)) * 100.0
+
+    savings = _payout(best_price) - _payout(worst_price)
+
+    rows_html = []
+    for i, o in enumerate(offers[:4]):
+        cls = "shop-row best" if i == 0 else "shop-row"
+        rows_html.append(
+            f'<div class="{cls}"><span class="shop-book">{escape(str(o["book"]))}</span>'
+            f'<span class="shop-price">{escape(fmt_odds_american(o["price"]))}</span></div>'
+        )
+    more = len(offers) - 4
+    if more > 0:
+        rows_html.append(f'<div class="shop-more">+{more} more book{"s" if more != 1 else ""}</div>')
+
+    save_txt = f"Best price beats the worst by ${savings:.2f} per $100 — same line, same side" if savings > 0.01 else ""
+
+    return f"""
+      <div class="shop">
+        <div class="shop-title">Shop this line · {len(offers)} books</div>
+        {''.join(rows_html)}
+        {f'<div class="shop-save">{escape(save_txt)}</div>' if save_txt else ''}
+      </div>
     """
 
 
@@ -497,6 +564,15 @@ button.reset {{ background:#1a1a1d; border:1px solid #2a2a2e; color:#e7e7ea; }}
 .footer .right {{ display:flex; gap:12px; align-items:center; }}
 .bestbook {{ color:#b7b7bb; font-size:12px; }}
 .modelline {{ color:#b7b7bb; font-size:12px; }}
+
+/* Line shopping */
+.shop {{ border-top:1px solid #1f1f22; margin-top:4px; padding-top:8px; }}
+.shop-title {{ color:#8a8a90; font-size:11px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; }}
+.shop-row {{ display:flex; justify-content:space-between; align-items:center; font-size:13px; color:#c8c8cd; padding:2px 0; }}
+.shop-row.best {{ color:#fff; font-weight:700; }}
+.shop-row.best .shop-price {{ color:#34d399; }}
+.shop-more {{ color:#6f6f76; font-size:12px; padding-top:2px; }}
+.shop-save {{ color:#34d399; font-size:12px; margin-top:4px; }}
 
 /* Wider container on large screens (pairs nicely with 3-up grid) */
 @media (min-width: 900px) {{
