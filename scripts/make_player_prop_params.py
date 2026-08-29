@@ -455,6 +455,11 @@ def _load_season_weekly(season: int) -> Optional[pd.DataFrame]:
         weekly["player"] = weekly["player_name"].fillna("")
     else:
         weekly["player"] = ""
+    # nflverse includes Jr./Sr./II/III; odds feeds consistently don't -
+    # strip so this matches the same player's props (see career_baseline.py
+    # _clean_weekly for the identical fix on the career-history side).
+    from common_markets import strip_generational_suffix
+    weekly["player"] = weekly["player"].map(strip_generational_suffix)
 
     needed = [
         "recent_team","position","gsis_id","season","week","opponent_team",
@@ -1047,15 +1052,26 @@ def estimate_rush_latents(
     volume_sigma_vals = {}
     ypc_mu_vals = {}
     ypc_sigma_vals = {}
+    no_data_players = set()
 
     for player in player_idx:
         career_vol_mu = career_vol_sigma = career_ypc_mu = career_ypc_sigma = np.nan
+        career_n = 0
         if use_career:
             p_career = career_grp.get_group(player) if player in career_grp.groups else career_prior.iloc[0:0]
-            career_vol_mu, career_vol_sigma, _ = cb.player_career_baseline(
+            career_vol_mu, career_vol_sigma, career_n = cb.player_career_baseline(
                 p_career, season, "carries", None, pos_vol_mu, pos_vol_sigma)
             career_ypc_mu, career_ypc_sigma, _ = cb.player_career_baseline(
                 p_career, season, "rushing_yards", "carries", pos_ypc_mu, pos_ypc_sigma)
+
+        if player not in grp.groups and career_n == 0:
+            # Zero current-season games AND zero career history - we have
+            # no real basis for an independent opinion on this player at
+            # all (a true rookie, or a name-match miss). Flagged here so
+            # make_props_edges.py can fall back to the market's own price
+            # instead of publishing a number built entirely from a generic
+            # position average.
+            no_data_players.add(player)
 
         if player in grp.groups:
             player_data = grp.get_group(player).sort_index()
@@ -1105,6 +1121,7 @@ def estimate_rush_latents(
         "volume_sigma": pd.Series(volume_sigma_vals, index=player_idx).fillna(PRIORS["rush_attempts"]["sigma"]),
         "ypc_mu": ypc_mu_series,
         "ypc_sigma": ypc_sigma_series,
+        "no_data_players": no_data_players,
     }
 
 
@@ -1181,19 +1198,24 @@ def estimate_receive_latents(
     ypr_mu_vals = {}
     ypr_sigma_vals = {}
 
+    no_data_players = set()
     for player in player_idx:
         career_vol_mu = career_vol_sigma = career_ypr_mu = career_ypr_sigma = career_cr_mu = np.nan
+        career_n = 0
         if use_career:
             pos = player_position.get(player, "WR")
             (pos_vol_mu, pos_vol_sigma), (pos_ypr_mu, pos_ypr_sigma), (pos_cr_mu, pos_cr_sigma) = pos_pools.get(pos, pos_pools["WR"])
             p_career = career_grp.get_group(player) if player in career_grp.groups else career_prior.iloc[0:0]
-            career_vol_mu, career_vol_sigma, _ = cb.player_career_baseline(
+            career_vol_mu, career_vol_sigma, career_n = cb.player_career_baseline(
                 p_career, season, "targets", None, pos_vol_mu, pos_vol_sigma)
             career_ypr_mu, career_ypr_sigma, _ = cb.player_career_baseline(
                 p_career, season, "receiving_yards", "receptions", pos_ypr_mu, pos_ypr_sigma)
             career_cr_mu, _, _ = cb.player_career_baseline(
                 p_career, season, "receptions", "targets", pos_cr_mu, pos_cr_sigma)
             career_cr_mu = career_cr_mu if not pd.isna(career_cr_mu) else 0.65
+
+        if player not in grp.groups and career_n == 0:
+            no_data_players.add(player)
 
         if player in grp.groups:
             player_data = grp.get_group(player).sort_index()
@@ -1262,6 +1284,7 @@ def estimate_receive_latents(
         "cr_mu": cr_mu_series,
         "ypr_mu": ypr_mu_series,
         "ypr_sigma": ypr_sigma_series,
+        "no_data_players": no_data_players,
     }
 
 
@@ -1334,15 +1357,20 @@ def estimate_pass_latents(
     comp_pct_vals = {}
     ypc_mu_vals = {}
     ypc_sigma_vals = {}
+    no_data_players = set()
 
     for player in player_idx:
         career_vol_mu = career_vol_sigma = career_ypc_mu = career_ypc_sigma = np.nan
+        career_n = 0
         if use_career:
             p_career = career_grp.get_group(player) if player in career_grp.groups else career_prior.iloc[0:0]
-            career_vol_mu, career_vol_sigma, _ = cb.player_career_baseline(
+            career_vol_mu, career_vol_sigma, career_n = cb.player_career_baseline(
                 p_career, season, "attempts", None, pos_vol_mu, pos_vol_sigma)
             career_ypc_mu, career_ypc_sigma, _ = cb.player_career_baseline(
                 p_career, season, "passing_yards", "completions", pos_ypc_mu, pos_ypc_sigma)
+
+        if player not in grp.groups and career_n == 0:
+            no_data_players.add(player)
 
         if player in grp.groups:
             player_data = grp.get_group(player).sort_index()
@@ -1402,6 +1430,7 @@ def estimate_pass_latents(
         "comp_pct_mu": comp_pct_series,
         "ypc_mu": ypc_mu_series,
         "ypc_sigma": ypc_sigma_series,
+        "no_data_players": no_data_players,
     }
 
 
@@ -1600,6 +1629,21 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
 
     print(f"[family] Derived params for {len(mu_map)} Normal markets from latents")
 
+    # Players with zero current-season games AND zero career history for
+    # the relevant family - their mu/sigma above is built entirely from a
+    # generic position average, not anything specific to them. Flagged so
+    # make_props_edges.py can fall back to the market's own price instead
+    # of publishing an "opinion" we don't actually have (see
+    # scripts/career_baseline.py docstring).
+    market_no_data = {}
+    for mkt in family_markets:
+        if mkt in ("rush_attempts", "rush_yds"):
+            market_no_data[mkt] = rush_latents.get("no_data_players", set())
+        elif mkt in ("receptions", "recv_yds"):
+            market_no_data[mkt] = receive_latents.get("no_data_players", set())
+        else:
+            market_no_data[mkt] = pass_latents.get("no_data_players", set())
+
     # ========================================
     # APPLY DEFENSIVE ADJUSTMENTS
     # ========================================
@@ -1758,6 +1802,7 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
                     mu_adjusted[player] = adjusted_mu
                 mu = pd.Series(mu_adjusted, index=mu.index)
 
+            no_data_set = market_no_data.get(mkt, set())
             rows.append(
                 want.assign(
                     dist      = "normal",
@@ -1765,6 +1810,7 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
                     sigma     = want["player"].map(sg),
                     lam       = np.nan,
                     used_logs = want["player"].map(lambda p: g_used(p)),
+                    no_real_data = want["player"].map(lambda p: p in no_data_set),
                 )
             )
         elif mkt in POISSON_MARKETS:
@@ -1776,6 +1822,7 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
                     sigma     = np.nan,
                     lam       = want["player"].map(lam),
                     used_logs = want["player"].map(lambda p: g_used(p)),
+                    no_real_data = False,
                 )
             )
         else:
@@ -1881,6 +1928,15 @@ def main():
     logging.info(f"Loading props from {args.props_csv}")
     props = load_props(args.props_csv)
 
+    # Odds feeds are inconsistent about generational suffixes (some players
+    # keep "III"/"Jr.", most don't), and nflverse always includes them -
+    # strip here, as early as possible, so every downstream player_key/
+    # name_std/raw-"player" comparison in this file and in career_baseline.py
+    # is comparing the same normalized name regardless of source.
+    from common_markets import strip_generational_suffix
+    if "player" in props.columns:
+        props["player"] = props["player"].map(strip_generational_suffix)
+
     # 0) Add name_std for player name standardization (needed for adjustments)
     if "name_std" not in props.columns and "player" in props.columns:
         props["name_std"] = props["player"].map(std_player_name)
@@ -1980,7 +2036,7 @@ def main():
 
     # Final tidy + write
     cols = ["season","week","player","player_key","name_std","market_std","market",
-        "dist","mu","sigma","lam","used_logs","is_home",
+        "dist","mu","sigma","lam","used_logs","is_home","no_real_data",
         "implied_ypc","implied_ypr","implied_comp_pct","implied_ypc_pass","implied_cr"]
     params = params[[c for c in cols if c in params.columns]].copy()
     params = standardize_input(params)           # adds market_std/name/point/name_std

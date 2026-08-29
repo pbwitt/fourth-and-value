@@ -344,11 +344,15 @@ def main():
             merged.loc[sel, col] = alt[col].values
 
 
+    no_data_col = ["no_real_data"] if "no_real_data" in params.columns else []
     merged = props.merge(
-        params[join_keys + ["mu", "sigma", "lam"]].drop_duplicates(),
+        params[join_keys + ["mu", "sigma", "lam"] + no_data_col].drop_duplicates(),
         on=join_keys,
         how="left",
     )
+    if "no_real_data" not in merged.columns:
+        merged["no_real_data"] = False
+    merged["no_real_data"] = merged["no_real_data"].fillna(False)
 
     # ---- normalize side + point BEFORE computing model_prob ----
 # many feeds put "Over 65.5" / "UNDER" / "Yes" in various columns; normalize to {over, under, yes, no}
@@ -402,6 +406,17 @@ def main():
     merged["model_prob"] = apply_calibration(
         merged.assign(model_prob=merged["model_prob_raw"]), calibration
     )
+
+    # Players with zero current-season games AND zero career history (see
+    # career_baseline.py / no_real_data in make_player_prop_params.py) have
+    # no real basis for an independent opinion - the market's own price is
+    # the best unbiased estimate available, not a generic position average.
+    # Publish the market's number as ours rather than a fake "edge".
+    no_data_mask = merged["no_real_data"].fillna(False)
+    merged.loc[no_data_mask, "model_prob_raw"] = merged.loc[no_data_mask, "mkt_prob"]
+    merged.loc[no_data_mask, "model_prob"] = merged.loc[no_data_mask, "mkt_prob"]
+    if no_data_mask.any():
+        logging.info(f"[no-data] {int(no_data_mask.sum())} rows had no real player data - showing market consensus instead of a model opinion")
 
     # Edge in basis points
     merged["edge_bps"] = (merged["model_prob"] - merged["mkt_prob"]) * 10000.0

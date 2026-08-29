@@ -48,12 +48,17 @@ K_RECENT_SIGMA = 8           # current-season games needed to fully trust recent
 
 
 def _clean_weekly(df: pd.DataFrame) -> pd.DataFrame:
+    from common_markets import strip_generational_suffix
     df = df.copy()
     df.columns = [c.lower() for c in df.columns]
     if "player_display_name" in df.columns:
         df["player"] = df["player_display_name"].fillna("")
     elif "player_name" in df.columns:
         df["player"] = df["player_name"].fillna("")
+    # nflverse includes Jr./Sr./II/III; odds feeds consistently don't -
+    # strip so this player's own career history actually matches their
+    # props (e.g. "Deebo Samuel Sr." here vs. "Deebo Samuel" in odds data).
+    df["player"] = df["player"].map(strip_generational_suffix)
     return df
 
 

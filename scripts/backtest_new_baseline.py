@@ -60,6 +60,8 @@ def load_truncated_logs(season: int, before_week: int) -> pd.DataFrame:
         df["recent_team"] = df["team"]
     if "player_display_name" in df.columns:
         df["player"] = df["player_display_name"].fillna("")
+    from common_markets import strip_generational_suffix
+    df["player"] = df["player"].map(strip_generational_suffix)
 
     tail = (
         df.sort_values(["player", "season", "week"])
@@ -90,8 +92,12 @@ def build_mu_sigma(logs: pd.DataFrame, player_idx: pd.Index, season: int, career
 
 
 def score_week(preds_week: pd.DataFrame, mu_sigma: dict) -> pd.DataFrame:
+    from common_markets import strip_generational_suffix
     df = preds_week.copy()
-    df["player_key2"] = df["player"].astype(str).map(name_std_str)
+    # Must match player_idx's key format exactly (raw display name, suffix-
+    # stripped) - this used to be name_std_str, which never once matched
+    # career_grp/logs.groupby("player")'s raw keys. See the module docstring.
+    df["player_key2"] = df["player"].astype(str).map(strip_generational_suffix)
     rows = []
     for market, (mu_s, sigma_s) in mu_sigma.items():
         sub = df[df["market_std"] == market].copy()
@@ -128,7 +134,8 @@ def main():
             continue
 
         logs_trunc = load_truncated_logs(SEASON, before_week=wk)
-        player_idx = pd.Index(preds_wk["player"].astype(str).map(name_std_str).unique())
+        from common_markets import strip_generational_suffix
+        player_idx = pd.Index(preds_wk["player"].astype(str).map(strip_generational_suffix).unique())
 
         # OLD: recent-4-games-only (no career_df)
         old_mu_sigma = build_mu_sigma(logs_trunc, player_idx, SEASON, career_df=None)

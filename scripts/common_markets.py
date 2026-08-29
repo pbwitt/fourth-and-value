@@ -89,9 +89,26 @@ def pretty_market(m: str) -> str:
 
 # --- Player name normalization (for merge fallbacks)
 _name_clean_re = re.compile(r"[^a-z0-9]+")
+# Generational suffixes: different data sources are inconsistent about
+# including these (nflverse often has "Deebo Samuel Sr.", odds feeds often
+# just "Deebo Samuel"), so strip them before joining or real players with a
+# suffix silently fail to match their own career history. Matched on a word
+# boundary while spaces still exist, before punctuation gets stripped.
+_name_suffix_re = re.compile(r",?\s+(jr|sr|ii|iii|iv|v)\.?\s*$", re.IGNORECASE)
+
+def strip_generational_suffix(name: Optional[str]) -> Optional[str]:
+    """Remove a trailing Jr./Sr./II/III/IV from a display name, preserving
+    case and spacing otherwise. nflverse consistently includes these
+    (e.g. "Deebo Samuel Sr.") while odds feeds consistently omit them
+    ("Deebo Samuel"), so without this, any player with a suffix silently
+    fails to match their own stats across every data source in this repo."""
+    if name is None:
+        return None
+    return _name_suffix_re.sub("", str(name), count=1)
+
 
 def std_player_name(s: Optional[str]) -> Optional[str]:
-    """Lowercase, strip accents/punct/spaces for safer merges."""
+    """Lowercase, strip accents/suffixes/punct/spaces for safer merges."""
     if s is None:
         return None
     s = (
@@ -100,6 +117,7 @@ def std_player_name(s: Optional[str]) -> Optional[str]:
         .decode("ascii")
         .lower()
     )
+    s = _name_suffix_re.sub("", s)
     s = _name_clean_re.sub("", s)
     return s or None
 
@@ -155,6 +173,13 @@ def standardize_input(
 
     # --- player identifiers ---
     psrc = next((c for c in player_col_candidates if c in df.columns), None)
+    if psrc:
+        # Odds feeds are inconsistent about generational suffixes (some
+        # players keep "III"/"Jr.", most don't) and nflverse always
+        # includes them - strip everywhere a "player" column is
+        # standardized, so name_std/player_key derived here always match
+        # regardless of which convention this particular source used.
+        df[psrc] = df[psrc].map(strip_generational_suffix)
     if psrc and "name_std" not in df.columns:
         s = df[psrc].astype(str).str.lower()
         s = s.str.replace(r"[^a-z0-9\\s]", "", regex=True).str.replace(r"\\s+", " ", regex=True).str.strip()
