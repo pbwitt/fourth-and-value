@@ -28,7 +28,7 @@ MERGED     := $(PROPS_DIR)/props_with_model_week$(WEEK).csv
 PROPS_HTML := $(DOCS_DIR)/props/index.html
 TOP_HTML   := $(DOCS_DIR)/props/top.html
 INSIGHTS_HTML := $(DOCS_DIR)/props/insights.html
-INSIGHTS_JSON := data/ai/insights_week$(WEEK).json
+INSIGHTS_JSON := docs/data/ai/insights_week$(WEEK).json
 ARB_HTML   := $(DOCS_DIR)/props/arbitrage.html
 ODDS_CSV   := $(ODDS_DIR)/latest.csv
 FAM_ARB_CSV := data/qc/family_arbitrage.csv
@@ -65,7 +65,7 @@ qc: $(MERGED) $(PARAMS) $(PROPS_ALL)
 
 # ---- Steps ----
 # 0) Ensure dirs exist
-$(PROPS_DIR) $(DOCS_DIR)/props $(ODDS_DIR) $(QC_DIR) data/ai:
+$(PROPS_DIR) $(DOCS_DIR)/props $(ODDS_DIR) $(QC_DIR) data/ai docs/data/ai:
 	mkdir -p $@
 
 # 1) Odds (stdout to file, as your script expects)
@@ -121,7 +121,9 @@ $(TOP_HTML): scripts/build_top_picks.py $(MERGED) | $(DOCS_DIR)/props
 	  --title "Top Picks — Week $(WEEK)"
 
 # 5b) Generate AI insights JSON
-$(INSIGHTS_JSON): scripts/make_ai_commentary.py $(MERGED) | data/ai
+# Written directly into docs/ so it's published alongside the HTML pages
+# (data/ is gitignored - anything written only there never reaches the site).
+$(INSIGHTS_JSON): scripts/make_ai_commentary.py $(MERGED) | docs/data/ai
 	$(PY) scripts/make_ai_commentary.py \
 	  --season $(SEASON) \
 	  --week $(WEEK) \
