@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Fourth & Value — The Under Tilt</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="42,362 real sportsbook lines from the 2025 season, checked against what actually happened: do unders hit more, which markets are most volatile, and what a quieter-but-not-lower-scoring league means for 2026." />
+  <link rel="icon" href="../favicon.ico" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#0b0e13; --surface:#12161d; --ink:#eef1f5; --muted:#8b93a1; --line:#232a35;
+      --under:#2dd4bf; --under-soft:#2dd4bf22; --over:#f0ab3d; --over-soft:#f0ab3d22;
+      --accent:#6ea8fe;
+    }
+    *{box-sizing:border-box}
+    html,body{ margin:0; background:var(--bg); }
+    body{
+      color:var(--ink);
+      font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+      -webkit-font-smoothing:antialiased;
+    }
+    a{ color:var(--accent); }
+    ::selection{ background:var(--under-soft); }
+
+    .wrap{ max-width:720px; margin:0 auto; padding:40px 24px 96px; }
+
+    .kicker{
+      font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.12em; text-transform:uppercase;
+      color:var(--muted); display:flex; align-items:center; gap:10px; margin-bottom:22px;
+    }
+    .kicker .dot{ width:6px; height:6px; border-radius:50%; background:var(--accent); }
+
+    h1{
+      font-family:'Fraunces',serif; font-optical-sizing:auto; font-weight:600;
+      font-size:clamp(34px,6vw,52px); line-height:1.05; letter-spacing:-.01em;
+      margin:0 0 18px; text-wrap:balance;
+    }
+    .dek{
+      font-family:'Fraunces',serif; font-style:italic; font-weight:400;
+      font-size:clamp(18px,2.6vw,21px); line-height:1.5; color:var(--muted);
+      margin:0 0 36px; text-wrap:balance; max-width:60ch;
+    }
+
+    .meta-box{
+      border:1px solid var(--line); border-radius:12px; padding:16px 18px;
+      font-size:13.5px; line-height:1.6; color:var(--muted); margin:0 0 48px;
+      background:var(--surface);
+    }
+    .meta-box b{ color:var(--ink); }
+
+    article{ font-size:17px; line-height:1.7; }
+    article p{ margin:0 0 22px; }
+    article > p:first-of-type::first-letter{
+      font-family:'Fraunces',serif; font-weight:600; font-size:3.4em; line-height:.8;
+      float:left; padding:.05em .08em 0 0; color:var(--accent);
+    }
+
+    h2{
+      font-family:'Fraunces',serif; font-weight:600; font-size:clamp(24px,3.6vw,30px);
+      margin:56px 0 8px; letter-spacing:-.005em; text-wrap:balance;
+    }
+    .h2-num{
+      font-family:'JetBrains Mono',monospace; color:var(--accent); font-size:15px; font-weight:500;
+      display:block; margin-bottom:6px; letter-spacing:.04em;
+    }
+
+    .chart{ margin:28px 0 8px; border:1px solid var(--line); border-radius:14px; overflow:hidden; background:var(--surface); }
+    .chart-head{
+      display:flex; justify-content:space-between; padding:14px 18px; font-family:'JetBrains Mono',monospace;
+      font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted);
+      border-bottom:1px solid var(--line);
+    }
+    .chart-head span:first-child{ color:var(--under); }
+    .chart-head span:last-child{ color:var(--over); }
+    .row{ display:grid; grid-template-columns:128px 1fr; align-items:center; padding:10px 18px; gap:14px; }
+    .row + .row{ border-top:1px solid var(--line); }
+    .row .label{ font-size:14px; font-weight:600; }
+    .bar-track{ position:relative; height:22px; background:var(--line); border-radius:6px; overflow:hidden; display:flex; }
+    .bar-under{ background:var(--under); height:100%; display:flex; align-items:center; justify-content:flex-end; padding-right:8px; }
+    .bar-over{ background:var(--over); height:100%; display:flex; align-items:center; padding-left:8px; }
+    .bar-val{ font-family:'JetBrains Mono',monospace; font-size:11.5px; font-weight:700; color:#0b0e13; }
+
+    .vchart{ margin:28px 0 8px; border:1px solid var(--line); border-radius:14px; background:var(--surface); overflow:hidden; }
+    .vrow{ display:grid; grid-template-columns:128px 1fr 64px; align-items:center; padding:11px 18px; gap:14px; }
+    .vrow + .vrow{ border-top:1px solid var(--line); }
+    .vrow .label{ font-size:14px; font-weight:600; }
+    .vtrack{ height:10px; border-radius:5px; background:var(--line); overflow:hidden; }
+    .vfill{ height:100%; border-radius:5px; background:linear-gradient(90deg,var(--accent),var(--over)); }
+    .vval{ font-family:'JetBrains Mono',monospace; font-size:13px; text-align:right; color:var(--muted); }
+    .chart-foot{ padding:12px 18px; font-size:12px; color:var(--muted); border-top:1px solid var(--line); }
+
+    .tchart{ margin:28px 0 8px; border:1px solid var(--line); border-radius:14px; background:var(--surface); overflow:hidden; }
+    .trow{ display:grid; grid-template-columns:150px 1fr; align-items:center; padding:14px 18px; gap:16px; }
+    .trow + .trow{ border-top:1px solid var(--line); }
+    .trow .label{ font-size:13.5px; font-weight:600; line-height:1.3; }
+    .tbars{ display:flex; align-items:flex-end; gap:10px; }
+    .tbar-col{ display:flex; flex-direction:column; align-items:center; gap:4px; flex:1; }
+    .tval{ font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--muted); }
+    .tval.now{ color:var(--accent); font-weight:700; }
+    .tbar-area{ height:40px; width:100%; display:flex; align-items:flex-end; justify-content:center; }
+    .tbar{ width:100%; max-width:34px; border-radius:4px 4px 2px 2px; background:var(--line); }
+    .tbar.now{ background:var(--accent); }
+    .tyear{ font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--muted); }
+    .tyear.now{ color:var(--accent); font-weight:700; }
+
+    .callout{
+      border-left:3px solid var(--accent); background:color-mix(in oklab, var(--accent) 8%, var(--surface));
+      border-radius:0 12px 12px 0; padding:18px 22px; margin:32px 0; font-size:15.5px; line-height:1.65;
+    }
+    .callout .tag{
+      font-family:'JetBrains Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.1em;
+      color:var(--accent); display:block; margin-bottom:8px; font-weight:700;
+    }
+    .callout .num{ font-family:'JetBrains Mono',monospace; font-weight:700; }
+    .callout .under-num{ color:var(--under); }
+    .callout .over-num{ color:var(--over); }
+
+    .takeaways{ list-style:none; margin:24px 0 0; padding:0; display:flex; flex-direction:column; gap:2px; }
+    .takeaways li{
+      display:grid; grid-template-columns:34px 1fr; gap:16px; padding:20px 0; border-top:1px solid var(--line);
+    }
+    .takeaways li:last-child{ border-bottom:1px solid var(--line); }
+    .takeaways .n{ font-family:'JetBrains Mono',monospace; color:var(--accent); font-weight:700; font-size:15px; }
+    .takeaways p{ margin:0; }
+    .takeaways strong{ display:block; margin-bottom:4px; font-size:15.5px; }
+
+    .closer{
+      margin-top:48px; padding-top:28px; border-top:1px solid var(--line);
+      font-family:'Fraunces',serif; font-style:italic; font-size:19px; line-height:1.6; color:var(--ink);
+      text-wrap:balance;
+    }
+
+    .back{ display:inline-block; margin-top:48px; color:var(--accent); }
+
+    @media (max-width:520px){
+      .row{ grid-template-columns:100px 1fr; }
+      .vrow{ grid-template-columns:100px 1fr 50px; }
+      .trow{ grid-template-columns:1fr; gap:10px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="nav-root"></div>
+  <script src="../nav.js?v=26"></script>
+
+  <main class="wrap">
+
+    <div class="kicker"><span class="dot"></span>Fourth &amp; Value · Market Report · 2025 Season</div>
+
+    <h1>The Under Tilt</h1>
+    <p class="dek">42,362 real sportsbook lines from the 2025 season, checked against what actually happened. One pattern held up. A profitable strategy did not. And the league itself looked different than the headline scoring numbers suggest.</p>
+
+    <div class="meta-box">
+      <b>Methodology.</b> 42,362 real book/line rows across 10 weeks of the 2025 season, matched against real final stats. Every ROI figure grades each book's own line against its own price — lines and prices are never blended across books.
+    </div>
+
+    <article>
+      <p>Everyone has an opinion about which prop markets run hot or which side sportsbooks quietly like to shade. A full season of real lines and real outcomes settles some of that with numbers instead of instinct.</p>
+
+      <h2><span class="h2-num">01</span>Do unders hit more?</h2>
+      <p>Yes — in most markets, noticeably. Volume markets in particular — attempts, completions, receptions — skew toward the under. Passing yards is the one market that ran the other way.</p>
+
+      <div class="chart">
+        <div class="chart-head"><span>◂ Under hits</span><span>Over hits ▸</span></div>
+        <div class="row"><div class="label">Rush Attempts</div>
+          <div class="bar-track"><div class="bar-under" style="width:56.7%"><span class="bar-val">56.7%</span></div><div class="bar-over" style="width:43.3%"><span class="bar-val" style="color:#fff">43.3%</span></div></div></div>
+        <div class="row"><div class="label">Pass Completions</div>
+          <div class="bar-track"><div class="bar-under" style="width:55.6%"><span class="bar-val">55.6%</span></div><div class="bar-over" style="width:44.4%"><span class="bar-val" style="color:#fff">44.4%</span></div></div></div>
+        <div class="row"><div class="label">Receptions</div>
+          <div class="bar-track"><div class="bar-under" style="width:54.3%"><span class="bar-val">54.3%</span></div><div class="bar-over" style="width:45.7%"><span class="bar-val" style="color:#fff">45.7%</span></div></div></div>
+        <div class="row"><div class="label">Pass Attempts</div>
+          <div class="bar-track"><div class="bar-under" style="width:53.0%"><span class="bar-val">53.0%</span></div><div class="bar-over" style="width:47.0%"><span class="bar-val" style="color:#fff">47.0%</span></div></div></div>
+        <div class="row"><div class="label">Rushing Yards</div>
+          <div class="bar-track"><div class="bar-under" style="width:52.0%"><span class="bar-val">52.0%</span></div><div class="bar-over" style="width:48.0%"><span class="bar-val" style="color:#fff">48.0%</span></div></div></div>
+        <div class="row"><div class="label">Passing TDs</div>
+          <div class="bar-track"><div class="bar-under" style="width:50.9%"><span class="bar-val">50.9%</span></div><div class="bar-over" style="width:49.1%"><span class="bar-val" style="color:#fff">49.1%</span></div></div></div>
+        <div class="row"><div class="label">Receiving Yards</div>
+          <div class="bar-track"><div class="bar-under" style="width:49.8%"><span class="bar-val">49.8%</span></div><div class="bar-over" style="width:50.2%"><span class="bar-val" style="color:#fff">50.2%</span></div></div></div>
+        <div class="row"><div class="label">Passing Yards</div>
+          <div class="bar-track"><div class="bar-under" style="width:47.1%"><span class="bar-val">47.1%</span></div><div class="bar-over" style="width:52.9%"><span class="bar-val" style="color:#fff">52.9%</span></div></div></div>
+        <div class="chart-foot">Hit rate vs. consensus line, pushes excluded. n ranges 198–1,008 player-weeks per market.</div>
+      </div>
+
+      <div class="callout">
+        <span class="tag">Reality check</span>
+        Betting every under (or every over) at the real price on offer, all season, and splitting the season in half tells a two-part story. The <em>win rate above 50%</em> holds up in both halves. The <em>dollar return</em> does not: Pass Completions unders ran <span class="num under-num">+11.2%</span> in one half of the season and <span class="num over-num">−1.1%</span> in the other. Rush Attempts unders went <span class="num over-num">−1.8%</span> then <span class="num under-num">+10.7%</span>. The tilt toward unders is real and repeatable. A mechanical "always bet under" strategy is not.
+      </div>
+
+      <h2><span class="h2-num">02</span>Which markets swing the hardest?</h2>
+      <p>Ranked by how spiky a player's own numbers are relative to their own season average — the higher the bar, the less a single week tells you.</p>
+
+      <div class="vchart">
+        <div class="vrow"><div class="label">Rushing Yards</div><div class="vtrack"><div class="vfill" style="width:100%"></div></div><div class="vval">0.96</div></div>
+        <div class="vrow"><div class="label">Receiving Yards</div><div class="vtrack"><div class="vfill" style="width:90.6%"></div></div><div class="vval">0.87</div></div>
+        <div class="vrow"><div class="label">Passing TDs</div><div class="vtrack"><div class="vfill" style="width:87.5%"></div></div><div class="vval">0.84</div></div>
+        <div class="vrow"><div class="label">Receptions</div><div class="vtrack"><div class="vfill" style="width:68.8%"></div></div><div class="vval">0.66</div></div>
+        <div class="vrow"><div class="label">Rush Attempts</div><div class="vtrack"><div class="vfill" style="width:64.6%"></div></div><div class="vval">0.62</div></div>
+        <div class="vrow"><div class="label">Passing Yards</div><div class="vtrack"><div class="vfill" style="width:36.5%"></div></div><div class="vval">0.35</div></div>
+        <div class="vrow"><div class="label">Pass Completions</div><div class="vtrack"><div class="vfill" style="width:31.3%"></div></div><div class="vval">0.30</div></div>
+        <div class="vrow"><div class="label">Pass Attempts</div><div class="vtrack"><div class="vfill" style="width:31.3%"></div></div><div class="vval">0.30</div></div>
+        <div class="chart-foot">Coefficient of variation (season std / mean), players with 4+ games who had real props posted on them. Rushing yards: 72.3% of games deviate 40%+ from a player's own average. Pass attempts: 20.0%.</div>
+      </div>
+
+      <p>The pattern is intuitive once it's laid out: QB volume stats are game-plan and clock-driven — a team runs roughly the plays it intends to run. RB and WR yardage and touchdowns depend on hitting a handful of explosive plays each week, so they swing far more from a player's own baseline, game to game. Passing-yardage markets are also among the most heavily bet and closely watched props, which tends to keep them tightly priced; rushing yardage depends on a committee backfield's carry split, which can shift week to week based on matchup and game plan in ways a line can't fully anticipate.</p>
+
+      <h2><span class="h2-num">03</span>A quieter league, not a lower-scoring one</h2>
+      <p>A natural question going into the under-tilt: was 2025 just a down year for scoring? The data says no — 2025 scored slightly <em>more</em> per team per game than each of the prior three seasons. What actually dropped was raw volume: teams threw the ball less, completed fewer passes, and ran fewer total plays than they had in 2022, 2023, or 2024.</p>
+
+      <div class="tchart">
+        <div class="trow">
+          <div class="label">Pass Attempts<br/>per team, per game</div>
+          <div class="tbars">
+            <div class="tbar-col"><div class="tval">39.4</div><div class="tbar-area"><div class="tbar" style="height:35px"></div></div><div class="tyear">'22</div></div>
+            <div class="tbar-col"><div class="tval">40.2</div><div class="tbar-area"><div class="tbar" style="height:36px"></div></div><div class="tyear">'23</div></div>
+            <div class="tbar-col"><div class="tval">39.4</div><div class="tbar-area"><div class="tbar" style="height:35px"></div></div><div class="tyear">'24</div></div>
+            <div class="tbar-col"><div class="tval now">38.6</div><div class="tbar-area"><div class="tbar now" style="height:35px"></div></div><div class="tyear now">'25</div></div>
+          </div>
+        </div>
+        <div class="trow">
+          <div class="label">Completions<br/>per team, per game</div>
+          <div class="tbars">
+            <div class="tbar-col"><div class="tval">21.4</div><div class="tbar-area"><div class="tbar" style="height:36px"></div></div><div class="tyear">'22</div></div>
+            <div class="tbar-col"><div class="tval">21.7</div><div class="tbar-area"><div class="tbar" style="height:36px"></div></div><div class="tyear">'23</div></div>
+            <div class="tbar-col"><div class="tval">21.4</div><div class="tbar-area"><div class="tbar" style="height:35px"></div></div><div class="tyear">'24</div></div>
+            <div class="tbar-col"><div class="tval now">20.6</div><div class="tbar-area"><div class="tbar now" style="height:34px"></div></div><div class="tyear now">'25</div></div>
+          </div>
+        </div>
+        <div class="trow">
+          <div class="label">Total Plays<br/>per team, per game</div>
+          <div class="tbars">
+            <div class="tbar-col"><div class="tval">66.6</div><div class="tbar-area"><div class="tbar" style="height:36px"></div></div><div class="tyear">'22</div></div>
+            <div class="tbar-col"><div class="tval">66.9</div><div class="tbar-area"><div class="tbar" style="height:36px"></div></div><div class="tyear">'23</div></div>
+            <div class="tbar-col"><div class="tval">66.5</div><div class="tbar-area"><div class="tbar" style="height:36px"></div></div><div class="tyear">'24</div></div>
+            <div class="tbar-col"><div class="tval now">65.2</div><div class="tbar-area"><div class="tbar now" style="height:35px"></div></div><div class="tyear now">'25</div></div>
+          </div>
+        </div>
+        <div class="trow">
+          <div class="label">Points<br/>per team, per game</div>
+          <div class="tbars">
+            <div class="tbar-col"><div class="tval">21.9</div><div class="tbar-area"><div class="tbar" style="height:34px"></div></div><div class="tyear">'22</div></div>
+            <div class="tbar-col"><div class="tval">21.8</div><div class="tbar-area"><div class="tbar" style="height:34px"></div></div><div class="tyear">'23</div></div>
+            <div class="tbar-col"><div class="tval">22.9</div><div class="tbar-area"><div class="tbar" style="height:36px"></div></div><div class="tyear">'24</div></div>
+            <div class="tbar-col"><div class="tval now">23.0</div><div class="tbar-area"><div class="tbar now" style="height:36px"></div></div><div class="tyear now">'25</div></div>
+          </div>
+        </div>
+        <div class="chart-foot">Regular season, 2022–2025, both teams combined ÷ 2. Bar height scaled within each row to that row's own four-season range — 2025 in blue. 2025: 38.6 pass att/team/gm (vs. 39.4–40.2 in '22–'24) · 20.6 completions (vs. 21.4–21.7) · 65.2 total plays (vs. 66.5–66.9) · 23.0 points (vs. 21.8–22.9, the high of the four).</div>
+      </div>
+
+      <p>Passing yardage came down in step with attempts and completions (roughly 225 yards per team per game in 2025 versus 233–236 in the three seasons before it) — so the decline isn't offenses throwing the same number of times more efficiently, it's offenses throwing less overall. Rushing volume held comparatively steady across the same four seasons. Scoring, meanwhile, didn't dip at all — 2025 was the highest-scoring of the four years measured, despite the lighter passing workload.</p>
+
+      <p>That gap — fewer plays and fewer completions, same or better scoring — lines up with where the under-tilt was strongest: attempts, completions, and receptions. If prop lines for those markets are still anchored partly to a multi-year historical baseline, a league that's now running a leaner, more efficient offense than its recent past would keep producing unders in those specific markets until the market recalibrates to the new normal. Whether that gap persists, narrows, or snaps back in 2026 is the open question — not one the numbers can answer in advance, but one worth tracking from Week 1 rather than assuming either way.</p>
+
+      <h2><span class="h2-num">04</span>What this means going into 2026</h2>
+
+      <ul class="takeaways">
+        <li><span class="n">01</span><div><strong>QB volume markets are the safest place to have an opinion.</strong><p>Attempts, completions, yards — least volatile, and priced closest to a coinflip (47–53%) for exactly that reason. There's less randomness for anyone, book or bettor, to be wrong about.</p></div></li>
+        <li><span class="n">02</span><div><strong>Rushing yards, receiving yards, and passing TDs are where variance lives.</strong><p>More room for a real mispriced line — but also more room to lose a bet that was right on paper. Size accordingly.</p></div></li>
+        <li><span class="n">03</span><div><strong>The under-tilt in attempts and completions has a plausible structural cause.</strong><p>League-wide passing volume was down in 2025 relative to the previous three seasons. If lines lag that shift, the tilt persists until the market catches up — worth checking again a few weeks into 2026.</p></div></li>
+      </ul>
+
+      <p class="closer">The market is largely efficient, and last season wasn't a low-scoring one — it was a lower-volume one. The one real, repeatable pattern here is a directional tilt toward unders in volume markets, plausibly tied to that shift. Worth knowing, not worth automating.</p>
+
+      <p><a class="back" href="./index.html">← Back to Blog</a></p>
+    </article>
+  </main>
+</body>
+</html>
