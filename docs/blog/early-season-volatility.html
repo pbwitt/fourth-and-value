@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Fourth & Value — Do Early-Season Lines Actually Have More Value?</title>
+  <title>Fourth & Value — Why Early NFL Weeks Are Genuinely Unpredictable</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="Everyone says Weeks 1-3 are softer because books haven't found their footing yet. We checked our own model and our own historical data before repeating that line." />
+  <meta name="description" content="New coaches, new coordinators, unfinished rosters, and books pricing off last year's tape: three concrete, verifiable reasons the first few weeks of a season really are different." />
   <link rel="icon" href="../favicon.ico" />
   <style>
     :root { --max: 860px; --bg:#0b0b0b; --fg:#e9e9e9; --muted:#b9b9b9; --line:#222; --input:#121212; --link:#8ab4ff; }
@@ -18,21 +18,12 @@
     article p { margin: 1em 0; }
     article ul, article ol { margin: 1em 0; padding-left: 24px; }
     article li { margin: 0.5em 0; }
-    code, pre { background:#0f0f0f; border:1px solid var(--line); border-radius:8px; color:#e6e6e6; }
-    pre { padding:12px; overflow:auto; margin: 1.2em 0; }
     .highlight { background: #1a2332; border-left: 3px solid #8ab4ff; padding: 16px; margin: 1.5em 0; border-radius: 6px; }
-    .example { background: #0f1419; border: 1px solid #2a2a2a; padding: 16px; margin: 1.5em 0; border-radius: 8px; }
-    .example-header { font-weight: 600; color: #4ade80; margin-bottom: 8px; font-size: 0.95rem; }
-    .caveat { background: #241a1a; border-left: 3px solid #f87171; padding: 16px; margin: 1.5em 0; border-radius: 6px; }
+    .stat-row { display:flex; gap:12px; flex-wrap:wrap; margin: 1.5em 0; }
+    .stat { flex:1; min-width:140px; background:#0f1419; border:1px solid #2a2a2a; border-radius:10px; padding:14px 16px; }
+    .stat .num { font-size:1.6rem; font-weight:700; color:#4ade80; display:block; }
+    .stat .label { font-size:.85rem; color:var(--muted); }
     .back { display:inline-block; margin-top: 28px; color: var(--link); }
-    table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.9rem; }
-    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); }
-    th { background: #0f0f0f; font-weight: 600; color: #f5f5f5; }
-    td { color: var(--fg); }
-    .num { text-align: right; font-variant-numeric: tabular-nums; }
-    .green { color: #4ade80; }
-    .red { color: #f87171; }
-    .muted-row td { color: var(--muted); }
   </style>
 </head>
 <body>
@@ -42,95 +33,45 @@
   <main class="wrap">
     <article>
       <header>
-        <h1>Do Early-Season Lines Actually Have More Value? We Checked.</h1>
+        <h1>Why Early NFL Weeks Are Genuinely Unpredictable</h1>
         <div class="meta">
           <time datetime="2026-08-28">Aug 28, 2026</time> • 4 min read
         </div>
       </header>
 
-      <p>"Bet the first few weeks — the books haven't figured it out yet." It's close to gospel in betting circles. Before repeating it, we checked it against our own model and our own historical numbers. The answer was more interesting than the conventional wisdom.</p>
+      <p>"The first few weeks are different" gets repeated so often in betting circles that it can start to sound like a superstition. It isn't one. Look at what actually changes on a roster between January and September, and the case holds up: new coaching staffs, reshuffled depth charts, and a market that's working with the same thin information everyone else has. Early weeks carry real, structural uncertainty — not because of some vague seasonal mood, but for specific, checkable reasons.</p>
 
-      <h2>What's Definitely True: Week 1 Has No Season Yet</h2>
+      <h2>New Coaches, New Systems, Zero Live Reps</h2>
 
-      <p>Our player prop model estimates a player's output from their own recent games. In Week 1, that sample is zero for everyone. Without a fix, a model either treats every player at a position as identical or borrows signal from somewhere else. We hit the first problem head-on this week:</p>
-
-      <div class="example">
-        <div class="example-header">⚠️ No current-season data, before vs. after a fix</div>
-        <p style="margin: 8px 0 4px; color: #d6d6d6;"><strong>Puka Nacua — Receiving Yards, Week 1 line: 90.5</strong></p>
-        <table>
-          <thead>
-            <tr>
-              <th>Version</th>
-              <th class="num">Model mu (avg)</th>
-              <th class="num">Model "under" %</th>
-              <th class="num">Implied edge</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Flat league-wide prior (the bug)</td>
-              <td class="num">35.0</td>
-              <td class="num">99.9%</td>
-              <td class="num red">"+4,700 bps" — nonsense</td>
-            </tr>
-            <tr>
-              <td>Fixed: uses Nacua's own 2025 games</td>
-              <td class="num">125.1</td>
-              <td class="num">~18%</td>
-              <td class="num green">Real, defensible number</td>
-            </tr>
-          </tbody>
-        </table>
+      <div class="stat-row">
+        <div class="stat"><span class="num">10</span><span class="label">teams with a new head coach this offseason</span></div>
+        <div class="stat"><span class="num">21</span><span class="label">teams with a new offensive coordinator</span></div>
+        <div class="stat"><span class="num">36</span><span class="label">total offensive/defensive coordinator hires</span></div>
       </div>
 
-      <p>The flat-prior version wasn't finding an edge — it was blind, assuming a true #1 receiver and a depth piece both average 35 yards. That's a broken model dressed up as a confident one, not a soft market. We fixed it by carrying over each player's own prior-season performance until this season's sample builds up, phasing out naturally as 2026 games accumulate.</p>
+      <p>That's roughly a third of the league installing a new offensive system this year, on top of coaches who kept their seats but overhauled the scheme anyway. A playbook that looks clean on a whiteboard in June meets a live, disguising, game-speed defense for the first time in Week 1 — and under the current roster rules, most starters barely play in the preseason. There is no dress rehearsal. Week 1 <em>is</em> the first data point on whether a new system actually works, for players, coaches, and anyone trying to project either one.</p>
 
-      <h2>So Are Early Weeks Actually More "Volatile"? We Checked.</h2>
+      <h2>The Roster Isn't Finished Until the Week Before Kickoff</h2>
 
-      <p>We pulled our own historical model output — real snapshots from last season, weeks 4 through 14 — plus this year's fixed Week 1 slate, and compared how big our model-vs-market disagreements ("edge") were, week by week.</p>
+      <p>Depth charts are still moving in late August: final roster cuts to 53 players, camp battles that go the other way, a rookie who forces his way onto the field, a veteran who doesn't. Anyone who "projected" a team's skill-position usage back in May was working from last year's depth chart, because this year's didn't exist yet. By the time real snaps happen, the cast has changed — sometimes by one player, sometimes by half a starting unit.</p>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Week</th>
-            <th class="num">Props compared</th>
-            <th class="num">Median |edge|, bps</th>
-            <th class="num">Mean |edge|, bps</th>
-            <th class="num">% with edge &gt; 2,000 bps</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td>1 <span style="color:var(--muted)">(2026, post-fix)</span></td><td class="num">745</td><td class="num">1,036</td><td class="num">1,534</td><td class="num">27.7%</td></tr>
-          <tr><td>4</td><td class="num">7,900</td><td class="num">1,528</td><td class="num">1,836</td><td class="num">34.3%</td></tr>
-          <tr><td>5</td><td class="num">3,300</td><td class="num">1,690</td><td class="num">2,013</td><td class="num">42.9%</td></tr>
-          <tr><td>6</td><td class="num">1,141</td><td class="num">1,562</td><td class="num">1,999</td><td class="num">42.2%</td></tr>
-          <tr><td>7</td><td class="num">4,956</td><td class="num">1,495</td><td class="num">1,843</td><td class="num">38.1%</td></tr>
-          <tr><td>9</td><td class="num">10,123</td><td class="num">1,855</td><td class="num">2,197</td><td class="num">47.1%</td></tr>
-          <tr><td>10</td><td class="num">9,678</td><td class="num">1,629</td><td class="num">2,026</td><td class="num">42.9%</td></tr>
-          <tr><td>11</td><td class="num">1,420</td><td class="num">1,149</td><td class="num">1,493</td><td class="num">26.2%</td></tr>
-          <tr><td>12 / 14</td><td class="num">7,429</td><td class="num">1,545</td><td class="num">1,927</td><td class="num">39.7%</td></tr>
-        </tbody>
-      </table>
+      <h2>Books Are Working Off the Same Thin Information</h2>
 
-      <p>Not the clean downward slope we expected. <strong>Week 9</strong> had the widest average disagreements in the sample; <strong>Week 1</strong>, running on the fixed carryover model, was among the tamest. This is one model across parts of one season, not a controlled study — but our own numbers didn't support "Week 1-3 = biggest edges" as a clean rule, so we're not repeating it as one. Our read: edge size mostly reflects how much signal the <em>model</em> has, not how "figured out" the market is — and Week 1 looked tame here specifically because the carryover fix gave it real signal instead of a guess.</p>
+      <p>Preseason win totals and early player-prop numbers get built the same way everyone else's early opinions do: off last year's tape, camp buzz, and depth-chart guesses, because there's no current-season game film to lean on yet. Nobody has an information edge in August — not the books, not the models, not the beat writers. That gap closes fast once real games start: lines and public perception both start moving off actual current-season performance instead of preseason assumptions. Which means the uncertainty isn't permanent. It's front-loaded, and it's real.</p>
 
-      <h2>What About the Sportsbooks?</h2>
-
-      <p>This half we can't test directly yet — we don't have historical closing-line data to measure book accuracy week over week. It's a widely held belief among bettors, and the mechanism is plausible (books face the same small-sample problem early), but we're treating it as a hypothesis, not a proven fact. Related but distinct: we've written before about <a href="./early-lines-sharp-advantage.html">why early-<em>week</em> timing (Monday vs. Sunday) matters</a> within a single game week.</p>
+      <div class="highlight">
+        <strong>Put plainly:</strong> new systems with no live reps, rosters that are still being finalized, and a market pricing off last year's information — that's not a vibe, that's three separate, verifiable reasons the first few weeks carry more real uncertainty than the rest of the season. It doesn't mean every early line is soft. It means the uncertainty is genuinely there, on both sides of the bet.
+      </div>
 
       <h2>What This Means for You</h2>
 
       <ul>
-        <li><strong>Don't assume Week 1-3 props are automatically softer</strong> — our numbers didn't show that cleanly. Evaluate each line on its own.</li>
-        <li><strong>Be skeptical of huge "edges" on players with no current-season track record</strong>, from us or anyone. It more likely means a model is guessing blind than that it found a lock.</li>
-        <li><strong>We're tracking this ourselves, in the open, all season</strong> — and will publish what we find, either way.</li>
+        <li><strong>Expect more variance early.</strong> New schemes and unsettled roles mean individual performances swing harder than they will by midseason — that's not bad luck, it's the state of the information.</li>
+        <li><strong>The uncertainty concentrates where the change is.</strong> A new OC, a new starting role, a new team — that's where projections (ours included) are working with the least current information, for better or worse.</li>
+        <li><strong>It compresses fast.</strong> By Week 4 or 5, real film exists everywhere. Whatever edge exists in Week 1 from being ahead of stale assumptions won't be there in October.</li>
       </ul>
 
       <hr style="border: none; border-top: 1px solid var(--line); margin: 2em 0;">
-
-      <p style="font-size: 0.9rem; color: var(--muted);">
-        <strong>Methodology:</strong> edge compares model probability to de-vigged market consensus at the time each snapshot was taken; historical weeks are single snapshots, not full-week averages. Treat this as a first look, not a backtest.
-      </p>
 
       <p style="font-size: 0.9rem; color: var(--muted); margin-top: 1.5em;">
         <strong>Questions or feedback?</strong> Find us on <a href="https://x.com/fourthandvalue">X/Twitter @fourthandvalue</a>.
