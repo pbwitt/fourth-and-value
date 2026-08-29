@@ -71,6 +71,39 @@ def fetch_events(api_key: str, sport_key: str) -> List[Dict[str, Any]]:
         return []
     return data
 
+def get_week_window(season: int, week: int):
+    """
+    Return (start, end) UTC bounds for a given NFL season/week using the
+    official schedule, padded by a day on each side. Returns (None, None)
+    if the schedule can't be loaded or has no rows for that week.
+    """
+    import pandas as pd
+    try:
+        import nfl_data_py as nfl
+        sched = nfl.import_schedules([season])
+    except Exception as e:
+        print(f"[warn] could not load schedule for {season} week {week}: {e}", file=sys.stderr)
+        return None, None
+    wk = sched[sched["week"] == week]
+    if wk.empty:
+        return None, None
+    days = pd.to_datetime(wk["gameday"], utc=True)
+    return days.min() - pd.Timedelta(days=1), days.max() + pd.Timedelta(days=2)
+
+def filter_events_to_week(events: List[Dict[str, Any]], start, end) -> List[Dict[str, Any]]:
+    import pandas as pd
+    if start is None or end is None:
+        return events
+    out = []
+    for ev in events:
+        ct = ev.get("commence_time")
+        if not ct:
+            continue
+        ts = pd.to_datetime(ct, utc=True)
+        if start <= ts <= end:
+            out.append(ev)
+    return out
+
 def fetch_event_props(api_key: str, sport_key: str, event_id: str,
                       markets: List[str], regions: str, chunk: int, sleep: float) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
@@ -135,6 +168,17 @@ def main():
     events = fetch_events(api_key, args.sport_key)
     if not events:
         print("[warn] No events returned; writing header-only CSV.", file=sys.stderr)
+
+    if args.season is not None and args.week is not None:
+        start, end = get_week_window(args.season, args.week)
+        scoped = filter_events_to_week(events, start, end)
+        if scoped:
+            print(f"[info] scoped to season={args.season} week={args.week}: "
+                  f"{len(scoped)}/{len(events)} events ({start} to {end})")
+            events = scoped
+        else:
+            print(f"[warn] week-scoping found 0 events for season={args.season} week={args.week}; "
+                  f"fetching all {len(events)} events instead", file=sys.stderr)
 
     all_rows: List[Dict[str, Any]] = []
     for i, ev in enumerate(events, 1):

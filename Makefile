@@ -73,9 +73,10 @@ $(ODDS_CSV): scripts/fetch_odds.py | $(ODDS_DIR)
 	$(PY) scripts/fetch_odds.py > $@
 
 # 2) Fetch all player props → latest_all_props.csv
-# (Your script typically writes to $(PROPS_ALL) without args.)
+# Scoped to the current SEASON/WEEK to avoid burning odds-API quota
+# pulling props for the entire season on every run.
 $(PROPS_ALL): scripts/fetch_all_player_props.py | $(PROPS_DIR) $(ODDS_CSV)
-	$(PY) scripts/fetch_all_player_props.py
+	$(PY) scripts/fetch_all_player_props.py --season $(SEASON) --week $(WEEK)
 	@test -s $(PROPS_ALL) || (echo "[ERR] $(PROPS_ALL) not created"; exit 1)
 	@echo "[VALIDATION] Checking props data freshness..."
 	@$(PY) scripts/validate_data_freshness.py --props $(PROPS_ALL) || (echo "[ERR] Props data is stale!"; exit 1)
