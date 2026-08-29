@@ -148,7 +148,8 @@
 
         <h3>Core methodology:</h3>
         <ul>
-          <li><strong>Recency-weighted L4:</strong> Per player × market, we use only the <strong>last 4 games</strong> (L4) with <strong>exponential weighting</strong> (alpha=0.4). Most recent game receives ~64% of the total weight.</li>
+          <li><strong>Recency-weighted L4:</strong> Per player × market, current-season form uses the <strong>last 4 games</strong> (L4) with <strong>exponential weighting</strong> (alpha=0.4). Most recent game receives ~64% of the total weight.</li>
+          <li><strong>Career baseline with shrinkage (added Aug 2026):</strong> Recent form alone is noisy with only 4 games - a standard deviation computed from 4 points is itself unreliable. We blend recent form with each player's <strong>multi-season career history</strong> (2019-present, recency-weighted by season), and for players with limited career data (rookies, early-season backups), shrink toward the <strong>position-level average</strong> (RB/WR/TE/QB pools built from thousands of career games). The blend weight shifts toward recent form as current-season games accumulate - by design, this also replaces the separate "prior-season carryover" used for early weeks with a more principled, validated version of the same idea. Backtested against 2025 outcomes: this cut the raw model's Brier score from 0.369 to 0.295 (lower is better; 0.25 is the coin-flip baseline) before calibration is even applied.</li>
           <li><strong>Normal markets:</strong> Estimate mean <code>μ</code> and standard deviation <code>σ</code> → assume <em>Normal(μ,σ)</em>.</li>
           <li><strong>Poisson markets:</strong> Estimate rate <code>λ</code> for counts (TDs, INTs) → assume <em>Poisson(λ)</em>.</li>
           <li><strong>Sanity guards:</strong> Efficiency metrics are bounded to realistic ranges; floor <code>σ</code> to avoid overconfidence.</li>
@@ -378,9 +379,9 @@
 
         <h2 id="limits">6) Known limitations</h2>
         <ul>
-          <li><strong>Sample size:</strong> Early in the season (Weeks 1-4), we have limited data. Model confidence is lower, and player baselines fall back to prior-season carryover until enough current-season games accumulate.</li>
+          <li><strong>Sample size:</strong> Early in the season (Weeks 1-4), current-season data is limited. Player baselines now fall back to a career-long, position-pool-shrunk estimate rather than a flat league average or a single prior season (see Core Methodology above), but real signal is still thinner than it is once several 2026 games exist.</li>
           <li><strong>Calibration coverage:</strong> The probability calibration described above only covers the 8 markets we've backtested. Anytime TD, first/last TD, and longest-play props are not yet calibrated - treat model probabilities on those with more skepticism than calibrated markets.</li>
-          <li><strong>Small-sample variance:</strong> Per-player mu/sigma still come from an exponentially-weighted average of each player's own last 4 games, estimated independently with no shrinkage toward similar players. This is the next thing we're working on (see roadmap).</li>
+          <li><strong>Genuine predictive skill is still modest:</strong> Even with the career-baseline improvement, our backtest shows the model's raw probability correlates only weakly with real outcomes (correlation of +0.01 to +0.18 depending on market). Calibration keeps the model honest about this rather than overconfident, but it does not manufacture edge that isn't there. We'd rather publish that number than hide it.</li>
           <li><strong>Team context:</strong> We don't yet adjust for pace, game script, or team totals/spreads.</li>
           <li><strong>Weather:</strong> No weather adjustments (particularly important for passing games).</li>
           <li><strong>Venue effects:</strong> Dome vs outdoor conditions not yet factored.</li>
@@ -395,7 +396,7 @@
           <li>✅ <strike>Family-based multi-market modeling</strike> (Oct 2024)</li>
           <li>✅ <strike>Home/away field advantage adjustments</strike> (Oct 2024)</li>
           <li>✅ <strike>Probability calibration against real historical outcomes</strike> (Aug 2026)</li>
-          <li>🔄 Career-long per-player baseline with shrinkage toward position-level pools (replaces the 4-game-only window)</li>
+          <li>✅ <strike>Career-long per-player baseline with position-pool shrinkage</strike> (Aug 2026)</li>
           <li>🔄 Team context (pace, pass rate, game totals)</li>
           <li>🔜 Calibration coverage for Poisson/yes-no markets (anytime TD, etc.)</li>
           <li>🔜 Monte Carlo joint simulation with correlated shocks</li>

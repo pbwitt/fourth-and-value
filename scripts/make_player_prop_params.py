@@ -474,24 +474,18 @@ def _load_season_weekly(season: int) -> Optional[pd.DataFrame]:
 
 def fetch_recent_game_logs(season: int) -> Optional[pd.DataFrame]:
     """
-    Load weekly player logs for the last WINDOW_GAMES games per player,
-    looking back across the season boundary when the current season doesn't
-    have enough games yet (e.g. Week 1-3, before any/enough 2026 games are
-    played, falls back to each player's most recent 2025 games). Enriches
-    with home/away indicator.
+    Load current-season weekly player logs for the last WINDOW_GAMES games
+    per player. Cross-season carryover for players with few/no current-
+    season games is now handled by career_baseline.py (a proper multi-
+    season, position-pool-shrunk estimate) rather than here - concatenating
+    a flat "last season's tail games" into this function would double-count
+    the same games once career_df blending is also in play. Enriches with
+    home/away indicator.
     """
-    current = _load_season_weekly(season)
-    prior = _load_season_weekly(season - 1)
-
-    if current is None and prior is None:
-        logging.error(
-            f"Missing weekly parquet for season {season} and {season - 1} "
-            f"(run weekly_stats first)"
-        )
+    weekly = _load_season_weekly(season)
+    if weekly is None:
+        logging.error(f"Missing weekly parquet for season {season} (run weekly_stats first)")
         return None
-
-    frames = [f for f in (prior, current) if f is not None]
-    weekly = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
     have = list(weekly.columns)
 
     tail = (
@@ -729,7 +723,21 @@ def calculate_defensive_ratings(season: int, week: int) -> pd.DataFrame:
     return def_df[['team', 'pass_def_rating', 'rush_def_rating', 'games']].set_index('team')
 
 
-def create_opponent_map(props: pd.DataFrame, logs: pd.DataFrame) -> dict:
+def _player_team_map(logs: pd.DataFrame, career_df: pd.DataFrame = None) -> dict:
+    """Most recent known team per player: prefers current-season logs, falls
+    back to career_df (needed when the current season has no games yet)."""
+    team_map = {}
+    if career_df is not None and not career_df.empty and "team" in career_df.columns:
+        team_map = (
+            career_df.sort_values(["player", "season", "week"])
+            .groupby("player")["team"].last().to_dict()
+        )
+    if logs is not None and not logs.empty and "player" in logs.columns and "recent_team" in logs.columns:
+        team_map.update(logs.groupby("player")["recent_team"].last().to_dict())
+    return team_map
+
+
+def create_opponent_map(props: pd.DataFrame, logs: pd.DataFrame, career_df: pd.DataFrame = None) -> dict:
     """
     Create player → opponent team mapping.
 
@@ -756,13 +764,7 @@ def create_opponent_map(props: pd.DataFrame, logs: pd.DataFrame) -> dict:
     }
 
     opponent_map = {}
-
-    # Get player → team mapping from logs (most recent team)
-    player_team_map = {}
-    if logs is not None and not logs.empty and 'player' in logs.columns and 'recent_team' in logs.columns:
-        # Use most recent team per player
-        player_teams = logs.groupby('player')['recent_team'].last()
-        player_team_map = player_teams.to_dict()
+    player_team_map = _player_team_map(logs, career_df)
 
     # Process props to find opponents
     for _, row in props.iterrows():
@@ -795,7 +797,7 @@ def create_opponent_map(props: pd.DataFrame, logs: pd.DataFrame) -> dict:
     return opponent_map
 
 
-def create_home_away_map(props: pd.DataFrame, logs: pd.DataFrame) -> dict:
+def create_home_away_map(props: pd.DataFrame, logs: pd.DataFrame, career_df: pd.DataFrame = None) -> dict:
     """
     Create player → is_home mapping for upcoming games.
 
@@ -828,12 +830,7 @@ def create_home_away_map(props: pd.DataFrame, logs: pd.DataFrame) -> dict:
     abbrev_to_team = {v: k for k, v in team_to_abbrev.items()}
 
     home_away_map = {}
-
-    # Get player → team mapping from logs (most recent team)
-    player_team_map = {}
-    if logs is not None and not logs.empty and 'player' in logs.columns and 'recent_team' in logs.columns:
-        player_teams = logs.groupby('player')['recent_team'].last()
-        player_team_map = player_teams.to_dict()
+    player_team_map = _player_team_map(logs, career_df)
 
     # Process props to determine home/away
     for _, row in props.iterrows():
@@ -979,9 +976,18 @@ YPC_PASS_MIN, YPC_PASS_MAX = 5.0, 12.0   # yards per completion (QB)
 CR_MIN, CR_MAX = 0.50, 0.95      # catch rate (receptions/targets)
 
 
-def estimate_rush_latents(logs: pd.DataFrame, player_idx: pd.Index, alpha: float = 0.4) -> dict:
+def estimate_rush_latents(
+    logs: pd.DataFrame, player_idx: pd.Index, alpha: float = 0.4,
+    career_df: pd.DataFrame = None, season: int = None,
+) -> dict:
     """
     Estimate RUSH family latents: Volume (carries) and Efficiency (YPC).
+
+    When career_df is provided, each player's recent-4-game estimate is
+    blended with a career baseline (their own multi-season history, shrunk
+    toward the RB position pool) via career_baseline.py - see that module
+    for why. Without career_df, falls back to the original recent-only
+    behavior.
 
     Returns dict with:
       - volume_mu: Series of expected carries per player
@@ -989,6 +995,14 @@ def estimate_rush_latents(logs: pd.DataFrame, player_idx: pd.Index, alpha: float
       - ypc_mu: Series of expected yards per carry
       - ypc_sigma: Series of YPC variance
     """
+    use_career = career_df is not None and not career_df.empty and season is not None
+    if use_career:
+        import career_baseline as cb
+        pos_vol_mu, pos_vol_sigma = cb.compute_position_pool(career_df, "RB", "carries")
+        pos_ypc_mu, pos_ypc_sigma = cb.compute_position_pool(career_df, "RB", "rushing_yards", "carries")
+        career_prior = career_df[career_df["season"] < season]
+        career_grp = career_prior.groupby("player", dropna=False)
+
     if logs is None or logs.empty:
         # Fall back to priors
         return {
@@ -1027,24 +1041,47 @@ def estimate_rush_latents(logs: pd.DataFrame, player_idx: pd.Index, alpha: float
     ypc_sigma_vals = {}
 
     for player in player_idx:
+        career_vol_mu = career_vol_sigma = career_ypc_mu = career_ypc_sigma = np.nan
+        if use_career:
+            p_career = career_grp.get_group(player) if player in career_grp.groups else career_prior.iloc[0:0]
+            career_vol_mu, career_vol_sigma, _ = cb.player_career_baseline(
+                p_career, season, "carries", None, pos_vol_mu, pos_vol_sigma)
+            career_ypc_mu, career_ypc_sigma, _ = cb.player_career_baseline(
+                p_career, season, "rushing_yards", "carries", pos_ypc_mu, pos_ypc_sigma)
+
         if player in grp.groups:
             player_data = grp.get_group(player).sort_index()
             recent = player_data.tail(4)
 
             if len(recent) > 0:
                 # Volume (carries)
-                volume_mu_vals[player] = exponential_weighted_mean(recent[carries_col], alpha)
-                volume_sigma_vals[player] = exponential_weighted_std(recent[carries_col], alpha)
+                rec_vol_mu = exponential_weighted_mean(recent[carries_col], alpha)
+                rec_vol_sigma = exponential_weighted_std(recent[carries_col], alpha)
 
                 # Efficiency (YPC) - compute per-game YPC then average
                 ypc_series = recent[yards_col] / recent[carries_col].replace(0, np.nan)
-                ypc_mu_vals[player] = exponential_weighted_mean(ypc_series.dropna(), alpha)
-                ypc_sigma_vals[player] = exponential_weighted_std(ypc_series.dropna(), alpha)
+                rec_ypc_mu = exponential_weighted_mean(ypc_series.dropna(), alpha)
+                rec_ypc_sigma = exponential_weighted_std(ypc_series.dropna(), alpha)
+
+                if use_career:
+                    volume_mu_vals[player], volume_sigma_vals[player] = cb.blend_recent_with_career(
+                        rec_vol_mu, rec_vol_sigma, len(recent), career_vol_mu, career_vol_sigma)
+                    ypc_mu_vals[player], ypc_sigma_vals[player] = cb.blend_recent_with_career(
+                        rec_ypc_mu, rec_ypc_sigma, len(ypc_series.dropna()), career_ypc_mu, career_ypc_sigma)
+                else:
+                    volume_mu_vals[player], volume_sigma_vals[player] = rec_vol_mu, rec_vol_sigma
+                    ypc_mu_vals[player], ypc_sigma_vals[player] = rec_ypc_mu, rec_ypc_sigma
+            elif use_career and not pd.isna(career_vol_mu):
+                volume_mu_vals[player], volume_sigma_vals[player] = career_vol_mu, career_vol_sigma
+                ypc_mu_vals[player], ypc_sigma_vals[player] = career_ypc_mu, career_ypc_sigma
             else:
                 volume_mu_vals[player] = PRIORS["rush_attempts"]["mu"]
                 volume_sigma_vals[player] = PRIORS["rush_attempts"]["sigma"]
                 ypc_mu_vals[player] = 4.2
                 ypc_sigma_vals[player] = 0.8
+        elif use_career and not pd.isna(career_vol_mu):
+            volume_mu_vals[player], volume_sigma_vals[player] = career_vol_mu, career_vol_sigma
+            ypc_mu_vals[player], ypc_sigma_vals[player] = career_ypc_mu, career_ypc_sigma
         else:
             volume_mu_vals[player] = PRIORS["rush_attempts"]["mu"]
             volume_sigma_vals[player] = PRIORS["rush_attempts"]["sigma"]
@@ -1063,9 +1100,13 @@ def estimate_rush_latents(logs: pd.DataFrame, player_idx: pd.Index, alpha: float
     }
 
 
-def estimate_receive_latents(logs: pd.DataFrame, player_idx: pd.Index, alpha: float = 0.4) -> dict:
+def estimate_receive_latents(
+    logs: pd.DataFrame, player_idx: pd.Index, alpha: float = 0.4,
+    career_df: pd.DataFrame = None, season: int = None,
+) -> dict:
     """
     Estimate RECEIVE family latents: Volume (targets), Catch Rate, YPR.
+    See estimate_rush_latents for the career_df blending rationale.
 
     Returns dict with:
       - volume_mu: targets
@@ -1074,6 +1115,24 @@ def estimate_receive_latents(logs: pd.DataFrame, player_idx: pd.Index, alpha: fl
       - ypr_mu: yards per reception
       - ypr_sigma: YPR variance
     """
+    use_career = career_df is not None and not career_df.empty and season is not None
+    if use_career:
+        import career_baseline as cb
+        recv_positions = ["WR", "TE", "RB"]
+        pos_pools = {
+            pos: (
+                cb.compute_position_pool(career_df, pos, "targets"),
+                cb.compute_position_pool(career_df, pos, "receiving_yards", "receptions"),
+            )
+            for pos in recv_positions
+        }
+        career_prior = career_df[career_df["season"] < season]
+        career_grp = career_prior.groupby("player", dropna=False)
+        player_position = (
+            career_prior.sort_values(["player", "season"])
+            .groupby("player")["position"].last().to_dict()
+        )
+
     if logs is None or logs.empty:
         return {
             "volume_mu": pd.Series(4.0, index=player_idx),
@@ -1110,6 +1169,16 @@ def estimate_receive_latents(logs: pd.DataFrame, player_idx: pd.Index, alpha: fl
     ypr_sigma_vals = {}
 
     for player in player_idx:
+        career_vol_mu = career_vol_sigma = career_ypr_mu = career_ypr_sigma = np.nan
+        if use_career:
+            pos = player_position.get(player, "WR")
+            (pos_vol_mu, pos_vol_sigma), (pos_ypr_mu, pos_ypr_sigma) = pos_pools.get(pos, pos_pools["WR"])
+            p_career = career_grp.get_group(player) if player in career_grp.groups else career_prior.iloc[0:0]
+            career_vol_mu, career_vol_sigma, _ = cb.player_career_baseline(
+                p_career, season, "targets", None, pos_vol_mu, pos_vol_sigma)
+            career_ypr_mu, career_ypr_sigma, _ = cb.player_career_baseline(
+                p_career, season, "receiving_yards", "receptions", pos_ypr_mu, pos_ypr_sigma)
+
         if player in grp.groups:
             player_data = grp.get_group(player).sort_index()
             recent = player_data.tail(4)
@@ -1117,8 +1186,9 @@ def estimate_receive_latents(logs: pd.DataFrame, player_idx: pd.Index, alpha: fl
             if len(recent) > 0:
                 # If we have targets, use them; otherwise estimate from receptions
                 if targets_col and targets_col in recent.columns:
-                    volume_mu_vals[player] = exponential_weighted_mean(recent[targets_col], alpha)
-                    volume_sigma_vals[player] = exponential_weighted_std(recent[targets_col], alpha)
+                    rec_vol_mu = exponential_weighted_mean(recent[targets_col], alpha)
+                    rec_vol_sigma = exponential_weighted_std(recent[targets_col], alpha)
+                    n_vol = len(recent)
 
                     # Catch rate
                     cr_series = recent[rec_col] / recent[targets_col].replace(0, np.nan)
@@ -1126,20 +1196,38 @@ def estimate_receive_latents(logs: pd.DataFrame, player_idx: pd.Index, alpha: fl
                 else:
                     # No targets - estimate volume from receptions assuming 65% catch rate
                     rec_mu = exponential_weighted_mean(recent[rec_col], alpha)
-                    volume_mu_vals[player] = rec_mu / 0.65
-                    volume_sigma_vals[player] = exponential_weighted_std(recent[rec_col], alpha) / 0.65
+                    rec_vol_mu = rec_mu / 0.65
+                    rec_vol_sigma = exponential_weighted_std(recent[rec_col], alpha) / 0.65
+                    n_vol = len(recent)
                     cr_mu_vals[player] = 0.65
 
                 # YPR
                 ypr_series = recent[yards_col] / recent[rec_col].replace(0, np.nan)
-                ypr_mu_vals[player] = exponential_weighted_mean(ypr_series.dropna(), alpha)
-                ypr_sigma_vals[player] = exponential_weighted_std(ypr_series.dropna(), alpha)
+                rec_ypr_mu = exponential_weighted_mean(ypr_series.dropna(), alpha)
+                rec_ypr_sigma = exponential_weighted_std(ypr_series.dropna(), alpha)
+
+                if use_career:
+                    volume_mu_vals[player], volume_sigma_vals[player] = cb.blend_recent_with_career(
+                        rec_vol_mu, rec_vol_sigma, n_vol, career_vol_mu, career_vol_sigma)
+                    ypr_mu_vals[player], ypr_sigma_vals[player] = cb.blend_recent_with_career(
+                        rec_ypr_mu, rec_ypr_sigma, len(ypr_series.dropna()), career_ypr_mu, career_ypr_sigma)
+                else:
+                    volume_mu_vals[player], volume_sigma_vals[player] = rec_vol_mu, rec_vol_sigma
+                    ypr_mu_vals[player], ypr_sigma_vals[player] = rec_ypr_mu, rec_ypr_sigma
+            elif use_career and not pd.isna(career_vol_mu):
+                volume_mu_vals[player], volume_sigma_vals[player] = career_vol_mu, career_vol_sigma
+                ypr_mu_vals[player], ypr_sigma_vals[player] = career_ypr_mu, career_ypr_sigma
+                cr_mu_vals[player] = 0.65
             else:
                 volume_mu_vals[player] = 4.0
                 volume_sigma_vals[player] = 2.0
                 cr_mu_vals[player] = 0.65
                 ypr_mu_vals[player] = 11.0
                 ypr_sigma_vals[player] = 3.0
+        elif use_career and not pd.isna(career_vol_mu):
+            volume_mu_vals[player], volume_sigma_vals[player] = career_vol_mu, career_vol_sigma
+            ypr_mu_vals[player], ypr_sigma_vals[player] = career_ypr_mu, career_ypr_sigma
+            cr_mu_vals[player] = 0.65
         else:
             volume_mu_vals[player] = 4.0
             volume_sigma_vals[player] = 2.0
@@ -1161,9 +1249,13 @@ def estimate_receive_latents(logs: pd.DataFrame, player_idx: pd.Index, alpha: fl
     }
 
 
-def estimate_pass_latents(logs: pd.DataFrame, player_idx: pd.Index, alpha: float = 0.4) -> dict:
+def estimate_pass_latents(
+    logs: pd.DataFrame, player_idx: pd.Index, alpha: float = 0.4,
+    career_df: pd.DataFrame = None, season: int = None,
+) -> dict:
     """
     Estimate PASS family latents: Volume (attempts), Comp%, Yards/Completion.
+    See estimate_rush_latents for the career_df blending rationale.
 
     Returns dict with:
       - volume_mu: pass attempts
@@ -1172,6 +1264,14 @@ def estimate_pass_latents(logs: pd.DataFrame, player_idx: pd.Index, alpha: float
       - ypc_mu: yards per completion
       - ypc_sigma: Y/C variance
     """
+    use_career = career_df is not None and not career_df.empty and season is not None
+    if use_career:
+        import career_baseline as cb
+        pos_vol_mu, pos_vol_sigma = cb.compute_position_pool(career_df, "QB", "attempts")
+        pos_ypc_mu, pos_ypc_sigma = cb.compute_position_pool(career_df, "QB", "passing_yards", "completions")
+        career_prior = career_df[career_df["season"] < season]
+        career_grp = career_prior.groupby("player", dropna=False)
+
     if logs is None or logs.empty:
         return {
             "volume_mu": pd.Series(32.0, index=player_idx),
@@ -1216,14 +1316,22 @@ def estimate_pass_latents(logs: pd.DataFrame, player_idx: pd.Index, alpha: float
     ypc_sigma_vals = {}
 
     for player in player_idx:
+        career_vol_mu = career_vol_sigma = career_ypc_mu = career_ypc_sigma = np.nan
+        if use_career:
+            p_career = career_grp.get_group(player) if player in career_grp.groups else career_prior.iloc[0:0]
+            career_vol_mu, career_vol_sigma, _ = cb.player_career_baseline(
+                p_career, season, "attempts", None, pos_vol_mu, pos_vol_sigma)
+            career_ypc_mu, career_ypc_sigma, _ = cb.player_career_baseline(
+                p_career, season, "passing_yards", "completions", pos_ypc_mu, pos_ypc_sigma)
+
         if player in grp.groups:
             player_data = grp.get_group(player).sort_index()
             recent = player_data.tail(4)
 
             if len(recent) > 0:
                 # Volume (attempts)
-                volume_mu_vals[player] = exponential_weighted_mean(recent[att_col], alpha)
-                volume_sigma_vals[player] = exponential_weighted_std(recent[att_col], alpha)
+                rec_vol_mu = exponential_weighted_mean(recent[att_col], alpha)
+                rec_vol_sigma = exponential_weighted_std(recent[att_col], alpha)
 
                 # Comp %
                 comp_pct_series = recent[comp_col] / recent[att_col].replace(0, np.nan)
@@ -1231,14 +1339,31 @@ def estimate_pass_latents(logs: pd.DataFrame, player_idx: pd.Index, alpha: float
 
                 # Yards per completion
                 ypc_series = recent[yards_col] / recent[comp_col].replace(0, np.nan)
-                ypc_mu_vals[player] = exponential_weighted_mean(ypc_series.dropna(), alpha)
-                ypc_sigma_vals[player] = exponential_weighted_std(ypc_series.dropna(), alpha)
+                rec_ypc_mu = exponential_weighted_mean(ypc_series.dropna(), alpha)
+                rec_ypc_sigma = exponential_weighted_std(ypc_series.dropna(), alpha)
+
+                if use_career:
+                    volume_mu_vals[player], volume_sigma_vals[player] = cb.blend_recent_with_career(
+                        rec_vol_mu, rec_vol_sigma, len(recent), career_vol_mu, career_vol_sigma)
+                    ypc_mu_vals[player], ypc_sigma_vals[player] = cb.blend_recent_with_career(
+                        rec_ypc_mu, rec_ypc_sigma, len(ypc_series.dropna()), career_ypc_mu, career_ypc_sigma)
+                else:
+                    volume_mu_vals[player], volume_sigma_vals[player] = rec_vol_mu, rec_vol_sigma
+                    ypc_mu_vals[player], ypc_sigma_vals[player] = rec_ypc_mu, rec_ypc_sigma
+            elif use_career and not pd.isna(career_vol_mu):
+                volume_mu_vals[player], volume_sigma_vals[player] = career_vol_mu, career_vol_sigma
+                ypc_mu_vals[player], ypc_sigma_vals[player] = career_ypc_mu, career_ypc_sigma
+                comp_pct_vals[player] = 0.63
             else:
                 volume_mu_vals[player] = 32.0
                 volume_sigma_vals[player] = 6.0
                 comp_pct_vals[player] = 0.63
                 ypc_mu_vals[player] = 7.2
                 ypc_sigma_vals[player] = 1.5
+        elif use_career and not pd.isna(career_vol_mu):
+            volume_mu_vals[player], volume_sigma_vals[player] = career_vol_mu, career_vol_sigma
+            ypc_mu_vals[player], ypc_sigma_vals[player] = career_ypc_mu, career_ypc_sigma
+            comp_pct_vals[player] = 0.63
         else:
             volume_mu_vals[player] = 32.0
             volume_sigma_vals[player] = 6.0
@@ -1348,7 +1473,7 @@ def derive_market_from_latents(market_std: str, latents: dict, player_idx: pd.In
         )
 
 
-def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map=None, home_away_map=None):
+def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map=None, home_away_map=None, career_df=None):
     """
     Board-driven param builder.
     - Emits a row for every (player, market_std) present on the props board.
@@ -1429,9 +1554,9 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
     print("[family] Estimating latent parameters for Rush, Receive, Pass families...")
 
     # Estimate latent parameters for each family
-    rush_latents = estimate_rush_latents(logs, player_idx, alpha=0.4)
-    receive_latents = estimate_receive_latents(logs, player_idx, alpha=0.4)
-    pass_latents = estimate_pass_latents(logs, player_idx, alpha=0.4)
+    rush_latents = estimate_rush_latents(logs, player_idx, alpha=0.4, career_df=career_df, season=season)
+    receive_latents = estimate_receive_latents(logs, player_idx, alpha=0.4, career_df=career_df, season=season)
+    pass_latents = estimate_pass_latents(logs, player_idx, alpha=0.4, career_df=career_df, season=season)
 
     # Package into dict for derive_market_from_latents
     latents = {
@@ -1773,19 +1898,25 @@ def main():
     # This ensures we're using the most recent games from THIS season
     logs = fetch_recent_game_logs(season)
 
+    import career_baseline as cb
+    career_seasons = list(range(season - 6, season + 1))
+    career_df = cb.load_career_logs(career_seasons)
+    logging.info(f"[career] loaded {len(career_df):,} career log rows across seasons {career_seasons}")
+
     # Calculate defensive ratings from current season
     logging.info(f"Calculating defensive ratings for season={season}, week={week}")
     defensive_ratings = calculate_defensive_ratings(season, week)
     logging.info(f"Calculated defensive ratings for {len(defensive_ratings)} teams")
 
-    # Create opponent lookup
+    # Create opponent lookup (falls back to career_df's most recent team when
+    # the current season has no games yet, e.g. Week 1)
     logging.info("Creating opponent map from props data")
-    opponent_map = create_opponent_map(props, logs)
+    opponent_map = create_opponent_map(props, logs, career_df=career_df)
     logging.info(f"Mapped {len(opponent_map)} players to opponents")
 
     # Create home/away lookup for upcoming games
     logging.info("Creating home/away map from props data")
-    home_away_map = create_home_away_map(props, logs)
+    home_away_map = create_home_away_map(props, logs, career_df=career_df)
     logging.info(f"Mapped home/away for {len([v for v in home_away_map.values() if v is not None])} players")
 
     from common_markets import std_market, MODELED_MARKETS
@@ -1814,7 +1945,8 @@ def main():
     params = build_params(cands, logs, args.season, args.week,
                          defensive_ratings=defensive_ratings,
                          opponent_map=opponent_map,
-                         home_away_map=home_away_map)
+                         home_away_map=home_away_map,
+                         career_df=career_df)
 
 
     # tidy columns order
