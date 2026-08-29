@@ -44,20 +44,18 @@
       <header>
         <h1>Do Early-Season Lines Actually Have More Value? We Checked.</h1>
         <div class="meta">
-          <time datetime="2026-08-28">Aug 28, 2026</time> • 8 min read
+          <time datetime="2026-08-28">Aug 28, 2026</time> • 4 min read
         </div>
       </header>
 
-      <p>"Bet the first few weeks — that's when the books haven't figured it out yet." You'll hear a version of this every August. It's close to gospel in betting circles. We were about to repeat it in this post without much more than a shrug and a "yeah, probably." Then we decided to actually check it against our own model and our own historical numbers before publishing anything. The answer turned out to be more interesting than the conventional wisdom.</p>
+      <p>"Bet the first few weeks — the books haven't figured it out yet." It's close to gospel in betting circles. Before repeating it, we checked it against our own model and our own historical numbers. The answer was more interesting than the conventional wisdom.</p>
 
-      <h2>The Part That's Definitely True: Week 1 Has No Season Yet</h2>
+      <h2>What's Definitely True: Week 1 Has No Season Yet</h2>
 
-      <p>This part isn't a theory — it's a hard constraint we ran into head-on this week while getting our model ready for the 2026 opener. Our player prop model estimates a player's expected output (yards, receptions, touchdowns) from their own recent games. For most of the season, "recent" means this year's box scores. In Week 1, that number is zero. Every player, no exceptions.</p>
-
-      <p>If a model has nothing to go on, it has two options: pretend every player at a position is identical (use a flat, league-wide average), or borrow signal from somewhere else. We initially had the first problem without realizing it, and it produced results like this:</p>
+      <p>Our player prop model estimates a player's output from their own recent games. In Week 1, that sample is zero for everyone. Without a fix, a model either treats every player at a position as identical or borrows signal from somewhere else. We hit the first problem head-on this week:</p>
 
       <div class="example">
-        <div class="example-header">⚠️ What a "no current-season data" model looks like, before a fix</div>
+        <div class="example-header">⚠️ No current-season data, before vs. after a fix</div>
         <p style="margin: 8px 0 4px; color: #d6d6d6;"><strong>Puka Nacua — Receiving Yards, Week 1 line: 90.5</strong></p>
         <table>
           <thead>
@@ -85,13 +83,11 @@
         </table>
       </div>
 
-      <p>The flat-prior version wasn't finding an edge — it was blind. It had no way to know Puka Nacua is a true #1 receiver instead of a rotational depth piece, so it assumed both would average the same 35 yards, and treated his real 90.5 line as an almost-certain under. That's not a soft market. That's a broken model dressed up as a confident one.</p>
+      <p>The flat-prior version wasn't finding an edge — it was blind, assuming a true #1 receiver and a depth piece both average 35 yards. That's a broken model dressed up as a confident one, not a soft market. We fixed it by carrying over each player's own prior-season performance until this season's sample builds up, phasing out naturally as 2026 games accumulate.</p>
 
-      <p>We fixed it by carrying over each player's own performance from the previous season until this season's sample builds up — full credit to last year's stats in Week 1, phasing out naturally as real 2026 games accumulate. It's not a perfect substitute for in-season data (a player can change teams, roles, or offenses), but it's a real signal instead of a coin flip dressed up as a number.</p>
+      <h2>So Are Early Weeks Actually More "Volatile"? We Checked.</h2>
 
-      <h2>So Are Early Weeks Actually More "Volatile"? We Checked the Data.</h2>
-
-      <p>Here's where we expected to write a tidy chart showing Week 1-3 edges shrinking steadily as the season matures. We pulled our own historical model output — real snapshots from last season, weeks 3 through 14 — plus this year's freshly-built Week 1 slate, and looked at how big our model-vs-market disagreements ("edge") actually were, week by week.</p>
+      <p>We pulled our own historical model output — real snapshots from last season, weeks 4 through 14 — plus this year's fixed Week 1 slate, and compared how big our model-vs-market disagreements ("edge") were, week by week.</p>
 
       <table>
         <thead>
@@ -116,32 +112,24 @@
         </tbody>
       </table>
 
-      <p>That is not the clean downward slope we half-expected. <strong>Week 9</strong> — deep in the heart of last season — had the widest average disagreements in our whole sample. <strong>Week 1</strong> this year, running on the fixed carryover model, was among the <em>tamest</em>. Week 11 was calmer still.</p>
+      <p>Not the clean downward slope we expected. <strong>Week 9</strong> had the widest average disagreements in the sample; <strong>Week 1</strong>, running on the fixed carryover model, was among the tamest. This is one model across parts of one season, not a controlled study — but our own numbers didn't support "Week 1-3 = biggest edges" as a clean rule, so we're not repeating it as one. Our read: edge size mostly reflects how much signal the <em>model</em> has, not how "figured out" the market is — and Week 1 looked tame here specifically because the carryover fix gave it real signal instead of a guess.</p>
 
-      <div class="caveat">
-        <strong>We're not going to oversell this.</strong> This is one team's model across parts of one season — not a controlled study, and not proof that early weeks are calm. The games and players tracked at each snapshot differ (some weeks we logged a full slate, others a partial one), and mid-season weeks can get noisy for their own reasons: injuries, bye-week roster shuffles, and blowouts that change usage patterns fast. What we can say is that our first honest look didn't support "Week 1-3 = biggest edges" as a clean rule, so we're not going to repeat it as one.
-      </div>
+      <h2>What About the Sportsbooks?</h2>
 
-      <p>Our read: edge size mostly reflects how much real signal the <em>model</em> has, not how "figured out" the market is. Week 1 looked tame here specifically <em>because</em> our carryover fix gave it real per-player signal instead of guesswork. A model without that fix — or a bettor eyeballing lines with no model at all — would face exactly the blind-guessing problem above, every single Week 1, regardless of what the market is doing.</p>
-
-      <h2>What About the Sportsbooks Themselves?</h2>
-
-      <p>This is the half of the claim we can't test directly yet — we don't have historical closing-line data to measure book accuracy week over week (that's on our list). What we can say is it's a widely held belief among bettors and syndicates, and it rests on a real mechanism: books face the identical small-sample problem we just described. Less current-season data on rookies, new coordinators, and revamped O-lines means a book's own numbers lean more on prior-season data and public perception early on, the same crutch our model uses. We've written before about <a href="./early-lines-sharp-advantage.html">why early-week timing (Monday vs. Sunday) matters within a single game week</a> — this is a related but distinct idea: early <em>season</em>, not early <em>week</em>. We're treating it as a reasonable hypothesis, not a proven one, until we have the data to back it up ourselves.</p>
+      <p>This half we can't test directly yet — we don't have historical closing-line data to measure book accuracy week over week. It's a widely held belief among bettors, and the mechanism is plausible (books face the same small-sample problem early), but we're treating it as a hypothesis, not a proven fact. Related but distinct: we've written before about <a href="./early-lines-sharp-advantage.html">why early-<em>week</em> timing (Monday vs. Sunday) matters</a> within a single game week.</p>
 
       <h2>What This Means for You</h2>
 
       <ul>
-        <li><strong>Don't assume Week 1-3 props are automatically softer.</strong> Our own numbers didn't show that pattern cleanly. Evaluate each line on its own, the way you would any other week.</li>
-        <li><strong>Be skeptical of huge "edges" on players with no current-season track record</strong> — from us or anyone else. A gigantic mismatch in Week 1 is more likely to mean a model is guessing blind than that it found a lock. Ask what data actually backs the number.</li>
-        <li><strong>We're tracking this ourselves, in the open, all season.</strong> Now that real Week 1 games are about to happen, we'll have genuine 2026 in-season data to compare against this early look. If a real pattern emerges, we'll publish it — edge and all.</li>
+        <li><strong>Don't assume Week 1-3 props are automatically softer</strong> — our numbers didn't show that cleanly. Evaluate each line on its own.</li>
+        <li><strong>Be skeptical of huge "edges" on players with no current-season track record</strong>, from us or anyone. It more likely means a model is guessing blind than that it found a lock.</li>
+        <li><strong>We're tracking this ourselves, in the open, all season</strong> — and will publish what we find, either way.</li>
       </ul>
-
-      <p>The honest answer to "is early season more volatile" is: probably, for reasons that make sense, but we don't have the receipts yet to say so with confidence. We'd rather tell you that than repeat a line because everyone else does.</p>
 
       <hr style="border: none; border-top: 1px solid var(--line); margin: 2em 0;">
 
       <p style="font-size: 0.9rem; color: var(--muted);">
-        <strong>Methodology note:</strong> "Edge" figures compare our model's implied probability to the de-vigged market consensus at the time each snapshot was taken. Historical weeks are single snapshots per week, not full-week averages, and reflect whatever slate of games and props we were tracking at that moment — treat this as a first look, not a rigorous backtest.
+        <strong>Methodology:</strong> edge compares model probability to de-vigged market consensus at the time each snapshot was taken; historical weeks are single snapshots, not full-week averages. Treat this as a first look, not a backtest.
       </p>
 
       <p style="font-size: 0.9rem; color: var(--muted); margin-top: 1.5em;">
