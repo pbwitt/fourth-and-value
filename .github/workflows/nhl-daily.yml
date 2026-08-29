@@ -31,6 +31,8 @@ jobs:
       - name: Run NHL daily pipeline
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           export ODDS_API_KEY="${ODDS_API_KEY}"
           DATE=$(date +%Y-%m-%d)
@@ -55,7 +57,6 @@ jobs:
           git add docs/nhl/props/index.html docs/nhl/totals/index.html
           git add data/nhl/props/props_with_model_${DATE}.csv || true
           git add data/nhl/qc/qc_report_${DATE}.json || true
-          git add data/bets/bets.csv || true
 
           # Commit
           git commit -m "NHL: Update props and totals pages for ${DATE}" -m "🤖 Automated update via GitHub Actions"

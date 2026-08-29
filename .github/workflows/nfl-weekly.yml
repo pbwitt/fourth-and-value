@@ -63,6 +63,8 @@ jobs:
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           git config user.name "GitHub Actions Bot"
           git config user.email "actions@github.com"
@@ -73,7 +75,7 @@ jobs:
           make monday_all SEASON=2026 WEEK=$WEEK
           echo "Grading pending NFL bets..."
           python3 scripts/grade_bets_nfl.py --date $DATE || echo "No bets to grade"
-          git add docs/props/*.html docs/data/ai/*.json data/bets/bets.csv || true
+          git add docs/props/*.html docs/data/ai/*.json || true
           if git diff --staged --quiet; then
             echo "No changes to commit"
             exit 0

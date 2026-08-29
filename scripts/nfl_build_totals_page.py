@@ -576,7 +576,8 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
     </div>
   </div>
 
-  <script src="../../tracking/github-api.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../../tracking/bet-tracking.js"></script>
   <script>
   // Add Track buttons to NFL totals page
   document.addEventListener('DOMContentLoaded', function() {{

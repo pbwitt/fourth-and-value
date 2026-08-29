@@ -17,29 +17,45 @@
       line-height: 1.6;
     }
 
-    /* Password Prompt */
-    #passwordPrompt {
+    /* Sign-in */
+    #signInScreen {
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      min-height: 100vh;
+      min-height: 80vh;
       padding: 2rem;
     }
-    .password-box {
+    .signin-box {
       background: #1a1a1a;
       border: 1px solid #2a2a2a;
       border-radius: 12px;
-      padding: 3rem;
-      max-width: 400px;
+      padding: 2.5rem;
+      max-width: 420px;
       width: 100%;
     }
-    .password-box h2 {
+    .signin-box h2 {
       color: #4FC3F7;
-      margin-bottom: 1.5rem;
+      margin-bottom: 0.5rem;
       text-align: center;
     }
-    .password-box input {
+    .signin-sub {
+      color: #999;
+      font-size: 0.9rem;
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+    .privacy-note {
+      background: #131a13;
+      border: 1px solid #234023;
+      border-radius: 8px;
+      padding: 0.9rem 1rem;
+      font-size: 0.8rem;
+      color: #9fd6a3;
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+    }
+    .signin-box input {
       width: 100%;
       padding: 0.75rem 1rem;
       background: #0f0f0f;
@@ -49,11 +65,11 @@
       font-size: 1rem;
       margin-bottom: 1rem;
     }
-    .password-box input:focus {
+    .signin-box input:focus {
       outline: none;
       border-color: #4FC3F7;
     }
-    .password-box button {
+    .signin-box button {
       width: 100%;
       padding: 0.75rem;
       background: #4FC3F7;
@@ -64,15 +80,20 @@
       font-size: 1rem;
       cursor: pointer;
     }
-    .password-box button:hover {
+    .signin-box button:hover {
       background: #3da9d3;
     }
-    .error-msg {
-      color: #ff6b6b;
+    .signin-box button:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+    .status-msg {
       font-size: 0.875rem;
-      margin-top: 0.5rem;
+      margin-top: 0.75rem;
       text-align: center;
     }
+    .status-msg.error { color: #ff6b6b; }
+    .status-msg.ok { color: #66BB6A; }
 
     /* Main Tracker */
     .container {
@@ -87,7 +108,28 @@
     }
     .subtitle {
       color: #999;
-      margin-bottom: 2rem;
+      margin-bottom: 1rem;
+    }
+    .account-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      font-size: 0.875rem;
+      color: #999;
+    }
+    .account-bar button {
+      background: none;
+      border: 1px solid #2a2a2a;
+      color: #999;
+      padding: 0.4rem 0.9rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+    .account-bar button:hover {
+      border-color: #4FC3F7;
+      color: #4FC3F7;
     }
 
     /* Stats Dashboard */
@@ -202,24 +244,29 @@
 <body>
   <div id="nav-root"></div>
 
-  <!-- Password Prompt -->
-  <div id="passwordPrompt">
-    <div class="password-box">
-      <h2>🔒 Bet Tracker Access</h2>
-      <input type="password" id="passwordInput" placeholder="Enter password" />
-      <button onclick="checkPassword()">Unlock</button>
-      <div id="errorMsg" class="error-msg"></div>
+  <!-- Sign in (shown until authenticated) -->
+  <div id="signInScreen">
+    <div class="signin-box">
+      <h2>📊 Bet Tracker</h2>
+      <p class="signin-sub">Track your own bets. Free, no catch.</p>
+      <div class="privacy-note">
+        This is a free tool with no ads and no subscription. We only ask for your email so we can save your bets to your account and send you a one-time sign-in link - we don't collect anything else, and we never sell or share it.
+      </div>
+      <input type="email" id="emailInput" placeholder="you@example.com" autocomplete="email" />
+      <button id="sendLinkBtn" onclick="handleSendLink()">Send sign-in link</button>
+      <div id="signInStatus" class="status-msg"></div>
     </div>
   </div>
 
   <!-- Main Tracker (hidden until authenticated) -->
   <div id="betTracker" style="display:none;">
     <div class="container">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-        <h1>📊 Bet Tracker</h1>
-        <a href="settings.html" style="color: #4FC3F7; text-decoration: none; font-size: 0.9rem;">⚙️ Settings</a>
-      </div>
+      <h1>📊 Bet Tracker</h1>
       <p class="subtitle">Track performance • Measure edge • Grade bets automatically</p>
+      <div class="account-bar">
+        <span id="accountEmail"></span>
+        <button onclick="handleSignOut()">Sign out</button>
+      </div>
 
       <!-- Stats Dashboard -->
       <div class="stats-grid">
@@ -336,68 +383,85 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="bet-tracking.js"></script>
   <script>
-    const CORRECT_PASSWORD = 'Wittyboyz6669';
     let betsData = [];
 
-    // Check authentication on load
-    window.onload = function() {
-      const isAuth = sessionStorage.getItem('betTrackingAuth') === 'true';
-
-      if (isAuth) {
-        showTracker();
+    window.addEventListener('DOMContentLoaded', async () => {
+      // Handles the redirect back from the magic-link email too - Supabase
+      // reads the token out of the URL automatically on load.
+      const user = await getCurrentUser();
+      if (user) {
+        showTracker(user);
       } else {
-        document.getElementById('passwordPrompt').style.display = 'flex';
+        document.getElementById('signInScreen').style.display = 'flex';
       }
-    };
 
-    function checkPassword() {
-      const input = document.getElementById('passwordInput').value;
+      supabaseClient.auth.onAuthStateChange((_event, session) => {
+        if (session?.user) {
+          showTracker(session.user);
+        }
+      });
 
-      if (input === CORRECT_PASSWORD) {
-        sessionStorage.setItem('betTrackingAuth', 'true');
-        document.getElementById('passwordPrompt').style.display = 'none';
-        showTracker();
+      document.getElementById('emailInput')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleSendLink();
+      });
+    });
+
+    async function handleSendLink() {
+      const email = document.getElementById('emailInput').value.trim();
+      const statusEl = document.getElementById('signInStatus');
+      if (!email || !email.includes('@')) {
+        statusEl.textContent = 'Enter a valid email address.';
+        statusEl.className = 'status-msg error';
+        return;
+      }
+
+      const btn = document.getElementById('sendLinkBtn');
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+
+      const { ok, error } = await signInWithEmail(email);
+
+      btn.disabled = false;
+      btn.textContent = 'Send sign-in link';
+
+      if (ok) {
+        statusEl.textContent = 'Check your email for a sign-in link.';
+        statusEl.className = 'status-msg ok';
       } else {
-        document.getElementById('errorMsg').textContent = 'Incorrect password';
+        statusEl.textContent = error?.message || 'Something went wrong. Try again.';
+        statusEl.className = 'status-msg error';
       }
     }
 
-    function showTracker() {
+    async function handleSignOut() {
+      await signOut();
+      window.location.reload();
+    }
+
+    function showTracker(user) {
+      document.getElementById('signInScreen').style.display = 'none';
       document.getElementById('betTracker').style.display = 'block';
+      document.getElementById('accountEmail').textContent = user.email;
       loadBets();
     }
 
     async function loadBets() {
-      try {
-        const response = await fetch('../data/bets/bets.csv?t=' + Date.now());
-        const csvText = await response.text();
-        betsData = parseCSV(csvText);
+      const { data, error } = await supabaseClient
+        .from('bets')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-        renderBets();
-        updateStats();
-      } catch (error) {
+      if (error) {
         console.error('Error loading bets:', error);
-      }
-    }
-
-    function parseCSV(csv) {
-      const lines = csv.trim().split('\n');
-      if (lines.length <= 1) return [];
-
-      const headers = lines[0].split(',');
-      const bets = [];
-
-      for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(',');
-        const bet = {};
-        headers.forEach((header, index) => {
-          bet[header] = values[index];
-        });
-        bets.push(bet);
+        return;
       }
 
-      return bets;
+      betsData = data;
+      renderBets();
+      updateStats();
     }
 
     function renderBets() {
@@ -408,30 +472,30 @@
         return;
       }
 
-      tbody.innerHTML = betsData.map((bet, index) => `
+      tbody.innerHTML = betsData.map((bet) => `
         <tr>
-          <td>${bet.timestamp?.split('T')[0] || '-'}</td>
+          <td>${bet.game_date || '-'}</td>
           <td>${bet.league || '-'}</td>
           <td>${bet.team_away || '-'} @ ${bet.team_home || '-'}</td>
           <td>${bet.player || 'Team Total'}</td>
           <td>${bet.market_type || '-'}</td>
           <td>${bet.side || '-'}</td>
-          <td>${bet.line || '-'}</td>
-          <td>${bet.odds || '-'}</td>
+          <td>${bet.line ?? '-'}</td>
+          <td>${bet.odds ?? '-'}</td>
           <td>${bet.book || '-'}</td>
-          <td>$${bet.stake_dollars || '0'}</td>
+          <td>$${bet.stake_dollars ?? '0'}</td>
           <td><span class="status-badge status-${bet.status || 'pending'}">${bet.status || 'pending'}</span></td>
-          <td>${bet.actual_result || '-'}</td>
-          <td>${bet.payout ? '$' + bet.payout : '-'}</td>
-          <td><button onclick="deleteBet('${bet.bet_id}')" style="background:#d32f2f;color:white;border:none;padding:0.3rem 0.6rem;border-radius:3px;cursor:pointer;font-size:0.8rem;">Delete</button></td>
+          <td>${bet.actual_result ?? '-'}</td>
+          <td>${bet.payout != null ? '$' + bet.payout : '-'}</td>
+          <td><button onclick="deleteBet('${bet.id}')" style="background:#d32f2f;color:white;border:none;padding:0.3rem 0.6rem;border-radius:3px;cursor:pointer;font-size:0.8rem;">Delete</button></td>
         </tr>
       `).join('');
     }
 
     function updateStats() {
       const totalBets = betsData.length;
-      const totalStaked = betsData.reduce((sum, bet) => sum + parseFloat(bet.stake_dollars || 0), 0);
-      const totalReturned = betsData.reduce((sum, bet) => sum + parseFloat(bet.payout || 0), 0);
+      const totalStaked = betsData.reduce((sum, bet) => sum + Number(bet.stake_dollars || 0), 0);
+      const totalReturned = betsData.reduce((sum, bet) => sum + Number(bet.payout || 0), 0);
       const profitLoss = totalReturned - totalStaked;
       const roi = totalStaked > 0 ? ((profitLoss / totalStaked) * 100) : 0;
 
@@ -459,75 +523,17 @@
         return;
       }
 
-      const token = localStorage.getItem('github_token');
-      if (!token) {
-        alert('GitHub token not set. Cannot delete bet.');
+      const { error } = await supabaseClient.from('bets').delete().eq('id', betId);
+
+      if (error) {
+        alert(`Error deleting bet: ${error.message}`);
         return;
       }
 
-      try {
-        // Remove bet from array
-        betsData = betsData.filter(bet => bet.bet_id !== betId);
-
-        // Convert to CSV
-        const headers = 'bet_id,timestamp,league,game_date,team_home,team_away,player,market_type,side,line,book,odds,stake_dollars,status,actual_result,payout,graded_timestamp,model_prob,edge_bps';
-        const rows = betsData.map(bet =>
-          `${bet.bet_id},${bet.timestamp},${bet.league},${bet.game_date},${bet.team_home},${bet.team_away},${bet.player},${bet.market_type},${bet.side},${bet.line},${bet.book},${bet.odds},${bet.stake_dollars},${bet.status},${bet.actual_result},${bet.payout},${bet.graded_timestamp},${bet.model_prob},${bet.edge_bps}`
-        );
-        const csvContent = headers + '\n' + rows.join('\n') + '\n';
-
-        // Update docs/data/bets/bets.csv via GitHub API
-        const owner = 'pbwitt';
-        const repo = 'fourth-and-value';
-        const filePath = 'docs/data/bets/bets.csv';
-        const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
-
-        // Get current file SHA
-        const getResponse = await fetch(apiUrl, {
-          headers: {
-            'Authorization': `token ${token}`,
-            'Accept': 'application/vnd.github.v3+json'
-          }
-        });
-
-        if (!getResponse.ok) {
-          throw new Error(`Failed to fetch file: ${getResponse.statusText}`);
-        }
-
-        const fileData = await getResponse.json();
-
-        // Update file
-        const updateResponse = await fetch(apiUrl, {
-          method: 'PUT',
-          headers: {
-            'Authorization': `token ${token}`,
-            'Accept': 'application/vnd.github.v3+json',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            message: `Delete bet: ${betId}`,
-            content: btoa(csvContent),
-            sha: fileData.sha
-          })
-        });
-
-        if (!updateResponse.ok) {
-          const errorData = await updateResponse.json();
-          throw new Error(errorData.message || updateResponse.statusText);
-        }
-
-        alert('Bet deleted successfully!');
-
-        // Reload bets
-        loadBets();
-      } catch (error) {
-        console.error('Error deleting bet:', error);
-        alert(`Error deleting bet: ${error.message}`);
-      }
+      loadBets();
     }
 
     async function addBet() {
-      // Validate required fields
       const gameDate = document.getElementById('gameDate').value;
       const teamHome = document.getElementById('teamHome').value.trim();
       const teamAway = document.getElementById('teamAway').value.trim();
@@ -540,40 +546,28 @@
         alert('Please fill in all required fields: Game Date, Teams, Line, Odds, and Stake');
         return;
       }
-
-      // Validate team abbreviations (2-3 uppercase letters)
       if (!/^[A-Z]{2,3}$/.test(teamHome) || !/^[A-Z]{2,3}$/.test(teamAway)) {
         alert('Team abbreviations must be 2-3 uppercase letters (e.g., TOR, BOS, MTL)');
         return;
       }
-
-      // Validate line is a number
       if (isNaN(parseFloat(line))) {
         alert('Line must be a number (e.g., 0.5, 1.5, 6.5)');
         return;
       }
-
-      // Validate odds format
       if (!/^[+-]?\d+$/.test(odds)) {
         alert('Odds must be in American format (e.g., -110, +150)');
         return;
       }
-
-      // Validate stake
       if (isNaN(parseFloat(stake)) || parseFloat(stake) <= 0) {
         alert('Stake must be a positive number');
         return;
       }
-
-      // Validate book is provided
       if (!book) {
         alert('Please specify the sportsbook');
         return;
       }
 
       const bet = {
-        bet_id: 'bet_' + Date.now(),
-        timestamp: new Date().toISOString(),
         league: document.getElementById('league').value,
         game_date: gameDate,
         team_home: teamHome.toUpperCase(),
@@ -585,19 +579,11 @@
         book: book,
         odds: odds,
         stake_dollars: parseFloat(stake).toFixed(2),
-        status: 'pending',
-        actual_result: '',
-        payout: '',
-        graded_timestamp: '',
-        model_prob: '',
-        edge_bps: ''
       };
 
-      // Use GitHub API to save bet
       const success = await autoTrackBet(bet);
 
       if (success) {
-        // Clear form
         document.getElementById('player').value = '';
         document.getElementById('marketType').value = '';
         document.getElementById('line').value = '';
@@ -605,19 +591,10 @@
         document.getElementById('stake').value = '';
         document.getElementById('book').value = '';
 
-        // Reload bets to show the new one
-        setTimeout(() => loadBets(), 2000);
+        loadBets();
       }
     }
-
-    // Allow Enter key on password field
-    document.addEventListener('DOMContentLoaded', () => {
-      document.getElementById('passwordInput')?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') checkPassword();
-      });
-    });
   </script>
-  <script src="github-api.js"></script>
   <script src="../nav.js?v=32"></script>
 </body>
 </html>

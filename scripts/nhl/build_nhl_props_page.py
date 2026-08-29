@@ -685,7 +685,8 @@ def build_html(rows, date_str):
     renderTable();
   </script>
   <script src="../../nav.js?v=29"></script>
-  <script src="../../tracking/github-api.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../../tracking/bet-tracking.js"></script>
   <script>
   // Add Track column to NHL props page
   document.addEventListener('DOMContentLoaded', function() {{

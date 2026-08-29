@@ -3,21 +3,23 @@
 Grade pending NHL bets based on player stats.
 
 This script:
-1. Reads bets from data/bets/bets.csv
-2. For each pending NHL bet where the game has been played:
+1. Fetches every pending NHL bet, across every user, from Supabase
+2. For each one where the game has been played:
    - Fetches actual player stats from skater logs
    - Determines if bet won/lost/pushed
    - Calculates payout
-   - Updates bet status
-3. Writes updated bets back to CSV
+   - Updates the bet's status via the Supabase API
 """
 
 import argparse
-import csv
 import os
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 import pandas as pd
+
+sys.path.append(os.path.dirname(__file__))
+from supabase_client import fetch_pending_bets, update_bet
 
 
 # Market type mapping to stat column names
@@ -178,10 +180,7 @@ def main():
     parser.add_argument('--dry-run', action='store_true', help='Show what would be graded without writing')
     args = parser.parse_args()
 
-    # Paths
     repo_root = Path(__file__).parent.parent
-    # Use production bets file (docs/data/bets/bets.csv) as source of truth
-    bets_csv = repo_root / 'docs' / 'data' / 'bets' / 'bets.csv'
     nhl_proc_dir = repo_root / 'data' / 'nhl' / 'processed'
     nhl_raw_dir = repo_root / 'data' / 'nhl' / 'raw'
 
@@ -189,21 +188,8 @@ def main():
     print("NHL Bet Auto-Grading")
     print("=" * 70)
 
-    # Read bets CSV
-    if not bets_csv.exists():
-        print(f"❌ Bets file not found: {bets_csv}")
-        return
-
-    # Read with latin-1 encoding to handle any byte values, then handle unicode manually
-    with open(bets_csv, 'r', encoding='latin-1') as f:
-        reader = csv.DictReader(f)
-        bets = list(reader)
-
-    print(f"📊 Loaded {len(bets)} total bets")
-
-    # Filter to pending NHL bets
-    pending_nhl_bets = [b for b in bets if b['league'] == 'NHL' and b['status'] == 'pending']
-    print(f"⏳ Found {len(pending_nhl_bets)} pending NHL bets")
+    pending_nhl_bets = fetch_pending_bets('NHL')
+    print(f"⏳ Found {len(pending_nhl_bets)} pending NHL bets (across all users)")
 
     if len(pending_nhl_bets) == 0:
         print("✓ No pending NHL bets to grade")
@@ -282,7 +268,7 @@ def main():
         if game_date not in check_dates:
             continue
 
-        print(f"\n🎲 Grading bet {bet['bet_id']}:")
+        print(f"\n🎲 Grading bet {bet['id']}:")
         if bet['market_type'] == 'team_total':
             print(f"   {bet['team_away']} @ {bet['team_home']} {bet['market_type']} {bet['side']} {bet['line']} @ {bet['book']}")
         else:
@@ -304,9 +290,13 @@ def main():
             updated_bet = grade_bet(bet, stats_df, games_df)
 
             if updated_bet:
-                # Update in main list
-                bet_idx = bets.index(bet)
-                bets[bet_idx] = updated_bet
+                if not args.dry_run:
+                    update_bet(updated_bet['id'], {
+                        'status': updated_bet['status'],
+                        'actual_result': updated_bet['actual_result'],
+                        'payout': updated_bet['payout'],
+                        'graded_timestamp': updated_bet['graded_timestamp'],
+                    })
                 graded_count += 1
 
         except Exception as e:
@@ -319,25 +309,12 @@ def main():
     print(f"📈 Grading Summary: {graded_count} bets graded")
     print("=" * 70)
 
-    # Write updated bets back to CSV (both locations)
-    if graded_count > 0 and not args.dry_run:
-        fieldnames = list(bets[0].keys())
-
-        # Write to both docs/data/bets/bets.csv (production) and data/bets/bets.csv (backup)
-        bets_csv_backup = repo_root / 'data' / 'bets' / 'bets.csv'
-
-        for csv_path in [bets_csv, bets_csv_backup]:
-            with open(csv_path, 'w', newline='') as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(bets)
-
-        print(f"✓ Updated bets written to {bets_csv}")
-        print(f"✓ Updated bets written to {bets_csv_backup}")
-    elif args.dry_run:
+    if args.dry_run:
         print("🔍 DRY RUN - No changes written")
+    elif graded_count > 0:
+        print("✓ Updated bets written to Supabase")
     else:
-        print("ℹ️  No bets graded, CSV not modified")
+        print("ℹ️  No bets graded")
 
 
 if __name__ == '__main__':
