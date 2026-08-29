@@ -89,7 +89,7 @@
 
       <!-- NFL Tab Content -->
       <div id="nfl-tab" class="tab-content active nfl-content">
-        <div class="updated">Last updated: Nov 8, 2025</div>
+        <div class="updated">Last updated: Aug 29, 2026</div>
 
         <p>This page describes how Fourth &amp; Value models NFL player props and calculates "value." It's intentionally general (no week-specific numbers) so it stays accurate as we update models.</p>
 
@@ -293,6 +293,10 @@
         <pre><code>edge_bps = 10000 × (model_prob - market_prob)</code></pre>
         <p>A positive edge means our model thinks the Over is more likely than the book's implied probability. Negative edge suggests the Under is favorable.</p>
 
+        <h3>Probability calibration (added Aug 2026):</h3>
+        <p>We backtested the raw model's confidence against real 2025 outcomes and found it was badly overconfident: picks where the model claimed 95-100% confidence only won <strong>51.6%</strong> of the time in practice, barely better than a coin flip, and the gap between claimed and actual confidence grew the more certain the model claimed to be. The raw model's Brier score (0.326) was worse than simply guessing 50/50 on everything (0.25).</p>
+        <p>We fit a probability-calibration curve (isotonic regression) per market from 13,146 graded historical picks, mapping raw model probability to the real historical win rate observed at that confidence level. <code>model_prob</code> shown on the site is this calibrated value; the pre-calibration number is retained internally as <code>model_prob_raw</code> for auditing. This is applied only to the markets we've actually backtested (rushing/receiving/passing yards, receptions, attempts, completions, passing TDs) - other markets (e.g. anytime TD) haven't been validated yet and are shown uncalibrated. We plan to refit this curve periodically as real 2026 outcomes accumulate.</p>
+
         <h3>Consensus view:</h3>
         <p>When 3+ books offer the same player × market × side × line:</p>
         <ul>
@@ -374,7 +378,9 @@
 
         <h2 id="limits">6) Known limitations</h2>
         <ul>
-          <li><strong>Sample size:</strong> Early in the season (Weeks 1-4), we have limited data. Model confidence is lower.</li>
+          <li><strong>Sample size:</strong> Early in the season (Weeks 1-4), we have limited data. Model confidence is lower, and player baselines fall back to prior-season carryover until enough current-season games accumulate.</li>
+          <li><strong>Calibration coverage:</strong> The probability calibration described above only covers the 8 markets we've backtested. Anytime TD, first/last TD, and longest-play props are not yet calibrated - treat model probabilities on those with more skepticism than calibrated markets.</li>
+          <li><strong>Small-sample variance:</strong> Per-player mu/sigma still come from an exponentially-weighted average of each player's own last 4 games, estimated independently with no shrinkage toward similar players. This is the next thing we're working on (see roadmap).</li>
           <li><strong>Team context:</strong> We don't yet adjust for pace, game script, or team totals/spreads.</li>
           <li><strong>Weather:</strong> No weather adjustments (particularly important for passing games).</li>
           <li><strong>Venue effects:</strong> Dome vs outdoor conditions not yet factored.</li>
@@ -388,11 +394,14 @@
           <li>✅ <strike>Defensive matchup framework</strike> (Oct 2024)</li>
           <li>✅ <strike>Family-based multi-market modeling</strike> (Oct 2024)</li>
           <li>✅ <strike>Home/away field advantage adjustments</strike> (Oct 2024)</li>
+          <li>✅ <strike>Probability calibration against real historical outcomes</strike> (Aug 2026)</li>
+          <li>🔄 Career-long per-player baseline with shrinkage toward position-level pools (replaces the 4-game-only window)</li>
           <li>🔄 Team context (pace, pass rate, game totals)</li>
-          <li>🔜 Market fusion (weak Bayesian updates from consensus lines)</li>
+          <li>🔜 Calibration coverage for Poisson/yes-no markets (anytime TD, etc.)</li>
           <li>🔜 Monte Carlo joint simulation with correlated shocks</li>
           <li>🔜 Weather and dome/outdoor venue adjustments</li>
         </ul>
+        <p style="margin-top:1em;"><a href="https://github.com/pbwitt/fourth-and-value/blob/main/scripts/backtest_calibration.py" target="_blank">Backtest methodology</a> and <a href="https://github.com/pbwitt/fourth-and-value/blob/main/models/nfl_prop_calibration.json" target="_blank">calibration curves</a> are public in the repo.</p>
 
         <hr />
         <p class="note">
