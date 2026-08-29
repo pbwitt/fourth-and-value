@@ -20,13 +20,58 @@ Usage:
     --out       data/props/props_with_model_week2.csv
 """
 import argparse
+import json
 import logging
 import math
+import os
 import re
 from typing import Iterable, List
 import numpy as np
 import pandas as pd# Shared normalizer (you added this module)
 from common_markets import standardize_input
+
+CALIBRATION_PATH = os.path.join(os.path.dirname(__file__), "..", "models", "nfl_prop_calibration.json")
+
+
+def load_calibration(path: str = CALIBRATION_PATH) -> dict | None:
+    """
+    Load the fitted probability-calibration curves (see fit_calibration.py).
+    Returns None if the file doesn't exist, so calibration is a no-op until
+    it's been fit at least once - never a hard failure.
+    """
+    if not os.path.exists(path):
+        logging.warning(f"No calibration file at {path} - shipping raw (uncalibrated) model_prob.")
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
+def apply_calibration(df: pd.DataFrame, calibration: dict | None) -> pd.Series:
+    """
+    Map raw model_prob through the fitted market-specific isotonic curve
+    (or the pooled fallback curve for markets with no dedicated fit, or an
+    identity pass-through for markets never covered by the backtest, e.g.
+    the Poisson yes/no markets). See fit_calibration.py /
+    backtest_calibration.py for why this exists and how it's derived.
+    """
+    if calibration is None:
+        return df["model_prob"]
+
+    pooled = calibration.get("_pooled_fallback")
+    market_curves = calibration.get("markets", {})
+    eligible = set(calibration.get("_eligible_markets", []))
+
+    out = df["model_prob"].copy()
+    for market_std, sub_idx in df.groupby("market_std").groups.items():
+        if market_std not in eligible:
+            continue  # never backtested - leave raw model_prob untouched
+        curve = market_curves.get(market_std, pooled)
+        if curve is None:
+            continue
+        raw = df.loc[sub_idx, "model_prob"]
+        calibrated = np.interp(raw.values, curve["x"], curve["y"])
+        out.loc[sub_idx] = calibrated
+    return out
 
 from pathlib import Path
 from datetime import datetime, timezone
@@ -346,7 +391,17 @@ def main():
     merged["mkt_prob"] = merged["price"].map(american_to_prob)
 
     # Model probability
-    merged["model_prob"] = merged.apply(compute_model_prob_row, axis=1)
+    merged["model_prob_raw"] = merged.apply(compute_model_prob_row, axis=1)
+
+    # Calibrate against real historical outcomes (see fit_calibration.py /
+    # backtest_calibration.py). The raw z-score-derived probability was
+    # measured to be badly overconfident - e.g. ~95%+ raw confidence picks
+    # only won ~52% of the time in the 2025 backtest - so this is not
+    # optional polish, it's what keeps edge_bps meaningful.
+    calibration = load_calibration()
+    merged["model_prob"] = apply_calibration(
+        merged.assign(model_prob=merged["model_prob_raw"]), calibration
+    )
 
     # Edge in basis points
     merged["edge_bps"] = (merged["model_prob"] - merged["mkt_prob"]) * 10000.0
