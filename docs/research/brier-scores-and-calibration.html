@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Fourth & Value — Brier Scores and Calibration: Grading Our Own Model Honestly</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="What a Brier score is, why it's the right way to grade a probabilistic model, and the real, unfiltered results of backtesting our own NFL player prop model against 2025 outcomes." />
+  <link rel="icon" href="../favicon.ico" />
+  <style>
+    :root { --max: 880px; --bg:#0b0b0b; --fg:#e9e9e9; --muted:#b9b9b9; --line:#222; --input:#121212; --link:#8ab4ff; }
+    html,body { margin:0; background:var(--bg); color:var(--fg); }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; line-height:1.65; }
+    a { color: var(--link); text-decoration: underline; }
+    .wrap { max-width: var(--max); margin: 0 auto; padding: 16px; }
+    h1 { margin: 8px 0 4px; line-height: 1.3; font-size: 1.7rem; }
+    .meta { font-size:.9rem; color: var(--muted); margin: 6px 0 8px; }
+    .kicker { text-transform: uppercase; letter-spacing: .08em; font-size: .78rem; color: #8ab4ff; font-weight: 600; }
+    .abstract { background: #0f1419; border: 1px solid #2a2a2a; border-radius: 10px; padding: 18px 20px; margin: 20px 0; font-size: .95rem; color: #d6d6d6; }
+    .abstract strong { color: #fff; }
+    article h2 { margin-top: 2em; color: #f5f5f5; font-size: 1.3rem; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+    article h3 { margin-top: 1.4em; color: #f5f5f5; font-size: 1.05rem; }
+    article p { margin: 1em 0; }
+    article ul, article ol { margin: 1em 0; padding-left: 24px; }
+    article li { margin: 0.5em 0; }
+    code { background:#0f0f0f; border:1px solid var(--line); border-radius:4px; padding: 1px 5px; color:#e6e6e6; font-size: .9em; }
+    pre { background:#0f0f0f; border:1px solid var(--line); border-radius:8px; padding:14px; overflow:auto; margin: 1.2em 0; }
+    pre code { border: none; padding: 0; }
+    .highlight { background: #1a2332; border-left: 3px solid #8ab4ff; padding: 16px; margin: 1.5em 0; border-radius: 6px; }
+    .warning { background: #241a1a; border-left: 3px solid #f87171; padding: 16px; margin: 1.5em 0; border-radius: 6px; }
+    .win { background: #16241a; border-left: 3px solid #4ade80; padding: 16px; margin: 1.5em 0; border-radius: 6px; }
+    table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.88rem; }
+    .table-wrap { overflow-x: auto; }
+    th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--line); }
+    th { background: #0f0f0f; font-weight: 600; color: #f5f5f5; }
+    td { color: var(--fg); }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .green { color: #4ade80; }
+    .red { color: #f87171; }
+    .muted { color: var(--muted); }
+    .back { display:inline-block; margin-top: 28px; color: var(--link); }
+    .toc { background: #0f1419; border: 1px solid #2a2a2a; border-radius: 10px; padding: 16px 20px; margin: 1.5em 0; font-size: .9rem; }
+    .toc ol { margin: 8px 0 0; padding-left: 20px; }
+    .toc li { margin: 4px 0; }
+  </style>
+</head>
+<body>
+  <div id="nav-root"></div>
+  <script src="../nav.js?v=29"></script>
+
+  <main class="wrap">
+    <article>
+      <header>
+        <div class="kicker">Research Note №1</div>
+        <h1>Brier Scores and Calibration: Grading Our Own Model Honestly</h1>
+        <div class="meta">
+          <time datetime="2026-08-29">Aug 29, 2026</time> • 12 min read
+        </div>
+      </header>
+
+      <div class="abstract">
+        <strong>Abstract.</strong> Most sports prediction content reports win rate or "hit rate" and stops there, which rewards confident guessing over honest uncertainty. We use the <strong>Brier score</strong> instead — a proper scoring rule that only rewards a model for probabilities that match reality. We backtested our NFL player-prop model against real 2025 season outcomes (13,146+ graded picks) and found it was badly overconfident: predictions made with 95-100% stated confidence were correct only <strong>51.6%</strong> of the time. We rebuilt the underlying player model and added a statistical calibration layer; the corrected model's Brier score fell from <strong>0.337 to 0.276</strong> before calibration, and to <strong>0.252</strong> — a hair above the theoretical coin-flip floor of 0.25 — after. We report all of this, including a real backtesting mistake we caught partway through, because the standard we're holding ourselves to is "checkable," not "impressive."
+      </div>
+
+      <div class="toc">
+        <strong>Contents</strong>
+        <ol>
+          <li><a href="#why-not-winrate">Why not just report win rate?</a></li>
+          <li><a href="#what-is-brier">What is a Brier score?</a></li>
+          <li><a href="#baseline">The baseline: what "good" looks like</a></li>
+          <li><a href="#finding-1">Finding 1: our raw model was badly overconfident</a></li>
+          <li><a href="#fix">The fix: a real player model, then calibration on top</a></li>
+          <li><a href="#finding-2">Finding 2: catching our own validation bug</a></li>
+          <li><a href="#results">Results, corrected and verified</a></li>
+          <li><a href="#practices">Modeling best practices, learned the hard way</a></li>
+          <li><a href="#limits">What this does and doesn't prove</a></li>
+        </ol>
+      </div>
+
+      <h2 id="why-not-winrate">1. Why not just report win rate?</h2>
+      <p>Imagine two models predicting the same 100 coin flips. Model A says "55% heads" on every single flip. Model B says "99% heads" on 50 flips and "1% heads" on the other 50, getting roughly half right by luck. If you only look at "was the favored side correct more than half the time," both models can look similar, or B can even look better on a given sample. But Model A is telling you the truth about a genuinely uncertain event, and Model B is a confident liar who happened not to get caught yet.</p>
+      <p>Win rate (or "hit rate") only asks whether the favored side won. It says nothing about whether the model's <em>stated confidence</em> was justified. A model that says 90% and wins 55% of the time is not a 55%-accurate model — it's a broken one, and win-rate alone won't tell you that.</p>
+
+      <h2 id="what-is-brier">2. What is a Brier score?</h2>
+      <p>The Brier score is the mean squared error between a predicted probability and the actual outcome (1 if it happened, 0 if it didn't):</p>
+      <pre><code>Brier = mean( (predicted_probability - actual_outcome)² )</code></pre>
+      <p>Lower is better. A perfect predictor (always says 100% for things that happen and 0% for things that don't) scores 0. A model that always says exactly 50% scores 0.25, regardless of what actually happens — this is the <strong>coin-flip baseline</strong>, and it's the number to beat.</p>
+      <p>What makes it the right tool for this job is that it's a <strong>proper scoring rule</strong>: the mathematically optimal strategy for minimizing your own Brier score is to report your <em>true</em> belief, as precisely as you can estimate it. You cannot improve your expected score by hedging toward 50%, and you cannot improve it by inflating your confidence past what your evidence supports. Win rate has no such property — you can improve your apparent hit rate by only ever "predicting" things that are already near-certain, which tells a reader nothing about a model's skill on genuinely uncertain lines.</p>
+
+      <h2 id="baseline">3. The baseline: what "good" looks like</h2>
+      <table>
+        <thead><tr><th>Brier score</th><th>Interpretation</th></tr></thead>
+        <tbody>
+          <tr><td class="num">0.00</td><td>Perfect foresight (never happens in sports)</td></tr>
+          <tr><td class="num">0.20 – 0.24</td><td>Genuinely skilled, well-calibrated probabilistic forecasting</td></tr>
+          <tr><td class="num">0.25</td><td><strong>Coin-flip baseline</strong> — always guessing 50%</td></tr>
+          <tr><td class="num">&gt; 0.25</td><td>Worse than a coin flip — the model's confidence is actively misleading</td></tr>
+        </tbody>
+      </table>
+      <p>A model scoring above 0.25 isn't "a little bit wrong" — it means an observer would have been better off ignoring the model's stated probability entirely and assuming every prop was a coin flip.</p>
+
+      <h2 id="finding-1">4. Finding 1: our raw model was badly overconfident</h2>
+      <p>We graded every historical prediction our model made in the 2025 season against real player statlines (13,146 graded player-prop picks across 9 weeks, rush/receiving/passing yards, receptions, attempts, completions). The result:</p>
+
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Model's stated confidence</th><th class="num">n</th><th class="num">Actually correct</th><th class="num">Gap</th></tr></thead>
+        <tbody>
+          <tr><td>50-60%</td><td class="num">1,490</td><td class="num">48.9%</td><td class="num red">-6.2 pp</td></tr>
+          <tr><td>60-70%</td><td class="num">1,294</td><td class="num">45.0%</td><td class="num red">-20.0 pp</td></tr>
+          <tr><td>70-80%</td><td class="num">1,216</td><td class="num">52.7%</td><td class="num red">-22.1 pp</td></tr>
+          <tr><td>80-90%</td><td class="num">1,139</td><td class="num">55.7%</td><td class="num red">-29.3 pp</td></tr>
+          <tr><td>90-95%</td><td class="num">579</td><td class="num">51.0%</td><td class="num red">-41.5 pp</td></tr>
+          <tr><td>95-100%</td><td class="num">855</td><td class="num">51.6%</td><td class="num red">-46.5 pp</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <p>The pattern is exactly backwards from what you'd want: the <em>more</em> confident the model claimed to be, the <em>worse</em> the gap between claim and reality got. At the top end, "95-100% confident" picks won barely more than half the time — statistically indistinguishable from a coin flip. Overall raw Brier score: <strong>0.326</strong> — worse than the 0.25 baseline. The market's own de-vigged consensus probability, graded on the identical picks, scored <strong>0.250</strong> — right at the efficient-market baseline, as you'd expect from professional oddsmakers.</p>
+
+      <div class="warning">
+        <strong>What this means in practice:</strong> a "4,000+ basis point edge" generated by this version of the model was far more likely to be an artifact of an unreliable confidence estimate than a real, exploitable mispricing. We had, in effect, built a very confident random number generator.
+      </div>
+
+      <h3>Root cause</h3>
+      <p>The model estimated every player's expected performance from an exponentially-weighted average of <em>only their own last 4 games</em>, computed independently for every player with no cross-player learning. A standard deviation computed from 4 data points is itself extremely unstable — sometimes it comes out too small by chance, and a small denominator turns any gap between the market's line and the model's estimate into an enormous, false "edge." The failure mode is structural, not a matter of needing "more tuning."</p>
+
+      <h2 id="fix">5. The fix: a real player model, then calibration on top</h2>
+      <p>We made two changes, in this order, because they solve two different problems:</p>
+      <ol>
+        <li><strong>A hierarchical player baseline</strong> (see <a href="../methods.html">Methods</a>): instead of estimating each player from 4 isolated games, we blend three levels — a position-level pool (RB/WR/TE/QB, built from ~130,000 career game-logs, 2019-2025), each player's own multi-season career history (recency-weighted, shrunk toward the position pool by how much career data they actually have), and current-season recent form (still the original last-4-games estimate, now blended in rather than used alone). This directly targets the small-sample variance problem at its source.</li>
+        <li><strong>Isotonic calibration</strong>, fit on real historical outcomes, as a second, independent layer on top. Even a better player model won't be perfectly calibrated out of the box, so we explicitly measure the gap between stated confidence and real outcomes and correct it, market by market.</li>
+      </ol>
+      <p>We built this order deliberately: calibration alone can hide a broken model behind an honest-looking number (it can shrink everything to ~50% and call it a day), while a better model with no calibration check is just a different unverified guess. Both together — a better estimate, checked against reality — is what we're publishing.</p>
+
+      <h2 id="finding-2">6. Finding 2: catching our own validation bug</h2>
+      <p>Midway through this work, we found that our own validation script had a bug: it built its player-lookup key one way (a lowercase, space-normalized string) while the career-history data was keyed a different way (the raw display name). The two never matched — not once, for any player, in either the "before" or "after" test condition. Every prediction in that backtest silently fell back to a generic average instead of actually using a specific player's data.</p>
+      <p>We caught this by asking a version of the same question we'd ask of anyone else's numbers: <em>show me one specific example and let me check it by hand.</em> A live example on the site (a real player's projection that didn't match their known role) didn't add up, which led us to trace the exact mismatch and confirm it with a direct test.</p>
+      <div class="win">
+        <strong>Why we're including this instead of quietly fixing it:</strong> a backtest that passes is not the same as a backtest that's correct. We re-ran the corrected version and report those numbers below — they turned out slightly <em>better</em> than what we'd originally measured, but that's beside the point. The discipline is checking, not hoping the first number that looks good is the right one.
+      </div>
+
+      <h2 id="results">7. Results, corrected and verified</h2>
+      <p>Comparing the old (recent-4-games-only) player model to the new hierarchical model, on identical real 2025 outcomes, with both versions using the same corrected, verified data pipeline:</p>
+
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Market</th><th class="num">n</th><th class="num">Old Brier</th><th class="num">New Brier</th><th class="num">Old corr.</th><th class="num">New corr.</th></tr></thead>
+        <tbody>
+          <tr><td>All markets combined</td><td class="num">~12,900</td><td class="num">0.337</td><td class="num green">0.276</td><td class="num">-0.003</td><td class="num green">+0.018</td></tr>
+          <tr><td>Rushing yards</td><td class="num">2,468</td><td class="num">0.333</td><td class="num green">0.269</td><td class="num">+0.014</td><td class="num green">+0.044</td></tr>
+          <tr><td>Receiving yards</td><td class="num">4,960</td><td class="num">0.338</td><td class="num green">0.280</td><td class="num">-0.029</td><td class="num">-0.010</td></tr>
+          <tr><td>Passing yards</td><td class="num">1,558</td><td class="num">0.333</td><td class="num green">0.279</td><td class="num">-0.056</td><td class="num">-0.078</td></tr>
+          <tr><td>Receptions</td><td class="num">1,954</td><td class="num">0.338</td><td class="num green">0.276</td><td class="num">+0.044</td><td class="num green">+0.086</td></tr>
+          <tr><td>Rush attempts</td><td class="num">880</td><td class="num">0.335</td><td class="num green">0.275</td><td class="num">+0.035</td><td class="num green">+0.050</td></tr>
+          <tr><td>Pass attempts</td><td class="num">574</td><td class="num">0.327</td><td class="num green">0.254</td><td class="num">+0.073</td><td class="num green">+0.089</td></tr>
+          <tr><td>Pass completions</td><td class="num">510</td><td class="num">0.366</td><td class="num green">0.283</td><td class="num">-0.042</td><td class="num">-0.030</td></tr>
+        </tbody>
+      </table>
+      </div>
+
+      <p><em>corr. = Pearson correlation between the model's stated probability and the real 0/1 outcome — a direct measure of whether higher confidence actually tracks with being more often right.</em></p>
+
+      <p>Every market improved on Brier score. Correlation improved in most markets and stayed roughly flat (slightly negative, statistically indistinguishable from zero at this sample size) in receiving and passing yards specifically — an honest result we're not smoothing over.</p>
+
+      <h3>Does calibration hold up out-of-sample?</h3>
+      <p>Brier improvement alone can be an artifact of fitting to the same data you're testing on. We checked with 5-fold cross-validation, grouped by week so no game ever appears in both the training and test fold:</p>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Confidence bucket</th><th class="num">n</th><th class="num">Predicted</th><th class="num">Actual</th></tr></thead>
+        <tbody>
+          <tr><td>50-60%</td><td class="num">7,203</td><td class="num">50.8%</td><td class="num">50.1%</td></tr>
+          <tr><td>60-70%</td><td class="num">17</td><td class="num">60.3%</td><td class="num">35.3%</td></tr>
+          <tr><td>80-90%</td><td class="num">2</td><td class="num">87.5%</td><td class="num">0.0%</td></tr>
+          <tr><td>90-100%</td><td class="num">14</td><td class="num">96.4%</td><td class="num">28.6%</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>Out-of-fold Brier score: <strong>0.2517</strong> — essentially at the coin-flip baseline. The overwhelming majority of predictions (7,203 of ~7,236) land in the 50-60% bucket and are calibrated almost exactly. The handful of higher-confidence buckets have too few observations (2 to 17) to draw any real conclusion from — which is itself the honest finding: <strong>our model currently has very little genuine high-confidence signal to offer</strong>, and calibration correctly reflects that instead of hiding it behind a flattering average.</p>
+
+      <h2 id="practices">8. Modeling best practices, learned the hard way</h2>
+      <ul>
+        <li><strong>Distrust small-sample variance estimates.</strong> A standard deviation from 4 data points is not a reliable number. If you must use one, shrink it toward a larger reference population (ours: position-level pools from thousands of games).</li>
+        <li><strong>Calibrate against real outcomes, not against your own model's self-confidence.</strong> A model can be internally consistent and still be completely wrong about the world.</li>
+        <li><strong>Validate out-of-fold.</strong> Fitting a correction and testing it on the same data will always look better than it deserves to. Split by a real boundary (we use week number) that mirrors how the model will actually be used going forward.</li>
+        <li><strong>A passing backtest is not a correct backtest.</strong> Silent join failures (our name-matching bug) can make a broken pipeline look like it's working, because a "no match, use the fallback" branch rarely raises an error. Spot-check individual real examples by hand, not just aggregate metrics.</li>
+        <li><strong>Report the correlation, not just the calibration.</strong> A model can be honestly calibrated ("when I say 51%, I'm right 51% of the time") while still having almost no genuine predictive skill. Both numbers matter, and they answer different questions.</li>
+      </ul>
+
+      <h2 id="limits">9. What this does and doesn't prove</h2>
+      <p><strong>It does show:</strong> our model's stated confidence is now approximately honest — when it says something is likely, that claim is backed by a real historical track record of being right about that often, verified out-of-fold.</p>
+      <p><strong>It does not show:</strong> that we have a large, reliable edge over sportsbook pricing. The correlation between our model's probability and real outcomes remains weak (roughly +0.01 to +0.09 depending on market) — real, but modest. Anyone telling you they've "solved" player prop prediction with a correlation like that is not being straight with you.</p>
+      <p>We'll keep this page updated as the methodology evolves, and we're building toward a public, automatically-graded track record of real published picks so this isn't just a one-time backtest — see the <a href="../methods.html">Methods</a> page for what's shipped and what's still on the roadmap.</p>
+
+      <hr style="border: none; border-top: 1px solid var(--line); margin: 2em 0;">
+      <p style="font-size: 0.9rem; color: var(--muted);">
+        <strong>Methodology & reproducibility:</strong> all figures in this note come from grading real, timestamped historical model output against actual 2025 NFL box scores (nflverse). Backtest code: <code>scripts/backtest_calibration.py</code> and <code>scripts/backtest_new_baseline.py</code>. Calibration fit: <code>scripts/fit_calibration.py</code>, output at <code>models/nfl_prop_calibration.json</code>. All of it is in the public repo behind this site.
+      </p>
+      <p style="font-size: 0.9rem; color: var(--muted); margin-top: 1.5em;">
+        <strong>Questions or feedback?</strong> Find us on <a href="https://x.com/fourthandvalue">X/Twitter @fourthandvalue</a>.
+      </p>
+
+      <a class="back" href="./index.html">← Back to Research</a>
+    </article>
+  </main>
+</body>
+</html>
