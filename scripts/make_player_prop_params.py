@@ -420,20 +420,21 @@ def enrich_logs_with_home_away(logs: pd.DataFrame, season: int) -> pd.DataFrame:
         return logs
 
 
-def fetch_recent_game_logs(season: int) -> Optional[pd.DataFrame]:
+def _load_season_weekly(season: int) -> Optional[pd.DataFrame]:
     """
-    Load weekly player logs for `season` from local nflverse parquet fetched earlier.
-    Fail-fast if missing instead of silently falling back.
-    Enriches with home/away indicator.
+    Load and clean one season's weekly player logs from the local nflverse
+    parquet. Returns None if the file isn't present (e.g. a season that
+    hasn't started yet).
     """
     from pathlib import Path
     p = Path(f"data/weekly_player_stats_{season}.parquet")
     if not p.exists():
-        logging.error(f"Missing weekly parquet for season {season}: {p} (run weekly_stats first)")
         return None
 
     weekly = pd.read_parquet(p)
     weekly = weekly.loc[weekly.get("season").astype(int) == int(season)].copy()
+    if weekly.empty:
+        return None
 
     weekly.columns = [c.lower() for c in weekly.columns]
 
@@ -468,7 +469,30 @@ def fetch_recent_game_logs(season: int) -> Optional[pd.DataFrame]:
 
     keep = list(dict.fromkeys(["player","season","week"] + needed))
     have = [c for c in keep if c in weekly.columns]
-    weekly = weekly[have]
+    return weekly[have]
+
+
+def fetch_recent_game_logs(season: int) -> Optional[pd.DataFrame]:
+    """
+    Load weekly player logs for the last WINDOW_GAMES games per player,
+    looking back across the season boundary when the current season doesn't
+    have enough games yet (e.g. Week 1-3, before any/enough 2026 games are
+    played, falls back to each player's most recent 2025 games). Enriches
+    with home/away indicator.
+    """
+    current = _load_season_weekly(season)
+    prior = _load_season_weekly(season - 1)
+
+    if current is None and prior is None:
+        logging.error(
+            f"Missing weekly parquet for season {season} and {season - 1} "
+            f"(run weekly_stats first)"
+        )
+        return None
+
+    frames = [f for f in (prior, current) if f is not None]
+    weekly = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
+    have = list(weekly.columns)
 
     tail = (
         weekly.sort_values(["player","season","week"])
@@ -480,7 +504,8 @@ def fetch_recent_game_logs(season: int) -> Optional[pd.DataFrame]:
     tail["name_std"] = tail["player"].astype(str).map(name_std_str)
     tail["player_key"] = tail["player"].astype(str).map(slugify)
 
-    # Enrich with home/away flag
+    # Enrich with home/away flag (uses the target season's schedule; a minor
+    # approximation for any carried-over prior-season rows)
     tail = enrich_logs_with_home_away(tail, season)
 
     return tail
@@ -635,19 +660,25 @@ def calculate_defensive_ratings(season: int, week: int) -> pd.DataFrame:
 
     # Load current season weekly data
     parquet_path = Path(f"data/weekly_player_stats_{season}.parquet")
-    if not parquet_path.exists():
-        logging.warning(f"No defensive data available: {parquet_path}")
-        return pd.DataFrame()
-
-    df = pd.read_parquet(parquet_path)
-    df.columns = [c.lower() for c in df.columns]
-
-    # Filter to weeks before current week
-    df = df[df['week'] < week].copy()
+    df = pd.DataFrame()
+    if parquet_path.exists():
+        df = pd.read_parquet(parquet_path)
+        df.columns = [c.lower() for c in df.columns]
+        # Filter to weeks before current week
+        df = df[df['week'] < week].copy()
 
     if len(df) == 0:
-        logging.warning(f"No defensive data for weeks before {week}")
-        return pd.DataFrame()
+        # No current-season games yet (e.g. Week 1-3) - fall back to last
+        # season's full-season defensive performance as a proxy.
+        prior_path = Path(f"data/weekly_player_stats_{season - 1}.parquet")
+        if not prior_path.exists():
+            logging.warning(f"No defensive data available: {parquet_path} or {prior_path}")
+            return pd.DataFrame()
+        df = pd.read_parquet(prior_path)
+        df.columns = [c.lower() for c in df.columns]
+        if len(df) == 0:
+            logging.warning(f"No defensive data for weeks before {week}")
+            return pd.DataFrame()
 
     # Calculate yards allowed per team
     teams = df['team'].unique()
@@ -1499,7 +1530,9 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
     def lam_from(cols, prior_key, default_val=None):
         base = PRIORS.get(prior_key, {}).get("lam", np.nan) if default_val is None else float(default_val)
         if logs is None or getattr(logs, "empty", True):
-            raise ValueError(f"FATAL: No weekly stats loaded for Poisson market {prior_key}. Cannot build params without player data.")
+            # No current-season logs yet (e.g. Week 1 before any games are played).
+            # Fall back to league-average priors, same as the Normal-family builders.
+            return pd.Series(base, index=player_idx, dtype="float64")
 
         col = pick_col(logs, cols)
         if col is None:
