@@ -234,8 +234,11 @@ def kickoff_et(iso_or_str):
     if (" ET" in s and any(ch.isalpha() for ch in s[:3])) or ("M ET" in s):
         return s
     try:
-        dt = datetime.fromisoformat(s.replace("Z","+00:00")).astimezone(timezone.utc)
-        # Show day-of-week and time; label as ET for consistency across pages
+        from zoneinfo import ZoneInfo
+        # commence_time from the odds API is UTC ("...Z"); actually convert
+        # to US Eastern (handles EST/EDT correctly) instead of just
+        # relabeling the UTC time as "ET".
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(ZoneInfo("America/New_York"))
         return dt.strftime("%a %-I:%M %p ET")
     except Exception:
         return s

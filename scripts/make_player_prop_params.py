@@ -1003,14 +1003,21 @@ def estimate_rush_latents(
         career_prior = career_df[career_df["season"] < season]
         career_grp = career_prior.groupby("player", dropna=False)
 
+    # NOTE: when logs is None/empty (e.g. Week 1, before any current-season
+    # games exist) we must NOT early-return flat defaults if career_df is
+    # available - that would silently skip the career baseline for exactly
+    # the case it exists to handle. Fall through to an empty-but-columned
+    # frame instead, so every player takes the "not in grp.groups" branch
+    # below, which already does the correct career_df fallback.
     if logs is None or logs.empty:
-        # Fall back to priors
-        return {
-            "volume_mu": pd.Series(PRIORS["rush_attempts"]["mu"], index=player_idx),
-            "volume_sigma": pd.Series(PRIORS["rush_attempts"]["sigma"], index=player_idx),
-            "ypc_mu": pd.Series(4.2, index=player_idx),  # league average
-            "ypc_sigma": pd.Series(0.8, index=player_idx),
-        }
+        if not use_career:
+            return {
+                "volume_mu": pd.Series(PRIORS["rush_attempts"]["mu"], index=player_idx),
+                "volume_sigma": pd.Series(PRIORS["rush_attempts"]["sigma"], index=player_idx),
+                "ypc_mu": pd.Series(4.2, index=player_idx),  # league average
+                "ypc_sigma": pd.Series(0.8, index=player_idx),
+            }
+        logs = pd.DataFrame(columns=["player", "carries", "rushing_yards"])
 
     grp = logs.groupby("player", dropna=False)
 
@@ -1027,13 +1034,14 @@ def estimate_rush_latents(
             break
 
     if not carries_col or not yards_col:
-        # Fallback
-        return {
-            "volume_mu": pd.Series(PRIORS["rush_attempts"]["mu"], index=player_idx),
-            "volume_sigma": pd.Series(PRIORS["rush_attempts"]["sigma"], index=player_idx),
-            "ypc_mu": pd.Series(4.2, index=player_idx),
-            "ypc_sigma": pd.Series(0.8, index=player_idx),
-        }
+        if not use_career:
+            return {
+                "volume_mu": pd.Series(PRIORS["rush_attempts"]["mu"], index=player_idx),
+                "volume_sigma": pd.Series(PRIORS["rush_attempts"]["sigma"], index=player_idx),
+                "ypc_mu": pd.Series(4.2, index=player_idx),
+                "ypc_sigma": pd.Series(0.8, index=player_idx),
+            }
+        carries_col, yards_col = "carries", "rushing_yards"
 
     volume_mu_vals = {}
     volume_sigma_vals = {}
@@ -1123,6 +1131,7 @@ def estimate_receive_latents(
             pos: (
                 cb.compute_position_pool(career_df, pos, "targets"),
                 cb.compute_position_pool(career_df, pos, "receiving_yards", "receptions"),
+                cb.compute_position_pool(career_df, pos, "receptions", "targets"),
             )
             for pos in recv_positions
         }
@@ -1134,13 +1143,15 @@ def estimate_receive_latents(
         )
 
     if logs is None or logs.empty:
-        return {
-            "volume_mu": pd.Series(4.0, index=player_idx),
-            "volume_sigma": pd.Series(2.0, index=player_idx),
-            "cr_mu": pd.Series(0.65, index=player_idx),
-            "ypr_mu": pd.Series(11.0, index=player_idx),
-            "ypr_sigma": pd.Series(3.0, index=player_idx),
-        }
+        if not use_career:
+            return {
+                "volume_mu": pd.Series(4.0, index=player_idx),
+                "volume_sigma": pd.Series(2.0, index=player_idx),
+                "cr_mu": pd.Series(0.65, index=player_idx),
+                "ypr_mu": pd.Series(11.0, index=player_idx),
+                "ypr_sigma": pd.Series(3.0, index=player_idx),
+            }
+        logs = pd.DataFrame(columns=["player", "targets", "receptions", "receiving_yards"])
 
     grp = logs.groupby("player", dropna=False)
 
@@ -1154,13 +1165,15 @@ def estimate_receive_latents(
             break
 
     if not rec_col or not yards_col:
-        return {
-            "volume_mu": pd.Series(4.0, index=player_idx),
-            "volume_sigma": pd.Series(2.0, index=player_idx),
-            "cr_mu": pd.Series(0.65, index=player_idx),
-            "ypr_mu": pd.Series(11.0, index=player_idx),
-            "ypr_sigma": pd.Series(3.0, index=player_idx),
-        }
+        if not use_career:
+            return {
+                "volume_mu": pd.Series(4.0, index=player_idx),
+                "volume_sigma": pd.Series(2.0, index=player_idx),
+                "cr_mu": pd.Series(0.65, index=player_idx),
+                "ypr_mu": pd.Series(11.0, index=player_idx),
+                "ypr_sigma": pd.Series(3.0, index=player_idx),
+            }
+        rec_col, yards_col = "receptions", "receiving_yards"
 
     volume_mu_vals = {}
     volume_sigma_vals = {}
@@ -1169,15 +1182,18 @@ def estimate_receive_latents(
     ypr_sigma_vals = {}
 
     for player in player_idx:
-        career_vol_mu = career_vol_sigma = career_ypr_mu = career_ypr_sigma = np.nan
+        career_vol_mu = career_vol_sigma = career_ypr_mu = career_ypr_sigma = career_cr_mu = np.nan
         if use_career:
             pos = player_position.get(player, "WR")
-            (pos_vol_mu, pos_vol_sigma), (pos_ypr_mu, pos_ypr_sigma) = pos_pools.get(pos, pos_pools["WR"])
+            (pos_vol_mu, pos_vol_sigma), (pos_ypr_mu, pos_ypr_sigma), (pos_cr_mu, pos_cr_sigma) = pos_pools.get(pos, pos_pools["WR"])
             p_career = career_grp.get_group(player) if player in career_grp.groups else career_prior.iloc[0:0]
             career_vol_mu, career_vol_sigma, _ = cb.player_career_baseline(
                 p_career, season, "targets", None, pos_vol_mu, pos_vol_sigma)
             career_ypr_mu, career_ypr_sigma, _ = cb.player_career_baseline(
                 p_career, season, "receiving_yards", "receptions", pos_ypr_mu, pos_ypr_sigma)
+            career_cr_mu, _, _ = cb.player_career_baseline(
+                p_career, season, "receptions", "targets", pos_cr_mu, pos_cr_sigma)
+            career_cr_mu = career_cr_mu if not pd.isna(career_cr_mu) else 0.65
 
         if player in grp.groups:
             player_data = grp.get_group(player).sort_index()
@@ -1217,7 +1233,7 @@ def estimate_receive_latents(
             elif use_career and not pd.isna(career_vol_mu):
                 volume_mu_vals[player], volume_sigma_vals[player] = career_vol_mu, career_vol_sigma
                 ypr_mu_vals[player], ypr_sigma_vals[player] = career_ypr_mu, career_ypr_sigma
-                cr_mu_vals[player] = 0.65
+                cr_mu_vals[player] = career_cr_mu
             else:
                 volume_mu_vals[player] = 4.0
                 volume_sigma_vals[player] = 2.0
@@ -1227,7 +1243,7 @@ def estimate_receive_latents(
         elif use_career and not pd.isna(career_vol_mu):
             volume_mu_vals[player], volume_sigma_vals[player] = career_vol_mu, career_vol_sigma
             ypr_mu_vals[player], ypr_sigma_vals[player] = career_ypr_mu, career_ypr_sigma
-            cr_mu_vals[player] = 0.65
+            cr_mu_vals[player] = career_cr_mu
         else:
             volume_mu_vals[player] = 4.0
             volume_sigma_vals[player] = 2.0
@@ -1273,13 +1289,15 @@ def estimate_pass_latents(
         career_grp = career_prior.groupby("player", dropna=False)
 
     if logs is None or logs.empty:
-        return {
-            "volume_mu": pd.Series(32.0, index=player_idx),
-            "volume_sigma": pd.Series(6.0, index=player_idx),
-            "comp_pct_mu": pd.Series(0.63, index=player_idx),
-            "ypc_mu": pd.Series(7.2, index=player_idx),
-            "ypc_sigma": pd.Series(1.5, index=player_idx),
-        }
+        if not use_career:
+            return {
+                "volume_mu": pd.Series(32.0, index=player_idx),
+                "volume_sigma": pd.Series(6.0, index=player_idx),
+                "comp_pct_mu": pd.Series(0.63, index=player_idx),
+                "ypc_mu": pd.Series(7.2, index=player_idx),
+                "ypc_sigma": pd.Series(1.5, index=player_idx),
+            }
+        logs = pd.DataFrame(columns=["player", "attempts", "completions", "passing_yards"])
 
     grp = logs.groupby("player", dropna=False)
 
@@ -1301,13 +1319,15 @@ def estimate_pass_latents(
             break
 
     if not att_col or not comp_col or not yards_col:
-        return {
-            "volume_mu": pd.Series(32.0, index=player_idx),
-            "volume_sigma": pd.Series(6.0, index=player_idx),
-            "comp_pct_mu": pd.Series(0.63, index=player_idx),
-            "ypc_mu": pd.Series(7.2, index=player_idx),
-            "ypc_sigma": pd.Series(1.5, index=player_idx),
-        }
+        if not use_career:
+            return {
+                "volume_mu": pd.Series(32.0, index=player_idx),
+                "volume_sigma": pd.Series(6.0, index=player_idx),
+                "comp_pct_mu": pd.Series(0.63, index=player_idx),
+                "ypc_mu": pd.Series(7.2, index=player_idx),
+                "ypc_sigma": pd.Series(1.5, index=player_idx),
+            }
+        att_col, comp_col, yards_col = "attempts", "completions", "passing_yards"
 
     volume_mu_vals = {}
     volume_sigma_vals = {}
