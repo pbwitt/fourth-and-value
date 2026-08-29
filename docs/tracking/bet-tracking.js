@@ -15,8 +15,8 @@
 // appear here - it only ever lives in GitHub Actions secrets, used by the
 // grading scripts.
 
-const SUPABASE_URL = 'REPLACE_WITH_YOUR_SUPABASE_PROJECT_URL';
-const SUPABASE_ANON_KEY = 'REPLACE_WITH_YOUR_SUPABASE_ANON_PUBLIC_KEY';
+const SUPABASE_URL = 'https://fzjonxpzsrbdhbujbhsn.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ6am9ueHB6c3JiZGhidWpiaHNuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgwMzU2ODMsImV4cCI6MjEwMzYxMTY4M30.U640KpqB4uHiF0Q-b0lcAq0bpVv5OKfOKXUKbNg30nQ';
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
