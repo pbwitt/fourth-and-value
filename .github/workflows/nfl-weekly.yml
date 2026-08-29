@@ -48,13 +48,15 @@ jobs:
       - name: Fetch weekly player stats
         run: |
           WEEK=${{ steps.week.outputs.week }}
-          # Prior season is required as a carryover source for early weeks
-          # (before this season has enough games logged); always fetch it.
-          python3 scripts/fetch_weekly_player_stats.py --season 2025
+          # career_baseline.py needs several prior seasons for its position
+          # pools and per-player career baselines (see scripts/career_baseline.py).
+          for yr in 2020 2021 2022 2023 2024 2025; do
+            python3 scripts/fetch_weekly_player_stats.py --season $yr
+          done
           # Current season's file won't exist yet until nflverse publishes
           # the first week's box scores - that's expected early in the
           # season, so don't fail the whole run over it.
-          python3 scripts/fetch_weekly_player_stats.py --season 2026 || echo "No 2026 weekly stats published yet, will use 2025 carryover"
+          python3 scripts/fetch_weekly_player_stats.py --season 2026 || echo "No 2026 weekly stats published yet, will use career baseline"
           python3 scripts/fetch_defensive_stats.py --season 2026 --week $WEEK
 
       - name: Run NFL weekly pipeline
