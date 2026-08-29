@@ -42,6 +42,8 @@
       counter-increment: section;
     }
     article h2::before { content: counter(section) ". "; color: var(--accent); }
+    article h2.appendix { counter-increment: none; border-top: 2px solid var(--rule); padding-top: 1.2em; margin-top: 3em; }
+    article h2.appendix::before { content: "Appendix A. "; }
     article { counter-reset: section; }
     article h3 { font-size: 1rem; font-weight: 700; font-style: italic; margin: 1.6em 0 0.6em; }
     article p { margin: 1em 0; text-align: justify; hyphens: auto; }
@@ -297,6 +299,46 @@
       </div>
 
       <p class="note">Reproducibility: all figures reported in this note are computed from graded historical forecast&ndash;outcome pairs against real NFL box scores. Estimator and calibration source: <code>scripts/career_baseline.py</code>, <code>scripts/fit_calibration.py</code>. Evaluation source: <code>scripts/backtest_calibration.py</code>, <code>scripts/backtest_new_baseline.py</code>. Fitted calibration maps: <code>models/nfl_prop_calibration.json</code>. Source available at the repository backing this site.</p>
+
+      <h2 class="appendix" id="appendix-a">Individual Forecast&ndash;Outcome Pairs</h2>
+      <p>Aggregate statistics can obscure how a forecaster behaves on any single case. Table 4 reports individual (player, market, line) observations for Estimator B, sampled by a fixed, disclosed procedure rather than selected for effect: forecasts are grouped into five bins by raw forecast probability (<span class="mono">[0.50,0.60), [0.60,0.70), &hellip;, [0.90,1.00]</span>), restricted to the favored side (raw probability &ge; 0.5), and up to five observations are drawn from each bin by fixed-seed random sampling (<span class="mono">seed = 42</span>), for a maximum of 25 rows. Bins with fewer than five qualifying observations are shown in full. Both the raw Estimator B probability and the out-of-fold calibrated probability (Section 6.1) are reported alongside the realized statistical outcome.</p>
+
+      <div class="table-wrap">
+      <table>
+        <caption>Table 4. Stratified random sample of individual forecast&ndash;outcome pairs, Estimator B. "Result" indicates whether the named side (over/under) was correct given the realized statistic. Sorted by raw forecast probability, descending.</caption>
+        <thead>
+          <tr><th>Player</th><th>Market</th><th class="num">Line</th><th>Side</th><th class="num">P (raw)</th><th class="num">P (calib.)</th><th class="num">Actual</th><th class="num">Result</th><th class="num">Wk</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>James Cook</td><td>Receptions</td><td class="num">2.5</td><td>under</td><td class="num">0.987</td><td class="num">0.603</td><td class="num">1</td><td class="num">&#10003;</td><td class="num">9</td></tr>
+          <tr><td>Ladd McConkey</td><td>Receptions</td><td class="num">5.5</td><td>under</td><td class="num">0.983</td><td class="num">0.980</td><td class="num">5</td><td class="num">&#10003;</td><td class="num">5</td></tr>
+          <tr><td>Jake Ferguson</td><td>Receptions</td><td class="num">4.5</td><td>under</td><td class="num">0.969</td><td class="num">0.603</td><td class="num">5</td><td class="num red">&#10007;</td><td class="num">9</td></tr>
+          <tr><td>Michael Pittman Jr.</td><td>Receptions</td><td class="num">5.5</td><td>under</td><td class="num">0.954</td><td class="num">0.511</td><td class="num">9</td><td class="num red">&#10007;</td><td class="num">14</td></tr>
+          <tr><td>Kirk Cousins</td><td>Pass Yds</td><td class="num">208.5</td><td>under</td><td class="num">0.907</td><td class="num">0.573</td><td class="num">199</td><td class="num">&#10003;</td><td class="num">12</td></tr>
+          <tr><td>Malik Nabers</td><td>Receptions</td><td class="num">5.5</td><td>under</td><td class="num">0.864</td><td class="num">0.519</td><td class="num">2</td><td class="num">&#10003;</td><td class="num">4</td></tr>
+          <tr><td>Jayden Daniels</td><td>Pass Comp</td><td class="num">21.5</td><td>under</td><td class="num">0.847</td><td class="num">0.524</td><td class="num">16</td><td class="num">&#10003;</td><td class="num">9</td></tr>
+          <tr><td>Jameson Williams</td><td>Recv Yds</td><td class="num">20.5</td><td>over</td><td class="num">0.817</td><td class="num">0.554</td><td class="num">9</td><td class="num red">&#10007;</td><td class="num">5</td></tr>
+          <tr><td>Jared Goff</td><td>Rush Yds</td><td class="num">0.5</td><td>over</td><td class="num">0.817</td><td class="num">0.511</td><td class="num">&minus;2</td><td class="num red">&#10007;</td><td class="num">14</td></tr>
+          <tr><td>Xavier Worthy</td><td>Rush Yds</td><td class="num">3.5</td><td>over</td><td class="num">0.805</td><td class="num">0.554</td><td class="num">9</td><td class="num">&#10003;</td><td class="num">5</td></tr>
+          <tr><td>Saquon Barkley</td><td>Rush Yds</td><td class="num">85.5</td><td>under</td><td class="num">0.779</td><td class="num">0.519</td><td class="num">58</td><td class="num">&#10003;</td><td class="num">6</td></tr>
+          <tr><td>Zach Charbonnet</td><td>Rush Att</td><td class="num">6.5</td><td>over</td><td class="num">0.744</td><td class="num">0.509</td><td class="num">9</td><td class="num">&#10003;</td><td class="num">5</td></tr>
+          <tr><td>Rico Dowdle</td><td>Rush Yds</td><td class="num">60.5</td><td>over</td><td class="num">0.722</td><td class="num">0.502</td><td class="num">79</td><td class="num">&#10003;</td><td class="num">7</td></tr>
+          <tr><td>David Montgomery</td><td>Recv Yds</td><td class="num">8.5</td><td>over</td><td class="num">0.712</td><td class="num">0.502</td><td class="num">13</td><td class="num">&#10003;</td><td class="num">14</td></tr>
+          <tr><td>Jayden Daniels</td><td>Pass Att</td><td class="num">31.5</td><td>under</td><td class="num">0.704</td><td class="num">0.524</td><td class="num">22</td><td class="num">&#10003;</td><td class="num">9</td></tr>
+          <tr><td>Daniel Jones</td><td>Pass Comp</td><td class="num">20.5</td><td>over</td><td class="num">0.696</td><td class="num">0.537</td><td class="num">19</td><td class="num red">&#10007;</td><td class="num">10</td></tr>
+          <tr><td>TreVeyon Henderson</td><td>Rush Yds</td><td class="num">42.5</td><td>under</td><td class="num">0.689</td><td class="num">0.513</td><td class="num">32</td><td class="num">&#10003;</td><td class="num">4</td></tr>
+          <tr><td>TreVeyon Henderson</td><td>Rush Att</td><td class="num">9.5</td><td>under</td><td class="num">0.622</td><td class="num">0.500</td><td class="num">2</td><td class="num">&#10003;</td><td class="num">7</td></tr>
+          <tr><td>Rico Dowdle</td><td>Recv Yds</td><td class="num">14.5</td><td>under</td><td class="num">0.612</td><td class="num">0.500</td><td class="num">11</td><td class="num">&#10003;</td><td class="num">9</td></tr>
+          <tr><td>Josh Allen</td><td>Pass Yds</td><td class="num">230.5</td><td>over</td><td class="num">0.603</td><td class="num">0.500</td><td class="num">306</td><td class="num">&#10003;</td><td class="num">10</td></tr>
+          <tr><td>Jordan Love</td><td>Pass Yds</td><td class="num">234.5</td><td>over</td><td class="num">0.599</td><td class="num">0.500</td><td class="num">176</td><td class="num red">&#10007;</td><td class="num">10</td></tr>
+          <tr><td>Jordan Love</td><td>Pass Att</td><td class="num">29.5</td><td>under</td><td class="num">0.593</td><td class="num">0.500</td><td class="num">43</td><td class="num red">&#10007;</td><td class="num">4</td></tr>
+          <tr><td>Cade Otton</td><td>Recv Yds</td><td class="num">39.5</td><td>under</td><td class="num">0.592</td><td class="num">0.500</td><td class="num">21</td><td class="num">&#10003;</td><td class="num">12</td></tr>
+          <tr><td>Amon-Ra St. Brown</td><td>Recv Yds</td><td class="num">80.5</td><td>under</td><td class="num">0.543</td><td class="num">0.500</td><td class="num">58</td><td class="num">&#10003;</td><td class="num">10</td></tr>
+          <tr><td>Cam Ward</td><td>Pass Comp</td><td class="num">19.5</td><td>under</td><td class="num">0.520</td><td class="num">0.500</td><td class="num">28</td><td class="num red">&#10007;</td><td class="num">12</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p>Of the 25 sampled observations, 17 (68%) resolved in favor of the forecast &mdash; consistent with, though not a substitute for, the aggregate calibration reported in Section 6.1 given the small sample size here. Note the calibrated probability compresses toward 0.50 for most rows outside the top two bins, reflecting the limited resolution discussed in Section 7: the procedure is deliberately conservative about certifying confidence beyond what the out-of-fold evidence supports.</p>
     </article>
 
     <a class="back" href="./index.html">&larr; Research</a>
