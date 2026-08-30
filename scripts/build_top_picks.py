@@ -391,6 +391,25 @@ def card(row, model_prob_col, consensus_prob_col):
     # normalized attrs for robust filtering
     data_attrs = f'data-market="{escape(_norm(mkt_lbl))}" data-game="{escape(_norm(game))}" data-book="{escape(_norm(book))}"'
 
+    # raw values for the "Track this bet" button - kept separate from the
+    # display-formatted ones above since the tracker needs machine values
+    # (e.g. "recv_yds" not "Receiving Yards", numeric point not "Over 73.5")
+    commence = row.get("commence_time")
+    game_date = str(commence)[:10] if commence and str(commence) != "nan" else ""
+    track_attrs = (
+        f'data-player="{escape(str(row.get("player","") or ""))}" '
+        f'data-market-type="{escape(str(row.get("market_std","") or ""))}" '
+        f'data-side="{escape(str(row.get("name","") or "").strip().lower())}" '
+        f'data-book-raw="{escape(book)}" '
+        f'data-line="{escape(str(row.get("point","") if pd.notna(row.get("point")) else ""))}" '
+        f'data-price="{escape(str(row.get("price","") if pd.notna(row.get("price")) else ""))}" '
+        f'data-home-team="{escape(str(row.get("home_team","") or ""))}" '
+        f'data-away-team="{escape(str(row.get("away_team","") or ""))}" '
+        f'data-game-date="{escape(game_date)}" '
+        f'data-model-prob="{escape(str(model_prob) if model_prob is not None and not (isinstance(model_prob,float) and math.isnan(model_prob)) else "")}" '
+        f'data-edge-bps="{escape(str(edge) if edge is not None and not (isinstance(edge,float) and math.isnan(edge)) else "")}"'
+    )
+
     # bet text
     bet_parts = []
     if line_d: bet_parts.append(line_d)                      # "Under 73.5" or "Yes"
@@ -403,7 +422,7 @@ def card(row, model_prob_col, consensus_prob_col):
     shop_html = _shop_section(row.get("_offers"))
 
     return f"""
-    <div class="card" {data_attrs} data-edge="{'' if (edge is None or (isinstance(edge,float) and math.isnan(edge))) else f'{float(edge):g}'}">
+    <div class="card" {data_attrs} {track_attrs} data-edge="{'' if (edge is None or (isinstance(edge,float) and math.isnan(edge))) else f'{float(edge):g}'}">
       <div class="meta">
         <span class="time">{escape(str(kick))}</span>
         <span class="dot">•</span>
@@ -428,7 +447,10 @@ def card(row, model_prob_col, consensus_prob_col):
       {shop_html}
 
       <div class="footer">
-        <button class="copy" onclick="copyCard(this)">Copy bet</button>
+        <div class="left">
+          <button class="copy" onclick="copyCard(this)">Copy bet</button>
+          <button class="track" onclick="trackPropBet(this)">Track bet</button>
+        </div>
         <div class="right">
           {"<span class='modelline'>Model: " + escape(model_line_txt) + "</span>" if model_line_txt else ""}
           <span class="bestbook">{"Best price: " + escape(book) if book else ""}</span>
@@ -560,7 +582,10 @@ button.reset {{ background:#1a1a1d; border:1px solid #2a2a2e; color:#e7e7ea; }}
 .kvgrid > div:nth-child(odd) {{ color:#b7b7bb; }}  /* labels */
 
 .footer {{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:4px; }}
+.footer .left {{ display:flex; gap:8px; }}
 .copy {{ background:#2a63ff; color:#fff; border:none; border-radius:10px; padding:8px 12px; cursor:pointer; }}
+.track {{ background:#1a1a1d; color:#e7e7ea; border:1px solid #2a2a2e; border-radius:10px; padding:8px 12px; cursor:pointer; }}
+.track:hover {{ border-color:#34d399; color:#34d399; }}
 .footer .right {{ display:flex; gap:12px; align-items:center; }}
 .bestbook {{ color:#b7b7bb; font-size:12px; }}
 .modelline {{ color:#b7b7bb; font-size:12px; }}
@@ -804,6 +829,49 @@ function copyCard(btn) {{
   }});
 }}
 
+async function trackPropBet(btn) {{
+  const card = btn.closest('.card');
+  const d = card.dataset;
+
+  if (!window.getCurrentUser) {{
+    alert('Bet tracking is unavailable right now - try refreshing the page.');
+    return;
+  }}
+  const user = await window.getCurrentUser();
+  if (!user) {{
+    alert('Sign in to track this bet - it only takes an email, no password.\\n\\nGo to fourthandvalue.com/tracking/ to sign in, then come back and try again.');
+    return;
+  }}
+
+  const stake = prompt('Enter stake amount ($):', '100');
+  if (!stake || isNaN(parseFloat(stake)) || parseFloat(stake) <= 0) {{
+    if (stake !== null) alert('Enter a valid stake amount.');
+    return;
+  }}
+
+  const bet = {{
+    league: 'NFL',
+    game_date: d.gameDate || null,
+    team_home: d.homeTeam || null,
+    team_away: d.awayTeam || null,
+    player: d.player || '',
+    market_type: d.marketType || '',
+    side: d.side || '',
+    line: d.line || '',
+    book: d.bookRaw || '',
+    odds: d.price || '',
+    stake_dollars: parseFloat(stake).toFixed(2),
+    model_prob: d.modelProb || '',
+    edge_bps: d.edgeBps || '',
+  }};
+
+  const ok = await window.autoTrackBet(bet);
+  if (ok) {{
+    btn.textContent = 'Tracked!';
+    setTimeout(() => btn.textContent = 'Track bet', 1200);
+  }}
+}}
+
 // Initialize book filter with checkboxes
 const bookFilter = document.getElementById('bookFilter');
 const bookDropdown = document.getElementById('bookDropdown');
@@ -877,6 +945,8 @@ clearBooksBtn.addEventListener('click', (e) => {{
 
 applyFilters();
 </script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../tracking/bet-tracking.js"></script>
 </body>
 </html>
 """
