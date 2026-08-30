@@ -282,7 +282,10 @@ def main():
         "mkt_odds","fair_odds","mkt_pct","model_pct","edge_bps",
         "consensus_pct","book_count_disp",
         "kick_et",
-        "is_consensus"  # NEW: consensus pick flag
+        "is_consensus",  # NEW: consensus pick flag
+        # raw values, needed only for the "Track bet" button - everything
+        # above this line is already display-formatted for the table/cards
+        "point","price","home_team","away_team","commence_time","model_prob",
     ]
     for c in keep:
         if c not in df.columns:
@@ -327,6 +330,8 @@ th{text-align:left;position:sticky;top:0;background:var(--card);z-index:1;font-s
 td.num{text-align:right;font-variant-numeric:tabular-nums}
 tr:hover td{background:rgba(255,255,255,.02)}
 footer{color:var(--muted);font-size:12px;margin-top:16px}
+.track-btn{background:#1a1a1d;color:#e7e7ea;border:1px solid #2a2a2e;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:12px}
+.track-btn:hover{border-color:#34d399;color:#34d399}
 a.button{display:inline-block;margin:8px 0;padding:8px 14px;border-radius:10px;text-decoration:none;font-weight:600;color:#111;background:#a78bfa;border:1px solid var(--border)}
 a.button:hover{background:#6ee7ff}
 .linklike{color:#a78bfa;text-decoration:none;border-bottom:1px dotted #a78bfa}
@@ -412,6 +417,7 @@ tr.consensus-pick td:first-child::before{content:'★ ';color:#4ade80;font-size:
           <th class="num">Edge (bps)</th>
           <th class="num">Market %</th><th class="num">Books</th>
           <th>Kick (ET)</th>
+          <th>Track</th>
         </tr>
       </thead>
       <tbody></tbody>
@@ -528,8 +534,14 @@ function render(){
   countEl.textContent = rows.length + " rows" +
     (state.consensusOnly ? " (consensus only)" : ` (${consensusCount} consensus)`);
 
+  // Stashed so trackDataRow(i) below can look a row back up by index -
+  // rows is rebuilt fresh (filtered + sorted) on every render(), and the
+  // HTML generated right below is always built from this same array, so
+  // the indices always line up with whatever's currently on screen.
+  window.__currentRows = rows;
+
   // Render table
-  tbody.innerHTML = rows.map(r => `
+  tbody.innerHTML = rows.map((r, i) => `
     <tr class="${r.is_consensus ? 'consensus-pick' : ''}">
       <td>${r.game||""}</td>
       <td>${r.player||""}</td>
@@ -549,11 +561,12 @@ function render(){
       <td class="num">${r.consensus_pct ?? ""}</td>
       <td class="num">${r.book_count_disp ?? ""}</td>
       <td>${r.kick_et||""}</td>
+      <td><button class="track-btn" onclick="trackDataRow(${i}, this)">Track</button></td>
     </tr>
   `).join("");
 
   // Render mobile cards
-  cardGrid.innerHTML = rows.map(r => {
+  cardGrid.innerHTML = rows.map((r, i) => {
     // Check if model probability is high confidence (>85%)
     const modelProbNum = parseFloat((r.model_pct || '').replace('%', ''));
     const isStrongSignal = modelProbNum >= 85;
@@ -572,9 +585,54 @@ function render(){
         <div>Market %</div><div>${r.consensus_pct || r.mkt_pct || ''}</div>
         <div>Fair Odds</div><div>${r.fair_odds || ''}</div>
       </div>
+      <button class="track-btn" style="margin-top:8px;width:100%" onclick="trackDataRow(${i}, this)">Track bet</button>
     </div>
     `;
   }).join("");
+}
+
+async function trackDataRow(i, btn) {
+  const r = window.__currentRows[i];
+  if (!r) return;
+
+  if (!window.getCurrentUser) {
+    alert('Bet tracking is unavailable right now - try refreshing the page.');
+    return;
+  }
+  const user = await window.getCurrentUser();
+  if (!user) {
+    alert('Sign in to track this bet - it only takes an email, no password.\\n\\nGo to fourthandvalue.com/tracking/ to sign in, then come back and try again.');
+    return;
+  }
+
+  const stake = prompt('Enter stake amount ($):', '100');
+  if (!stake || isNaN(parseFloat(stake)) || parseFloat(stake) <= 0) {
+    if (stake !== null) alert('Enter a valid stake amount.');
+    return;
+  }
+
+  const bet = {
+    league: 'NFL',
+    game_date: (r.commence_time || '').slice(0, 10) || null,
+    team_home: r.home_team || null,
+    team_away: r.away_team || null,
+    player: r.player || '',
+    market_type: r.market_std || '',
+    side: (r.name || '').toLowerCase(),
+    line: r.point ?? '',
+    book: r.bookmaker || '',
+    odds: r.price ?? '',
+    stake_dollars: parseFloat(stake).toFixed(2),
+    model_prob: r.model_prob ?? '',
+    edge_bps: r.edge_bps ?? '',
+  };
+
+  const ok = await window.autoTrackBet(bet);
+  if (ok) {
+    const original = btn.textContent;
+    btn.textContent = 'Tracked!';
+    setTimeout(() => { btn.textContent = original; }, 1200);
+  }
 }
 
 selMarket.addEventListener("change", e=>{ state.market=e.target.value; rebuildDependentSelectors(); render(); });
@@ -592,6 +650,8 @@ if (urlParams.get('consensus') === '1') {
 
 hydrateSelectors(); render();
 </script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="../tracking/bet-tracking.js"></script>
 </body></html>
 """
 
