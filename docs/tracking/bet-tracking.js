@@ -48,8 +48,9 @@ async function autoTrackBet(betData) {
 
   if (!user) {
     const goSignIn = confirm(
-      'Sign in to track this bet - it only takes an email, no password.\n\n' +
-      'Click OK to go sign in now.'
+      'In order to track your bets, you need to create a free account - it only takes an email, no password required.\n\n' +
+      'We will never sell or share your email or personal information with any third party.\n\n' +
+      'Click OK to create your free account now.'
     );
     if (goSignIn) window.location.href = '/tracking/';
     return false;
