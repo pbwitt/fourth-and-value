@@ -47,10 +47,11 @@ async function autoTrackBet(betData) {
   const user = await getCurrentUser();
 
   if (!user) {
-    alert(
+    const goSignIn = confirm(
       'Sign in to track this bet - it only takes an email, no password.\n\n' +
-      'Go to fourthandvalue.com/tracking/ to sign in, then come back and try again.'
+      'Click OK to go sign in now.'
     );
+    if (goSignIn) window.location.href = '/tracking/';
     return false;
   }
 

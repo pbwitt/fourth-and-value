@@ -166,7 +166,7 @@
     { type: 'link', href: `${base}/methods.html`, label: 'Methods' },
     { type: 'link', href: `${base}/research/`, label: 'Research' },
     { type: 'link', href: `${base}/blog/`, label: 'Blog' },
-    { type: 'link', href: `${base}/tracking/`, label: '📊 Bet Tracker', id: 'bet-tracker-link', authOnly: true },
+    { type: 'link', href: `${base}/tracking/`, label: '📊 Bet Tracker' },
   ];
 
   const here = location.pathname.replace(/\/index\.html$/, '/');
@@ -188,12 +188,6 @@
       const a = document.createElement('a');
       a.href = item.href;
       a.textContent = item.label;
-
-      // Hide auth-only links by default
-      if (item.authOnly) {
-        a.style.display = 'none';
-        a.setAttribute('data-auth-only', 'true');
-      }
 
       if (isCurrentPage(item.href)) {
         a.setAttribute('aria-current', 'page');
@@ -321,20 +315,4 @@
     }
   });
 
-  // Check authentication and show/hide auth-only links
-  function updateAuthLinks() {
-    const isAuthenticated = sessionStorage.getItem('betTrackingAuth') === 'true';
-    document.querySelectorAll('[data-auth-only="true"]').forEach(link => {
-      link.style.display = isAuthenticated ? '' : 'none';
-    });
-  }
-
-  // Initial check
-  updateAuthLinks();
-
-  // Listen for storage changes (when user logs in on another tab or tracker page)
-  window.addEventListener('storage', updateAuthLinks);
-
-  // Also check periodically in case sessionStorage changed in same tab
-  setInterval(updateAuthLinks, 1000);
 })();

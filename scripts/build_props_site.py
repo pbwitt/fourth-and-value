@@ -601,7 +601,8 @@ async function trackDataRow(i, btn) {
   }
   const user = await window.getCurrentUser();
   if (!user) {
-    alert('Sign in to track this bet - it only takes an email, no password.\\n\\nGo to fourthandvalue.com/tracking/ to sign in, then come back and try again.');
+    const goSignIn = confirm('Sign in to track this bet - it only takes an email, no password.\\n\\nClick OK to go sign in now.');
+    if (goSignIn) window.location.href = '/tracking/';
     return;
   }
 
