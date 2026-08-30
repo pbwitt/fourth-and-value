@@ -238,7 +238,7 @@ def main():
     df0["book_count_disp"] = df0["book_count"].apply(lambda x: str(int(x)) if pd.notna(x) else "")
 
     # Format model line (mu) for display
-    df0["model_line_disp"] = df0["mu"].apply(_fmt_point)
+    df0["model_line_disp"] = df0["mu"].round(1).apply(_fmt_point)
 
     # Detect consensus picks (directional alignment: book < consensus < model for overs)
     def is_consensus_pick(row):

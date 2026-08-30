@@ -386,7 +386,7 @@ def card(row, model_prob_col, consensus_prob_col):
     # Optional model line (only if sane)
     model_line = row.get("model_line", np.nan)
     show_model_line = isinstance(model_line, (int, float)) and not math.isnan(model_line) and 0 < float(model_line) < 300
-    model_line_txt = f"{float(model_line):g}" if show_model_line else ""
+    model_line_txt = f"{round(float(model_line), 1):g}" if show_model_line else ""
 
     # normalized attrs for robust filtering
     data_attrs = f'data-market="{escape(_norm(mkt_lbl))}" data-game="{escape(_norm(game))}" data-book="{escape(_norm(book))}"'
