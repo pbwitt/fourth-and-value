@@ -13,6 +13,9 @@ served publicly as the static site.
 import os
 
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 def _base_url() -> str:
