@@ -1,682 +1,127 @@
 #!/usr/bin/env python3
-import argparse, json
-import pandas as pd
-import numpy as np
+"""Build a crawlable NFL board with paginated filtering and explicit model coverage."""
+import argparse
+import json
 from html import escape
-from site_common import nav_html, pretty_market, fmt_odds, fmt_pct, to_kick_et, inject_nav, write_with_nav_raw
 from pathlib import Path
-# ---------- helpers ----------
-def fmt_odds(o):
-    if pd.isna(o): return ""
-    try:
-        o = int(round(float(o)))
-        return f"{o:+d}"
-    except Exception:
-        return str(o)
-
-from site_common import (
-    nav_html, pretty_market,
-    fmt_odds, to_kick_et
-)
-
-
-def prob_to_american(p):
-    if p is None or (isinstance(p,float) and (np.isnan(p) or p<=0 or p>=1)): return ""
-    return int(round(-100*p/(1-p))) if p>=0.5 else int(round(100*(1-p)/p))
-
-def unit_for_market_std(market_std: str) -> str:
-    if not isinstance(market_std, str): return ""
-    ms = market_std.lower()
-    if "passing_yards" in ms or "rushing_yards" in ms or "receiving_yards" in ms: return "yds"
-    if "receptions"     in ms: return "rec"
-    if "completions"    in ms: return "cmp"
-    if "attempts"       in ms: return "att"
-    if "tackles"        in ms: return "tkl"
-    if "assists"        in ms: return "ast"
-    return ""
-
-def fmt_line(point, market_std):
-    """Format sportsbook threshold from `point` with a unit inferred from market_std."""
-    try:
-        val = float(point)
-    except Exception:
-        return ""
-    if pd.isna(val): return ""
-    unit = unit_for_market_std(market_std or "")
-    return f"{val:.1f}{(' ' + unit) if unit else ''}"
-
-def kickoff_et_series(commence_series):
-    """Convert ISO8601/Z times to 'Sun 1 p.m' in America/New_York."""
-    ts = pd.to_datetime(commence_series.astype(str), utc=True, errors="coerce")
-    out = []
-    for v in ts:
-        if pd.isna(v):
-            out.append("")
-            continue
-        local = v.tz_convert("America/New_York")
-        dow = local.strftime("%a")  # Sun, Mon, ...
-        hour12 = (local.hour % 12) or 12
-        minute = local.minute
-        ampm = "a.m" if local.hour < 12 else "p.m"
-        time_part = f"{hour12}" if minute == 0 else f"{hour12}:{minute:02d}"
-        out.append(f"{dow} {time_part} {ampm}")
-    return pd.Series(out, index=commence_series.index)
-# ---- Row helpers + renderer (PLACE THIS BELOW TEMPLATE) ----
-import math, html
-from site_common import to_kick_et  # you already import this at the top
-
-def _fmt_point(v):
-    try:
-        if v is None or (isinstance(v, float) and math.isnan(v)):
-            return ""
-        x = float(v)
-        return str(int(x)) if x.is_integer() else f"{x:g}"
-    except Exception:
-        return str(v) if v is not None else ""
-
-def row_html(r):
-    # Game (Away @ Home)
-    game = f"{html.escape(str(r.get('away_team','')))} @ {html.escape(str(r.get('home_team','')))}"
-
-    # Bet = market (pretty) + line
-    line_raw = r.get("line_disp") if r.get("line_disp") not in (None, "") else r.get("point")
-    line_str = _fmt_point(line_raw)
-    market_disp = str(r.get("market_disp",""))
-    bet = market_disp or str(r.get("market",""))
-    market_with_line = f"{bet} {line_str}".strip()
-
-    # Odds, Fair, percents, edge vs market
-    mkt_odds = r.get("price_disp", "")
-    fair     = r.get("model_price")
-    fair_str = "" if fair in (None,"") or (isinstance(fair,float) and math.isnan(fair)) else f"{int(fair):+d}"
-
-    mkt_pct   = r.get("mkt_prob_pct","")
-    model_pct = r.get("model_prob_pct","")
-    edge_bps  = r.get("edge_bps_mkt")
-    edge_str  = "" if edge_bps is None or (isinstance(edge_bps, float) and math.isnan(edge_bps)) else str(int(edge_bps))
-
-    # Kick (ET)
-    kick_iso  = r.get("kick_et") or r.get("commence_time") or ""
-    kick_disp = to_kick_et(str(kick_iso)) if kick_iso else ""
-
-    return (
-        "<tr>"
-        f"<td>{game}</td>"
-        f"<td>{html.escape(str(r.get('player','')))}</td>"
-        f"<td>{html.escape(str(r.get('bookmaker','')))}</td>"
-        f"<td>{html.escape(market_with_line)}</td>"
-        f"<td>{html.escape(line_str)}</td>"
-        f"<td>{mkt_odds}</td>"
-        f"<td>{fair_str}</td>"
-        f"<td>{html.escape(str(mkt_pct))}</td>"
-        f"<td>{html.escape(str(model_pct))}</td>"
-        f"<td>{edge_str}</td>"
-        f"<td>{html.escape(kick_disp)}</td>"
-        "</tr>"
-    )
-
-# ---------- main ----------
-def main():
-    import json
-    from html import escape
-
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--merged_csv", required=True)
-    ap.add_argument("--out", required=True)
-    ap.add_argument("--title", default="NFL-2025 — Player Props")
-    ap.add_argument("--season", type=int, help="Season year for header")
-    ap.add_argument("--week", type=int, help="Week number for header")
-    ap.add_argument("--min_prob", type=float, default=0.01, help="Drop rows with model_prob < this (unless --show_unmodeled)")
-    ap.add_argument("--limit", type=int, default=3000, help="Max rows to render")
-    ap.add_argument("--drop_no_scorer", action="store_true", default=True, help="Hide 'No Scorer' rows")
-    ap.add_argument("--show_unmodeled", action="store_true", help="Include rows with missing model_prob")
-    args = ap.parse_args()
-
-    # Load
-    df0 = pd.read_csv(args.merged_csv, low_memory=False)
-
-    # Add 'side' column from 'name' if missing (BEFORE consensus join)
-    if "side" not in df0.columns and "name" in df0.columns:
-        df0["side"] = df0["name"]
-
-    # Load consensus CSV and join to get market consensus data
-    from pathlib import Path
-    consensus_path = Path(args.merged_csv).parent / f"consensus_week{args.week}.csv"
-    if consensus_path.exists():
-        consensus = pd.read_csv(consensus_path)
-        # Strip whitespace only (no case changes)
-        for col in ["name_std", "market_std", "side"]:
-            if col in df0.columns:
-                df0[col] = df0[col].astype(str).str.strip()
-            if col in consensus.columns:
-                consensus[col] = consensus[col].astype(str).str.strip()
-
-        # Join on name_std, market_std, AND side
-        df0 = df0.merge(
-            consensus[["name_std", "market_std", "side", "consensus_line", "consensus_prob", "book_count"]],
-            on=["name_std", "market_std", "side"],
-            how="left",
-            suffixes=("", "_cons")
-        )
-
-    # Ensure expected cols exist
-    for c in ["market_std","player","home_team","away_team","bookmaker",
-              "model_prob","model_price","price","commence_time","point","market",
-              "consensus_line","consensus_prob","book_count"]:
-        if c not in df0.columns:
-            df0[c] = np.nan
-
-    # Pretty market label available if you want it later
-    df0["market_disp"] = df0["market"].map(pretty_market) if "market" in df0.columns else ""
-
-    # Drop "No Scorer" if requested
-    if args.drop_no_scorer and "player" in df0.columns:
-        df0 = df0[df0["player"].astype(str).str.lower() != "no scorer"].copy()
-
-    # Game label
-    df0["home_team"] = df0["home_team"].fillna("").astype(str).str.strip()
-    df0["away_team"] = df0["away_team"].fillna("").astype(str).str.strip()
-    df0["game"] = (df0["away_team"] + " @ " + df0["home_team"]).str.strip()
-
-    # Odds display
-    df0["mkt_odds"] = df0["price"].map(fmt_odds)
-    df0["price_disp"] = df0["mkt_odds"]  # Alias for template compatibility
-
-    # Fair odds (prefer model_price, else from model_prob)
-    def _prob_to_american(p):
-        try:
-            p = float(p)
-        except Exception:
-            return np.nan
-        if not (0 < p < 1):
-            return np.nan
-        return int(round(-100*p/(1-p))) if p >= 0.5 else int(round(100*(1-p)/p))
-
-    # Fair odds = de-vigged market probability converted to odds
-    # Assumes ~4.76% vig (1/(1+0.05))
-    from site_common import prob_to_american as prob_to_am_safe
-    VIG_FACTOR = 0.9524  # Remove ~5% vig (1/(1+0.05))
-    df0["devig_prob"] = (df0["mkt_prob"] * VIG_FACTOR).clip(0.01, 0.99)
-    df0["fair_odds"] = df0["devig_prob"].apply(prob_to_am_safe).map(fmt_odds)
-    df0["model_price"] = df0["model_prob"].apply(_prob_to_american)  # Fair odds from model
-
-    # Percentages
-    def _american_to_prob(o):
-        try:
-            o = float(o)
-        except Exception:
-            return np.nan
-        return (100.0/(o+100.0)) if o > 0 else (abs(o)/(abs(o)+100.0))
-
-    df0["mkt_prob"]  = df0["price"].apply(_american_to_prob)
-    df0["mkt_pct"]   = df0["mkt_prob"].map(fmt_pct)
-    df0["model_pct"] = df0["model_prob"].map(fmt_pct)
-    df0["mkt_prob_pct"] = df0["mkt_pct"]  # Alias for template compatibility
-    df0["model_prob_pct"] = df0["model_pct"]  # Alias for template compatibility
-
-    # Edge vs market implied (bps)
-    df0["edge_bps"] = ((df0["model_prob"] - df0["mkt_prob"]) * 1e4).round()
-    df0["edge_bps_mkt"] = df0["edge_bps"]  # Alias for template compatibility
-
-    # Line (threshold) from sportsbook `point`
-    def _fmt_point(x):
-        try:
-            if pd.isna(x):
-                return ""
-            xf = float(x)
-            return str(int(xf)) if float(int(xf)) == xf else f"{xf:g}"
-        except Exception:
-            return str(x) if x is not None else ""
-    df0["line_disp"] = df0["point"].apply(_fmt_point)
-
-    # Kickoff, formatted to ET
-    df0["kick_et"] = df0["commence_time"].astype(str).map(to_kick_et)
-
-    # Format consensus columns
-    df0["consensus_line_disp"] = df0["consensus_line"].apply(_fmt_point)
-    df0["consensus_pct"] = df0["consensus_prob"].map(fmt_pct)
-    df0["book_count_disp"] = df0["book_count"].apply(lambda x: str(int(x)) if pd.notna(x) else "")
-
-    # Format model line (mu) for display
-    df0["model_line_disp"] = df0["mu"].round(1).apply(_fmt_point)
-
-    # Detect consensus picks (directional alignment: book < consensus < model for overs)
-    def is_consensus_pick(row):
-        try:
-            book_line = float(row.get("point"))
-            cons_line = float(row.get("consensus_line"))
-            model_line = float(row.get("mu"))
-            side = str(row.get("name", "")).lower().strip()
-
-            # For "over" bets: book < consensus < model
-            if side in ["over", "yes"]:
-                return book_line < cons_line < model_line
-            # For "under" bets: book > consensus > model
-            elif side in ["under", "no"]:
-                return book_line > cons_line > model_line
-            return False
-        except (ValueError, TypeError):
-            return False
-
-    df0["is_consensus"] = df0.apply(is_consensus_pick, axis=1)
-
-    # Filter modeled if requested
-    df = df0.copy()
-    if not args.show_unmodeled and "model_prob" in df.columns:
-        df = df[df["model_prob"].notna()].copy()
-        if args.min_prob is not None:
-            df = df[df["model_prob"] >= args.min_prob].copy()
-
-    # Sort & trim
-    df = df.sort_values("edge_bps", ascending=False, na_position="last")
-    if args.limit:
-        df = df.head(args.limit).copy()
-
-    # Keep exactly what the JS table uses
-    keep = [
-        "game","player","bookmaker",
-        # Bet column: use the slug the filters expect (market_std). If you prefer pretty, swap to "market_disp".
-        "market_std",
-        "name",  # Over/Under side
-        "line_disp","model_line_disp","consensus_line_disp",
-        "mkt_odds","fair_odds","mkt_pct","model_pct","edge_bps",
-        "consensus_pct","book_count_disp",
-        "kick_et",
-        "is_consensus",  # NEW: consensus pick flag
-        # raw values, needed only for the "Track bet" button - everything
-        # above this line is already display-formatted for the table/cards
-        "point","price","home_team","away_team","commence_time","model_prob",
-    ]
-    for c in keep:
-        if c not in df.columns:
-            df[c] = ""
-    records = json.loads(df[keep].to_json(orient="records"))
-    jsdata = json.dumps(records)  # safe literal
-
-    title_html = escape(args.title)
-
-    # Week header (prominent h1)
-    week_header = ""
-    if args.week:
-        if args.season:
-            week_header = f'<h1 style="margin:0 0 8px;font-size:22px;font-weight:700;letter-spacing:.2px;color:#fff;">Week {args.week}, {args.season}</h1>'
-        else:
-            week_header = f'<h1 style="margin:0 0 8px;font-size:22px;font-weight:700;letter-spacing:.2px;color:#fff;">Week {args.week}</h1>'
-
-    # -------- HTML shell (your client-side renderer) --------
-    html = """<!doctype html>
-<html>
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>""" + title_html + """</title>
-<style>
-:root { --bg:#0b0b10; --card:#14141c; --muted:#9aa0a6; --text:#e8eaed; --border:#23232e }
-*{box-sizing:border-box} body{margin:0;padding:24px;background:var(--bg);color:var(--text);
-font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
-h1{margin:0 0 8px;font-size:22px;font-weight:700;letter-spacing:.2px}
-.small{color:var(--muted);font-size:12px;margin-bottom:16px}
-.card{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,0));
-border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:16px;
-box-shadow:0 0 0 1px rgba(255,255,255,.02),0 12px 40px rgba(0,0,0,.35)}
-.controls{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
-select,input{background:var(--card);color:var(--text);border:1px solid var(--border);
-border-radius:10px;padding:10px 12px;outline:none}
-.select:focus,input:focus{border-color:#6ee7ff;box-shadow:0 0 0 3px rgba(110,231,255,.15)}
-.badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;color:#111;background:#6ee7ff}
-.table-wrap{overflow:auto;border:1px solid var(--border);border-radius:14px}
-table{border-collapse:collapse;width:100%;min-width:1000px}
-th,td{padding:10px 12px;border-bottom:1px solid var(--border)}
-th{text-align:left;position:sticky;top:0;background:var(--card);z-index:1;font-size:12px;color:var(--muted);letter-spacing:.2px}
-td.num{text-align:right;font-variant-numeric:tabular-nums}
-tr:hover td{background:rgba(255,255,255,.02)}
-footer{color:var(--muted);font-size:12px;margin-top:16px}
-.track-btn{background:#1a1a1d;color:#e7e7ea;border:1px solid #2a2a2e;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:12px}
-.track-btn:hover{border-color:#34d399;color:#34d399}
-a.button{display:inline-block;margin:8px 0;padding:8px 14px;border-radius:10px;text-decoration:none;font-weight:600;color:#111;background:#a78bfa;border:1px solid var(--border)}
-a.button:hover{background:#6ee7ff}
-.linklike{color:#a78bfa;text-decoration:none;border-bottom:1px dotted #a78bfa}
-.checkbox-dropdown{position:relative;min-width:180px}
-.checkbox-dropdown-button{width:100%;background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px 12px;outline:none;cursor:pointer;text-align:left;display:flex;justify-content:space-between;align-items:center}
-.checkbox-dropdown-button:hover{border-color:#6ee7ff}
-.checkbox-dropdown-button::after{content:'▼';font-size:10px;opacity:0.6}
-.checkbox-dropdown.open .checkbox-dropdown-button::after{content:'▲'}
-.checkbox-group{display:none;position:absolute;z-index:1000;flex-direction:column;gap:6px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px;max-height:250px;overflow-y:auto;min-width:100%;margin-top:4px;box-shadow:0 4px 12px rgba(0,0,0,.3)}
-.checkbox-dropdown.open .checkbox-group{display:flex}
-.checkbox-item{display:flex;align-items:center;gap:8px;cursor:pointer;padding:4px 6px;border-radius:6px;transition:background .15s}
-.checkbox-item:hover{background:rgba(255,255,255,.05)}
-.checkbox-item input[type="checkbox"]{width:16px;height:16px;cursor:pointer;accent-color:#34d399}
-.checkbox-item label{cursor:pointer;flex:1;font-size:13px;color:var(--text);margin:0;white-space:nowrap}
-
-/* Consensus highlighting */
-tr.consensus-pick{border-left:3px solid #4ade80;background:rgba(78,222,128,.05)}
-tr.consensus-pick td:first-child::before{content:'★ ';color:#4ade80;font-size:14px;margin-right:4px}
-
-/* Consensus filter toggle */
-.toggle-wrapper{display:flex;align-items:center;gap:8px;margin-top:10px}
-.toggle-wrapper input[type="checkbox"]{width:16px;height:16px;cursor:pointer;accent-color:#34d399}
-.toggle-wrapper label{cursor:pointer;font-size:13px;margin:0}
-
-/* Mobile card view */
-.card-grid{display:none;grid-template-columns:1fr;gap:12px;margin-top:16px}
-.prop-card{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,0));border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
-.prop-card.consensus{border-left:3px solid #4ade80;background:rgba(78,222,128,.03)}
-.prop-card-badge{display:inline-block;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:600;color:#111;background:#4ade80;margin-bottom:8px}
-.prop-card-meta{font-size:12px;color:var(--muted);margin-bottom:8px}
-.prop-card-headline{font-size:16px;font-weight:600;margin-bottom:6px}
-.prop-card-betline{font-size:14px;color:#6ee7ff;margin-bottom:10px}
-.prop-card-stats{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:13px}
-.prop-card-stats div:nth-child(odd){color:var(--muted)}
-.prop-card-stats div:nth-child(even){text-align:right;font-variant-numeric:tabular-nums}
-
-@media (max-width:900px){
-  .table-wrap{display:none}
-  .card-grid{display:grid}
-}
-</style>
-</head>
-<body>
-
-""" + week_header + """
-
-  <div class="card">
-    <h1>""" + title_html + """</h1>
-    <div class="small">Select <span class="badge">Bet</span> → Game → Player. Optional: Book & search. Sorted by Edge (bps). Line = sportsbook threshold. <strong>Book Odds</strong> = book's offered price (includes vig). <strong>Fair (De-vig)</strong> = book price with ~5% vig removed. <strong>Book %</strong> = book's implied probability (with vig). <strong>Model %</strong> = our model's probability. <strong>Edge</strong> = Model % − Book % (basis points). <strong>Consensus Line</strong> = median line across books. <strong>Market %</strong> = de-vigged consensus probability across all books. <strong>Books</strong> = number of books offering this prop.</div>
-    
-    <div class="controls">
-      <select id="market"><option value="">Bet (market)</option></select>
-      <select id="game"><option value="">Game</option></select>
-      <select id="player"><option value="">Player</option></select>
-      <div id="bookDropdown" class="checkbox-dropdown">
-        <button type="button" id="bookButton" class="checkbox-dropdown-button">
-          <span id="bookButtonText">Book</span>
-        </button>
-        <div id="book" class="checkbox-group"></div>
-      </div>
-      <input id="q" type="search" placeholder="Search player / team / book…" />
-    </div>
-
-    <div class="small" style="margin-top:10px;">
-      <span id="count"></span> · Tip: "No Scorer" is hidden.
-    </div>
-
-    <div class="toggle-wrapper">
-      <input type="checkbox" id="consensusOnly" />
-      <label for="consensusOnly">Consensus picks only</label>
-      <span style="color:var(--muted);font-size:12px;margin-left:8px">— Shows where the book diverges from the market and our model leans toward the market</span>
-    </div>
-  </div>
-
-  <div class="card table-wrap">
-    <table id="tbl">
-      <thead>
-        <tr>
-          <th>Game</th><th>Player</th><th>Book</th><th>Bet</th><th>Side</th>
-          <th class="num">Book Line</th><th class="num">Model Line</th><th class="num">Consensus Line</th>
-          <th class="num">Book Odds</th><th class="num">Fair (De-vig)</th>
-          <th class="num">Book %</th><th class="num">Model %</th>
-          <th class="num">Edge (bps)</th>
-          <th class="num">Market %</th><th class="num">Books</th>
-          <th>Kick (ET)</th>
-          <th>Track</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
-
-  <div id="cardGrid" class="card-grid"></div>
-
-  <footer>Generated locally. Dark theme, zero dependencies.</footer>
-
-<script>
-const DATA = """ + jsdata + """;
-
-function uniq(arr){ return [...new Set(arr.filter(Boolean))].sort((a,b)=>a.localeCompare(b)); }
-
-const state = { market:"", game:"", player:"", books:new Set(), q:"", consensusOnly:false };
-const selMarket = document.getElementById("market");
-const selGame   = document.getElementById("game");
-const selPlayer = document.getElementById("player");
-const bookGroup = document.getElementById("book");
-const bookDropdown = document.getElementById("bookDropdown");
-const bookButton = document.getElementById("bookButton");
-const bookButtonText = document.getElementById("bookButtonText");
-const inputQ    = document.getElementById("q");
-const tbody     = document.querySelector("#tbl tbody");
-const cardGrid  = document.getElementById("cardGrid");
-const countEl   = document.getElementById("count");
-const consensusCheckbox = document.getElementById("consensusOnly");
-
-function updateBookButtonText(){
-  const total = bookGroup.querySelectorAll('input[type="checkbox"]').length;
-  const checked = state.books.size;
-  bookButtonText.textContent = checked === total ? 'Book (All)' : checked === 0 ? 'Book (None)' : `Book (${checked})`;
-}
-
-function hydrateSelectors(){
-  uniq(DATA.map(r=>r.market_std)).forEach(v=>{ const o=document.createElement("option"); o.value=v; o.textContent=v; selMarket.appendChild(o); });
-
-  // Populate book checkboxes
-  uniq(DATA.map(r=>r.bookmaker)).forEach(book => {
-    const div = document.createElement("div");
-    div.className = "checkbox-item";
-
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.id = `book-${book}`;
-    checkbox.value = book;
-    checkbox.checked = true;
-    state.books.add(book);
-    checkbox.addEventListener("change", e => {
-      if (e.target.checked) state.books.add(book);
-      else state.books.delete(book);
-      updateBookButtonText();
-      rebuildDependentSelectors();
-      render();
-    });
-
-    const label = document.createElement("label");
-    label.htmlFor = `book-${book}`;
-    label.textContent = book;
-
-    div.appendChild(checkbox);
-    div.appendChild(label);
-    bookGroup.appendChild(div);
-  });
-
-  updateBookButtonText();
-  rebuildDependentSelectors();
-}
-
-// Dropdown toggle
-bookButton.addEventListener("click", e => {
-  e.stopPropagation();
-  bookDropdown.classList.toggle("open");
-});
-
-// Close dropdown when clicking outside
-document.addEventListener("click", e => {
-  if (!bookDropdown.contains(e.target)) {
-    bookDropdown.classList.remove("open");
-  }
-});
-function rebuildDependentSelectors(){
-  const base = DATA.filter(r => (!state.market || r.market_std===state.market) &&
-                                (state.books.size===0 || state.books.has(r.bookmaker)));
-  const games = uniq(base.map(r=>r.game));
-  selGame.innerHTML = '<option value="">Game</option>' + games.map(g=>`<option value="${g}">${g}</option>`).join("");
-  if (games.includes(state.game)) selGame.value = state.game; else state.game = "";
-
-  const base2 = base.filter(r => (!state.game || r.game===state.game));
-  const players = uniq(base2.map(r=>r.player));
-  selPlayer.innerHTML = '<option value="">Player</option>' + players.map(p=>`<option value="${p}">${p}</option>`).join("");
-  if (players.includes(state.player)) selPlayer.value = state.player; else state.player = "";
-}
-
-function render(){
-  const q = state.q.trim().toLowerCase();
-  let rows = DATA.filter(r =>
-    (!state.market || r.market_std===state.market) &&
-    (!state.game   || r.game===state.game) &&
-    (!state.player || r.player===state.player) &&
-    (state.books.size===0 || state.books.has(r.bookmaker)) &&
-    (!q || (r.player+" "+r.bookmaker+" "+r.game).toLowerCase().includes(q))
-  );
-
-  // Apply consensus filter if enabled
-  if (state.consensusOnly) {
-    rows = rows.filter(r => r.is_consensus === true);
-  }
-
-  rows = rows.sort((a,b)=> (b.edge_bps ?? -1) - (a.edge_bps ?? -1));
-
-  const consensusCount = rows.filter(r => r.is_consensus === true).length;
-  countEl.textContent = rows.length + " rows" +
-    (state.consensusOnly ? " (consensus only)" : ` (${consensusCount} consensus)`);
-
-  // Stashed so trackDataRow(i) below can look a row back up by index -
-  // rows is rebuilt fresh (filtered + sorted) on every render(), and the
-  // HTML generated right below is always built from this same array, so
-  // the indices always line up with whatever's currently on screen.
-  window.__currentRows = rows;
-
-  // Render table
-  tbody.innerHTML = rows.map((r, i) => `
-    <tr class="${r.is_consensus ? 'consensus-pick' : ''}">
-      <td>${r.game||""}</td>
-      <td>${r.player||""}</td>
-      <td>${r.bookmaker||""}</td>
-      <td>${r.market_std||""}</td>
-      <td>${r.name||""}</td>
-      <td class="num">${r.line_disp ?? ""}</td>
-      <td class="num">${r.model_line_disp ?? ""}</td>
-      <td class="num">${r.consensus_line_disp ?? ""}</td>
-      <td class="num">${r.mkt_odds ?? ""}</td>
-      <td class="num">${r.fair_odds ?? ""}</td>
-      <td class="num">${r.mkt_pct ?? ""}</td>
-      <td class="num">${r.model_pct ?? ""}</td>
-      <td class="num" style="color:${
-        (r.edge_bps==null) ? "#9aa0a6" : (r.edge_bps>0 ? "#4ade80" : "#f87171")
-      }">${r.edge_bps ?? ""}</td>
-      <td class="num">${r.consensus_pct ?? ""}</td>
-      <td class="num">${r.book_count_disp ?? ""}</td>
-      <td>${r.kick_et||""}</td>
-      <td><button class="track-btn" onclick="trackDataRow(${i}, this)">Track</button></td>
-    </tr>
-  `).join("");
-
-  // Render mobile cards
-  cardGrid.innerHTML = rows.map((r, i) => {
-    // Check if model probability is high confidence (>85%)
-    const modelProbNum = parseFloat((r.model_pct || '').replace('%', ''));
-    const isStrongSignal = modelProbNum >= 85;
-    const fireEmoji = isStrongSignal ? ' 🔥' : '';
-
-    return `
-    <div class="prop-card${r.is_consensus ? ' consensus' : ''}">
-      ${r.is_consensus ? '<div class="prop-card-badge">★ CONSENSUS</div>' : ''}
-      <div class="prop-card-meta">${r.kick_et || ''} • ${r.game || ''}</div>
-      <div class="prop-card-headline">${r.player || ''} — ${r.market_std || ''}</div>
-      <div class="prop-card-betline">${r.name || ''} ${r.line_disp || ''} @ ${r.mkt_odds || ''} (${r.bookmaker || ''})</div>
-      <div class="prop-card-stats">
-        <div>Model Line</div><div>${r.model_line_disp || ''}</div>
-        <div>Model %</div><div>${r.model_pct || ''}${fireEmoji}</div>
-        <div>Edge</div><div style="color:${(r.edge_bps==null) ? '#9aa0a6' : (r.edge_bps>0 ? '#4ade80' : '#f87171')}">${r.edge_bps ? (r.edge_bps > 0 ? '+' : '') + r.edge_bps + ' bps' : ''}</div>
-        <div>Market %</div><div>${r.consensus_pct || r.mkt_pct || ''}</div>
-        <div>Fair Odds</div><div>${r.fair_odds || ''}</div>
-      </div>
-      <button class="track-btn" style="margin-top:8px;width:100%" onclick="trackDataRow(${i}, this)">Track bet</button>
-    </div>
-    `;
-  }).join("");
-}
-
-async function trackDataRow(i, btn) {
-  const r = window.__currentRows[i];
-  if (!r) return;
-
-  if (!window.getCurrentUser) {
-    alert('Bet tracking is unavailable right now - try refreshing the page.');
-    return;
-  }
-  const user = await window.getCurrentUser();
-  if (!user) {
-    const goSignIn = confirm('In order to track your bets, you need to create a free account - it only takes an email, no password required.\\n\\nWe will never sell or share your email or personal information with any third party.\\n\\nClick OK to create your free account now.');
-    if (goSignIn) window.location.href = '/tracking/';
-    return;
-  }
-
-  const stake = prompt('Enter stake amount ($):', '100');
-  if (!stake || isNaN(parseFloat(stake)) || parseFloat(stake) <= 0) {
-    if (stake !== null) alert('Enter a valid stake amount.');
-    return;
-  }
-
-  const bet = {
-    league: 'NFL',
-    game_date: (r.commence_time || '').slice(0, 10) || null,
-    team_home: r.home_team || null,
-    team_away: r.away_team || null,
-    player: r.player || '',
-    market_type: r.market_std || '',
-    side: (r.name || '').toLowerCase(),
-    line: r.point ?? '',
-    book: r.bookmaker || '',
-    odds: r.price ?? '',
-    stake_dollars: parseFloat(stake).toFixed(2),
-    model_prob: r.model_prob ?? '',
-    edge_bps: r.edge_bps ?? '',
-  };
-
-  const ok = await window.autoTrackBet(bet);
-  if (ok) {
-    const original = btn.textContent;
-    btn.textContent = 'Tracked!';
-    setTimeout(() => { btn.textContent = original; }, 1200);
-  }
-}
-
-selMarket.addEventListener("change", e=>{ state.market=e.target.value; rebuildDependentSelectors(); render(); });
-selGame  .addEventListener("change", e=>{ state.game  =e.target.value; rebuildDependentSelectors(); render(); });
-selPlayer.addEventListener("change", e=>{ state.player=e.target.value; render(); });
-inputQ   .addEventListener("input",  e=>{ state.q     =e.target.value; render(); });
-consensusCheckbox.addEventListener("change", e=>{ state.consensusOnly=e.target.checked; render(); });
-
-// Check URL for consensus=1 parameter
-const urlParams = new URLSearchParams(window.location.search);
-if (urlParams.get('consensus') === '1') {
-  state.consensusOnly = true;
-  consensusCheckbox.checked = true;
-}
-
-hydrateSelectors(); render();
-</script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="../tracking/bet-tracking.js"></script>
-</body></html>
-"""
-
-# ... after building `html`
-# (near the top of the file)
-    # ---- write page with permanent nav ----
-    out_path = Path(args.out)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path = Path(args.out)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-
-    write_with_nav_raw(
-        out_path.as_posix(),
-        (getattr(args, "title", None) or f"Fourth & Value — Player Props (Week {args.week})"),
-        html,
-        active="Props",
-    )
-
-
-
-
-    print(f"[props_site] wrote {args.out} with {len(df)} rows (from {len(df0)} source rows)")
-
-
-
-if __name__ == "__main__":
+from datetime import datetime, timezone
+
+import numpy as np
+import pandas as pd
+from market_math import add_market_comparisons, expected_profit
+from site_metadata import metadata, nfl_links, root_relative
+from site_common import pretty_market, kickoff_et
+
+LABELS = {'rush_yds':'Rushing yards', 'recv_yds':'Receiving yards', 'pass_yds':'Passing yards',
+          'rush_attempts':'Rushing attempts', 'receptions':'Receptions', 'pass_attempts':'Passing attempts',
+          'pass_completions':'Passing completions', 'pass_tds':'Passing touchdowns',
+          'pass_interceptions':'Interceptions thrown', 'interceptions':'Interceptions thrown', 'anytime_td':'Anytime touchdown'}
+
+
+def prepare_records(path):
+    d = pd.read_csv(path, low_memory=False)
+    d = add_market_comparisons(d)
+    for col in ['model_prob', 'mu', 'push_prob']:
+        if col not in d:
+            d[col] = np.nan
+    if 'model_status' not in d:
+        # Old exported probabilities predate provenance and cannot be promoted.
+        d['model_status'] = 'Legacy estimate; not verified'
+    d['edge_bps'] = (d['model_prob'] - d['mkt_prob']) * 10000
+    d['ev_per_100'] = d.apply(lambda r: expected_profit(r['model_prob'], r['price'], r['push_prob']), axis=1)
+    d['market_label'] = d['market_std'].map(LABELS).fillna(d['market_std'].map(pretty_market))
+    d['book_label'] = d.get('bookmaker_title', d.get('bookmaker', '')).fillna(d.get('bookmaker', ''))
+    d['kick_et'] = d['commence_time'].map(kickoff_et)
+    d = d[d['player'].str.lower().ne('no scorer')].copy()
+    d = d.drop_duplicates(['game_id', 'player', 'market_std', 'name', 'point', 'bookmaker'] if 'game_id' in d else ['commence_time', 'player', 'market_std', 'name', 'point', 'bookmaker'])
+    cols = ['game_id','game','player','bookmaker','book_label','market_std','market_label','name','point','price',
+            'mu','model_prob','push_prob','mkt_prob','prob_devig','consensus_prob','consensus_line','book_count',
+            'edge_bps','ev_per_100','model_status','last_update','commence_time','kick_et','home_team','away_team']
+    for c in cols:
+        if c not in d:
+            d[c] = None
+    return json.loads(d[cols].to_json(orient='records'))
+
+
+def static_card(r):
+    """Useful content without JavaScript; the full board is progressively enhanced."""
+    line = '' if r['point'] is None else f"{r['point']:g}"
+    odds = '—' if r['price'] is None else f"{r['price']:+g}"
+    return f'''<article class="panel prop-card"><p class="meta">{escape(r['kick_et'] or '')} · {escape(r['game'] or '')}</p>
++<h2>{escape(r['player'])}</h2><p>{escape(r['market_label'])}</p>
++<p class="betline">{escape(r['name'].title())} {line} · {odds}</p><p>{escape(r['book_label'])}</p>
++<p class="meta">{escape(r['model_status'])}</p></article>'''.replace('\n+', '\n')
+
+
+def build_page(args, top_only=False):
+    records = prepare_records(args.merged_csv)
+    now = datetime.now(timezone.utc)
+    future = [r for r in records if r['commence_time'] and pd.to_datetime(r['commence_time'], utc=True) > now]
+    # Do not label a build time as the time the sportsbook price was checked.
+    updated = [pd.to_datetime(r['last_update'], utc=True, errors='coerce') for r in future]
+    verified = bool(updated) and all(pd.notna(t) and 0 <= (now-t).total_seconds() <= 172800 for t in updated)
+    status = ('No upcoming NFL games in this snapshot.' if not future else
+              'Sportsbook quote times are within the last 48 hours. Confirm the current line before using an estimate.' if verified else
+              'Quote freshness is unverified or older than 48 hours. These are saved prices; check your sportsbook.')
+    title = 'NFL Top Picks' if top_only else 'NFL Player Props & Odds Comparison'
+    rel = root_relative(args.out)
+    context = f'{args.season} · Week {args.week}' if args.season and args.week else 'NFL odds comparison'
+    description = 'Compare NFL player prop lines across sportsbooks, inspect model probabilities and understand the evidence behind each estimate.'
+    initial = [r for r in future if not top_only or (r['model_status'].startswith('Calibration fitted') and (r['edge_bps'] or 0) > 0 and r['last_update'] and 0 <= (now-pd.to_datetime(r['last_update'],utc=True)).total_seconds() <= 172800)][:24]
+    empty = '<div class="empty"><h2>No qualifying picks in this snapshot</h2><p>Fresh quotes, player evidence and a fitted calibration curve are required for Top Picks.</p><a href="index.html">Compare all sportsbook lines</a></div>' if top_only else '<div class="empty">No upcoming props in this snapshot. Check back after the next data refresh.</div>'
+    # Dictionary-encoded columns avoid repeating team names and field names on
+    # every offer. The shortlist ships only its qualifying candidates.
+    published = [r for r in future if r['model_status'].startswith('Calibration fitted')
+                 and (r['edge_bps'] or 0) > 0 and r['last_update']
+                 and 0 <= (now-pd.to_datetime(r['last_update'],utc=True)).total_seconds() <= 172800] if top_only else records
+    fields = list(records[0]) if records else []
+    dictionary = {}
+    for field in fields:
+        values = [r[field] for r in published]
+        if values and all(v is None or isinstance(v, str) for v in values):
+            dictionary[field] = list(dict.fromkeys(values))
+    indexes = {field: {v:i for i,v in enumerate(values)} for field,values in dictionary.items()}
+    packed = [[indexes[field][r[field]] if field in indexes else r[field] for field in fields] for r in published]
+    payload = json.dumps({'fields':fields, 'dictionary':dictionary, 'rows':packed, 'topOnly':top_only, 'root':rel, 'snapshotUpcoming':len(future), 'snapshotVerified':verified, 'lastKickoff':max((r['commence_time'] for r in future), default=None)}, separators=(',', ':'), allow_nan=False).replace('<', '\\u003c').replace('&', '\\u0026')
+    html = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{escape(title)} | Fourth &amp; Value</title>{metadata(args.out,title+' | Fourth & Value',description)}
+<link rel="icon" href="{rel}/assets/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="{rel}/assets/site.css"></head>
+<body><a class="skip-link" href="#main">Skip to props</a><div id="nav-root"></div><script src="{rel}/nav.js?v=33"></script>
+<main id="main" class="wrap">{nfl_links(rel, 'Top picks' if top_only else 'Player props')}
+<p class="eyebrow">{context}</p><h1>{title}</h1>
+<p class="lead">{'A shortlist of positive model edges with player data, fitted calibration and recent quotes.' if top_only else 'Find a player, compare the same line across books, and see what supports the model estimate.'}</p>
+<div class="notice" role="status"><strong id="freshness">{status}</strong><p class="meta">Page built <time datetime="{now.isoformat()}">{now.strftime('%b %d, %Y at %H:%M UTC')}</time>. Model estimates are experimental; calibration is not proof of profitability.</p></div>
+<details class="help"><summary>How to read prices, probabilities and edges</summary>
+<p><strong>Book probability</strong> is the break-even probability implied by the offered odds, including margin. <strong>Paired fair probability</strong> removes margin using both sides at the same book, game and line; it is unavailable without a matching opposite side.</p>
+<p><strong>Model probability</strong> is conditional on the bet settling without a push. <strong>Edge</strong> is model probability minus book probability: 100 basis points = 1 percentage point. <strong>Expected profit / $100</strong> accounts for pushes and is an uncertain estimate, not a payout promise.</p>
+<p>Consensus probability uses paired prices at this exact line. The median line is a separate descriptive comparison. Model means are not calibrated betting thresholds. <a href="{rel}/methods.html#edge-nfl">Read the full method and limitations</a>.</p></details>
+<section class="panel" aria-label="Filter props" id="filters" hidden>
+<div class="filters"><label>Search player or team<input id="q" type="search" placeholder="Player or team name"></label>
+<label>Market<select id="market"><option value="">All markets</option></select></label>
+<label>Game<select id="game"><option value="">All games</option></select></label>
+<label>Sort by<select id="sort"><option value="kickoff">Kickoff</option><option value="edge">Model edge</option><option value="ev">Expected profit</option><option value="player">Player name</option></select></label></div>
+<details><summary>Choose sportsbooks <span id="book-count"></span></summary><div class="actions"><button id="all-books" type="button">Select all</button><button id="no-books" type="button">Clear all</button></div><div id="books" class="books"></div></details>
+<div class="checks"><label><input id="best" type="checkbox" checked>Best price per line</label><label><input id="positive" type="checkbox">Positive model edges</label><label><input id="history" type="checkbox">Include started games</label></div>
+<div class="actions"><button id="reset" type="button">Reset filters</button><button id="share" type="button">Copy filtered link</button><span id="feedback" role="status"></span></div></section>
+<div class="results-bar"><p id="count" role="status">{len(future):,} upcoming offers in this snapshot</p><a href="{'index.html' if top_only else 'top.html'}">{'Compare all props' if top_only else 'View qualifying top picks'} →</a></div>
+<div id="results" class="prop-grid">{''.join(static_card(r) for r in initial) or empty}</div>
+<div class="pager" id="pager" hidden><button id="previous">Previous</button><span id="page-info" aria-live="polite"></span><button id="next">Next</button></div>
+<noscript><p>The first 24 upcoming offers are shown. Enable JavaScript to filter and compare the full snapshot.</p></noscript>
+<footer><a href="{rel}/nfl/">NFL overview</a> · <a href="{rel}/methods.html">Methods &amp; limitations</a> · <a href="{rel}/terms.html">Terms &amp; privacy</a><p>Free sports analysis from Fourth &amp; Value. No guaranteed outcomes.</p></footer></main>
+<script type="application/json" id="props-data">{payload}</script><script src="{rel}/assets/props.js" defer></script></body></html>'''
+    Path(args.out).parent.mkdir(parents=True,exist_ok=True)
+    Path(args.out).write_text(html)
+    print(f'[props] wrote {args.out}: {len(records):,} offers, {len(future):,} upcoming; quote freshness verified: {verified}')
+
+
+def main(top_only=False):
+    ap=argparse.ArgumentParser()
+    ap.add_argument('--merged_csv',required=True); ap.add_argument('--out',required=True)
+    ap.add_argument('--season',type=int); ap.add_argument('--week',type=int); ap.add_argument('--title')
+    # Retained for existing callers; the browser now paginates rather than silently truncating.
+    ap.add_argument('--limit',type=int); ap.add_argument('--min_prob',type=float)
+    ap.add_argument('--drop_no_scorer',action='store_true'); ap.add_argument('--show_unmodeled',action='store_true')
+    build_page(ap.parse_args(),top_only)
+
+if __name__ == '__main__':
     main()

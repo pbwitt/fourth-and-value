@@ -477,7 +477,7 @@ def _load_season_weekly(season: int) -> Optional[pd.DataFrame]:
     return weekly[have]
 
 
-def fetch_recent_game_logs(season: int) -> Optional[pd.DataFrame]:
+def fetch_recent_game_logs(season: int, week: int = None) -> Optional[pd.DataFrame]:
     """
     Load current-season weekly player logs for the last WINDOW_GAMES games
     per player. Cross-season carryover for players with few/no current-
@@ -491,6 +491,8 @@ def fetch_recent_game_logs(season: int) -> Optional[pd.DataFrame]:
     if weekly is None:
         logging.error(f"Missing weekly parquet for season {season} (run weekly_stats first)")
         return None
+    if week is not None:
+        weekly = weekly[weekly["week"] < week].copy()
     have = list(weekly.columns)
 
     tail = (
@@ -528,8 +530,8 @@ def exponential_weighted_mean(values: pd.Series, alpha: float = 0.3) -> float:
 
     Args:
         values: Series of historical values (ordered by time, oldest first)
-        alpha: Decay factor (0-1). Higher = more weight to recent games.
-               0.3 means most recent game gets ~30% more weight than oldest.
+        alpha: Decay factor (0-1). Lower = more weight to recent games.
+               Weights are alpha**age, normalized across valid observations.
 
     Returns:
         Weighted mean
@@ -1539,6 +1541,12 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
     # Expect these to exist at module scope in this file
     # NORMAL_MARKETS, POISSON_MARKETS, PRIORS
 
+    # Enforce the forecast cutoff even when called directly by backtests.
+    if logs is not None and not logs.empty:
+        logs = logs[(logs["season"] < season) | ((logs["season"] == season) & (logs["week"] < week))].copy()
+    if career_df is not None and not career_df.empty:
+        career_df = career_df[(career_df["season"] < season) | ((career_df["season"] == season) & (career_df["week"] < week))].copy()
+
     # --- player universe from the board (not from logs) ---
     player_idx = pd.Index(cands["player"].dropna().unique(), name="player")
 
@@ -1822,7 +1830,7 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
                     sigma     = np.nan,
                     lam       = want["player"].map(lam),
                     used_logs = want["player"].map(lambda p: g_used(p)),
-                    no_real_data = False,
+                    no_real_data = want["player"].map(lambda p: not bool(g_used(p))),
                 )
             )
         else:
@@ -1972,11 +1980,13 @@ def main():
 
     # Always use current season for L4 (last 4 games) methodology
     # This ensures we're using the most recent games from THIS season
-    logs = fetch_recent_game_logs(season)
+    logs = fetch_recent_game_logs(season, week)
 
     import career_baseline as cb
     career_seasons = list(range(season - 6, season + 1))
     career_df = cb.load_career_logs(career_seasons)
+    if not career_df.empty:
+        career_df = career_df[(career_df["season"] < season) | ((career_df["season"] == season) & (career_df["week"] < week))].copy()
     logging.info(f"[career] loaded {len(career_df):,} career log rows across seasons {career_seasons}")
 
     # Calculate defensive ratings from current season

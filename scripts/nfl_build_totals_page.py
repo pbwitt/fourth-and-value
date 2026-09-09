@@ -32,7 +32,7 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
                             on='game', how='left')
         merged['edge'] = merged['total_pred'] - merged['consensus_total']
         # Calculate model spread (home team perspective)
-        merged['model_spread'] = merged['home_pred'] - merged['away_pred']
+        merged['model_spread'] = merged['away_pred'] - merged['home_pred']
     elif len(consensus) > 0:
         # No predictions - use consensus as base
         totals_consensus = consensus[consensus['market'] == 'total'][['game', 'home_team', 'away_team', 'consensus_line', 'num_books']].copy()
@@ -50,7 +50,7 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
     else:
         merged = preds
         if len(merged) > 0:
-            merged['model_spread'] = merged['home_pred'] - merged['away_pred']
+            merged['model_spread'] = merged['away_pred'] - merged['home_pred']
 
     # Build HTML
     html = f"""<!DOCTYPE html>
@@ -335,6 +335,7 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
   <script src="../../nav.js?v=30"></script>
 
   <div class="container">
+    <aside style="padding:16px;border:1px solid #8a7334;color:#f3df9e;margin-bottom:20px">Research snapshot: quote freshness and model accuracy have not been revalidated. Confirm the season and source dates before interpreting these lines.</aside>
     <div class="header">
       <h1>NFL Totals - Week {week}</h1>
       <p class="subtitle">Model predictions vs market consensus • Find outlier books before lines move</p>

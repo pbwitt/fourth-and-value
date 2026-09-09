@@ -21,7 +21,7 @@ def train_totals_model(features_path='data/nfl/processed/team_features.csv',
     df = pd.read_csv(features_path)
 
     # Filter out games with missing data
-    df = df.dropna()
+    df = df.dropna().sort_values(["game_date", "game_id", "team"]).reset_index(drop=True)
 
     # Select features
     feature_cols = [col for col in df.columns if col.endswith('_L3') or col.endswith('_L5')]
@@ -59,7 +59,12 @@ def train_totals_model(features_path='data/nfl/processed/team_features.csv',
 
     # Cross-validation
     cv_scores = []
-    for fold, (train_idx, test_idx) in enumerate(tscv.split(X), 1):
+    # Split on dates, not team rows: both sides of a game stay together and
+    # training can never include another game's outcome from the test date.
+    dates = np.array(sorted(df["game_date"].unique()))
+    for fold, (train_dates, test_dates) in enumerate(tscv.split(dates), 1):
+        train_idx = np.flatnonzero(df["game_date"].isin(dates[train_dates]))
+        test_idx = np.flatnonzero(df["game_date"].isin(dates[test_dates]))
         X_train, X_test = X[train_idx], X[test_idx]
         y_train, y_test = y[train_idx], y[test_idx]
 

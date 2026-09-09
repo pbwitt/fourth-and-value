@@ -15,16 +15,16 @@
   :root{
     --nav-h:64px; --nav-bg:#0b0b0b; --nav-fg:#ffffff; --nav-fg-dim:#cbd5e1; --nav-border:#27324a;
   }
-  @media (max-width:768px){ :root{ --nav-h:56px; } }
+  @media (max-width:1050px){ :root{ --nav-h:56px; } }
 
   .fv-nav{position:sticky;top:0;z-index:9999;width:100%;background:var(--nav-bg);color:var(--nav-fg);border-bottom:1px solid var(--nav-border);}
-  .fv-nav-inner{max-width:1100px;margin:0 auto;padding:0 12px;height:var(--nav-h);display:grid;grid-template-columns:1fr auto;align-items:center;gap:12px;}
+  .fv-nav-inner{max-width:1100px;margin:0 auto;padding:0 12px;height:var(--nav-h);display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:12px;}
 
   .fv-left{display:flex;align-items:center;gap:12px;min-width:0;}
   .fv-logo{display:flex;align-items:center;gap:10px;min-width:0;text-decoration:none;}
   .fv-logo img{height:60px!important;max-height:60px;width:auto;display:block;object-fit:contain;margin-top:2px;}
   .fv-logo .fv-brand{font-weight:700;letter-spacing:.2px;white-space:nowrap;color:var(--nav-fg);}
-  @media (max-width:640px){
+  @media (max-width:1050px){
     .fv-logo img{height:40px!important;max-height:40px;margin-top:0;}
     .fv-logo .fv-brand{font-size:15px;}
   }
@@ -36,7 +36,7 @@
 
   /* Sport dropdowns */
   .fv-sport-dropdown{position:relative;}
-  .fv-sport-toggle{cursor:pointer;user-select:none;display:flex;align-items:center;gap:4px;}
+  .fv-sport-toggle{border:0;background:transparent;color:var(--nav-fg-dim);font:inherit;padding:10px;min-height:44px;border-radius:8px;cursor:pointer;user-select:none;display:flex;align-items:center;gap:4px;}
   .fv-sport-toggle::after{content:'▼';font-size:10px;opacity:0.7;}
   .fv-sport-menu{
     display:none;position:absolute;top:100%;left:0;margin-top:8px;
@@ -52,16 +52,16 @@
   .fv-sport-dropdown.nhl-sport .fv-sport-menu a[aria-current="page"]{background:rgba(79,195,247,0.15);color:#4FC3F7;}
 
   /* Burger */
-  .fv-burger{display:none;align-items:center;justify-content:center;width:40px;height:40px;border-radius:10px;border:1px solid var(--nav-border);background:transparent;color:var(--nav-fg);}
+  .fv-burger{display:none;flex-direction:column;align-items:center;justify-content:center;width:44px;height:44px;border-radius:10px;border:1px solid var(--nav-border);background:transparent;color:var(--nav-fg);}
   .fv-burger span{display:block;width:22px;height:2px;background:currentColor;margin:3px 0;transition:transform .2s,opacity .2s;}
 
   /* Mobile menu */
-  @media (max-width:768px){
+  @media (max-width:1050px){
     .fv-burger{display:flex;}
     .fv-links{
       position:absolute;left:0;right:0;top:var(--nav-h);
       display:none;flex-direction:column;align-items:stretch;gap:4px;
-      background:#0f172a;border-bottom:1px solid var(--nav-border);padding:10px 12px 14px;
+      background:#0f172a;border-bottom:1px solid var(--nav-border);padding:10px 12px 14px;max-height:calc(100dvh - var(--nav-h));overflow:auto;
     }
     .fv-nav.menu-open .fv-links{display:flex;}
     .fv-links > a{padding:12px 10px;font-size:16px;}
@@ -77,12 +77,12 @@
   }
 
   /* Burger animation */
-  .fv-nav.menu-open .fv-burger span:nth-child(1){transform:translateY(5px) rotate(45deg);}
+  .fv-nav.menu-open .fv-burger span:nth-child(1){transform:translateY(8px) rotate(45deg);}
   .fv-nav.menu-open .fv-burger span:nth-child(2){opacity:0;}
-  .fv-nav.menu-open .fv-burger span:nth-child(3){transform:translateY(-5px) rotate(-45deg);}
+  .fv-nav.menu-open .fv-burger span:nth-child(3){transform:translateY(-8px) rotate(-45deg);}
 
   /* Utility: hide on mobile */
-  @media (max-width:768px){
+  @media (max-width:1050px){
     .hide-mobile{display:none!important;}
   }
   `;
@@ -90,6 +90,9 @@
   style.setAttribute('data-fv','nav');
   style.textContent = css;
   document.head.appendChild(style);
+
+  // Visible keyboard focus for every page, including legacy templates.
+  style.textContent += '\n.fv-nav :focus-visible{outline:3px solid #93c5fd;outline-offset:3px;}';
 
   // --- Mount point ---
   const slot = document.getElementById('nav-root');
@@ -147,11 +150,12 @@
       label: 'NFL 🏈',
       className: 'nfl-sport',
       items: [
-        { href: `${base}/props/insights.html`, label: 'Insights' },
+        { href: `${base}/nfl/`, label: 'NFL Overview' },
+        { href: `${base}/props/insights.html`, label: 'Insights archive' },
         { href: `${base}/props/index.html`, label: 'Player Props' },
         { href: `${base}/props/top.html`, label: 'Top Picks' },
-        { href: `${base}/props/arbitrage.html`, label: 'Arbitrage' },
-        { href: `${base}/nfl/totals/index.html`, label: 'Team Totals' },
+        { href: `${base}/props/arbitrage.html`, label: 'Pricing checks' },
+        { href: `${base}/nfl/totals/index.html`, label: 'Game Totals' },
       ]
     },
     {
@@ -160,7 +164,7 @@
       className: 'nhl-sport',
       items: [
         { href: `${base}/nhl/props/index.html`, label: 'Props' },
-        { href: `${base}/nhl/totals/index.html`, label: 'Team Totals' },
+        { href: `${base}/nhl/totals/index.html`, label: 'Game Totals' },
       ]
     },
     { type: 'link', href: `${base}/methods.html`, label: 'Methods' },
@@ -196,6 +200,7 @@
       a.addEventListener('click', () => {
         nav.classList.remove('menu-open');
         burger.setAttribute('aria-expanded','false');
+      burger.setAttribute('aria-label','Open menu');
       });
 
       links.appendChild(a);
@@ -204,10 +209,10 @@
       const dropdown = document.createElement('div');
       dropdown.className = `fv-sport-dropdown ${item.className || ''}`;
 
-      const toggle = document.createElement('div');
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
       toggle.className = 'fv-sport-toggle';
       toggle.textContent = item.label;
-      toggle.setAttribute('role', 'button');
       toggle.setAttribute('aria-expanded', 'false');
       toggle.setAttribute('tabindex', '0');
 
@@ -219,13 +224,13 @@
 
       const menu = document.createElement('div');
       menu.className = 'fv-sport-menu';
-      menu.setAttribute('role', 'menu');
+      menu.id = `fv-${item.className}-menu`;
+      toggle.setAttribute('aria-controls', menu.id);
 
       item.items.forEach(subItem => {
         const a = document.createElement('a');
         a.href = subItem.href;
         a.textContent = subItem.label;
-        a.setAttribute('role', 'menuitem');
 
         if (isCurrentPage(subItem.href)) {
           a.setAttribute('aria-current', 'page');
@@ -234,6 +239,7 @@
         a.addEventListener('click', () => {
           nav.classList.remove('menu-open');
           burger.setAttribute('aria-expanded','false');
+      burger.setAttribute('aria-label','Open menu');
           dropdown.classList.remove('open');
         });
 
@@ -248,6 +254,7 @@
         // Close all other dropdowns
         document.querySelectorAll('.fv-sport-dropdown.open').forEach(d => {
           d.classList.remove('open');
+          d.querySelector('.fv-sport-toggle').setAttribute('aria-expanded', 'false');
         });
 
         if (!wasOpen) {
@@ -255,14 +262,6 @@
           toggle.setAttribute('aria-expanded', 'true');
         } else {
           toggle.setAttribute('aria-expanded', 'false');
-        }
-      });
-
-      // Keyboard support
-      toggle.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          toggle.click();
         }
       });
 
@@ -283,6 +282,7 @@
   burger.addEventListener('click', () => {
     const open = nav.classList.toggle('menu-open');
     burger.setAttribute('aria-expanded', String(open));
+    burger.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
   });
 
   // Close menu on escape / outside click (mobile)
@@ -291,7 +291,11 @@
       if (nav.classList.contains('menu-open')) {
         nav.classList.remove('menu-open');
         burger.setAttribute('aria-expanded','false');
+      burger.setAttribute('aria-label','Open menu');
       }
+      const focusedToggle = document.activeElement.closest('.fv-sport-dropdown')?.querySelector('.fv-sport-toggle');
+      if (focusedToggle) focusedToggle.focus();
+      else if (nav.contains(document.activeElement) && getComputedStyle(burger).display !== 'none') burger.focus();
       // Close any open dropdowns
       document.querySelectorAll('.fv-sport-dropdown.open').forEach(d => {
         d.classList.remove('open');
@@ -304,6 +308,7 @@
     if (!nav.contains(e.target) && nav.classList.contains('menu-open')) {
       nav.classList.remove('menu-open');
       burger.setAttribute('aria-expanded','false');
+      burger.setAttribute('aria-label','Open menu');
     }
 
     // Close dropdowns if clicking outside

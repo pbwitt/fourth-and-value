@@ -350,6 +350,7 @@ def render_html(title: str, items: List[Dict[str, Any]], week_overview: str = ""
 <body>
   <div id="nav-root"></div>
 
+  <aside style="max-width:1000px;margin:20px auto;padding:16px;border:1px solid #766632;color:#f3df9e">AI-assisted snapshot commentary. Confirm the season, quote timestamps and model coverage on the <a href="index.html">NFL props board</a>. Historical calibration does not establish future profitability.</aside>
   <div class="wrap" data-week-overview="{week_overview_escaped}">
     <h1>{html.escape(title)}</h1>
     <p class="muted">AI-powered insights from our model. Choose a matchup to view analysis.</p>

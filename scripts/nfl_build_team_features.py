@@ -103,7 +103,7 @@ def build_team_features(pbp_path='data/pbp/pbp_2025.parquet', output_path='data/
         team_games.append(away_features)
 
     df = pd.DataFrame(team_games)
-    df = df.sort_values(['team', 'week'])
+    df = df.sort_values(['team', 'game_date', 'game_id'])
 
     print(f"\nBuilt features for {len(df)} team-game records")
 
@@ -131,12 +131,12 @@ def add_rolling_features(df, windows=[3, 5]):
 
     for team in df['team'].unique():
         team_mask = df['team'] == team
-        team_df = df[team_mask].copy().sort_values('week')
+        team_df = df[team_mask].copy().sort_values(['game_date', 'game_id'])
 
         for window in windows:
             for col in feature_cols:
                 # Rolling mean (excluding current game)
-                df.loc[team_mask, f'{col}_L{window}'] = team_df[col].shift(1).rolling(window, min_periods=1).mean().values
+                df.loc[team_df.index, f'{col}_L{window}'] = team_df[col].shift(1).rolling(window, min_periods=1).mean()
 
     return df
 

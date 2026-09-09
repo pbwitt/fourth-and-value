@@ -14,11 +14,15 @@ from pathlib import Path
 import re
 
 def _rel_to_nav(out_path: str) -> str:
-    return '..' if '/props/' in Path(out_path).as_posix() else '.'
+    from site_metadata import root_relative
+    return root_relative(out_path)
 
 def write_with_nav(out_path: str, title: str, main_html: str,
                    active: str = None, extra_head: str = ""):
     rel = _rel_to_nav(out_path)
+    from site_metadata import metadata
+    if 'rel="canonical"' not in extra_head:
+        extra_head += metadata(out_path, title, f"{title}. Sports analysis and model comparisons from Fourth & Value.")
     html = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -29,7 +33,7 @@ def write_with_nav(out_path: str, title: str, main_html: str,
 </head>
 <body>
   <div id="nav-root"></div>
-  <script src="{rel}/nav.js?v=28"></script>
+  <script src="{rel}/nav.js?v=33"></script>
   {main_html}
 </body>
 </html>"""
@@ -39,12 +43,6 @@ def write_with_nav(out_path: str, title: str, main_html: str,
 
 
 
-
-def _rel_to_nav(out_path: str) -> str:
-    # If we are writing under docs/ (root pages) → './'
-    # If under docs/*/* (e.g., docs/props/) → '../'
-    p = Path(out_path).as_posix()
-    return '..' if '/props/' in p else '.'
 
 def write_with_nav_raw(out_path: str, title: str, full_html: str,
                        active: str = None):
@@ -181,7 +179,7 @@ def fmt_odds(x):  # noqa
     return fmt_odds_american(x)
 
 def american_to_prob(o):
-    """Implied probability from American odds (no vig). Returns float in [0,1] or NaN."""
+    """Implied probability from American odds (includes bookmaker margin). Returns float in [0,1] or NaN."""
     try:
         v = float(o)
     except Exception:

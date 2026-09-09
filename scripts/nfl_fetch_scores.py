@@ -92,7 +92,8 @@ def parse_scores(events):
         if commence_time:
             try:
                 dt = datetime.fromisoformat(commence_time.replace('Z', '+00:00'))
-                game_date = dt.date().isoformat()
+                from zoneinfo import ZoneInfo
+                game_date = dt.astimezone(ZoneInfo('America/New_York')).date().isoformat()
             except:
                 pass
 

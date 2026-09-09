@@ -29,6 +29,7 @@ from typing import Iterable, List
 import numpy as np
 import pandas as pd# Shared normalizer (you added this module)
 from common_markets import standardize_input
+from market_math import add_market_comparisons, outcome_probabilities, expected_profit
 
 CALIBRATION_PATH = os.path.join(os.path.dirname(__file__), "..", "models", "nfl_prop_calibration.json")
 
@@ -206,61 +207,10 @@ def compute_model_prob_row(row) -> float:
       - row['market_std'], row['name'] (side), row['point']
       - row['mu'], row['sigma'], row['lam']
     """
-    side = str(row.get("name", "")).strip().lower()  # Over/Under/Yes/No
-    market = str(row.get("market_std", "")).strip().lower()
-    point = row.get("point", np.nan)
-    mu = row.get("mu", np.nan)
-    sigma = row.get("sigma", np.nan)
-    lam = row.get("lam", np.nan)
-
-    kind = modeled_market_kind(market)
-
-    # Normal OU: P(X > point) or P(X < point)
-    if kind == "normal_ou":
-        # Convert to float when possible
-        try:
-            x = float(point)
-        except Exception:
-            return np.nan
-        cdf = normal_cdf(x, mu, sigma)
-        if not np.isfinite(cdf):
-            return np.nan
-        if side == "over":
-            # strictly > threshold; continuity correction not applied
-            return 1.0 - cdf
-        elif side == "under":
-            return cdf
-        else:
-            return np.nan
-
-    # Poisson OU: counts (e.g., pass_tds, interceptions)
-    if kind == "poisson_ou":
-        try:
-            x = float(point)
-        except Exception:
-            return np.nan
-        # Most props are half-integers (e.g., 0.5, 1.5) → use floor for <=,
-        # Over 1.5 ⇒ P(X >= 2) = 1 - P(X <= 1)
-        if side == "over":
-            return 1.0 - poisson_cdf(math.floor(x), lam)
-        elif side == "under":
-            # Under 1.5 ⇒ P(X <= 1)
-            return poisson_cdf(math.floor(x), lam)
-        else:
-            return np.nan
-
-    # Binary anytime TD: P(X >= 1) = 1 - exp(-lam)
-    if kind == "binary_anytime":
-        p_yes = 1.0 - math.exp(-lam) if (lam is not None and lam >= 0 and math.isfinite(lam)) else np.nan
-        if side in ("yes", "over"):     # sometimes books label as Over on 0.5
-            return p_yes
-        elif side in ("no", "under"):
-            return 1.0 - p_yes
-        else:
-            return np.nan
-
-    # Unknown / not modeled
-    return np.nan
+    return outcome_probabilities(
+        str(row.get("market_std", "")), row.get("name", ""), row.get("point"),
+        row.get("mu", np.nan), row.get("sigma", np.nan), row.get("lam", np.nan)
+    )[0]
 
 
 def ensure_cols(df: pd.DataFrame, cols: Iterable[str], default=np.nan) -> None:
@@ -332,23 +282,12 @@ def main():
     join_keys = [k for k in ("player_key","market_std") if k in props.columns and k in params.columns]
     if "player_key" not in join_keys:
         join_keys = [k for k in ("name_std","market_std") if k in props.columns and k in params.columns]
-    merged = props.merge(params[join_keys + ["mu","sigma","lam"]].drop_duplicates(), on=join_keys, how="left")
-
-    # aligned fallback stays the same but without point_key
-    need = merged[["mu","sigma","lam"]].isna().all(axis=1)
-    alt_keys = [k for k in ("name_std","market_std") if k in merged.columns and k in params.columns]
-    if need.any() and set(alt_keys) == {"name_std","market_std"}:
-        alt = merged.loc[need, alt_keys].merge(params[alt_keys + ["mu","sigma","lam"]].drop_duplicates(), on=alt_keys, how="left")
-        for col in ("mu","sigma","lam"):
-            sel = need & merged[col].isna()
-            merged.loc[sel, col] = alt[col].values
-
-
     no_data_col = ["no_real_data"] if "no_real_data" in params.columns else []
     merged = props.merge(
         params[join_keys + ["mu", "sigma", "lam"] + no_data_col].drop_duplicates(),
         on=join_keys,
         how="left",
+        validate="many_to_one",
     )
     if "no_real_data" not in merged.columns:
         merged["no_real_data"] = False
@@ -374,28 +313,14 @@ def main():
     merged["point"] = pd.to_numeric(merged.get("point", np.nan), errors="coerce")
 
 
-    # ---------------- Fallback fill (ALIGNED) ----------------
-    # Identify rows that still have no model params after the primary merge
-    need = merged[["mu", "sigma", "lam"]].isna().all(axis=1)
-
-    # Try a name_std-based fallback (still aligned to merged, NOT props)
-    alt_keys = [k for k in ("name_std", "market_std", "point_key")
-                if k in merged.columns and k in params.columns]
-    if need.any() and set(alt_keys) == {"name_std", "market_std", "point_key"}:
-        alt = merged.loc[need, alt_keys].merge(
-            params[alt_keys + ["mu", "sigma", "lam"]].drop_duplicates(),
-            on=alt_keys, how="left"
-        )
-        for col in ("mu", "sigma", "lam"):
-            sel = need & merged[col].isna()
-            merged.loc[sel, col] = alt[col].values
-
     # ---------------- Probabilities & edges ----------------
     # Market implied prob from American price
     merged["mkt_prob"] = merged["price"].map(american_to_prob)
 
     # Model probability
     merged["model_prob_raw"] = merged.apply(compute_model_prob_row, axis=1)
+    merged["push_prob"] = merged.apply(lambda r: outcome_probabilities(
+        r["market_std"], r["name"], r["point"], r["mu"], r["sigma"], r["lam"])[1], axis=1)
 
     # Calibrate against real historical outcomes (see fit_calibration.py /
     # backtest_calibration.py). The raw z-score-derived probability was
@@ -407,19 +332,17 @@ def main():
         merged.assign(model_prob=merged["model_prob_raw"]), calibration
     )
 
-    # Players with zero current-season games AND zero career history (see
-    # career_baseline.py / no_real_data in make_player_prop_params.py) have
-    # no real basis for an independent opinion - the market's own price is
-    # the best unbiased estimate available, not a generic position average.
-    # Publish the market's number as ours rather than a fake "edge".
-    no_data_mask = merged["no_real_data"].fillna(False)
-    merged.loc[no_data_mask, "model_prob_raw"] = merged.loc[no_data_mask, "mkt_prob"]
-    merged.loc[no_data_mask, "model_prob"] = merged.loc[no_data_mask, "mkt_prob"]
-    if no_data_mask.any():
-        logging.info(f"[no-data] {int(no_data_mask.sum())} rows had no real player data - showing market consensus instead of a model opinion")
-
-    # Edge in basis points
+    # Missing player evidence is unknown, not the book's vig-inclusive probability.
+    no_data_mask = merged["no_real_data"].astype(str).str.lower().isin(["true", "1"])
+    merged.loc[no_data_mask, ["model_prob_raw", "model_prob", "push_prob"]] = np.nan
+    eligible = set(calibration.get("_eligible_markets", [])) if calibration else set()
+    merged["model_status"] = np.where(no_data_mask | merged["model_prob"].isna(),
+                                      "Insufficient player data",
+                                      np.where(merged["market_std"].isin(eligible),
+                                               "Calibration fitted; not prospectively validated", "Uncalibrated"))
     merged["edge_bps"] = (merged["model_prob"] - merged["mkt_prob"]) * 10000.0
+    merged["ev_per_100"] = merged.apply(lambda r: expected_profit(r["model_prob"], r["price"], r["push_prob"]), axis=1)
+    merged["generated_at"] = datetime.now(timezone.utc).isoformat()
 
     # Attach season/week if not present
     if "season" not in merged.columns:
@@ -427,69 +350,7 @@ def main():
     if "week" not in merged.columns:
         merged["week"] = args.week
 
-    # ========== Consensus calculation (per player+market+side) ==========
-    # DEBUG: Check what columns we have
-    logging.info(f"[consensus] Available columns: {list(merged.columns)}")
-
-    # Create name_std from player if missing
-    if "name_std" not in merged.columns and "player_key" in merged.columns:
-        merged["name_std"] = merged["player_key"]
-    elif "name_std" not in merged.columns and "player" in merged.columns:
-        merged["name_std"] = merged["player"]
-
-    # Create side column from name if missing
-    if "side" not in merged.columns and "name" in merged.columns:
-        merged["side"] = merged["name"].astype(str).str.lower().str.strip()
-
-    logging.info(f"[consensus] After prep - has name_std: {'name_std' in merged.columns}, has side: {'side' in merged.columns}")
-
-    # De-vig: scale Over+Under to sum to 1 within each book×player×market group
-    def _devig_group(g: pd.DataFrame) -> pd.DataFrame:
-        sides = set(g["side"].dropna().unique().tolist())
-        if {"over","under"}.issubset(sides):
-            tot = g.loc[g["side"].isin(["over","under"]), "mkt_prob"].sum()
-            if tot and tot > 0:
-                g["prob_devig"] = g["mkt_prob"] / tot
-            else:
-                g["prob_devig"] = g["mkt_prob"]
-        else:
-            g["prob_devig"] = g["mkt_prob"]
-        return g
-
-    if "bookmaker_title" not in merged.columns and "bookmaker" in merged.columns:
-        merged["bookmaker_title"] = merged["bookmaker"]
-
-    # Only calculate consensus for rows that have the required columns
-    if all(col in merged.columns for col in ["bookmaker_title","name_std","market_std","side"]):
-        merged = (merged.groupby(["bookmaker_title","name_std","market_std"], group_keys=False)
-                        .apply(_devig_group))
-
-        # Calculate consensus per player+market+side
-        consensus_keys = ["name_std","market_std","side"]
-
-        consensus_line = (
-            merged.groupby(consensus_keys, as_index=False)
-                  .agg({"point": "median"})
-                  .rename(columns={"point": "consensus_line"})
-        )
-
-        consensus_prob = (
-            merged.groupby(consensus_keys, as_index=False)
-                  .agg({"prob_devig": "median"})
-                  .rename(columns={"prob_devig": "consensus_prob"})
-        )
-
-        book_count_df = (
-            merged.groupby(consensus_keys, as_index=False)
-                  .agg({"bookmaker_title": pd.Series.nunique})
-                  .rename(columns={"bookmaker_title": "book_count"})
-        )
-
-        # Merge consensus back into main data
-        merged = (merged
-                  .merge(consensus_line, on=consensus_keys, how="left")
-                  .merge(consensus_prob, on=consensus_keys, how="left")
-                  .merge(book_count_df, on=consensus_keys, how="left"))
+    merged = add_market_comparisons(merged)
 
     # Tidy & write
     # Keep original columns and add our metrics; do not drop unknowns to stay compatible with builders

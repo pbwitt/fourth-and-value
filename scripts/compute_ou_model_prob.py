@@ -34,29 +34,10 @@ def poisson_median(lam):
     return math.floor(lam + 1.0/3.0 - 0.02/lam)
 
 def model_prob_row(market_std, side, point, mu, sigma, lam):
-    # Returns (p, model_line)
-    if market_std in NORMAL_OU and pd.notna(mu) and pd.notna(sigma) and sigma > 0:
-        z = (point - mu)/sigma
-        p_under = norm_cdf(z)
-        p_over  = 1.0 - p_under
-        p = p_over if side.lower()=="over" else p_under
-        model_line = float(mu)  # median ~ mean for Normal; good enough for our "model line"
-        return p, model_line
-
-    if market_std in POISSON_OU and pd.notna(lam) and lam >= 0:
-        # integer counts; lines are typically x.5
-        # Over x.5 => P(X >= ceil(x.5)) ; Under x.5 => P(X <= floor(x.5))
-        k_over = int(math.ceil(point - 1e-12))   # e.g., 0.5 -> 1
-        k_under = int(math.floor(point + 1e-12)) # e.g., 0.5 -> 0
-        if side.lower() == "over":
-            p = 1.0 - poisson_cdf(k_over - 1, lam)
-        else:
-            p = poisson_cdf(k_under, lam)
-        model_line = float(poisson_median(lam))
-        return p, model_line
-
-    # no model
-    return np.nan, np.nan
+    from market_math import outcome_probabilities
+    p, _ = outcome_probabilities(market_std, side, point, mu, sigma, lam)
+    line = poisson_median(lam) if market_std in {"pass_tds", "pass_interceptions", "interceptions"} and pd.notna(lam) else mu
+    return p, line
 
 def prob_to_american(p):
     if not (0 < p < 1): return ""
@@ -98,6 +79,8 @@ def main():
 
     out_p = []
     out_line = []
+    out_push = []
+    from market_math import outcome_probabilities, implied_probability, expected_profit
     for m, side, pt, mu, sig, lam in sub.itertuples(index=False, name=None):
         p, model_line = model_prob_row(
             str(m).strip().lower(), str(side).strip(), float(pt),
@@ -105,10 +88,19 @@ def main():
             float(sig) if pd.notna(sig) else np.nan,
             float(lam) if pd.notna(lam) else np.nan
         )
+        out_push.append(outcome_probabilities(str(m).strip().lower(), str(side).strip(), float(pt), mu, sig, lam)[1])
         out_p.append(p)
         out_line.append(model_line)
 
     df.loc[mask, "model_prob"] = out_p
+    df.loc[mask, "model_prob_raw"] = out_p
+    df.loc[mask, "model_status"] = "Uncalibrated"
+    if "push_prob" not in df.columns: df["push_prob"] = np.nan
+    df.loc[mask, "push_prob"] = out_push
+    if "price" in df.columns:
+        df["mkt_prob"] = df["price"].map(implied_probability)
+        df["edge_bps"] = 10000 * (df["model_prob"] - df["mkt_prob"])
+        df["ev_per_100"] = df.apply(lambda r: expected_profit(r["model_prob"], r["price"], r["push_prob"]), axis=1)
     if "model_line" not in df.columns: df["model_line"] = np.nan
     df.loc[mask, "model_line"] = out_line
 

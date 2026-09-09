@@ -142,6 +142,7 @@ def fetch_event_props(api_key: str, sport_key: str, event_id: str,
                         "player": player,             # REQUIRED downstream
                         "name": side,                 # Over/Under/Yes/No
                         "price": oc.get("price"), "point": oc.get("point"),
+                        "last_update": m.get("last_update") or bk.get("last_update"),
                     })
         if sleep > 0:
             time.sleep(sleep)
@@ -195,7 +196,7 @@ def main():
     fieldnames = [
         "game_id","commence_time","home_team","away_team","game",
         "bookmaker","bookmaker_title","market","market_std",
-        "player","name","price","point"
+        "player","name","price","point","last_update"
     ]
     with open(out_path, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)

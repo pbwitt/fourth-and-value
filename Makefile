@@ -46,6 +46,7 @@ monday_all: weekly qc
 
 # Weekly pipeline (consensus removed - now integrated into Props page)
 weekly: $(PROPS_HTML) $(TOP_HTML) $(INSIGHTS_HTML) $(ARB_HTML)
+	$(PY) scripts/build_site_metadata.py
 
 # QC checks (run after weekly build)
 .PHONY: qc
@@ -88,7 +89,7 @@ $(PARAMS): scripts/make_player_prop_params.py $(PROPS_ALL) | $(PROPS_DIR)
 	  --out $@
 
 # 4) Compute edges → merged CSV
-$(MERGED): scripts/make_props_edges.py $(PARAMS) $(PROPS_ALL) | $(PROPS_DIR)
+$(MERGED): scripts/make_props_edges.py scripts/market_math.py models/nfl_prop_calibration.json $(PARAMS) $(PROPS_ALL) | $(PROPS_DIR)
 	$(PY) scripts/make_props_edges.py \
 	  --season $(SEASON) --week $(WEEK) \
 	  --props_csv $(PROPS_ALL) \
@@ -103,7 +104,7 @@ $(INCOH_CSV) $(FAM_ARB_CSV): scripts/qc_family_coherence.py $(MERGED) $(PARAMS) 
 	  --out-dir data/qc
 
 # 5) Build pages
-$(PROPS_HTML): scripts/build_props_site.py $(MERGED) | $(DOCS_DIR)/props
+$(PROPS_HTML): scripts/build_props_site.py scripts/site_metadata.py scripts/market_math.py $(MERGED) | $(DOCS_DIR)/props
 	$(PY) scripts/build_props_site.py \
 	  --merged_csv $(MERGED) \
 	  --out $@ \
@@ -112,7 +113,7 @@ $(PROPS_HTML): scripts/build_props_site.py $(MERGED) | $(DOCS_DIR)/props
 	  --title "Fourth & Value — Player Props (Week $(WEEK))" \
 	  --drop_no_scorer
 
-$(TOP_HTML): scripts/build_top_picks.py $(MERGED) | $(DOCS_DIR)/props
+$(TOP_HTML): scripts/build_top_picks.py scripts/build_props_site.py scripts/site_metadata.py scripts/market_math.py $(MERGED) | $(DOCS_DIR)/props
 	$(PY) scripts/build_top_picks.py \
 	  --merged_csv $(MERGED) \
 	  --out $@ \

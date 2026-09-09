@@ -11,6 +11,7 @@ This script:
    - Updates the bet's status via the Supabase API
 """
 
+import math
 import argparse
 import os
 import sys
@@ -24,6 +25,13 @@ from supabase_client import fetch_pending_bets, update_bet
 
 # Market type mapping to stat column names
 MARKET_MAP = {
+    'recv_yds': 'receiving_yards',
+    'rush_attempts': 'rushing_attempts',
+    'pass_attempts': 'attempts',
+    'pass_completions': 'completions',
+    'pass_tds': 'passing_tds',
+    'pass_interceptions': 'interceptions',
+    'interceptions': 'interceptions',
     'rec_yds': 'receiving_yards',
     'receiving_yds': 'receiving_yards',
     'rush_yds': 'rushing_yards',
@@ -85,7 +93,12 @@ def grade_bet(bet_row, stats_df=None, scores_df=None):
     """
     market = bet_row['market_type']
     side = bet_row['side'].lower()
-    line = float(bet_row['line'])
+    try:
+        line = float(bet_row['line'])
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(line):
+        return None
 
     # Handle game totals
     if market == 'team_total':
@@ -96,17 +109,20 @@ def grade_bet(bet_row, stats_df=None, scores_df=None):
         team_home = bet_row['team_home']
         team_away = bet_row['team_away']
 
+        if 'game_date' not in scores_df:
+            return None
+        scores_df = scores_df[scores_df['game_date'].astype(str).str[:10] == bet_row['game_date']]
         # Find game in scores
         game_scores = scores_df[
             ((scores_df['home_team'] == team_home) & (scores_df['away_team'] == team_away)) |
             ((scores_df['home_team'] == team_away) & (scores_df['away_team'] == team_home))
         ]
 
-        if len(game_scores) == 0:
+        if len(game_scores) != 1:
             print(f"  ⚠️  Game {team_home} vs {team_away} not found in scores")
             return None
 
-        if not game_scores.iloc[0]['completed']:
+        if str(game_scores.iloc[0]['completed']).lower() not in {'true', '1'}:
             print(f"  ⚠️  Game {team_home} vs {team_away} not completed yet")
             return None
 
@@ -115,6 +131,8 @@ def grade_bet(bet_row, stats_df=None, scores_df=None):
         home_score = float(game_row['home_score'])
         away_score = float(game_row['away_score'])
         actual_value = home_score + away_score
+        if not math.isfinite(actual_value):
+            return None
 
         # Determine won/lost/push
         won = None  # None = push
@@ -166,17 +184,24 @@ def grade_bet(bet_row, stats_df=None, scores_df=None):
         print(f"  ⚠️  No stats data provided for player prop bet")
         return None
 
+    if 'game_date' not in stats_df:
+        return None
+    stats_df = stats_df[stats_df['game_date'].astype(str).str[:10] == bet_row['game_date']]
     stat_col = MARKET_MAP[market]
+    if stat_col not in stats_df or 'player' not in stats_df:
+        return None
 
     # Find player in stats
     player_stats = stats_df[stats_df['player'] == player_name]
 
-    if len(player_stats) == 0:
+    if len(player_stats) != 1:
         print(f"  ⚠️  Player {player_name} not found in stats for {bet_row['game_date']}")
         return None
 
     # Get actual stat value
     actual_value = float(player_stats.iloc[0][stat_col])
+    if not math.isfinite(actual_value):
+        return None
 
     # Determine won/lost/push
     won = None  # None = push
@@ -265,6 +290,8 @@ def main():
     graded_count = 0
     for bet in pending_nfl_bets:
         game_date = bet['game_date']
+        if args.date and game_date != args.date:
+            continue
 
         print(f"\n🎲 Grading bet {bet['id']}:")
         player_display = bet.get('player', '')
@@ -317,6 +344,8 @@ def main():
                 if stats_file.exists():
                     try:
                         stats_df = pd.read_parquet(stats_file)
+                        if 'game_date' not in stats_df and stats_file.name == f'logs_{game_date}.parquet':
+                            stats_df['game_date'] = game_date
                         break
                     except Exception as e:
                         print(f"  ⚠️  Error reading {stats_file}: {e}")

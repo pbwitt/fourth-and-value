@@ -48,6 +48,12 @@ def check_historical_data(season: int, week: int) -> dict:
 
     # Check weekly player stats
     parquet_path = Path(f"data/weekly_player_stats_{season}.parquet")
+    if not parquet_path.exists() and week == 1:
+        prior = Path(f"data/weekly_player_stats_{season-1}.parquet")
+        if prior.exists() and not pd.read_parquet(prior).empty:
+            print_warn("Week 1: current-season results do not exist yet; using prior-season career data.")
+            results["warnings"].append("Week 1 uses prior-season data; current-season results are unavailable")
+            return results
     if not parquet_path.exists():
         print_fail(f"Missing weekly stats: {parquet_path}")
         results["pass"] = False
@@ -94,7 +100,8 @@ def check_props_markets(props_path: str, season: int, week: int) -> dict:
         results["errors"].append(f"Missing props file")
         return results
 
-    props = pd.read_csv(props_path)
+    from common_markets import standardize_input
+    props = standardize_input(pd.read_csv(props_path))
 
     # Basic counts
     print(f"Total props: {len(props):,}")
@@ -332,33 +339,21 @@ def check_model_calibration(edges_path: str) -> dict:
     else:
         print_pass("No extreme disagreements")
 
-    # Check Over/Under symmetry
-    paired = modeled[modeled['name'].isin(['Over', 'Under'])].copy()
-    if len(paired) > 0:
-        paired['key'] = (paired['player'] + '_' +
-                        paired['market_std'] + '_' +
-                        paired['point'].astype(str) + '_' +
-                        paired['bookmaker'])
-
-        asymmetries = []
-        for key in paired['key'].unique():
-            subset = paired[paired['key'] == key]
-            if len(subset) == 2:
-                over_prob = subset[subset['name'] == 'Over']['model_prob'].values
-                under_prob = subset[subset['name'] == 'Under']['model_prob'].values
-                if len(over_prob) > 0 and len(under_prob) > 0:
-                    total = over_prob[0] + under_prob[0]
-                    if abs(total - 1.0) > 0.01:
-                        asymmetries.append((key.split('_')[0], total))
-
-        if len(asymmetries) > 0:
-            print_fail(f"{len(asymmetries)} Over/Under pairs don't sum to 1.0")
-            results["pass"] = False
-            results["errors"].append(f"{len(asymmetries)} asymmetric pairs")
-            for player, total in asymmetries[:5]:
-                print(f"  {player}: sum = {total:.4f}")
-        else:
-            print_pass("All Over/Under pairs sum to 1.0")
+    # Check the same event and line once; avoid repeated full-frame scans.
+    modeled['name'] = modeled['name'].str.lower()
+    paired = modeled[modeled['name'].isin(['over', 'under'])].copy()
+    keys = [c for c in ['game_id', 'commence_time', 'player', 'market_std', 'point', 'bookmaker'] if c in paired]
+    if not paired.empty:
+        pairs = paired.pivot_table(index=keys, columns='name', values='model_prob', aggfunc='mean')
+        if {'over', 'under'}.issubset(pairs.columns):
+            sums = (pairs['over'] + pairs['under']).dropna()
+            asymmetries = sums[(sums-1).abs() > 0.01]
+            if not asymmetries.empty:
+                print_fail(f"{len(asymmetries)} Over/Under pairs do not sum to 1")
+                results['pass'] = False
+                results['errors'].append(f"{len(asymmetries)} asymmetric pairs")
+            else:
+                print_pass(f"{len(sums)} paired Over/Under estimates sum to 1")
 
     return results
 

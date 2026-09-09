@@ -87,12 +87,9 @@ def _ensure_core(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def _select_top_for_game(df_g: pd.DataFrame, top_n: int) -> pd.DataFrame:
-    # prefer rows with model + market probs (real edge); if none, use whatever has mkt_prob
-    prio = df_g[df_g["edge_bps"].notna() & df_g["mkt_prob"].notna() & df_g["model_prob"].notna()]
-    if prio.empty:
-        prio = df_g[df_g["mkt_prob"].notna()]
-    prio = prio.sort_values(["edge_bps","mkt_prob"], ascending=[False, False])
-    return prio.head(top_n).copy()
+    # Missing evidence must not fall back to a market price masquerading as a model.
+    prio = df_g[df_g["edge_bps"].gt(0) & df_g["model_prob"].notna() & df_g["mkt_prob"].notna()]
+    return prio.sort_values("edge_bps", ascending=False).head(top_n).copy()
 
 import numpy as np
 import textwrap
@@ -203,7 +200,7 @@ def _prompt_for_game(game: str, rows: pd.DataFrame, season: int, week: int) -> s
 
     # --- Market skew by over/under counts per market type
     if {'edge_bps', 'market_std'}.issubset(df.columns):
-        skew = (df.assign(dir=np.where(df['edge_bps'] >= 0, 'over', 'under'))
+        skew = (df.assign(dir=df['name'].str.lower())
                   .groupby(['market_std', 'dir']).size()
                   .unstack(fill_value=0))
         parts = []
@@ -261,7 +258,7 @@ def _call_llm(client, model, prompt: str) -> str:
         resp = client.chat.completions.create(
             model=model,  # e.g., "gpt-4o-mini"
             messages=[
-                {"role": "system", "content": "You're a knowledgeable friend who follows NFL closely and helps casual fans find smart player prop bets. You're analytical but conversational, honest about uncertainty, and avoid sounding robotic or overly formal."},
+                {"role": "system", "content": "Explain only the supplied NFL data. Distinguish the named bet side from the sign of an edge. Do not invent injuries, lineup news, causes, guarantees, or calibrated performance. Model estimates are experimental; say so."},
                 {"role": "user", "content": prompt},
             ],
         )
@@ -296,6 +293,22 @@ def main(argv=None):
         print(f"[info] {args.out_json} exists. Use --force to overwrite.", file=sys.stderr)
 
     df = pd.read_csv(args.merged_csv, low_memory=False)
+    # Use the same evidence and quote-age requirements as the NFL shortlist.
+    now = pd.Timestamp.now(tz="UTC")
+    if {"model_status", "last_update", "commence_time"}.issubset(df.columns):
+        age = (now - pd.to_datetime(df["last_update"], utc=True, errors="coerce")).dt.total_seconds()
+        df = df[df["model_status"].str.startswith("Calibration fitted", na=False)
+                & df["edge_bps"].gt(0) & age.between(0, 48 * 3600)
+                & pd.to_datetime(df["commence_time"], utc=True, errors="coerce").gt(now)].copy()
+    else:
+        df = df.iloc[:0].copy()
+    if df.empty:
+        out = {"season": args.season, "week": args.week, "generated_at": now.isoformat(),
+               "week_overview": "No qualifying model-backed picks in this snapshot. Fresh quote timestamps and supported player estimates are required. Compare the props board for coverage.", "games": []}
+        os.makedirs(os.path.dirname(args.out_json) or ".", exist_ok=True)
+        with open(args.out_json, "w") as f:
+            json.dump(out, f, indent=2)
+        return
     df = _ensure_core(df)
 
     games: List[str] = list(pd.unique(df["game_norm"].dropna()))
@@ -324,6 +337,7 @@ def main(argv=None):
     print(f"    ✓ Weekly overview complete", file=sys.stderr)
 
     out = {
+        "season": args.season, "week": args.week, "generated_at": now.isoformat(),
         "week_overview": weekly_overview.strip(),
         "games": []
     }

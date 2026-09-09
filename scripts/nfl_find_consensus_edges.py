@@ -42,15 +42,18 @@ def find_consensus_edges(predictions_path='data/nfl/predictions/week_predictions
         print("⚠ No totals odds found")
         return pd.DataFrame()
 
+    if 'point' not in totals_odds:
+        raise ValueError('Totals require point (points line); price is American odds')
+    totals_odds['point'] = pd.to_numeric(totals_odds['point'], errors='coerce')
+    totals_odds = totals_odds.dropna(subset=['point'])
     print(f"Found totals odds for {totals_odds['game'].nunique()} games across {totals_odds['bookmaker'].nunique()} books\n")
 
-    # Calculate consensus for each game
-    consensus = totals_odds.groupby('game').agg({
-        'price': 'mean'  # This is the over/under line
-    }).rename(columns={'price': 'consensus_line'}).reset_index()
-
-    consensus['num_books'] = totals_odds.groupby('game').size().values
-    consensus['median_line'] = totals_odds.groupby('game')['price'].median().values
+    # Each book gets one vote; Over/Under are two sides of one points line.
+    book_lines = totals_odds.groupby(['game', 'bookmaker'], as_index=False)['point'].median()
+    consensus = book_lines.groupby('game').agg(
+        consensus_line=('point', 'median'), num_books=('bookmaker', 'nunique'),
+        median_line=('point', 'median')).reset_index()
+    consensus = consensus[consensus['num_books'] >= 3]
 
     print("Market consensus:")
     print(consensus.to_string(index=False))
@@ -58,14 +61,14 @@ def find_consensus_edges(predictions_path='data/nfl/predictions/week_predictions
 
     # Find outlier books
     totals_with_consensus = totals_odds.merge(consensus[['game', 'consensus_line']], on='game')
-    totals_with_consensus['diff_from_consensus'] = abs(totals_with_consensus['price'] - totals_with_consensus['consensus_line'])
+    totals_with_consensus['diff_from_consensus'] = abs(totals_with_consensus['point'] - totals_with_consensus['consensus_line'])
 
     outliers = totals_with_consensus[totals_with_consensus['diff_from_consensus'] >= threshold].copy()
 
     print(f"Found {len(outliers)} outlier lines (≥{threshold} from consensus):\n")
 
     if len(outliers) > 0:
-        print(outliers[['game', 'bookmaker', 'price', 'consensus_line', 'diff_from_consensus']].to_string(index=False))
+        print(outliers[['game', 'bookmaker', 'point', 'consensus_line', 'diff_from_consensus']].to_string(index=False))
         print()
 
     # Merge with model predictions
@@ -82,8 +85,10 @@ def find_consensus_edges(predictions_path='data/nfl/predictions/week_predictions
     plays = outliers_with_model[outliers_with_model['model_agrees']].copy()
 
     # Determine bet direction
-    plays['bet'] = plays.apply(lambda row: 'UNDER' if row['price'] > row['consensus_line'] else 'OVER', axis=1)
-    plays['line'] = plays['price']
+    plays['bet'] = plays.apply(lambda row: 'UNDER' if row['point'] > row['consensus_line'] else 'OVER', axis=1)
+    if 'name' in plays.columns:
+        plays = plays[plays['name'].str.upper() == plays['bet']].copy()
+    plays['line'] = plays['point']
     plays['edge'] = plays['diff_from_consensus']
     plays['consensus'] = plays['consensus_line']
 
@@ -91,7 +96,9 @@ def find_consensus_edges(predictions_path='data/nfl/predictions/week_predictions
     plays = plays[['game', 'bookmaker', 'bet', 'line', 'consensus', 'model', 'edge']].copy()
     plays = plays.rename(columns={'bookmaker': 'book'})
 
-    # Save
+    # Always replace the output, including an empty result, to clear old plays.
+    os.makedirs(os.path.dirname(output_path) or '.', exist_ok=True)
+    plays.to_csv(output_path, index=False)
     if len(plays) > 0:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         plays.to_csv(output_path, index=False)
