@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Fourth &amp; Value — The Edge Was the Price</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Our model liked the Patriots-Seahawks over by 6.6 points. Here is why we shrank that to 0.3, and why the only real edge on the game came from which sportsbook you used." />
+  <link rel="icon" href="../assets/logo.svg" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#0b0e13; --surface:#12161d; --ink:#eef1f5; --muted:#8b93a1; --line:#232a35;
+      --under:#2dd4bf; --under-soft:#2dd4bf22; --over:#f0ab3d; --over-soft:#f0ab3d22;
+      --accent:#6ea8fe;
+    }
+    *{box-sizing:border-box}
+    html,body{ margin:0; background:var(--bg); }
+    body{
+      color:var(--ink);
+      font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+      -webkit-font-smoothing:antialiased;
+    }
+    a{ color:var(--accent); }
+    ::selection{ background:var(--under-soft); }
+
+    .wrap{ max-width:720px; margin:0 auto; padding:40px 24px 96px; }
+
+    .kicker{
+      font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.12em; text-transform:uppercase;
+      color:var(--muted); display:flex; align-items:center; gap:10px; margin-bottom:22px;
+    }
+    .kicker .dot{ width:6px; height:6px; border-radius:50%; background:var(--accent); }
+
+    h1{
+      font-family:'Fraunces',serif; font-optical-sizing:auto; font-weight:600;
+      font-size:clamp(34px,6vw,52px); line-height:1.05; letter-spacing:-.01em;
+      margin:0 0 18px; text-wrap:balance;
+    }
+    .dek{
+      font-family:'Fraunces',serif; font-style:italic; font-weight:400;
+      font-size:clamp(18px,2.6vw,21px); line-height:1.5; color:var(--muted);
+      margin:0 0 36px; text-wrap:balance; max-width:60ch;
+    }
+
+    .meta-box{
+      border:1px solid var(--line); border-radius:12px; padding:16px 18px;
+      font-size:13.5px; line-height:1.6; color:var(--muted); margin:0 0 48px;
+      background:var(--surface);
+    }
+    .meta-box b{ color:var(--ink); }
+
+    article{ font-size:17px; line-height:1.7; }
+    article p{ margin:0 0 22px; }
+    article > p:first-of-type::first-letter{
+      font-family:'Fraunces',serif; font-weight:600; font-size:3.4em; line-height:.8;
+      float:left; padding:.05em .08em 0 0; color:var(--accent);
+    }
+
+    h2{
+      font-family:'Fraunces',serif; font-weight:600; font-size:clamp(24px,3.6vw,30px);
+      margin:56px 0 8px; letter-spacing:-.005em; text-wrap:balance;
+    }
+    .h2-num{
+      font-family:'JetBrains Mono',monospace; color:var(--accent); font-size:15px; font-weight:500;
+      display:block; margin-bottom:6px; letter-spacing:.04em;
+    }
+
+    .chart{ margin:28px 0 8px; border:1px solid var(--line); border-radius:14px; overflow:hidden; background:var(--surface); }
+    .chart-head{
+      display:flex; justify-content:space-between; padding:14px 18px; font-family:'JetBrains Mono',monospace;
+      font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted);
+      border-bottom:1px solid var(--line);
+    }
+    .chart-head span:first-child{ color:var(--under); }
+    .chart-head span:last-child{ color:var(--over); }
+    .row{ display:grid; grid-template-columns:128px 1fr; align-items:center; padding:10px 18px; gap:14px; }
+    .row + .row{ border-top:1px solid var(--line); }
+    .row .label{ font-size:14px; font-weight:600; }
+    .bar-track{ position:relative; height:22px; background:var(--line); border-radius:6px; overflow:hidden; display:flex; }
+    .bar-under{ background:var(--under); height:100%; display:flex; align-items:center; justify-content:flex-end; padding-right:8px; }
+    .bar-over{ background:var(--over); height:100%; display:flex; align-items:center; padding-left:8px; }
+    .bar-val{ font-family:'JetBrains Mono',monospace; font-size:11.5px; font-weight:700; color:#0b0e13; }
+
+    .vchart{ margin:28px 0 8px; border:1px solid var(--line); border-radius:14px; background:var(--surface); overflow:hidden; }
+    .vrow{ display:grid; grid-template-columns:128px 1fr 64px; align-items:center; padding:11px 18px; gap:14px; }
+    .vrow + .vrow{ border-top:1px solid var(--line); }
+    .vrow .label{ font-size:14px; font-weight:600; }
+    .vtrack{ height:10px; border-radius:5px; background:var(--line); overflow:hidden; }
+    .vfill{ height:100%; border-radius:5px; background:linear-gradient(90deg,var(--accent),var(--over)); }
+    .vval{ font-family:'JetBrains Mono',monospace; font-size:13px; text-align:right; color:var(--muted); }
+    .chart-foot{ padding:12px 18px; font-size:12px; color:var(--muted); border-top:1px solid var(--line); }
+
+    .tchart{ margin:28px 0 8px; border:1px solid var(--line); border-radius:14px; background:var(--surface); overflow:hidden; }
+    .trow{ display:grid; grid-template-columns:150px 1fr; align-items:center; padding:14px 18px; gap:16px; }
+    .trow + .trow{ border-top:1px solid var(--line); }
+    .trow .label{ font-size:13.5px; font-weight:600; line-height:1.3; }
+    .tbars{ display:flex; align-items:flex-end; gap:10px; }
+    .tbar-col{ display:flex; flex-direction:column; align-items:center; gap:4px; flex:1; }
+    .tval{ font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--muted); }
+    .tval.now{ color:var(--accent); font-weight:700; }
+    .tbar-area{ height:40px; width:100%; display:flex; align-items:flex-end; justify-content:center; }
+    .tbar{ width:100%; max-width:34px; border-radius:4px 4px 2px 2px; background:var(--line); }
+    .tbar.now{ background:var(--accent); }
+    .tyear{ font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--muted); }
+    .tyear.now{ color:var(--accent); font-weight:700; }
+
+    .callout{
+      border-left:3px solid var(--accent); background:color-mix(in oklab, var(--accent) 8%, var(--surface));
+      border-radius:0 12px 12px 0; padding:18px 22px; margin:32px 0; font-size:15.5px; line-height:1.65;
+    }
+    .callout .tag{
+      font-family:'JetBrains Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.1em;
+      color:var(--accent); display:block; margin-bottom:8px; font-weight:700;
+    }
+    .callout .num{ font-family:'JetBrains Mono',monospace; font-weight:700; }
+    .callout .under-num{ color:var(--under); }
+    .callout .over-num{ color:var(--over); }
+
+    .takeaways{ list-style:none; margin:24px 0 0; padding:0; display:flex; flex-direction:column; gap:2px; }
+    .takeaways li{
+      display:grid; grid-template-columns:34px 1fr; gap:16px; padding:20px 0; border-top:1px solid var(--line);
+    }
+    .takeaways li:last-child{ border-bottom:1px solid var(--line); }
+    .takeaways .n{ font-family:'JetBrains Mono',monospace; color:var(--accent); font-weight:700; font-size:15px; }
+    .takeaways p{ margin:0; }
+    .takeaways strong{ display:block; margin-bottom:4px; font-size:15.5px; }
+
+    .closer{
+      margin-top:48px; padding-top:28px; border-top:1px solid var(--line);
+      font-family:'Fraunces',serif; font-style:italic; font-size:19px; line-height:1.6; color:var(--ink);
+      text-wrap:balance;
+    }
+
+    .back{ display:inline-block; margin-top:48px; color:var(--accent); }
+
+    @media (max-width:520px){
+      .row{ grid-template-columns:100px 1fr; }
+      .vrow{ grid-template-columns:100px 1fr 50px; }
+      .trow{ grid-template-columns:1fr; gap:10px; }
+    }
+  </style>
+<link rel="canonical" href="https://fourthandvalue.com/blog/the-under-tilt.html"><meta property="og:title" content="Fourth &amp; Value — The Under Tilt"><meta property="og:description" content="Fourth &amp; Value — The Under Tilt. Sports analysis and research from Fourth &amp; Value."><meta property="og:url" content="https://fourthandvalue.com/blog/the-under-tilt.html"><meta property="og:type" content="website"><meta name="twitter:card" content="summary"></head>
+<body>
+  <div id="nav-root"></div>
+  <script src="../nav.js?v=33"></script>
+
+  <main class="wrap">
+
+    <div class="kicker"><span class="dot"></span>Fourth &amp; Value &middot; Game Report &middot; Week 1, 2026</div>
+
+    <h1>The Edge Was the Price</h1>
+    <p class="dek">Our model liked the Patriots&ndash;Seahawks over by six and a half points. We published three tenths. The gap between those two numbers is the whole story &mdash; and the only real edge on this game was never the pick at all.</p>
+
+    <div class="meta-box">
+      <b>Methodology.</b> Market figures are 11 sportsbooks quoted at 6:52 PM ET on September 9, 2026. Prices are de-vigged against each book&rsquo;s own pair, never blended across different lines. Model calibration is walk-forward over 863 completed games from 2022&ndash;2025: every prediction trained only on games that had already finished.
+    </div>
+
+    <article>
+      <p>Wednesday night, New England at Seattle. The market has the total at 44.5 and Seattle laying three. Our totals model looked at the same game and said 51.1 &mdash; a fat six-and-a-half-point disagreement, the kind of number that makes for a confident post and a bad week.</p>
+
+      <p>We published 44.8 instead. Here is why.</p>
+
+      <h2><span class="h2-num">01</span>What the closing line already knows</h2>
+
+      <p>Before trusting any model, it is worth measuring the thing it is arguing with. Across 1,087 regular-season games from 2022 through 2025, the closing total missed the actual result by 10.19 points on average, with a residual standard deviation of 13.01 and a bias of just +0.72. Overs went 48.8%.</p>
+
+      <p>That standard deviation is the number to sit with. An NFL total is so noisy that a <em>perfect</em> forecast of the true average would still miss by about ten points a game. Most of what looks like model error is not error at all. It is the sport.</p>
+
+      <div class="callout">
+        A 13-point residual standard deviation means a three-point disagreement with the market moves the win probability by roughly nine points &mdash; <em>if the disagreement is real</em>. Almost all of the work is in that condition.
+      </div>
+
+      <h2><span class="h2-num">02</span>What our model&rsquo;s disagreements have been worth</h2>
+
+      <p>So we tested it the only way that means anything: walk-forward, training on nothing but games that had already finished, then regressing what actually happened against what the model claimed would happen.</p>
+
+      <p>The slope came back at <b>0.043</b>, with a standard error of 0.111 and a p-value of 0.70. In plain terms, about four cents of every claimed dollar has historically shown up in the result, and even that is statistically indistinguishable from zero. Graded at real prices across the 2025 season, the model went 49.2% on 181 bets for &minus;5.8% ROI &mdash; and it got <em>worse</em> as its claimed edge grew. The six-point disagreements were its worst bucket, not its best.</p>
+
+      <p>That is not a broken model so much as an honest one meeting an efficient market. Our features are trailing efficiency numbers. Every sportsbook models those too. By the time a line closes, that information is priced.</p>
+
+      <p>Which is how 51.1 becomes 44.8. We shrink every projection toward the market by the amount its own track record justifies, and this model has not earned much. Against a 44.5 line, our published probability on the over is 50.9% where the market&rsquo;s own de-vigged number is 49.2%. A gap of a point and a half, on a game where the honest answer is that we do not know much the market does not.</p>
+
+      <h2><span class="h2-num">03</span>Where the actual edge was</h2>
+
+      <p>Now the part that matters. Six books were quoting the over at 44.5 on Wednesday evening, and they were not quoting it at the same price.</p>
+
+      <div class="callout">
+        <b>Over 44.5</b> &mdash; lowvig <b>&minus;102</b> &middot; DraftKings and BetOnline <b>&minus;105</b> &middot; FanDuel, William Hill and BetMGM <b>&minus;108</b>
+      </div>
+
+      <p>Same side. Same number. Same game. At &minus;102 you need the over to hit 50.50% of the time to break even. At &minus;108 you need 51.92%. That 1.43-point spread in breakeven is, by itself, comparable to the entire probability edge our model claims &mdash; and unlike the model&rsquo;s edge, it is not an estimate. It is arithmetic on prices you can see.</p>
+
+      <p>Run the expected value and the point lands hard. Our 50.9% over, bet at lowvig&rsquo;s &minus;102, returns about <b>+$0.76 per $100</b>. The identical opinion, bet at &minus;108, is <b>negative</b>. The bet is not good or bad. The <em>price</em> is good or bad, and the same wager flips sign depending on where you place it.</p>
+
+      <p>A winning $100 over ticket pays $98.04 at lowvig and $92.59 at &minus;108. Nobody is going to build a season out of five dollars and change on one game. But that is exactly the point: this is the margin that compounds across a year, and it is available to anyone willing to check more than one screen. The book hold on this game was 4.7%, which is what you are paying for the convenience of not looking.</p>
+
+      <h2><span class="h2-num">04</span>What we are actually saying about this game</h2>
+
+      <p>Seattle&rsquo;s implied team total is 23.75, New England&rsquo;s is 20.75. Those come straight from the market &mdash; 44.5 split by a three-point spread &mdash; and they are the most defensible numbers on the page, because they are derived from prices rather than predicted from history.</p>
+
+      <p>Our model likes the over. Our track record says not to lean on that. If you take the over anyway, take it at &minus;102, because that is the difference between a bet with a sliver of value and a bet without one.</p>
+
+      <ul class="takeaways">
+        <li>Market total 44.5, Seattle &minus;3. Implied team totals: SEA 23.75, NE 20.75.</li>
+        <li>Model says 51.1 raw; 44.8 after shrinking to its measured record.</li>
+        <li>Our over probability 50.9% against a market fair price of 49.2%.</li>
+        <li>Best over &minus;102 (lowvig); worst at the same number &minus;108. Same bet, opposite sign.</li>
+      </ul>
+
+      <p class="closer">The uncomfortable truth of totals betting is that the market is very good and your model probably is not. We would rather publish that, and the price that actually pays, than a six-point edge we cannot defend.</p>
+    </article>
+  </main>
+</body>
+</html>
