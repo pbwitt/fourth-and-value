@@ -59,7 +59,7 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
                    if team_totals_path and os.path.exists(team_totals_path)
                    else pd.DataFrame())
     if len(team_totals) > 0 and len(merged) > 0:
-        carry = [c for c in ('game', 'implied_home_total', 'implied_away_total',
+        carry = [c for c in ('game', 'commence_time', 'implied_home_total', 'implied_away_total',
                              'fair_over_prob', 'fair_under_prob', 'hold_pct',
                              'best_over_price', 'best_over_book',
                              'best_under_price', 'best_under_book',
@@ -82,301 +82,93 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
                   "de-vigged against each other. No model estimate is published for this slate.")
 
     # Build HTML
+    kickoff_col = 'commence_time'
+    def kickoff(game_row):
+        """Kickoff in Eastern time, from the provider's UTC commence time."""
+        raw = game_row.get(kickoff_col) if hasattr(game_row, 'get') else None
+        if not raw or pd.isna(raw):
+            return ''
+        ts = pd.to_datetime(raw, utc=True, errors='coerce')
+        if pd.isna(ts):
+            return ''
+        return ts.tz_convert('America/New_York').strftime('%a %-I:%M %p ET')
+
+    quoted_at = ''
+    if 'quoted_at' in merged.columns and merged['quoted_at'].notna().any():
+        ts = pd.to_datetime(merged['quoted_at'], utc=True, errors='coerce').max()
+        if pd.notna(ts):
+            quoted_at = ts.tz_convert('America/New_York').strftime('%b %-d, %-I:%M %p ET')
+
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NFL Totals - Fourth & Value</title>
+  <title>NFL Team Totals - Week {week} | Fourth &amp; Value</title>
+  <meta name="description" content="Implied NFL team totals, de-vigged over/under prices and the best available line across sportsbooks for Week {week}.">
+  <link rel="canonical" href="https://fourthandvalue.com/nfl/totals/">
+  <link rel="stylesheet" href="../../assets/site.css">
   <style>
-    * {{
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }}
-    body {{
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      background: #0f0f0f;
-      color: #fff;
-      line-height: 1.6;
-    }}
-
-    .container {{
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 2rem 1rem;
-    }}
-
-    /* Header */
-    .header {{
-      margin-bottom: 2rem;
-    }}
-    h1 {{
-      font-size: 2rem;
-      margin-bottom: 0.5rem;
-      color: #4FC3F7;
-    }}
-    .subtitle {{
-      color: #999;
-      margin-bottom: 1rem;
-    }}
-
-    /* Tabs */
-    .tabs {{
-      display: flex;
-      gap: 0.5rem;
-      margin-bottom: 2rem;
-      border-bottom: 2px solid #2a2a2a;
-    }}
-    .tab {{
-      padding: 0.75rem 1.5rem;
-      background: transparent;
-      color: #999;
-      text-decoration: none;
-      border-bottom: 3px solid transparent;
-      transition: all 0.2s;
-    }}
-    .tab:hover {{
-      color: #fff;
-    }}
-    .tab.active {{
-      color: #4FC3F7;
-      border-bottom-color: #4FC3F7;
-    }}
-
-    /* Stats summary */
-    .stats-summary {{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1rem;
-      margin-bottom: 2rem;
-    }}
-    .stat-card {{
-      background: #1a1a1a;
-      padding: 1.5rem;
-      border-radius: 8px;
-      border: 1px solid #2a2a2a;
-    }}
-    .stat-label {{
-      font-size: 0.875rem;
-      color: #999;
-      margin-bottom: 0.5rem;
-    }}
-    .stat-value {{
-      font-size: 1.75rem;
-      font-weight: bold;
-      color: #4FC3F7;
-    }}
-
-    /* Edge plays section */
-    .edge-plays {{
-      background: #1a1a1a;
-      border: 2px solid #4FC3F7;
-      border-radius: 8px;
-      padding: 1.5rem;
-      margin-bottom: 2rem;
-    }}
-    .edge-plays h2 {{
-      color: #4FC3F7;
-      margin-bottom: 1rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }}
-    .edge-plays h2::before {{
-      content: "🎯";
-    }}
-
-    /* Game cards */
-    .games-grid {{
-      display: grid;
-      gap: 1rem;
-    }}
-    .game-card {{
-      background: #1a1a1a;
-      border: 1px solid #2a2a2a;
-      border-radius: 8px;
-      padding: 1.5rem;
-      transition: border-color 0.2s;
-    }}
-    .game-card:hover {{
-      border-color: #4FC3F7;
-    }}
-    .game-card.has-edge {{
-      border: 2px solid #4FC3F7;
-      background: linear-gradient(135deg, #1a1a1a 0%, #1a2a3a 100%);
-    }}
-
-    .game-header {{
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1rem;
-      padding-bottom: 1rem;
-      border-bottom: 1px solid #2a2a2a;
-    }}
-    .matchup {{
-      font-size: 1.25rem;
-      font-weight: bold;
-    }}
-
-    .totals-row {{
-      display: grid;
-      grid-template-columns: repeat(7, 1fr);
-      gap: 0.75rem;
-      margin-bottom: 1rem;
-    }}
-    .total-item {{
-      background: #2a2a2a;
-      padding: 0.75rem;
-      border-radius: 4px;
-    }}
-    .total-label {{
-      font-size: 0.75rem;
-      color: #999;
-      margin-bottom: 0.25rem;
-    }}
-    .total-value {{
-      font-size: 1.25rem;
-      font-weight: bold;
-    }}
-    .total-value.model {{
-      color: #4FC3F7;
-    }}
-    .total-value.market {{
-      color: #FFA726;
-    }}
-    .total-value.edge {{
-      color: #66BB6A;
-    }}
-
-    /* Edge plays in card */
-    .edge-play-list {{
-      background: #2a2a2a;
-      border-radius: 4px;
-      padding: 1rem;
-      margin-top: 1rem;
-    }}
-    .edge-play-item {{
-      padding: 0.75rem;
-      background: #1a1a1a;
-      border-left: 3px solid #4FC3F7;
-      margin-bottom: 0.75rem;
-      border-radius: 4px;
-    }}
-    .edge-play-item:last-child {{
-      margin-bottom: 0;
-    }}
-    .play-bet {{
-      font-size: 1.125rem;
-      font-weight: bold;
-      color: #4FC3F7;
-      margin-bottom: 0.5rem;
-    }}
-    .play-details {{
-      font-size: 0.875rem;
-      color: #999;
-    }}
-
-    .no-data {{
-      text-align: center;
-      padding: 3rem;
-      color: #999;
-    }}
-
-    .updated {{
-      text-align: center;
-      color: #666;
-      font-size: 0.875rem;
-      margin-top: 2rem;
-    }}
-
-    /* Book lines table */
-    .book-lines {{
-      margin-top: 1rem;
-      background: #2a2a2a;
-      border-radius: 4px;
-      padding: 1rem;
-    }}
-    .book-lines h4 {{
-      font-size: 0.875rem;
-      color: #4FC3F7;
-      margin-bottom: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }}
-    .book-lines-table {{
-      width: 100%;
-      border-collapse: collapse;
-    }}
-    .book-lines-table th {{
-      text-align: left;
-      font-size: 0.75rem;
-      color: #999;
-      padding: 0.5rem;
-      border-bottom: 1px solid #3a3a3a;
-    }}
-    .book-lines-table td {{
-      padding: 0.5rem;
-      font-size: 0.875rem;
-      border-bottom: 1px solid #222;
-    }}
-    .book-lines-table tr:last-child td {{
-      border-bottom: none;
-    }}
-    .book-lines-table tr:hover {{
-      background: #333;
-    }}
-    .consensus-row {{
-      background: #1a2a1a !important;
-      font-weight: bold;
-    }}
-    .consensus-row td {{
-      color: #66BB6A;
-    }}
-
-    /* Search filter */
-    .search-container {{
-      margin-bottom: 1.5rem;
-    }}
-    .search-box {{
-      width: 100%;
-      max-width: 400px;
-      padding: 0.75rem 1rem;
-      background: #1a1a1a;
-      border: 1px solid #2a2a2a;
-      border-radius: 8px;
-      color: #fff;
-      font-size: 1rem;
-      transition: border-color 0.2s;
-    }}
-    .search-box:focus {{
-      outline: none;
-      border-color: #4FC3F7;
-    }}
-    .search-box::placeholder {{
-      color: #666;
+    .totals-summary {{ font-variant-numeric: tabular-nums; }}
+    .totals-summary th {{ white-space: nowrap; color: var(--muted); font-size: 13px;
+      text-transform: uppercase; letter-spacing: .06em; }}
+    .totals-summary td {{ white-space: nowrap; }}
+    .totals-summary tbody tr:hover {{ background: #172230; }}
+    .num {{ text-align: right; font-variant-numeric: tabular-nums; }}
+    .game-card {{ background: var(--card); border: 1px solid var(--border);
+      border-radius: 14px; padding: 22px; margin-bottom: 16px; }}
+    .game-card.has-edge {{ border-color: var(--accent); }}
+    .game-header {{ display: flex; justify-content: space-between; align-items: baseline;
+      gap: 12px; flex-wrap: wrap; padding-bottom: 14px; margin-bottom: 16px;
+      border-bottom: 1px solid var(--border); }}
+    .matchup {{ font-size: 20px; font-weight: 700; color: #fff; }}
+    .teamtotals {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px; margin-bottom: 16px; }}
+    .teamtotal {{ background: #101722; border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 16px; }}
+    .teamtotal .team {{ color: var(--muted); font-size: 13px; text-transform: uppercase;
+      letter-spacing: .06em; }}
+    .teamtotal .val {{ font-size: 30px; font-weight: 700; color: var(--accent);
+      font-variant-numeric: tabular-nums; letter-spacing: -.02em; }}
+    .marketrow {{ display: flex; flex-wrap: wrap; gap: 10px 28px; margin-bottom: 16px; }}
+    .marketrow div {{ font-size: 14px; color: var(--muted); }}
+    .marketrow b {{ display: block; color: var(--text); font-size: 17px; font-weight: 650;
+      font-variant-numeric: tabular-nums; }}
+    .book-lines-table {{ font-variant-numeric: tabular-nums; font-size: 14px; }}
+    .book-lines-table th {{ color: var(--muted); font-size: 12px; text-transform: uppercase;
+      letter-spacing: .06em; }}
+    .consensus-row {{ background: #172230; font-weight: 650; }}
+    .best {{ color: var(--accent); font-weight: 650; }}
+    @media (max-width: 600px) {{
+      .teamtotals {{ grid-template-columns: 1fr; }}
+      .game-card {{ padding: 18px; }}
+      .matchup {{ font-size: 18px; }}
     }}
   </style>
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
   <div id="nav-root"></div>
-  <script src="../../nav.js?v=30"></script>
+  <script src="../../nav.js?v=33"></script>
 
-  <div class="container">
-    <aside style="padding:16px;border:1px solid #8a7334;color:#f3df9e;margin-bottom:20px">{notice}</aside>
-    <div class="header">
-      <h1>NFL Totals - Week {week}</h1>
-      <p class="subtitle">{subtitle}</p>
-    </div>
+  <main id="main" class="wrap">
+    <p class="eyebrow">NFL &middot; Week {week}</p>
+    <h1>NFL team totals</h1>
+    <p class="lead">{subtitle}</p>
+    <div class="notice"><p>{notice}</p></div>
 
-    <div class="tabs">
-      <a href="../../props/index.html" class="tab">Props</a>
-      <a href="../../nfl/totals/index.html" class="tab active">Totals</a>
-    </div>
+    <nav class="subnav" aria-label="NFL sections">
+      <a href="../../props/index.html">Player props</a>
+      <a href="../../props/top.html">Top picks</a>
+      <a href="../../nfl/totals/index.html" aria-current="page">Team totals</a>
+      <a href="../../props/arbitrage.html">Price checks</a>
+      <a href="../../methods.html">Methods</a>
+    </nav>
 
-    <div class="search-container">
-      <input type="text" id="gameSearch" class="search-box" placeholder="Filter games by team (e.g., KC, BUF, DAL)..." />
+    <div class="filters" style="grid-template-columns:1fr">
+      <label for="gameSearch">Filter games by team
+        <input type="text" id="gameSearch" class="search-box" placeholder="e.g. KC, BUF, DAL" />
+      </label>
     </div>
 """
 
@@ -384,31 +176,92 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
     if len(merged) > 0:
         avg_market = merged['consensus_total'].mean() if 'consensus_total' in merged.columns and not merged['consensus_total'].isna().all() else 0
         num_games = len(merged)
-        num_edges = len(edges)
+        books = int(lines['book'].nunique()) if len(lines) and 'book' in lines.columns else 0
+        avg_hold = merged['hold_pct'].mean() if 'hold_pct' in merged.columns and merged['hold_pct'].notna().any() else float('nan')
 
         model_card = ""
         if has_model:
             model_card = f"""
-      <div class="stat-card">
-        <div class="stat-label">Avg Model Total</div>
-        <div class="stat-value">{merged['total_pred'].mean():.1f}</div>
+      <div class="panel">
+        <div class="meta">Avg model total</div>
+        <div style="font-size:28px;font-weight:700;color:var(--accent)">{merged['total_pred'].mean():.1f}</div>
+      </div>"""
+
+        hold_card = ""
+        if avg_hold == avg_hold:
+            hold_card = f"""
+      <div class="panel">
+        <div class="meta">Average book hold</div>
+        <div style="font-size:28px;font-weight:700;color:var(--accent)">{avg_hold:.1f}%</div>
       </div>"""
 
         html += f"""
-    <div class="stats-summary">
-      <div class="stat-card">
-        <div class="stat-label">Games This Week</div>
-        <div class="stat-value">{num_games}</div>
+    <div class="grid">
+      <div class="panel">
+        <div class="meta">Games this week</div>
+        <div style="font-size:28px;font-weight:700;color:var(--accent)">{num_games}</div>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Consensus Edges</div>
-        <div class="stat-value">{num_edges}</div>
-      </div>{model_card}
-      <div class="stat-card">
-        <div class="stat-label">Avg Market Total</div>
-        <div class="stat-value">{avg_market:.1f}</div>
+      <div class="panel">
+        <div class="meta">Sportsbooks compared</div>
+        <div style="font-size:28px;font-weight:700;color:var(--accent)">{books}</div>
+      </div>{model_card}{hold_card}
+      <div class="panel">
+        <div class="meta">Average market total</div>
+        <div style="font-size:28px;font-weight:700;color:var(--accent)">{avg_market:.1f}</div>
       </div>
     </div>
+"""
+
+        # Scannable summary: every game on one screen, so team totals can be
+        # compared across the slate without opening each card.
+        if 'implied_home_total' in merged.columns and merged['implied_home_total'].notna().any():
+            html += """
+    <section class="section">
+      <h2>Every game at a glance</h2>
+      <p class="meta">Team totals are implied by each game's consensus total and spread. Fair percentages are de-vigged.</p>
+      <div class="table-wrap">
+        <table class="totals-summary">
+          <thead>
+            <tr>
+              <th scope="col">Game</th>
+              <th scope="col">Kickoff</th>
+              <th scope="col" class="num">Total</th>
+              <th scope="col" class="num">Away TT</th>
+              <th scope="col" class="num">Home TT</th>
+              <th scope="col" class="num">Fair O/U</th>
+              <th scope="col" class="num">Hold</th>
+              <th scope="col" class="num">Best over</th>
+              <th scope="col" class="num">Best under</th>
+            </tr>
+          </thead>
+          <tbody>
+"""
+            for _, g in merged.iterrows():
+                if pd.isna(g.get('implied_home_total')):
+                    continue
+                fair = (f"{g['fair_over_prob']*100:.1f}% / {g['fair_under_prob']*100:.1f}%"
+                        if pd.notna(g.get('fair_over_prob')) else '&mdash;')
+                hold = f"{g['hold_pct']:.1f}%" if pd.notna(g.get('hold_pct')) else '&mdash;'
+                b_over = (f"{g['best_over_price']:+.0f} <span class=\"meta\">{g['best_over_book']}</span>"
+                          if pd.notna(g.get('best_over_price')) else '&mdash;')
+                b_under = (f"{g['best_under_price']:+.0f} <span class=\"meta\">{g['best_under_book']}</span>"
+                           if pd.notna(g.get('best_under_price')) else '&mdash;')
+                html += f"""            <tr>
+              <td><a href="#game-{g['game'].replace(' ', '-').replace('@', 'at')}">{g['game']}</a></td>
+              <td class="meta">{kickoff(g)}</td>
+              <td class="num">{g['consensus_total']:.1f}</td>
+              <td class="num">{g['implied_away_total']:.2f}</td>
+              <td class="num">{g['implied_home_total']:.2f}</td>
+              <td class="num">{fair}</td>
+              <td class="num">{hold}</td>
+              <td class="num">{b_over}</td>
+              <td class="num">{b_under}</td>
+            </tr>
+"""
+            html += """          </tbody>
+        </table>
+      </div>
+    </section>
 """
 
     # Edge plays section
@@ -437,213 +290,185 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
 
     # Games grid
     html += """
-    <div class="games-grid">
+    <section class="section">
+      <h2>Game detail</h2>
+      <div class="games-grid">
 """
 
     if len(merged) > 0:
         for _, game in merged.iterrows():
-            # Check if this game has edge plays
             game_edges = edges[edges['game'] == game['game']] if len(edges) > 0 else pd.DataFrame()
             has_edge = len(game_edges) > 0
-
             card_class = "game-card has-edge" if has_edge else "game-card"
+            anchor = game['game'].replace(' ', '-').replace('@', 'at')
 
             html += f"""
-      <div class="{card_class}">
+      <article class="{card_class}" id="game-{anchor}">
         <div class="game-header">
           <div class="matchup">{game['game']}</div>
+          <div class="meta">{kickoff(game)}</div>
         </div>
-
-        <div class="totals-row">
-"""
-            if 'total_pred' in game and not pd.isna(game['total_pred']):
-                html += f"""
-          <div class="total-item">
-            <div class="total-label">Model Prediction</div>
-            <div class="total-value model">{game['total_pred']:.1f}</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">{game['home_team']}</div>
-            <div class="total-value">{game['home_pred']:.1f}</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">{game['away_team']}</div>
-            <div class="total-value">{game['away_pred']:.1f}</div>
-          </div>
 """
 
-            if 'consensus_total' in game and not pd.isna(game['consensus_total']):
+            # Implied team totals lead the card: they are the headline number.
+            if pd.notna(game.get('implied_home_total')):
                 html += f"""
-          <div class="total-item">
-            <div class="total-label">Market Total</div>
-            <div class="total-value market">{game['consensus_total']:.1f}</div>
+        <div class="teamtotals">
+          <div class="teamtotal">
+            <div class="team">{game['away_team']} team total</div>
+            <div class="val">{game['implied_away_total']:.2f}</div>
           </div>
-"""
-
-            if 'implied_home_total' in game and not pd.isna(game.get('implied_home_total')):
-                html += f"""
-          <div class="total-item">
-            <div class="total-label">{game['away_team']} team total</div>
-            <div class="total-value market">{game['implied_away_total']:.2f}</div>
+          <div class="teamtotal">
+            <div class="team">{game['home_team']} team total</div>
+            <div class="val">{game['implied_home_total']:.2f}</div>
           </div>
-          <div class="total-item">
-            <div class="total-label">{game['home_team']} team total</div>
-            <div class="total-value market">{game['implied_home_total']:.2f}</div>
-          </div>
-"""
-
-            if 'fair_over_prob' in game and not pd.isna(game.get('fair_over_prob')):
-                html += f"""
-          <div class="total-item">
-            <div class="total-label">Fair over / under</div>
-            <div class="total-value">{game['fair_over_prob']*100:.1f}% / {game['fair_under_prob']*100:.1f}%</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Book hold</div>
-            <div class="total-value">{game['hold_pct']:.1f}%</div>
-          </div>
-"""
-
-            if 'best_over_price' in game and not pd.isna(game.get('best_over_price')):
-                html += f"""
-          <div class="total-item">
-            <div class="total-label">Best over ({game['books_at_line']:.0f} books at line)</div>
-            <div class="total-value">{game['best_over_price']:+.0f} {game['best_over_book']}</div>
-          </div>
-          <div class="total-item">
-            <div class="total-label">Best under</div>
-            <div class="total-value">{game['best_under_price']:+.0f} {game['best_under_book']}</div>
-          </div>
-"""
-
-            if 'model_spread' in game and not pd.isna(game['model_spread']):
-                html += f"""
-          <div class="total-item">
-            <div class="total-label">Model Spread</div>
-            <div class="total-value model">{game['home_team']} {game['model_spread']:+.1f}</div>
-          </div>
-"""
-
-            if 'consensus_spread' in game and not pd.isna(game['consensus_spread']):
-                html += f"""
-          <div class="total-item">
-            <div class="total-label">Market Spread</div>
-            <div class="total-value market">{game['home_team']} {game['consensus_spread']:+.1f}</div>
-          </div>
-"""
-
-            if 'edge' in game and not pd.isna(game['edge']):
-                edge_color = "edge" if abs(game['edge']) > 3.0 else ""
-                html += f"""
-          <div class="total-item">
-            <div class="total-label">Model Edge</div>
-            <div class="total-value {edge_color}">{game['edge']:+.1f}</div>
-          </div>
+        </div>
 """
 
             html += """
-        </div>
+        <div class="marketrow">
+"""
+            if pd.notna(game.get('consensus_total')):
+                html += f"""          <div>Market total<b>{game['consensus_total']:.1f}</b></div>
+"""
+            if pd.notna(game.get('consensus_spread')):
+                html += f"""          <div>Market spread<b>{game['home_team']} {game['consensus_spread']:+.1f}</b></div>
+"""
+            if pd.notna(game.get('fair_over_prob')):
+                html += f"""          <div>Fair over / under<b>{game['fair_over_prob']*100:.1f}% / {game['fair_under_prob']*100:.1f}%</b></div>
+"""
+            if pd.notna(game.get('hold_pct')):
+                html += f"""          <div>Book hold<b>{game['hold_pct']:.1f}%</b></div>
+"""
+            if pd.notna(game.get('best_over_price')):
+                html += f"""          <div>Best over &middot; {int(game['books_at_line'])} books at line<b class="best">{game['best_over_price']:+.0f} {game['best_over_book']}</b></div>
+"""
+            if pd.notna(game.get('best_under_price')):
+                html += f"""          <div>Best under<b class="best">{game['best_under_price']:+.0f} {game['best_under_book']}</b></div>
+"""
+            if has_model and pd.notna(game.get('total_pred')):
+                html += f"""          <div>Model total<b>{game['total_pred']:.1f}</b></div>
+"""
+            if has_model and pd.notna(game.get('edge')):
+                html += f"""          <div>Model edge<b>{game['edge']:+.1f}</b></div>
+"""
+            html += """        </div>
 """
 
             # Show all book lines for this game
             game_lines = lines[lines['game'] == game['game']] if len(lines) > 0 else pd.DataFrame()
             if len(game_lines) > 0:
-                html += """
-        <div class="book-lines">
-          <h4>📊 All Book Lines</h4>
+                n_books = int(game_lines['book'].nunique())
+                best_over = game.get('best_over_price')
+                best_under = game.get('best_under_price')
+                cons_total = game.get('consensus_total')
+                html += f"""
+        <details class="book-lines">
+          <summary>All {n_books} sportsbook lines</summary>
+          <div class="table-wrap">
           <table class="book-lines-table">
             <thead>
               <tr>
-                <th>Book</th>
-                <th>Total</th>
-                <th>Over</th>
-                <th>Under</th>
-                <th>Spread</th>
-                <th>Fav</th>
-                <th>Dog</th>
+                <th scope="col">Book</th>
+                <th scope="col" class="num">Total</th>
+                <th scope="col" class="num">Over</th>
+                <th scope="col" class="num">Under</th>
+                <th scope="col">Spread</th>
+                <th scope="col" class="num">Fav</th>
+                <th scope="col" class="num">Dog</th>
               </tr>
             </thead>
             <tbody>
 """
-                # Add consensus row first if available
-                if 'consensus_total' in game and not pd.isna(game['consensus_total']):
-                    spread_str = f"{game['home_team']} {game['consensus_spread']:+.1f}" if 'consensus_spread' in game and not pd.isna(game['consensus_spread']) else '-'
+                # Consensus first, as the reference row for everything below it
+                if pd.notna(cons_total):
+                    spread_str = (f"{game['home_team']} {game['consensus_spread']:+.1f}"
+                                  if pd.notna(game.get('consensus_spread')) else '&mdash;')
                     html += f"""
               <tr class="consensus-row">
-                <td><strong>CONSENSUS</strong></td>
-                <td>{game['consensus_total']:.1f}</td>
-                <td>-</td>
-                <td>-</td>
+                <td><strong>Consensus</strong></td>
+                <td class="num">{cons_total:.1f}</td>
+                <td class="num">&mdash;</td>
+                <td class="num">&mdash;</td>
                 <td>{spread_str}</td>
-                <td>-</td>
-                <td>-</td>
+                <td class="num">&mdash;</td>
+                <td class="num">&mdash;</td>
               </tr>
 """
 
-                # Add individual book lines
-                for _, line in game_lines.iterrows():
-                    total_str = f"{line['total_over_line']:.1f}" if not pd.isna(line.get('total_over_line')) else '-'
-                    over_odds = f"{int(line['total_over_price']):+d}" if not pd.isna(line.get('total_over_price')) else '-'
-                    under_odds = f"{int(line['total_under_price']):+d}" if not pd.isna(line.get('total_under_price')) else '-'
+                for _, line in game_lines.sort_values('book').iterrows():
+                    on_line = pd.notna(line.get('total_over_line')) and pd.notna(cons_total) and line['total_over_line'] == cons_total
+                    total_str = f"{line['total_over_line']:.1f}" if pd.notna(line.get('total_over_line')) else '&mdash;'
+                    over_odds = f"{int(line['total_over_price']):+d}" if pd.notna(line.get('total_over_price')) else '&mdash;'
+                    under_odds = f"{int(line['total_under_price']):+d}" if pd.notna(line.get('total_under_price')) else '&mdash;'
+                    # Only a book quoting the consensus line can hold the best price.
+                    over_cls = ' class="num best"' if on_line and pd.notna(best_over) and line.get('total_over_price') == best_over else ' class="num"'
+                    under_cls = ' class="num best"' if on_line and pd.notna(best_under) and line.get('total_under_price') == best_under else ' class="num"'
 
-                    spread_str = f"{game['home_team']} {line['spread_home_line']:+.1f}" if not pd.isna(line.get('spread_home_line')) else '-'
-                    spread_home_odds = f"{int(line['spread_home_price']):+d}" if not pd.isna(line.get('spread_home_price')) else '-'
-                    spread_away_odds = f"{int(line['spread_away_price']):+d}" if not pd.isna(line.get('spread_away_price')) else '-'
+                    spread_str = f"{game['home_team']} {line['spread_home_line']:+.1f}" if pd.notna(line.get('spread_home_line')) else '&mdash;'
+                    spread_home_odds = f"{int(line['spread_home_price']):+d}" if pd.notna(line.get('spread_home_price')) else '&mdash;'
+                    spread_away_odds = f"{int(line['spread_away_price']):+d}" if pd.notna(line.get('spread_away_price')) else '&mdash;'
 
                     html += f"""
               <tr>
                 <td>{line['book']}</td>
-                <td>{total_str}</td>
-                <td>{over_odds}</td>
-                <td>{under_odds}</td>
+                <td class="num">{total_str}</td>
+                <td{over_cls}>{over_odds}</td>
+                <td{under_cls}>{under_odds}</td>
                 <td>{spread_str}</td>
-                <td>{spread_home_odds}</td>
-                <td>{spread_away_odds}</td>
+                <td class="num">{spread_home_odds}</td>
+                <td class="num">{spread_away_odds}</td>
               </tr>
 """
 
                 html += """
             </tbody>
           </table>
-        </div>
+          </div>
+        </details>
 """
 
             # Show edge plays for this game
             if has_edge:
                 html += """
         <div class="edge-play-list">
-          <div style="font-size: 0.875rem; color: #4FC3F7; margin-bottom: 0.5rem; font-weight: bold;">🎯 Consensus Edge Plays:</div>
+          <p class="eyebrow">Consensus edge plays</p>
 """
                 for _, play in game_edges.iterrows():
-                    bet_emoji = "📉" if play['bet'] == 'UNDER' else "📈"
                     html += f"""
-          <div style="margin-bottom: 0.5rem; padding: 0.5rem; background: #0f0f0f; border-radius: 4px;">
-            <div style="color: #4FC3F7; font-weight: bold;">{bet_emoji} {play['bet']} {play['line']} at {play['book']}</div>
-            <div style="font-size: 0.8rem; color: #999;">Consensus: {play['consensus']:.1f} | Model: {play['model']:.1f} | Edge: {play['edge']:.1f} points</div>
-          </div>
+          <p class="meta"><span class="tag">{play['bet']} {play['line']}</span> at {play['book']}
+          &middot; consensus {play['consensus']:.1f} &middot; model {play['model']:.1f}
+          &middot; edge {play['edge']:.1f} pts</p>
 """
                 html += """
         </div>
 """
 
             html += """
-      </div>
+      </article>
 """
     else:
         html += """
-      <div class="no-data">
-        <h3>No games this week</h3>
-        <p>Run: make nfl_totals_daily WEEK=N</p>
+      <div class="empty">
+        <h3>No games on the board</h3>
+        <p class="meta">The next scheduled refresh will populate this page.</p>
       </div>
 """
 
-    html += f"""
-    </div>
+    quote_line = (f"Sportsbook quotes provided at {quoted_at}."
+                  if quoted_at else
+                  "Sportsbook quote times were not supplied by the provider for this snapshot.")
 
-    <div class="updated">
-      Last updated: {datetime.now().strftime('%Y-%m-%d %I:%M %p ET')}
-    </div>
-  </div>
+    html += f"""
+      </div>
+    </section>
+
+    <footer>
+      <p>{quote_line} Page built {datetime.now().strftime('%b %-d, %Y at %-I:%M %p')} local time &mdash;
+      build time is not quote time.</p>
+      <p>Lines move. Confirm the current price at your sportsbook before betting.</p>
+    </footer>
+  </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../../tracking/bet-tracking.js"></script>
@@ -695,13 +520,13 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
         // Over button
         const overBtn = document.createElement('button');
         overBtn.textContent = 'O';
-        overBtn.style.cssText = 'padding:0.3rem 0.5rem;background:#4FC3F7;color:#000;border:none;border-radius:3px;font-size:0.7rem;font-weight:600;cursor:pointer;';
+        overBtn.style.cssText = 'min-height:32px;padding:4px 10px;background:var(--accent);color:#10241c;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;';
         overBtn.onclick = () => window.trackNFLTotal(homeTeam, awayTeam, book, totalLine, overPrice, 'over');
 
         // Under button
         const underBtn = document.createElement('button');
         underBtn.textContent = 'U';
-        underBtn.style.cssText = 'padding:0.3rem 0.5rem;background:#4FC3F7;color:#000;border:none;border-radius:3px;font-size:0.7rem;font-weight:600;cursor:pointer;';
+        underBtn.style.cssText = 'min-height:32px;padding:4px 10px;background:var(--accent);color:#10241c;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;';
         underBtn.onclick = () => window.trackNFLTotal(homeTeam, awayTeam, book, totalLine, underPrice, 'under');
 
         trackCell.appendChild(overBtn);
@@ -766,12 +591,13 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
 
       gameCards.forEach(card => {{
         const matchup = card.querySelector('.matchup').textContent.toLowerCase();
+        card.hidden = !(searchTerm === '' || matchup.includes(searchTerm));
+      }});
 
-        if (searchTerm === '' || matchup.includes(searchTerm)) {{
-          card.style.display = 'block';
-        }} else {{
-          card.style.display = 'none';
-        }}
+      // Keep the at-a-glance table in step with the cards.
+      document.querySelectorAll('.totals-summary tbody tr').forEach(row => {{
+        const game = (row.querySelector('td a')?.textContent || '').toLowerCase();
+        row.hidden = !(searchTerm === '' || game.includes(searchTerm));
       }});
     }});
   </script>
