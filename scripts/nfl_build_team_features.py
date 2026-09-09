@@ -15,7 +15,7 @@ def build_team_features(pbp_path='data/pbp/pbp_2025.parquet', output_path='data/
     pbp = pd.read_parquet(pbp_path)
 
     # Get game-level summary first
-    games = pbp.groupby(['game_id', 'home_team', 'away_team', 'week', 'game_date']).agg({
+    games = pbp.groupby(['game_id', 'season', 'home_team', 'away_team', 'week', 'game_date']).agg({
         'total': 'first',
         'total_line': 'first',
         'home_score': 'last',
@@ -34,6 +34,7 @@ def build_team_features(pbp_path='data/pbp/pbp_2025.parquet', output_path='data/
         home_off = game_pbp[game_pbp['posteam'] == game['home_team']]
         home_features = {
             'game_id': game['game_id'],
+            'season': game['season'],
             'team': game['home_team'],
             'opponent': game['away_team'],
             'week': game['week'],
@@ -70,6 +71,7 @@ def build_team_features(pbp_path='data/pbp/pbp_2025.parquet', output_path='data/
         away_off = game_pbp[game_pbp['posteam'] == game['away_team']]
         away_features = {
             'game_id': game['game_id'],
+            'season': game['season'],
             'team': game['away_team'],
             'opponent': game['home_team'],
             'week': game['week'],

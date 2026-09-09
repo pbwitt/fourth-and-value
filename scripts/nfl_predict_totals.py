@@ -6,10 +6,28 @@ import pickle
 import os
 from datetime import datetime
 
+def load_schedule(season):
+    """
+    Season schedule with kickoff dates. Cached per season so a rebuild does not
+    depend on the network, and so the season is always explicit rather than
+    inherited from whichever schedule file happened to be on disk.
+    """
+    cache = f'data/schedule_{season}.csv'
+    if os.path.exists(cache):
+        return pd.read_csv(cache)
+
+    import nfl_data_py as nfl
+    schedule = nfl.import_schedules([season])
+    os.makedirs(os.path.dirname(cache) or '.', exist_ok=True)
+    schedule.to_csv(cache, index=False)
+    return schedule
+
+
 def generate_predictions(model_path='data/nfl/models/ridge_totals.pkl',
                         team_features_path='data/nfl/processed/team_features.csv',
                         week=None,
-                        output_path='data/nfl/predictions/week_predictions.csv'):
+                        output_path='data/nfl/predictions/week_predictions.csv',
+                        season=None):
     """
     Generate predictions for upcoming week
     """
@@ -26,24 +44,41 @@ def generate_predictions(model_path='data/nfl/models/ridge_totals.pkl',
     print("\nLoading team features...")
     df = pd.read_csv(team_features_path)
 
-    # If week not specified, use next week
+    if season is None:
+        season = int(df['season'].max()) if 'season' in df.columns else None
+    if season is None:
+        raise ValueError('season is required (team features carry no season column)')
+
+    # If week not specified, use next week within the target season
     if week is None:
-        week = df['week'].max() + 1
+        season_weeks = df.loc[df['season'] == season, 'week']
+        week = int(season_weeks.max()) + 1 if len(season_weeks) else 1
 
-    print(f"Generating predictions for Week {week}...")
+    print(f"Generating predictions for {season} Week {week}...")
 
-    # Get latest features for each team
-    latest = df.groupby('team').apply(lambda x: x.sort_values('week').iloc[-1]).reset_index(drop=True)
-
-    # Prepare for predictions (we'll need to specify matchups)
-    # For now, just show what each team would contribute
     predictions = []
 
-    # Get this week's schedule if available
-    try:
-        schedule = pd.read_csv('data/schedule_2025.csv')
-        week_games = schedule[schedule['week'] == week]
+    schedule = load_schedule(season)
+    week_games = schedule[schedule['week'] == week]
+    if len(week_games) == 0:
+        raise ValueError(f'No games found in the {season} schedule for week {week}')
 
+    # Rolling form is carried across the season break, so Week 1 is predicted
+    # from the prior season's closing form. Only games that kicked off before
+    # this one may inform it.
+    cutoff = str(week_games['gameday'].min())
+    history = df[df['game_date'].astype(str) < cutoff]
+    if len(history) == 0:
+        raise ValueError(f'No team-game history before {cutoff}; cannot build features')
+
+    latest = (history.sort_values(['game_date', 'game_id'])
+                     .groupby('team', as_index=False)
+                     .tail(1)
+                     .reset_index(drop=True))
+    print(f"Carrying form from games before {cutoff} "
+          f"({latest['game_date'].min()} to {latest['game_date'].max()}, {len(latest)} teams)")
+
+    if True:
         for _, game in week_games.iterrows():
             home_team = game['home_team']
             away_team = game['away_team']
@@ -72,22 +107,12 @@ def generate_predictions(model_path='data/nfl/models/ridge_totals.pkl',
                 'game': f"{away_team} @ {home_team}",
                 'home_team': home_team,
                 'away_team': away_team,
+                'season': season,
                 'week': week,
+                'gameday': game['gameday'],
                 'home_pred': home_pred,
                 'away_pred': away_pred,
                 'total_pred': total_pred
-            })
-
-    except FileNotFoundError:
-        print("  Warning: No schedule file found, showing team totals only")
-
-        for _, team_row in latest.iterrows():
-            team_features = team_row[feature_cols].values
-            pred = model.predict([team_features.reshape(1, -1)])[0]
-
-            predictions.append({
-                'team': team_row['team'],
-                'predicted_contribution': pred
             })
 
     # Save predictions
@@ -112,8 +137,9 @@ if __name__ == '__main__':
     parser.add_argument('--model', default='data/nfl/models/ridge_totals.pkl', help='Model pickle file')
     parser.add_argument('--team-features', default='data/nfl/processed/team_features.csv', help='Team features CSV')
     parser.add_argument('--week', type=int, help='Week to predict (default: next week)')
+    parser.add_argument('--season', type=int, required=True, help='Season to predict (e.g. 2026)')
     parser.add_argument('--output', default='data/nfl/predictions/week_predictions.csv', help='Output CSV')
 
     args = parser.parse_args()
 
-    generate_predictions(args.model, args.team_features, args.week, args.output)
+    generate_predictions(args.model, args.team_features, args.week, args.output, args.season)

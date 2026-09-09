@@ -387,7 +387,7 @@ nhl_totals_daily: nhl_totals_fetch nhl_totals_features nhl_totals_train nhl_tota
 # NFL Team Totals Pipeline
 # ========================================================================
 
-NFL_PBP := data/pbp/pbp_2024_2025.parquet
+NFL_PBP := data/pbp/pbp_2022_2025.parquet
 NFL_TEAM_FEATURES := data/nfl/processed/team_features.csv
 NFL_TOTALS_MODEL := data/nfl/models/ridge_totals.pkl
 NFL_TOTALS_PREDS := data/nfl/predictions/week_predictions.csv
@@ -403,7 +403,7 @@ nfl_totals_fetch:
 	@echo "====================================================================="
 	@echo "Fetching NFL play-by-play data..."
 	@echo "====================================================================="
-	$(PY) -c "import nfl_data_py as nfl; pbp = nfl.import_pbp_data([2024, 2025]); pbp.to_parquet('$(NFL_PBP)'); print(f'✓ Fetched {len(pbp)} plays')"
+	$(PY) -c "import nfl_data_py as nfl; pbp = nfl.import_pbp_data([2022, 2023, 2024, 2025], downcast=True); pbp.to_parquet('$(NFL_PBP)'); print(f'✓ Fetched {len(pbp)} plays')"
 	@echo "✓ PBP data saved to $(NFL_PBP)"
 
 # Build team features from PBP
@@ -432,6 +432,7 @@ nfl_totals_predict:
 	$(PY) scripts/nfl_predict_totals.py \
 		--model $(NFL_TOTALS_MODEL) \
 		--team-features $(NFL_TEAM_FEATURES) \
+		--season $(SEASON) \
 		--week $(WEEK) \
 		--output $(NFL_TOTALS_PREDS)
 
