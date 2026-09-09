@@ -52,6 +52,19 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
         if len(merged) > 0:
             merged['model_spread'] = merged['away_pred'] - merged['home_pred']
 
+    # Model figures are shown only when this slate actually has predictions.
+    # A stale predictions file must never be presented against current lines.
+    has_model = 'total_pred' in merged.columns and merged['total_pred'].notna().any()
+
+    if has_model:
+        subtitle = "Model predictions vs market consensus • Find outlier books before lines move"
+        notice = ("Research snapshot: quote freshness and model accuracy have not been revalidated. "
+                  "Confirm the season and source dates before interpreting these lines.")
+    else:
+        subtitle = "Market consensus across sportsbooks • Find outlier books before lines move"
+        notice = ("Market lines only: this page compares sportsbook totals and spreads. "
+                  "No model estimate is published for this slate.")
+
     # Build HTML
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -335,10 +348,10 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
   <script src="../../nav.js?v=30"></script>
 
   <div class="container">
-    <aside style="padding:16px;border:1px solid #8a7334;color:#f3df9e;margin-bottom:20px">Research snapshot: quote freshness and model accuracy have not been revalidated. Confirm the season and source dates before interpreting these lines.</aside>
+    <aside style="padding:16px;border:1px solid #8a7334;color:#f3df9e;margin-bottom:20px">{notice}</aside>
     <div class="header">
       <h1>NFL Totals - Week {week}</h1>
-      <p class="subtitle">Model predictions vs market consensus • Find outlier books before lines move</p>
+      <p class="subtitle">{subtitle}</p>
     </div>
 
     <div class="tabs">
@@ -353,10 +366,17 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
 
     # Stats summary
     if len(merged) > 0:
-        avg_model = merged['total_pred'].mean()
         avg_market = merged['consensus_total'].mean() if 'consensus_total' in merged.columns and not merged['consensus_total'].isna().all() else 0
         num_games = len(merged)
         num_edges = len(edges)
+
+        model_card = ""
+        if has_model:
+            model_card = f"""
+      <div class="stat-card">
+        <div class="stat-label">Avg Model Total</div>
+        <div class="stat-value">{merged['total_pred'].mean():.1f}</div>
+      </div>"""
 
         html += f"""
     <div class="stats-summary">
@@ -367,11 +387,7 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
       <div class="stat-card">
         <div class="stat-label">Consensus Edges</div>
         <div class="stat-value">{num_edges}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Avg Model Total</div>
-        <div class="stat-value">{avg_model:.1f}</div>
-      </div>
+      </div>{model_card}
       <div class="stat-card">
         <div class="stat-label">Avg Market Total</div>
         <div class="stat-value">{avg_market:.1f}</div>

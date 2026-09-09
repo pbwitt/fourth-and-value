@@ -77,15 +77,18 @@ def parse_totals_spreads(events):
 
         for book in bookmakers:
             book_name = book.get("key") or book.get("title")
+            book_last_update = book.get("last_update")
             markets = book.get("markets", [])
 
             # Extract totals
             total_over_line = None
             total_over_price = None
             total_under_price = None
+            totals_last_update = None
 
             for market in markets:
                 if market.get("key") == "totals":
+                    totals_last_update = market.get("last_update") or book_last_update
                     outcomes = market.get("outcomes", [])
                     for outcome in outcomes:
                         if outcome.get("name") == "Over":
@@ -98,9 +101,11 @@ def parse_totals_spreads(events):
             spread_home_line = None
             spread_home_price = None
             spread_away_price = None
+            spreads_last_update = None
 
             for market in markets:
                 if market.get("key") == "spreads":
+                    spreads_last_update = market.get("last_update") or book_last_update
                     outcomes = market.get("outcomes", [])
                     for outcome in outcomes:
                         outcome_team = outcome.get("name")
@@ -124,6 +129,8 @@ def parse_totals_spreads(events):
                     "spread_home_line": spread_home_line,
                     "spread_home_price": spread_home_price,
                     "spread_away_price": spread_away_price,
+                    "totals_last_update": totals_last_update,
+                    "spreads_last_update": spreads_last_update,
                 })
 
     return rows
