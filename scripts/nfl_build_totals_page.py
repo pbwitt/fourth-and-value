@@ -7,7 +7,7 @@ import os
 from datetime import datetime
 
 def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, output_path, week,
-                      team_totals_path=None):
+                      team_totals_path=None, priced_path=None):
     """
     Build HTML page showing:
     - Model predictions
@@ -66,9 +66,27 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
                              'books_at_line', 'quoted_at') if c in team_totals.columns]
         merged = merged.merge(team_totals[carry], on='game', how='left')
 
+    # Priced model view: projection shrunk toward the market by the amount the
+    # model's measured skill justifies, plus the probability that implies.
+    priced = (pd.read_csv(priced_path)
+              if priced_path and os.path.exists(priced_path) else pd.DataFrame())
+    calibration = {}
+    if len(priced) > 0 and len(merged) > 0:
+        cols = [c for c in ('game', 'model_projection', 'calibrated_projection',
+                            'model_over_prob', 'market_over_prob', 'prob_edge_over_pp',
+                            'best_ev_per_100', 'best_side') if c in priced.columns]
+        merged = merged.merge(priced[cols], on='game', how='left')
+        first = priced.iloc[0]
+        calibration = {
+            'beta': first.get('calibration_beta'),
+            'sd': first.get('calibration_sd'),
+            'significant': bool(first.get('calibration_significant')),
+        }
+
     # Model figures are shown only when this slate actually has predictions.
     # A stale predictions file must never be presented against current lines.
     has_model = 'total_pred' in merged.columns and merged['total_pred'].notna().any()
+    has_priced = 'calibrated_projection' in merged.columns and merged['calibrated_projection'].notna().any()
 
     if has_model:
         subtitle = "Model predictions vs market consensus • Find outlier books before lines move"
@@ -212,6 +230,29 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
     </div>
 """
 
+        if has_priced and calibration:
+            beta = calibration.get('beta')
+            sig = calibration.get('significant')
+            verdict = ("has measurable skill against the closing line"
+                       if sig else
+                       "has no measurable skill against the closing line")
+            html += f"""
+    <section class="section">
+      <h2>What the model thinks, and what that has been worth</h2>
+      <div class="notice">
+        <p>Our totals model {verdict}. Measured walk-forward over 863 completed
+        games, only <b>{beta:.3f}</b> of each point it claims has historically shown up in
+        the result, and that figure is not statistically distinguishable from zero.
+        Graded at real prices across the 2025 season it went <b>49.2%</b> on 181 bets
+        for <b>&minus;5.8%</b> ROI, and got worse as its claimed edge grew.</p>
+        <p>So projections below are shown two ways: what the model says on its own,
+        and that number shrunk toward the market by the amount its record justifies.
+        The shrunk number is the one any probability here is priced from. We publish
+        both rather than only the flattering one.</p>
+      </div>
+    </section>
+"""
+
         # Scannable summary: every game on one screen, so team totals can be
         # compared across the slate without opening each card.
         if 'implied_home_total' in merged.columns and merged['implied_home_total'].notna().any():
@@ -346,11 +387,13 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
             if pd.notna(game.get('best_under_price')):
                 html += f"""          <div>Best under<b class="best">{game['best_under_price']:+.0f} {game['best_under_book']}</b></div>
 """
-            if has_model and pd.notna(game.get('total_pred')):
-                html += f"""          <div>Model total<b>{game['total_pred']:.1f}</b></div>
+            if pd.notna(game.get('calibrated_projection')):
+                html += f"""          <div>Model projection &middot; raw<b>{game['model_projection']:.1f}</b></div>
+          <div>Model projection &middot; shrunk to record<b>{game['calibrated_projection']:.1f}</b></div>
+          <div>Model over vs market over<b>{game['model_over_prob']*100:.1f}% vs {game['market_over_prob']*100:.1f}%</b></div>
 """
-            if has_model and pd.notna(game.get('edge')):
-                html += f"""          <div>Model edge<b>{game['edge']:+.1f}</b></div>
+            elif has_model and pd.notna(game.get('total_pred')):
+                html += f"""          <div>Model total<b>{game['total_pred']:.1f}</b></div>
 """
             html += """        </div>
 """
@@ -624,8 +667,9 @@ if __name__ == '__main__':
     parser.add_argument('--output', default='docs/nfl/totals/index.html', help='Output HTML')
     parser.add_argument('--week', type=int, required=True, help='Week number')
     parser.add_argument('--team-totals', default=None, help='Market-derived team totals CSV')
+    parser.add_argument('--priced', default=None, help='Priced model projections CSV')
 
     args = parser.parse_args()
 
     build_totals_page(args.predictions, args.consensus, args.edges, args.lines, args.output, args.week,
-                      args.team_totals)
+                      args.team_totals, args.priced)
