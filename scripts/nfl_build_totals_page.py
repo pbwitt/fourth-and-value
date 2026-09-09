@@ -6,7 +6,8 @@ import pandas as pd
 import os
 from datetime import datetime
 
-def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, output_path, week):
+def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, output_path, week,
+                      team_totals_path=None):
     """
     Build HTML page showing:
     - Model predictions
@@ -52,6 +53,19 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
         if len(merged) > 0:
             merged['model_spread'] = merged['away_pred'] - merged['home_pred']
 
+    # Market-derived team totals: implied team totals, de-vigged prices and
+    # best available price. Merged by game so a missing file just omits them.
+    team_totals = (pd.read_csv(team_totals_path)
+                   if team_totals_path and os.path.exists(team_totals_path)
+                   else pd.DataFrame())
+    if len(team_totals) > 0 and len(merged) > 0:
+        carry = [c for c in ('game', 'implied_home_total', 'implied_away_total',
+                             'fair_over_prob', 'fair_under_prob', 'hold_pct',
+                             'best_over_price', 'best_over_book',
+                             'best_under_price', 'best_under_book',
+                             'books_at_line', 'quoted_at') if c in team_totals.columns]
+        merged = merged.merge(team_totals[carry], on='game', how='left')
+
     # Model figures are shown only when this slate actually has predictions.
     # A stale predictions file must never be presented against current lines.
     has_model = 'total_pred' in merged.columns and merged['total_pred'].notna().any()
@@ -61,9 +75,11 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
         notice = ("Research snapshot: quote freshness and model accuracy have not been revalidated. "
                   "Confirm the season and source dates before interpreting these lines.")
     else:
-        subtitle = "Market consensus across sportsbooks • Find outlier books before lines move"
-        notice = ("Market lines only: this page compares sportsbook totals and spreads. "
-                  "No model estimate is published for this slate.")
+        subtitle = ("Implied team totals, de-vigged prices and best available line "
+                    "• Find outlier books before lines move")
+        notice = ("Every number on this page is derived from sportsbook prices: team totals come "
+                  "from the consensus total and spread, and fair percentages are the two sides "
+                  "de-vigged against each other. No model estimate is published for this slate.")
 
     # Build HTML
     html = f"""<!DOCTYPE html>
@@ -464,6 +480,42 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
           </div>
 """
 
+            if 'implied_home_total' in game and not pd.isna(game.get('implied_home_total')):
+                html += f"""
+          <div class="total-item">
+            <div class="total-label">{game['away_team']} team total</div>
+            <div class="total-value market">{game['implied_away_total']:.2f}</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">{game['home_team']} team total</div>
+            <div class="total-value market">{game['implied_home_total']:.2f}</div>
+          </div>
+"""
+
+            if 'fair_over_prob' in game and not pd.isna(game.get('fair_over_prob')):
+                html += f"""
+          <div class="total-item">
+            <div class="total-label">Fair over / under</div>
+            <div class="total-value">{game['fair_over_prob']*100:.1f}% / {game['fair_under_prob']*100:.1f}%</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">Book hold</div>
+            <div class="total-value">{game['hold_pct']:.1f}%</div>
+          </div>
+"""
+
+            if 'best_over_price' in game and not pd.isna(game.get('best_over_price')):
+                html += f"""
+          <div class="total-item">
+            <div class="total-label">Best over ({game['books_at_line']:.0f} books at line)</div>
+            <div class="total-value">{game['best_over_price']:+.0f} {game['best_over_book']}</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">Best under</div>
+            <div class="total-value">{game['best_under_price']:+.0f} {game['best_under_book']}</div>
+          </div>
+"""
+
             if 'model_spread' in game and not pd.isna(game['model_spread']):
                 html += f"""
           <div class="total-item">
@@ -745,7 +797,9 @@ if __name__ == '__main__':
     parser.add_argument('--lines', default='data/nfl/lines/totals_spreads.csv', help='Book lines CSV')
     parser.add_argument('--output', default='docs/nfl/totals/index.html', help='Output HTML')
     parser.add_argument('--week', type=int, required=True, help='Week number')
+    parser.add_argument('--team-totals', default=None, help='Market-derived team totals CSV')
 
     args = parser.parse_args()
 
-    build_totals_page(args.predictions, args.consensus, args.edges, args.lines, args.output, args.week)
+    build_totals_page(args.predictions, args.consensus, args.edges, args.lines, args.output, args.week,
+                      args.team_totals)
