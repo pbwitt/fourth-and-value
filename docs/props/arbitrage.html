@@ -1393,23 +1393,22 @@ h1 {
     });
 
     function getArbitrageDirection(metric, value, minBound, maxBound) {
+      const volume = metric.includes('YPR') ? 'receptions' : metric.includes('YPC') ? 'rush attempts' : 'pass attempts';
+      const yards  = metric.includes('YPR') ? 'receiving yards' : metric.includes('YPC') ? 'rush yards' : 'pass yards';
+      // These are two separate markets that settle independently. Their ratio is
+      // not a joint outcome, so no pair of sides is guaranteed to win together.
+      // We say which line looks out of place and leave the bet to the reader.
       if (value < minBound) {
-        // Efficiency too low - bet Over volume + Under total
         return {
-          side1: 'over',
-          market1: metric.includes('YPR') ? 'receptions' : metric.includes('YPC') ? 'rush attempts' : 'pass attempts',
-          side2: 'under',
-          market2: metric.includes('YPR') ? 'receiving yards' : metric.includes('YPC') ? 'rush yards' : 'pass yards',
-          reason: `Book implies ${value.toFixed(2)} ${metric} (impossible low). If volume hits, total likely stays under.`
+          volume: volume,
+          yards: yards,
+          reason: `This book's ${volume} and ${yards} lines imply ${value.toFixed(2)} ${metric}, below the ${minBound}-${maxBound} range the model treats as realistic. Either the ${volume} line looks high or the ${yards} line looks low. Check both prices against other books before concluding anything.`
         };
       } else {
-        // Efficiency too high - bet Under volume + Over total (rare)
         return {
-          side1: 'under',
-          market1: metric.includes('YPR') ? 'receptions' : metric.includes('YPC') ? 'rush attempts' : 'pass attempts',
-          side2: 'over',
-          market2: metric.includes('YPR') ? 'receiving yards' : metric.includes('YPC') ? 'rush yards' : 'pass yards',
-          reason: `Book implies ${value.toFixed(2)} ${metric} (impossible high). If volume misses, total likely goes over.`
+          volume: volume,
+          yards: yards,
+          reason: `This book's ${volume} and ${yards} lines imply ${value.toFixed(2)} ${metric}, above the ${minBound}-${maxBound} range the model treats as realistic. Either the ${volume} line looks low or the ${yards} line looks high. Check both prices against other books before concluding anything.`
         };
       }
     }
@@ -1444,19 +1443,17 @@ h1 {
           </div>
 
           <div class="arbitrage-play">
-            <div class="arbitrage-title">💡 Structural Arbitrage</div>
+            <div class="arbitrage-title">Markets that disagree</div>
             <div class="bet-suggestion">
               <div class="bet-side">
-                <div class="bet-direction ${arb.side1}">${arb.side1.toUpperCase()}</div>
-                <div class="bet-market">${arb.market1}</div>
+                <div class="bet-market">${arb.volume}</div>
               </div>
               <div class="bet-side">
-                <div class="bet-direction ${arb.side2}">${arb.side2.toUpperCase()}</div>
-                <div class="bet-market">${arb.market2}</div>
+                <div class="bet-market">${arb.yards}</div>
               </div>
             </div>
             <div class="win-scenario">
-              <strong>Why both can win:</strong> ${arb.reason}
+              <strong>What this means:</strong> ${arb.reason}
             </div>
           </div>
         </div>
