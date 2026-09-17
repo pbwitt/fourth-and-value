@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Week 1: The Market Beat Our Model | Fourth &amp; Value</title><meta name="description" content="A full audit of Fourth &amp; Value’s 2026 Week 1 predictions: losing prop selections, rushing-attempt misses, model calibration, and which NFL markets paid.">
+<link rel="canonical" href="https://fourthandvalue.com/blog/week-1-2026-model-review.html"><meta property="og:title" content="Week 1: The Market Beat Our Model"><meta property="og:description" content="A full audit of Fourth &amp; Value’s 2026 Week 1 predictions: losing prop selections, rushing-attempt misses, model calibration, and which NFL markets paid."><meta property="og:url" content="https://fourthandvalue.com/blog/week-1-2026-model-review.html"><meta property="og:type" content="article"><meta property="article:published_time" content="2026-09-17"><meta name="twitter:card" content="summary">
+<link rel="icon" href="../assets/logo.svg"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;700&amp;display=swap" rel="stylesheet">
+<style>
+    :root{
+      --bg:#0b0e13; --surface:#12161d; --ink:#eef1f5; --muted:#8b93a1; --line:#232a35;
+      --under:#2dd4bf; --under-soft:#2dd4bf22; --over:#f0ab3d; --over-soft:#f0ab3d22;
+      --accent:#6ea8fe;
+    }
+    *{box-sizing:border-box}
+    html,body{ margin:0; background:var(--bg); }
+    body{
+      color:var(--ink);
+      font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+      -webkit-font-smoothing:antialiased;
+    }
+    a{ color:var(--accent); }
+    ::selection{ background:var(--under-soft); }
+
+    .wrap{ max-width:720px; margin:0 auto; padding:40px 24px 96px; }
+
+    .kicker{
+      font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.12em; text-transform:uppercase;
+      color:var(--muted); display:flex; align-items:center; gap:10px; margin-bottom:22px;
+    }
+    .kicker .dot{ width:6px; height:6px; border-radius:50%; background:var(--accent); }
+
+    h1{
+      font-family:'Fraunces',serif; font-optical-sizing:auto; font-weight:600;
+      font-size:clamp(34px,6vw,52px); line-height:1.05; letter-spacing:-.01em;
+      margin:0 0 18px; text-wrap:balance;
+    }
+    .dek{
+      font-family:'Fraunces',serif; font-style:italic; font-weight:400;
+      font-size:clamp(18px,2.6vw,21px); line-height:1.5; color:var(--muted);
+      margin:0 0 36px; text-wrap:balance; max-width:60ch;
+    }
+
+    .meta-box{
+      border:1px solid var(--line); border-radius:12px; padding:16px 18px;
+      font-size:13.5px; line-height:1.6; color:var(--muted); margin:0 0 48px;
+      background:var(--surface);
+    }
+    .meta-box b{ color:var(--ink); }
+
+    article{ font-size:17px; line-height:1.7; }
+    article p{ margin:0 0 22px; }
+    article > p:first-of-type::first-letter{
+      font-family:'Fraunces',serif; font-weight:600; font-size:3.4em; line-height:.8;
+      float:left; padding:.05em .08em 0 0; color:var(--accent);
+    }
+
+    h2{
+      font-family:'Fraunces',serif; font-weight:600; font-size:clamp(24px,3.6vw,30px);
+      margin:56px 0 8px; letter-spacing:-.005em; text-wrap:balance;
+    }
+    .h2-num{
+      font-family:'JetBrains Mono',monospace; color:var(--accent); font-size:15px; font-weight:500;
+      display:block; margin-bottom:6px; letter-spacing:.04em;
+    }
+
+    .chart{ margin:28px 0 8px; border:1px solid var(--line); border-radius:14px; overflow:hidden; background:var(--surface); }
+    .chart-head{
+      display:flex; justify-content:space-between; padding:14px 18px; font-family:'JetBrains Mono',monospace;
+      font-size:11px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted);
+      border-bottom:1px solid var(--line);
+    }
+    .chart-head span:first-child{ color:var(--under); }
+    .chart-head span:last-child{ color:var(--over); }
+    .row{ display:grid; grid-template-columns:128px 1fr; align-items:center; padding:10px 18px; gap:14px; }
+    .row + .row{ border-top:1px solid var(--line); }
+    .row .label{ font-size:14px; font-weight:600; }
+    .bar-track{ position:relative; height:22px; background:var(--line); border-radius:6px; overflow:hidden; display:flex; }
+    .bar-under{ background:var(--under); height:100%; display:flex; align-items:center; justify-content:flex-end; padding-right:8px; }
+    .bar-over{ background:var(--over); height:100%; display:flex; align-items:center; padding-left:8px; }
+    .bar-val{ font-family:'JetBrains Mono',monospace; font-size:11.5px; font-weight:700; color:#0b0e13; }
+
+    .vchart{ margin:28px 0 8px; border:1px solid var(--line); border-radius:14px; background:var(--surface); overflow:hidden; }
+    .vrow{ display:grid; grid-template-columns:128px 1fr 64px; align-items:center; padding:11px 18px; gap:14px; }
+    .vrow + .vrow{ border-top:1px solid var(--line); }
+    .vrow .label{ font-size:14px; font-weight:600; }
+    .vtrack{ height:10px; border-radius:5px; background:var(--line); overflow:hidden; }
+    .vfill{ height:100%; border-radius:5px; background:linear-gradient(90deg,var(--accent),var(--over)); }
+    .vval{ font-family:'JetBrains Mono',monospace; font-size:13px; text-align:right; color:var(--muted); }
+    .chart-foot{ padding:12px 18px; font-size:12px; color:var(--muted); border-top:1px solid var(--line); }
+
+    .tchart{ margin:28px 0 8px; border:1px solid var(--line); border-radius:14px; background:var(--surface); overflow:hidden; }
+    .trow{ display:grid; grid-template-columns:150px 1fr; align-items:center; padding:14px 18px; gap:16px; }
+    .trow + .trow{ border-top:1px solid var(--line); }
+    .trow .label{ font-size:13.5px; font-weight:600; line-height:1.3; }
+    .tbars{ display:flex; align-items:flex-end; gap:10px; }
+    .tbar-col{ display:flex; flex-direction:column; align-items:center; gap:4px; flex:1; }
+    .tval{ font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--muted); }
+    .tval.now{ color:var(--accent); font-weight:700; }
+    .tbar-area{ height:40px; width:100%; display:flex; align-items:flex-end; justify-content:center; }
+    .tbar{ width:100%; max-width:34px; border-radius:4px 4px 2px 2px; background:var(--line); }
+    .tbar.now{ background:var(--accent); }
+    .tyear{ font-family:'JetBrains Mono',monospace; font-size:10px; color:var(--muted); }
+    .tyear.now{ color:var(--accent); font-weight:700; }
+
+    .callout{
+      border-left:3px solid var(--accent); background:color-mix(in oklab, var(--accent) 8%, var(--surface));
+      border-radius:0 12px 12px 0; padding:18px 22px; margin:32px 0; font-size:15.5px; line-height:1.65;
+    }
+    .callout .tag{
+      font-family:'JetBrains Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.1em;
+      color:var(--accent); display:block; margin-bottom:8px; font-weight:700;
+    }
+    .callout .num{ font-family:'JetBrains Mono',monospace; font-weight:700; }
+    .callout .under-num{ color:var(--under); }
+    .callout .over-num{ color:var(--over); }
+
+    .takeaways{ list-style:none; margin:24px 0 0; padding:0; display:flex; flex-direction:column; gap:2px; }
+    .takeaways li{
+      display:grid; grid-template-columns:34px 1fr; gap:16px; padding:20px 0; border-top:1px solid var(--line);
+    }
+    .takeaways li:last-child{ border-bottom:1px solid var(--line); }
+    .takeaways .n{ font-family:'JetBrains Mono',monospace; color:var(--accent); font-weight:700; font-size:15px; }
+    .takeaways p{ margin:0; }
+    .takeaways strong{ display:block; margin-bottom:4px; font-size:15.5px; }
+
+    .closer{
+      margin-top:48px; padding-top:28px; border-top:1px solid var(--line);
+      font-family:'Fraunces',serif; font-style:italic; font-size:19px; line-height:1.6; color:var(--ink);
+      text-wrap:balance;
+    }
+
+    .back{ display:inline-block; margin-top:48px; color:var(--accent); }
+
+    @media (max-width:520px){
+      .row{ grid-template-columns:100px 1fr; }
+      .vrow{ grid-template-columns:100px 1fr 50px; }
+      .trow{ grid-template-columns:1fr; gap:10px; }
+    }
+
+.wrap{max-width:900px} article{max-width:780px;margin-inline:auto} .kicker{flex-wrap:wrap}.dek{max-width:65ch}
+.summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:30px 0}
+.summary-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px}
+.summary-card strong{display:block;font-family:'JetBrains Mono',monospace;font-size:26px;color:var(--over);margin:8px 0}
+.summary-card span{color:var(--muted);font-size:13px;line-height:1.5;display:block}
+.toc{padding:18px 22px;border:1px solid var(--line);border-radius:12px;margin:28px 0}
+.toc summary{cursor:pointer;font-weight:600}.toc ul{padding-left:20px;margin-bottom:0}.toc a{font-size:14px}
+.table-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:12px;margin:24px 0;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:13px;line-height:1.5;white-space:nowrap}
+th,td{padding:12px 14px;border-bottom:1px solid var(--line);text-align:right}th:first-child,td:first-child{text-align:left}
+th{color:var(--muted);font-weight:600}tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:#ffffff04}
+code{font-size:.85em;overflow-wrap:anywhere}a:focus-visible,summary:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
+h2{scroll-margin-top:100px}.meta-box{margin-bottom:20px}.ledger{margin:28px 0}.ledger summary{cursor:pointer;font-weight:600}
+@media(max-width:600px){.summary-grid{grid-template-columns:1fr}.summary-card{padding:14px 18px}.summary-card strong{font-size:24px}.wrap{padding-inline:18px}article{font-size:16px}th,td{padding:10px}.meta-box{font-size:13px}}
+@media print{#nav-root,.toc{display:none}body,html{background:white;color:black}.wrap{max-width:none}.table-scroll,.summary-card,.meta-box{background:white;color:black}th,td{border-color:#ccc}.table-scroll{overflow:visible}article{font-size:11pt}a{color:inherit}}
+</style><script type="application/ld+json">{"@context": "https://schema.org", "@type": "BlogPosting", "headline": "Week 1: The Market Beat Our Model", "description": "A full audit of Fourth & Value\u2019s 2026 Week 1 predictions: losing prop selections, rushing-attempt misses, model calibration, and which NFL markets paid.", "datePublished": "2026-09-17", "author": {"@type": "Organization", "name": "Fourth & Value", "url": "https://fourthandvalue.com/"}, "mainEntityOfPage": "https://fourthandvalue.com/blog/week-1-2026-model-review.html"}</script></head>
+<body><div id="nav-root"></div><script src="../nav.js?v=33"></script>
+<main class="wrap"><div class="kicker"><span class="dot"></span>Fourth &amp; Value · Week 1 Review · 2026</div>
+<h1>Week 1: The Market Beat Our Model</h1><p class="dek">The shortlist lost. Rushing attempts hurt most. Favorites and game-total overs had a better week. Here is the record, including the wins that deserve less credit than they appear to.</p>
+<div class="meta-box"><b>By Fourth &amp; Value</b> · <time datetime="2026-09-17">September 17, 2026</time> · 16 min read<br>Games: September 9–14. Pregame predictions recovered from the published archive; no retrospective model refit. Returns are hypothetical, one unit risked per graded ticket.</div>
+<div class="summary-grid" aria-label="Review highlights"><div class="summary-card"><span>All archived shortlist offers</span><strong>−7.2% ROI</strong><span>365–450 · 815 graded offers<br>Repeated books and lines included</span></div><div class="summary-card"><span>One ticket per player/game/market</span><strong>−11.8% ROI</strong><span>97–135 · 232 graded tickets<br>10 tickets unresolved</span></div><div class="summary-card"><span>Worst selected market</span><strong>Rushing attempts</strong><span>15–26 · −10.97 units<br>−26.8% ROI</span></div></div>
+<details class="toc"><summary>In this review</summary><nav aria-label="Article sections"><ul><li><a href="#where-we-made-money-and-where-we-lost-it">Where we made money, and where we lost it</a></li><li><a href="#what-worked-and-how-much-credit-it-deserves">What worked—and how much credit it deserves</a></li><li><a href="#the-biggest-struggle-volume-and-an-under-heavy-portfolio">The biggest struggle: volume and an under-heavy portfolio</a></li><li><a href="#did-our-probabilities-improve-on-the-sportsbooks">Did our probabilities improve on the sportsbooks?</a></li><li><a href="#game-totals-shrinking-the-model-helped-but-did-not-beat-the-market">Game totals: shrinking the model helped, but did not beat the market</a></li><li><a href="#what-last-week-s-odds-got-right">What last week&#x27;s odds got right</a></li><li><a href="#which-prop-markets-rewarded-bettors-generally">Which prop markets rewarded bettors generally?</a></li><li><a href="#what-should-change-after-this-week">What should change after this week</a></li><li><a href="#sources-and-audit-notes">Sources and audit notes</a></li></ul></nav></details><article><p>Our first full week of 2026 produced a losing prop shortlist, an especially rough run in rushing attempts, and a useful reminder that good prices cannot rescue every forecast. Favorites and game-total overs had a better week than our selections. The strongest thing our totals model did was accept how little weight its own predictions deserved.</p>
+<p>The numbers below come from the pages we actually published before kickoff. We recovered the September 9 board and Top Picks from Git, matched them to completed Week 1 results, and kept the original probabilities and prices. The Week 2 model already incorporates Week 1 outcomes; using it here would answer the wrong question.</p>
+<p><strong>The headline: 815 gradable offers on the archived shortlist went 365–450, returning −7.2% at one unit risked per offer.</strong> Those offers repeat many of the same opinions across sportsbooks and alternate lines. A second, less repetitive comparison—one ticket per player, game, and market—went <strong>97–135, −27.43 units, and −11.8% ROI</strong> on 232 graded tickets.</p>
+<p>These are hypothetical flat-stake audits, not a record of bets our readers placed. The second comparison uses a rule defined for this review: retain the archived offer with the highest published expected return in each player/game/market, without looking at results. Neither comparison accounts for sportsbook limits, later price availability, promotional injury protection, or individual execution.</p>
+<p>Ten of the 242 selected tickets remain ungraded because the saved results do not establish a matching player outcome or sufficient participation evidence. Missing players were not quietly turned into winning unders. Thirty-three of the original 848 shortlist offers remain unresolved for the same reason.</p>
+<h2 id="where-we-made-money-and-where-we-lost-it">Where we made money, and where we lost it</h2>
+<p>The table uses the one-ticket comparison throughout. One unit means one unit risked, with winning returns calculated from the actual archived American odds. Pending tickets are excluded from the ROI denominator.</p>
+<div class="table-scroll" role="region" tabindex="0" aria-label="Where we made money, and where we lost it"><table><thead><tr><th scope="col">Market</th><th scope="col">Graded W–L</th><th scope="col">Pending</th><th scope="col">Net units</th><th scope="col">ROI</th></tr></thead><tbody><tr><td>Passing yards</td><td>2–0</td><td>0</td><td>+3.70</td><td>+185.0%</td></tr><tr><td>Receiving yards</td><td>3–5</td><td>1</td><td>−0.60</td><td>−7.5%</td></tr><tr><td>Receptions</td><td>48–68</td><td>6</td><td>−10.78</td><td>−9.3%</td></tr><tr><td>Rushing yards</td><td>18–22</td><td>2</td><td>−5.05</td><td>−12.6%</td></tr><tr><td>Passing attempts</td><td>6–7</td><td>0</td><td>−1.72</td><td>−13.3%</td></tr><tr><td>Passing completions</td><td>5–7</td><td>1</td><td>−2.00</td><td>−16.7%</td></tr><tr><td>Rushing attempts</td><td>15–26</td><td>0</td><td>−10.97</td><td>−26.8%</td></tr></tbody></table></div>
+<p><strong>Rushing attempts were our worst market by both net loss and return on stake.</strong> Receptions were almost as expensive in units because we selected so many of them. Together those two markets lost 21.75 units, about 79% of the portfolio's net loss. Passing yards were the only profitable market in this comparison, but that result rests on two correlated tickets in one game.</p>
+<p>The split by side is just as revealing. Our overs went 40–48 for −3.44 units and −3.9% ROI. Our unders went 57–87 for −23.98 units and −16.7%. Unders accounted for about 87% of the net loss. That tells us where the damage accumulated; it does not establish that every under was a bad forecast or that next week's answer is to reverse every pick.</p>
+<h2 id="what-worked-and-how-much-credit-it-deserves">What worked—and how much credit it deserves</h2>
+<p>The passing-yard winners were Drake Maye under 199.5 and Sam Darnold under 199.5, both available at +185 in the archived shortlist. Maye finished with 178 passing yards; Darnold finished with 13. Risking one unit on each produces the table's +3.70 units.</p>
+<p>Those were useful prices on winning outcomes. They were not evidence that we had mastered quarterback projections. <strong>Every one of the board's 436 modeled passing-yard offers carried a 50.0% probability.</strong> The model treated those two tickets as coin flips. At +185, that alone generates an estimated return of 42.5%.</p>
+<p>Darnold also left the opener early with a hip injury, which the <a href="https://www.seahawks.com/news/2026-week-1-seahawks-vs-patriots-injury-updates">Seahawks confirmed during the game</a>. Our stat-based audit counts the under as a win because he participated; actual settlement can differ where a book offers injury protection. More fundamentally, an early exit is not proof that a pregame estimate of passing production was accurate. We should take the favorable outcome without inventing a forecasting accomplishment around it.</p>
+<p>There were other successes. Adam Trautman over 1.5 receptions at +188 won with two catches. Mack Hollins over 1.5 at +162 won with four. The Tampa Bay–Cincinnati selections went 9–5 for +5.14 units; Dallas–New York went 7–3 for +5.10. Those are the strongest game-level pockets in the one-ticket audit.</p>
+<p>Price shopping helped even in the losing portfolio. Keeping the same selected players, lines and sides, our ticket prices improved realized returns by 3.95 units versus the median payout available across the saved books at those exact lines. That reduced the loss from 31.38 to 27.43 units. It is a concrete benefit of comparison shopping, although it was not large enough to overcome the selections' losses.</p>
+<p>The highest estimated-return bucket also deserves a fair accounting. The 50 graded tickets with a published expected return of at least 20% went 24–26 but earned +7.62 units, or +15.2%, because the winning prices were large enough. The lower three buckets all lost money. This week does not support the claim that our biggest displayed edges necessarily performed worst. It does support keeping hit rate and profit separate: fewer than half of that top bucket won, yet the bucket was profitable.</p>
+<p>These are descriptive slices chosen for the review, not independently validated strategies. We cannot find a favorable subgroup after the games and promote it as next week's proven selection rule.</p>
+<h2 id="the-biggest-struggle-volume-and-an-under-heavy-portfolio">The biggest struggle: volume and an under-heavy portfolio</h2>
+<p>Rushing attempts should help us understand how much work a player will get. In Week 1, our published mean missed by 3.84 carries on average across the 55 comparable player markets. The representative sportsbook line missed by 3.21. Our forecasts were low by 1.57 carries on average.</p>
+<p>Rushing yards showed a similar pattern: a model error of 18.20 yards versus 15.25 for the market line, with a model bias of −5.41 yards. Receptions were closer, but still behind: 1.69 catches of average error versus 1.61 for the line. Those are comparisons on identical player outcomes, not different samples selected to make one side look better.</p>
+<p>New Orleans–Detroit makes the failure concrete. We selected Jahmyr Gibbs under 18.5 carries at −102 and under 84.5 rushing yards at −110. He finished with 29 carries and 156 yards. We also selected Tyler Shough under 33.5 attempts; he threw 56 times. Receptions unders on Amon-Ra St. Brown, Chris Olave, Jahmyr Gibbs and Travis Etienne all lost.</p>
+<p>That game finished 31–30 in overtime. It is reasonable to investigate how workload, pace and game state affected these misses. It would be stronger than the evidence to assign a precise share of the error to overtime or any single feature. The observable fact is that several selections depended on quieter workloads, and those assumptions failed together.</p>
+<p>San Francisco–Los Angeles was the worst game for our ticket portfolio: 4–13, −8.27 units. New Orleans–Detroit lost 6.45 units, Baltimore–Indianapolis lost 6.32, and Chicago–Carolina lost 6.20. Multiple player markets in one game are multiple ways to express related assumptions. A long list of picks does not automatically create a diversified portfolio.</p>
+<p>The Chicago–Carolina game was an extreme example. It produced 96 points against our 47-point market snapshot, while our raw totals forecast was only 46.3. Our prop selections there went 5–11. A weekly review should show that concentration instead of treating each losing ticket as an unrelated surprise.</p>
+<h2 id="did-our-probabilities-improve-on-the-sportsbooks">Did our probabilities improve on the sportsbooks?</h2>
+<p>Profit matters, but one week of returns can reward an inaccurate forecast and punish a reasonable one. We therefore also compared the published probabilities with a market baseline.</p>
+<p>For each player/game/market, we selected the exact line offered by the most distinct books. Ties were resolved by proximity to the median of distinct book/line pairs, then the lower line. We scored one Over probability at that line, using only outcomes with both a model estimate and an exact-line, de-vigged market consensus. That leaves 530 player/game/market observations covering 192 player-game identities and 16 games.</p>
+<p>Brier score measures squared probability error; lower is better. A constant 50% forecast scores 0.2500 on settled binary outcomes.</p>
+<div class="table-scroll" role="region" tabindex="0" aria-label="Did our probabilities improve on the sportsbooks?"><table><thead><tr><th scope="col">Market</th><th scope="col">Outcomes</th><th scope="col">Model Brier</th><th scope="col">Market Brier</th></tr></thead><tbody><tr><td>Passing attempts</td><td>31</td><td>0.2588</td><td>0.2469</td></tr><tr><td>Passing completions</td><td>31</td><td>0.2516</td><td>0.2473</td></tr><tr><td>Passing yards</td><td>31</td><td>0.2500</td><td>0.2498</td></tr><tr><td>Receptions</td><td>152</td><td>0.2495</td><td>0.2478</td></tr><tr><td>Receiving yards</td><td>153</td><td>0.2500</td><td>0.2499</td></tr><tr><td>Rushing attempts</td><td>55</td><td>0.2529</td><td>0.2409</td></tr><tr><td>Rushing yards</td><td>77</td><td>0.2510</td><td>0.2489</td></tr><tr><td><strong>All comparable markets</strong></td><td><strong>530</strong></td><td><strong>0.2509</strong></td><td><strong>0.2479</strong></td></tr></tbody></table></div>
+<p>The market had a lower Brier score in every modeled category. Log loss gave the same overall ordering: 0.6950 for our model against 0.6890 for the market. Our raw mean projections also had higher absolute error than the representative line in all seven categories.</p>
+<p>The difference is small, and the uncertainty matters. Resampling whole games 5,000 times produced an approximate 95% interval of −0.00043 to +0.00639 for model Brier minus market Brier. That interval crosses zero. Week 1's point estimates favor the market; this one slate does not establish a permanent or statistically conclusive ranking.</p>
+<p>The confidence pattern is less comforting than the small average difference. At representative lines, the 68 forecasts with directional confidence between 55% and 60% averaged 57.1% confidence but were right 48.5% of the time. The seven forecasts between 60% and 70% were right three times. These buckets are too small for a stable recalibration, but they offer no reason to increase trust simply because the displayed percentage is higher.</p>
+<p>Calibration also compressed many forecasts into a few repeated values. Passing yards were exactly 50%; rushing yards used only three distinct probabilities; receiving-yard probabilities ranged from roughly 48.4% to 51.6%. That may restrain an overconfident raw model, but it makes a large displayed edge at a long price especially important to inspect. The edge can be driven by the price combined with an almost flat probability curve.</p>
+<p>Across the 232 graded selected tickets, the model expected about +28.45 units and produced −27.43. Their average predicted win probability was 53.5%; their realized win rate was 41.8%. A single week can move a long way from its expectation, particularly with correlated outcomes. Still, those are the numbers the next model review must confront.</p>
+<h2 id="game-totals-shrinking-the-model-helped-but-did-not-beat-the-market">Game totals: shrinking the model helped, but did not beat the market</h2>
+<p>Our totals page published both the raw forecast and a version pulled toward the sportsbook consensus. Week 1 justified that restraint.</p>
+<div class="table-scroll" role="region" tabindex="0" aria-label="Game totals: shrinking the model helped, but did not beat the market"><table><thead><tr><th scope="col">Forecast</th><th scope="col">Mean absolute error</th><th scope="col">Root mean squared error</th></tr></thead><tbody><tr><td>Raw model</td><td>12.47 points</td><td>17.65 points</td></tr><tr><td>Published model after shrinkage</td><td>11.79 points</td><td>16.68 points</td></tr><tr><td>September 9 market snapshot</td><td>11.78 points</td><td>16.66 points</td></tr><tr><td>Recorded closing total</td><td>11.69 points</td><td>16.49 points</td></tr></tbody></table></div>
+<p>The closing total has the benefit of later information, so the September 9 snapshot is the more direct comparison with our forecast. Shrinkage reduced error by about 0.68 points per game relative to the raw model. It essentially brought us back to the market, with no incremental gain over the same-time baseline.</p>
+<p>Blindly following the raw model's direction on every total would have gone 6–9–1 and lost 3.34 units at the saved best prices on the consensus line. The calibrated forecast retained the same directional lean, but made the disagreements much smaller. Only New England–Seattle had a positive estimated return after pricing the calibrated probabilities. That over 44.5 lost when the game finished with 23 points.</p>
+<p>In our earlier <a href="./the-edge-was-the-price.html">“The Edge Was the Price”</a> article, we highlighted over 44.5 at −102 and a 50.9% model probability. The better price was real; the outcome was a loss. An estimated edge of less than one dollar per $100 risked should never have been read as a strong prediction of a high-scoring opener.</p>
+<p>The raw model did have useful individual calls, including the under in Arizona–Los Angeles and the over in Buffalo–Houston. Its misses included overs in the opening two games and unders in several high-scoring Sunday games. Removing the 96-point Chicago–Carolina outlier still leaves the raw model with 9.99 points of average error against the market's 9.30. That one game enlarged the errors without creating the entire ranking.</p>
+<details class="ledger"><summary>All 16 games: saved total, forecast and result</summary><div class="table-scroll" tabindex="0" role="region" aria-label="Week 1 game ledger"><table><thead><tr><th scope="col">Game</th><th scope="col">Final (away–home)</th><th scope="col">Saved total</th><th scope="col">Raw model</th><th scope="col">Published model</th><th scope="col">Raw lean</th><th scope="col">Result</th></tr></thead><tbody><tr><td>NE @ SEA</td><td>10–13</td><td>44.5</td><td>51.1</td><td>44.8</td><td>Over</td><td>Loss</td></tr><tr><td>SF @ LA</td><td>27–7</td><td>48.5</td><td>51.2</td><td>48.6</td><td>Over</td><td>Loss</td></tr><tr><td>ATL @ PIT</td><td>13–20</td><td>42</td><td>46.8</td><td>42.2</td><td>Over</td><td>Loss</td></tr><tr><td>BAL @ IND</td><td>41–23</td><td>48</td><td>46.8</td><td>48.0</td><td>Under</td><td>Loss</td></tr><tr><td>BUF @ HOU</td><td>36–31</td><td>45</td><td>51.0</td><td>45.3</td><td>Over</td><td>Win</td></tr><tr><td>CHI @ CAR</td><td>59–37</td><td>47</td><td>46.3</td><td>47.0</td><td>Under</td><td>Loss</td></tr><tr><td>CLE @ JAX</td><td>10–34</td><td>40.5</td><td>47.0</td><td>40.8</td><td>Over</td><td>Win</td></tr><tr><td>NO @ DET</td><td>30–31</td><td>50</td><td>45.7</td><td>49.8</td><td>Under</td><td>Loss</td></tr><tr><td>NYJ @ TEN</td><td>23–10</td><td>38.5</td><td>39.2</td><td>38.5</td><td>Over</td><td>Loss</td></tr><tr><td>TB @ CIN</td><td>27–33</td><td>50.5</td><td>49.7</td><td>50.5</td><td>Under</td><td>Loss</td></tr><tr><td>ARI @ LAC</td><td>26–14</td><td>47.5</td><td>41.9</td><td>47.3</td><td>Under</td><td>Win</td></tr><tr><td>GB @ MIN</td><td>22–39</td><td>46</td><td>44.1</td><td>45.9</td><td>Under</td><td>Loss</td></tr><tr><td>MIA @ LV</td><td>13–27</td><td>40.5</td><td>39.7</td><td>40.5</td><td>Under</td><td>Win</td></tr><tr><td>WAS @ PHI</td><td>22–24</td><td>44.5</td><td>46.2</td><td>44.6</td><td>Over</td><td>Win</td></tr><tr><td>DAL @ NYG</td><td>20–28</td><td>48</td><td>46.8</td><td>48.0</td><td>Under</td><td>Push</td></tr><tr><td>DEN @ KC</td><td>10–31</td><td>43.5</td><td>43.4</td><td>43.5</td><td>Under</td><td>Win</td></tr></tbody></table></div><p class="meta">September 9 snapshot. Raw direction is a diagnostic, not the positive-EV betting policy. See the <a href="./week-1-2026-review-data.json">row-level audit</a> for prices and results.</p></details>
+<h2 id="what-last-week-s-odds-got-right">What last week's odds got right</h2>
+<p>This is a separate question from how our picks performed. A market can be difficult for our model while still producing a profitable week for a simple favorite or Over strategy.</p>
+<p>Using the saved schedule's closing lines, <strong>favorites won 12 of 16 games outright and went 9–6–1 against the spread</strong>. Home-designated teams went 10–6, although that category includes the neutral-site Rams game. Game-total overs went 9–7.</p>
+<p>At the recorded moneyline prices, risking one unit on each favorite returned +2.62 units, or +16.4%; betting every underdog lost 4.32 units, or −27.0%. Over bets at the recorded closing prices returned +1.34 units, or +8.4%, while unders lost 2.65 units, or −16.6%. These are bettor-side results, not estimates of sportsbook profit: we do not have the books' stakes, liabilities, promotions or betting mix.</p>
+<p>Favorites against the spread returned +2.09 units, or +13.0%, at their recorded closing prices; underdogs against the spread lost 3.45 units, or −21.6%. Those ROI denominators include the Seattle push as a stake returned. Favorites were the clearest broad game-market winners in this slate, both outright and against the handicap.</p>
+<p>The league scored 791 points against 724.5 implied by our September 9 totals. Chicago–Carolina alone exceeded its saved total by 49 points, accounting for about 74% of that aggregate excess. High total scoring does not mean almost every Over won. The distribution mattered.</p>
+<p>Timing mattered too. Against our September 9 snapshot, overs went 8–7–1 rather than 9–7. Dallas–New York finished with 48 points: a push at our saved 48, an Over win at the recorded closing 47.5. Always betting the snapshot Over at its best available same-line price returned +0.58 units, or +3.6%, across 16 stakes. Different snapshots can produce different honest records for the same week.</p>
+<p>Seattle supplied the corresponding spread lesson. A three-point win pushes a Seattle −3 ticket and loses a −3.5 ticket; both handicaps appeared in our pregame book comparison. The exact number belongs in the record alongside the price.</p>
+<h2 id="which-prop-markets-rewarded-bettors-generally">Which prop markets rewarded bettors generally?</h2>
+<p>For this comparison we ignored our model's preferences. We used one representative offered line per player/game/market and the best archived price at that exact line, separately for Over and Under. This covers our saved board, not every wager available throughout the week. Prices were captured September 9; these are not closing prop odds.</p>
+<div class="table-scroll" role="region" tabindex="0" aria-label="Which prop markets rewarded bettors generally?"><table><thead><tr><th scope="col">Market</th><th scope="col">Graded player markets</th><th scope="col">Over W–L</th><th scope="col">Over ROI</th><th scope="col">Under ROI</th></tr></thead><tbody><tr><td>Passing touchdowns</td><td>31</td><td>16–15</td><td>+7.4%</td><td>−7.9%</td></tr><tr><td>Interceptions thrown</td><td>31</td><td>16–15</td><td>+6.9%</td><td>−13.2%</td></tr><tr><td>Receptions</td><td>160</td><td>85–75</td><td>+4.2%</td><td>−10.3%</td></tr><tr><td>Rushing yards</td><td>79</td><td>43–36</td><td>+3.8%</td><td>−14.4%</td></tr><tr><td>Passing completions</td><td>31</td><td>16–15</td><td>−1.5%</td><td>−6.8%</td></tr><tr><td>Receiving yards</td><td>161</td><td>80–81</td><td>−6.0%</td><td>−4.5%</td></tr><tr><td>Passing attempts</td><td>31</td><td>15–16</td><td>−8.8%</td><td>−2.0%</td></tr><tr><td>Rushing attempts</td><td>56</td><td>27–29</td><td>−8.9%</td><td>−3.1%</td></tr><tr><td>Passing yards</td><td>31</td><td>14–17</td><td>−14.7%</td><td>+3.6%</td></tr></tbody></table></div>
+<p>The profitable sides were passing-touchdown Overs, interception Overs, receptions Overs, rushing-yard Overs and passing-yard Unders. This is a retrospective description, not a reason to bet them indiscriminately next week.</p>
+<p>Receptions offer the sharpest contrast with our own selections. The general best-price Over comparison earned 4.2%, while our selected receptions portfolio lost 9.3%. Rushing attempts are equally instructive: indiscriminately betting the representative Under lost 3.1%, but our selected market portfolio lost 26.8%. The market was not handing everyone an easy profit; our selection of players, sides and lines made the week worse.</p>
+<p>Receiving yards were almost perfectly balanced—80 Overs and 81 Unders—yet both flat-stake sides lost money. Passing-completion Overs won 16 of 31 and still lost money. Those results are why a bare win percentage is an incomplete betting analysis.</p>
+<p>Passing touchdowns and interceptions had no published model probabilities, so their market-level results are not model successes. Anytime, first and last touchdown markets are excluded from this settlement audit. We did not have a validated model for them, and the result matching here is not designed to settle first-scorer or last-scorer wagers. Coverage is part of the report, not something to fill in after the fact.</p>
+<h2 id="what-should-change-after-this-week">What should change after this week</h2>
+<p><strong>First, review the calibration curves before trusting the size of the displayed edges.</strong> A flat 50% passing-yard forecast can identify favorable prices relative to that assumption, but it does not establish that every alternate line is a coin flip. The next validation should compare a market-only baseline, the raw model, the calibrated model and a blend on future, untouched weeks. The curve needs to preserve useful distinctions across lines while earning any departure from market prices.</p>
+<p><strong>Second, prioritize workload forecasts.</strong> Rushing attempts had the worst selection results and the largest relative Brier shortfall. Receptions created about half of the selected tickets. Review projected roles, carries and targets, and test improvements chronologically. Changing coefficients until they explain Gibbs's Week 1 would be fitting the answer we already know.</p>
+<p><strong>Third, make the public record easier to interpret.</strong> Preserve the whole offer archive, but maintain a separately defined selection policy with one reproducible ticket choice and explicit game-level exposure limits. Decide those rules before the next slate. A page containing hundreds of qualifying offers should not imply hundreds of independent opportunities.</p>
+<p><strong>Fourth, preserve quote timing and improve settlement evidence.</strong> We can prove these prices and probabilities existed before the games. We cannot prove that Wednesday's prop prices remained available on Sunday, or compute prop closing-line value without a closing archive. Capture later snapshots, starting-role information, participation and book-specific void treatment so future reviews can distinguish stale quotes, unavailable players and genuine forecast misses.</p>
+<p><strong>Finally, retain the restraint that already helped.</strong> Shrinking the totals model reduced its errors. Suppressing unsupported touchdown estimates avoided presenting guesses as player-specific probabilities. Neither earns fictional winning bets, but both improve the quality of what we publish.</p>
+<p>Week 1 leaves us with useful wins, measurable failures and a clear priority: our probability estimates have to earn their place next to the prices. For now, the evidence favors the sportsbook baseline. The next week's record should be built to tell us whether that changes.</p>
+<h2 id="sources-and-audit-notes">Sources and audit notes</h2>
+<p>The primary forecast evidence is the <a href="https://github.com/pbwitt/fourth-and-value/blob/6d420cf/docs/props/index.html">archived props board</a> and <a href="https://github.com/pbwitt/fourth-and-value/blob/6d420cf/docs/props/top.html">archived Top Picks page</a>, built September 9 at approximately 6:36 PM Eastern. Totals use the saved 6:52 PM Eastern snapshot. The audit retains the source hashes and timestamps in the <a href="./week-1-2026-review-data.json">downloadable summary</a>.</p>
+<p>Results come from the project's saved 2026 Week 1 schedule and player-stat files, using the <a href="https://github.com/nflverse/nflverse-data/releases/tag/stats_player">nflverse player-stat release</a> and <a href="https://raw.githubusercontent.com/nflverse/nfldata/master/data/games.csv">nflverse schedule dataset</a> as the upstream sources. Game identity, both teams and Eastern game dates are checked before matching players. Name punctuation and generational suffixes are normalized; ambiguous identities stop the audit. The old unseasoned <code>grades_week1.csv</code> file was not used.</p>
+<p>Only players with a matching game record and evidence of an attempt, carry, target or reception are graded. Zero-usage cases remain unresolved without better participation evidence, which limits how representative the graded sample is. The audit assumes ordinary action after participation, retains pushes as returned stakes, and excludes unresolved stakes from ROI. There were no pushes in the selected prop tickets. The reported returns describe saved offers, not verified cash settlements.</p>
+<p>Repeated books and alternate lines remain in the full-offer audit but are removed from the one-ticket comparison. Markets for the same player and players in the same game remain correlated. The game-block bootstrap acknowledges that dependence, but 16 games cannot establish season-long skill. All calculations use frozen Week 1 forecasts; no Week 2 model output or private user betting records enter the review.</p></article><a class="back" href="./index.html">← All articles</a></main></body></html>
