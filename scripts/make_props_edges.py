@@ -334,6 +334,14 @@ def main():
 
     # Missing player evidence is unknown, not the book's vig-inclusive probability.
     no_data_mask = merged["no_real_data"].astype(str).str.lower().isin(["true", "1"])
+
+    # Touchdown scoring has no validated career/role-aware model yet, so it
+    # publishes no estimate regardless of how much data exists. Early in a
+    # season the raw rate is just "did they score last week": at Week 2 of
+    # 2026 it collapsed to ten distinct values across 3,456 offers, putting
+    # James Cook at 1.0% against a 63% market. Remove this only alongside a
+    # TD model that has been validated out of sample.
+    no_data_mask |= merged["market_std"].astype(str).eq("anytime_td")
     merged.loc[no_data_mask, ["model_prob_raw", "model_prob", "push_prob"]] = np.nan
     eligible = set(calibration.get("_eligible_markets", [])) if calibration else set()
     merged["model_status"] = np.where(no_data_mask | merged["model_prob"].isna(),
