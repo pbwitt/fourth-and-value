@@ -169,6 +169,7 @@
     },
     { type: 'link', href: `${base}/methods.html`, label: 'Methods' },
     { type: 'link', href: `${base}/research/`, label: 'Research' },
+    { type: 'link', href: `${base}/editorial/`, label: 'Editorial' },
     { type: 'link', href: `${base}/blog/`, label: 'Blog' },
     { type: 'link', href: `${base}/tracking/`, label: '📊 Bet Tracker' },
   ];
