@@ -1,10 +1,11 @@
 /* Accurate type and charts stay deterministic; AI supplies narration only. */
 (async()=>{
   const spec=await fetch('timeline.json').then(r=>r.json());
+  const silent=new URLSearchParams(location.search).has('silent');
   const canvas=document.querySelector('canvas'), c=canvas.getContext('2d');
   const mint='#6ee7b7',white='#edf2f7',muted='#a8b8cd';
-  const audioContext=new AudioContext();
-  const buffers=await Promise.all(spec.scenes.map(async s=>audioContext.decodeAudioData(await fetch(s.audio).then(r=>r.arrayBuffer()))));
+  const audioContext=silent?null:new AudioContext();
+  const buffers=silent?[]:await Promise.all(spec.scenes.map(async s=>audioContext.decodeAudioData(await fetch(s.audio).then(r=>r.arrayBuffer()))));
   function text(t,x,y,size=40,color=white,weight=500){c.font=`${weight} ${size}px Arial`;c.fillStyle=color;c.fillText(t,x,y);}
   function wrap(t,x,y,width,size=40,color=white,lineHeight=53){
     c.font=`500 ${size}px Arial`;let line='';
@@ -45,22 +46,23 @@
     const words=s.narration.split(/\s+/),chunkSize=9,chunks=[];for(let j=0;j<words.length;j+=chunkSize)chunks.push(words.slice(j,j+chunkSize).join(' '));
     const chunk=Math.min(chunks.length-1,Math.floor(local/Math.max(s.speech_duration,.1)*chunks.length));
     pill(80,1480,920,210,'#06090de8');wrap(chunks[chunk],120,1550,830,43,white,60);
-    text('AI-generated narration',108,1760,25,muted);text('fourthandvalue.com',108,1810,28,mint);
+    if(!silent)text('Narrated explainer',108,1760,25,muted);text('fourthandvalue.com',108,1810,28,mint);
     c.fillStyle='#273445';c.fillRect(108,1845,864,6);c.fillStyle=mint;c.fillRect(108,1845,864*Math.min(time/spec.duration,1),6);
   }
   draw(1);window.videoReady=true;window.drawVideoFrame=draw;
   window.renderVideo=async()=>{
-    await audioContext.resume();
-    const dest=audioContext.createMediaStreamDestination();
-    const stream=canvas.captureStream(30);dest.stream.getAudioTracks().forEach(t=>stream.addTrack(t));
+    if(!silent)await audioContext.resume();
+    const dest=silent?null:audioContext.createMediaStreamDestination();
+    const stream=canvas.captureStream(30);
+    if(dest)dest.stream.getAudioTracks().forEach(t=>stream.addTrack(t));
     const mimeType='video/mp4;codecs=avc1.42001E,mp4a.40.2';
     if(!MediaRecorder.isTypeSupported(mimeType))throw new Error('Chrome MP4 recording is required');
     const recorder=new MediaRecorder(stream,{mimeType,videoBitsPerSecond:3500000,audioBitsPerSecond:128000});
     const chunks=[];recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
     const done=new Promise(resolve=>recorder.onstop=resolve);recorder.start(1000);
-    const start=audioContext.currentTime+.12;
-    spec.scenes.forEach((s,i)=>{const source=audioContext.createBufferSource();source.buffer=buffers[i];source.connect(dest);source.start(start+s.start);});
-    await new Promise(resolve=>{function tick(){const t=Math.max(0,audioContext.currentTime-start);draw(t);if(t<spec.duration)requestAnimationFrame(tick);else resolve();}tick();});
+    const start=silent?performance.now()/1000:audioContext.currentTime+.12;
+    if(!silent)spec.scenes.forEach((s,i)=>{const source=audioContext.createBufferSource();source.buffer=buffers[i];source.connect(dest);source.start(start+s.start);});
+    await new Promise(resolve=>{function tick(){const now=silent?performance.now()/1000:audioContext.currentTime;const t=Math.max(0,now-start);draw(t);if(t<spec.duration)requestAnimationFrame(tick);else resolve();}tick();});
     recorder.stop();await done;stream.getTracks().forEach(t=>t.stop());
     const blob=new Blob(chunks,{type:'video/mp4'});window.exportedVideoBlob=blob;window.exportedVideoURL=URL.createObjectURL(blob);
     return new Promise(resolve=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result.split(',')[1]);reader.readAsDataURL(blob);});
