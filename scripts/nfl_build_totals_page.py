@@ -7,7 +7,7 @@ import os
 from datetime import datetime
 
 def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, output_path, week,
-                      team_totals_path=None, priced_path=None):
+                      team_totals_path=None, priced_path=None, injury_signal_path=None):
     """
     Build HTML page showing:
     - Model predictions
@@ -21,6 +21,9 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
     consensus = pd.read_csv(consensus_path) if os.path.exists(consensus_path) else pd.DataFrame()
     edges = pd.read_csv(edges_path) if os.path.exists(edges_path) else pd.DataFrame()
     lines = pd.read_csv(lines_path) if os.path.exists(lines_path) else pd.DataFrame()
+    injury_signal = (pd.read_csv(injury_signal_path)
+                     if injury_signal_path and os.path.exists(injury_signal_path)
+                     else pd.DataFrame())
 
     # Merge predictions with consensus (totals only)
     if len(preds) > 0 and len(consensus) > 0:
@@ -188,6 +191,33 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
         <input type="text" id="gameSearch" class="search-box" placeholder="e.g. KC, BUF, DAL" />
       </label>
     </div>
+"""
+
+    if len(injury_signal) > 0:
+        flagged = injury_signal[injury_signal['signal_status'].isin([
+            'possible_downward_overreaction', 'possible_underreaction'])]
+        html += """
+    <section class="section" id="injury-reaction">
+      <h2>Injury reaction screen</h2>
+      <p class="meta">Compare the model's estimated injury impact with captured total-line movement. These are research flags, not automated picks.</p>
+      <div class="table-wrap"><table class="totals-summary"><thead><tr>
+        <th>Game</th><th class="num">Model injury impact</th><th class="num">Market move</th><th class="num">Residual</th><th>Status</th>
+      </tr></thead><tbody>
+"""
+        for _, r in flagged.iterrows():
+            move = '&mdash;' if pd.isna(r.get('market_total_move')) else f"{r['market_total_move']:+.1f}"
+            residual = '&mdash;' if pd.isna(r.get('reaction_residual')) else f"{r['reaction_residual']:+.1f}"
+            html += f"<tr><td>{r['game']}</td><td class=\"num\">{r['model_injury_impact_points']:+.1f}</td><td class=\"num\">{move}</td><td class=\"num\">{residual}</td><td>{r['signal_status'].replace('_', ' ')}</td></tr>"
+        html += """</tbody></table></div>
+      <p><a href="../injuries/">Open the full injury reaction dashboard →</a> · <a href="../../blog/injury-market-reaction-week-2-2026.html">Read the case study →</a></p>
+    </section>
+"""
+    else:
+        html += """
+    <section class="section" id="injury-reaction">
+      <h2>Injury reaction screen</h2>
+      <p class="meta">No injury-versus-market screen is available for this snapshot yet. The screen requires a timestamped injury report and captured opening line.</p>
+    </section>
 """
 
     # Stats summary
@@ -669,8 +699,9 @@ if __name__ == '__main__':
     parser.add_argument('--week', type=int, required=True, help='Week number')
     parser.add_argument('--team-totals', default=None, help='Market-derived team totals CSV')
     parser.add_argument('--priced', default=None, help='Priced model projections CSV')
+    parser.add_argument('--injury-signal', default=None, help='Injury-versus-market signal CSV')
 
     args = parser.parse_args()
 
     build_totals_page(args.predictions, args.consensus, args.edges, args.lines, args.output, args.week,
-                      args.team_totals, args.priced)
+                      args.team_totals, args.priced, args.injury_signal)

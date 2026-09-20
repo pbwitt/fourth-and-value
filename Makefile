@@ -465,7 +465,7 @@ nfl_totals_consensus: nfl_totals_lines
 	@echo "✓ Consensus calculated"
 
 # Build HTML page
-nfl_totals_page:
+nfl_totals_page: injury_totals_signal
 	@echo "====================================================================="
 	@echo "Building NFL totals page..."
 	@echo "====================================================================="
@@ -475,7 +475,8 @@ nfl_totals_page:
 		--edges $(NFL_TOTALS_EDGES) \
 		--lines data/nfl/lines/totals_spreads.csv \
 		--output $(NFL_TOTALS_PAGE) \
-		--week $(WEEK)
+		--week $(WEEK) \
+		--injury-signal $(NFL_INJURY_SIGNAL)
 
 injury_totals_signal: $(NFL_INJURY_SIGNAL)
 
