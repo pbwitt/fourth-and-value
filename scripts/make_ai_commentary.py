@@ -33,6 +33,7 @@ PRETTY_MAP = {
     "1st_td": "1st TD",
     "last_td": "Last TD",
 }
+MAX_INSIGHT_EDGE_BPS = 1500
 
 def _pretty_market(m):
     if m is None: return ""
@@ -88,7 +89,15 @@ def _ensure_core(df: pd.DataFrame) -> pd.DataFrame:
 
 def _select_top_for_game(df_g: pd.DataFrame, top_n: int) -> pd.DataFrame:
     # Missing evidence must not fall back to a market price masquerading as a model.
-    prio = df_g[df_g["edge_bps"].gt(0) & df_g["model_prob"].notna() & df_g["mkt_prob"].notna()]
+    prio = df_g[df_g["edge_bps"].gt(0) & df_g["model_prob"].notna() & df_g["mkt_prob"].notna()].copy()
+    if "book_count" in prio.columns:
+        prio = prio[prio["book_count"].fillna(0).ge(3)]
+    prio = prio[prio["edge_bps"].le(MAX_INSIGHT_EDGE_BPS)]
+    # One row per player/market/side/line. This keeps an outlier book from
+    # dominating the prose when several books quote the same bet.
+    keys = [c for c in ["player", "market_std", "name", "point"] if c in prio.columns]
+    if keys:
+        prio = prio.sort_values("edge_bps", ascending=False).drop_duplicates(keys)
     return prio.sort_values("edge_bps", ascending=False).head(top_n).copy()
 
 import numpy as np
@@ -115,24 +124,24 @@ Avoid generic phrases. Be specific and data-driven but conversational.
 Return only the paragraph.
 """
 
-SUMMARY_TEMPLATE = """You're a knowledgeable friend helping a casual NFL fan find good player prop bets for this game.
+SUMMARY_TEMPLATE = """You're a knowledgeable friend helping a casual NFL fan understand this NFL matchup's modeled player-prop angles.
 
 Game: {matchup}
 
 What our model sees:
+- Evidence-backed angles: {top_edges}
 - Market directions: {market_skew}
-- Strongest edges: {top_edges}
-- Confidence range: {conf_range}
-- Best books for prices: {best_books}
+- Price-shopping notes: {best_books}
+- Injury context, if present: {injury_notes}
 
 IMPORTANT: Only mention markets that appear in the "Market directions" and "Strongest edges" data above. Do NOT mention or recommend markets like "longest reception", "longest rush", "first TD", "last TD", or any other markets not explicitly shown in the data. Stick strictly to the markets we actually model.
 
-Write a friendly, conversational paragraph (3-5 sentences) that:
-- Talks naturally about what looks interesting in this matchup (e.g., "I really like the RB unders here" or "The receiving props look solid")
-- Names 1-3 specific players and why they stand out based ONLY on the markets shown in the data
-- Gives honest advice about confidence level (e.g., "This one feels pretty solid" vs "There's more uncertainty here, so maybe go lighter")
-- Only mentions shopping around if prices actually vary significantly across books
-- Sounds like advice you'd give a friend, not a robot report
+Write a friendly, conversational paragraph (4-6 sentences) that:
+- Names up to 2 players and the exact side and line when the evidence supports it.
+- Explains the disagreement using the supplied model probability, market probability, edge and book count.
+- Mentions the best available book only when it is in the supplied evidence.
+- Gives an honest confidence description; these are experimental estimates, not guarantees.
+- If no strong angle is supplied, say the matchup is thin rather than inventing a pick.
 
 Avoid:
 - Generic phrases like "pops most on our numbers" or "keep stakes modest"
@@ -150,10 +159,12 @@ def _prompt_for_weekly_overview(df: pd.DataFrame, season: int, week: int) -> str
 
     # Top 5 edges across all games
     if {'player', 'market_std', 'edge_bps'}.issubset(df.columns):
-        top = (df[['player','market_std','edge_bps']]
+        eligible = df[df.get('book_count', pd.Series(0, index=df.index)).fillna(0).ge(3)
+                      & df['edge_bps'].gt(0) & df['edge_bps'].le(MAX_INSIGHT_EDGE_BPS)].copy()
+        top = (eligible[eligible['edge_bps'].gt(0)][['player','market_std','edge_bps']]
                .dropna()
-               .assign(abs_edge=lambda x: x['edge_bps'].abs())
-               .sort_values('abs_edge', ascending=False)
+               .sort_values('edge_bps', ascending=False)
+               .drop_duplicates(['player', 'market_std'])
                .head(5))
         top_edges_week = "; ".join(f"{r.player} {r.market_std} ({int(r.edge_bps)} bps)"
                                     for _, r in top.iterrows()) if len(top) else "n/a"
@@ -215,27 +226,20 @@ def _prompt_for_game(game: str, rows: pd.DataFrame, season: int, week: int) -> s
     else:
         market_skew = "n/a"
 
-    # --- Top absolute edges (player + market)
-    if {'player', 'market_std', 'edge_bps'}.issubset(df.columns):
-        top = (df[['player','market_std','edge_bps']]
-               .dropna()
-               .assign(abs_edge=lambda x: x['edge_bps'].abs())
-               .sort_values('abs_edge', ascending=False)
-               .head(3))
-        if len(top):
-            top_edges = "; ".join(f"{r.player} {r.market_std} ({int(r.edge_bps)} bps)"
-                                  for _, r in top.iterrows())
-        else:
-            top_edges = "n/a"
+    top = _select_top_for_game(df, 3)
+    if len(top):
+        bits = []
+        for _, r in top.iterrows():
+            line = "" if pd.isna(r.get("point")) else f" {r.point:g}"
+            price = "" if pd.isna(r.get("american_odds")) else f" {r.american_odds:+.0f}"
+            books = int(r.book_count) if pd.notna(r.get("book_count")) else 0
+            bits.append(f"{r['player']} {r['name']}{line}{price}: model {r['model_prob']:.1%} vs market {r['mkt_prob']:.1%}, +{int(r['edge_bps'])} bps across {books} books")
+        top_edges = "; ".join(bits)
     else:
-        top_edges = "n/a"
+        top_edges = "No consensus-supported positive edge met the evidence threshold."
 
     # --- Confidence spread (model_conf percentile band)
-    if 'model_conf' in df.columns and df['model_conf'].notna().any():
-        q05, q95 = df['model_conf'].quantile([0.05, 0.95]).tolist()
-        conf_range = f"{q05:.0%}–{q95:.0%}"
-    else:
-        conf_range = "n/a"
+    conf_range = "experimental; no confidence guarantee"
 
     # --- Most frequent best-price books
     if 'best_book' in df.columns and df['best_book'].notna().any():
@@ -244,25 +248,34 @@ def _prompt_for_game(game: str, rows: pd.DataFrame, season: int, week: int) -> s
     else:
         best_books = "n/a"
 
+    if {'player', 'injury_status'}.issubset(df.columns):
+        injured = df[df['injury_status'].notna()][['player', 'injury_status']].drop_duplicates()
+        injury_notes = "; ".join(f"{r['player']} ({r['injury_status']})" for _, r in injured.head(6).iterrows()) or "none in modeled rows"
+    else:
+        injury_notes = "none supplied"
+
     prompt = SUMMARY_TEMPLATE.format(
         matchup=game,
         market_skew=market_skew or "n/a",
         top_edges=top_edges or "n/a",
         conf_range=conf_range,
         best_books=best_books or "n/a",
+        injury_notes=injury_notes,
     )
     return textwrap.dedent(prompt).strip()
 
 def _call_llm(client, model, prompt: str) -> str:
+    if client is None:
+        return ""
     try:
-        resp = client.chat.completions.create(
-            model=model,  # e.g., "gpt-4o-mini"
-            messages=[
-                {"role": "system", "content": "Explain only the supplied NFL data. Distinguish the named bet side from the sign of an edge. Do not invent injuries, lineup news, causes, guarantees, or calibrated performance. Model estimates are experimental; say so."},
-                {"role": "user", "content": prompt},
-            ],
+        resp = client.responses.create(
+            model=model,
+            instructions=("Explain only the supplied NFL data. Distinguish the named bet side from the sign of an edge. "
+                          "Do not invent injuries, lineup news, causes, guarantees, or calibrated performance. "
+                          "Model estimates are experimental; say so. Return only the requested paragraph."),
+            input=prompt,
         )
-        return (resp.choices[0].message.content or "").strip()
+        return (getattr(resp, "output_text", "") or "").strip()
     except Exception as e:
         print(f"[warn] LLM call failed: {e}", file=sys.stderr)
         return ""
@@ -270,13 +283,17 @@ def _call_llm(client, model, prompt: str) -> str:
 
 
 def _fallback_text(game: str, rows: pd.DataFrame) -> str:
-    # Simple deterministic line if no LLM is available
+    # Deterministic, data-backed copy when the API is unavailable or out of
+    # quota. It should still be useful to a casual reader.
     if rows.empty:
-        return f"No clear model-backed edges for {game}; shop prices and size stakes modestly."
-    lead = rows.iloc[0]
-    mk = _pretty_market(lead.get("market_std"))
-    side = str(lead.get("name",""))
-    return f"{game}: {mk} {side} pops most on our numbers. Shop for best price; keep stakes modest."
+        return f"{game}: no consensus-supported positive edge cleared the evidence filter in this snapshot. The board is more useful here for comparing prices than forcing a bet."
+    bits = []
+    for _, r in rows.head(2).iterrows():
+        line = "" if pd.isna(r.get("point")) else f" {r.point:g}"
+        price = "" if pd.isna(r.get("american_odds")) else f" at {r.american_odds:+.0f}"
+        books = int(r.book_count) if pd.notna(r.get("book_count")) else 0
+        bits.append(f"{r['player']}'s {r['name']} {_pretty_market(r['market_std'])}{line}{price} has a model probability of {r['model_prob']:.1%} versus {r['mkt_prob']:.1%} implied by the market across {books} books")
+    return f"{game}: " + "; ".join(bits) + ". These are experimental estimates, so the disagreement is a research lead rather than a guarantee; shop the listed price before deciding."
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Generate per-game LLM commentary for Insights.")
@@ -284,7 +301,7 @@ def main(argv=None):
     ap.add_argument("--week", type=int, required=True)
     ap.add_argument("--merged_csv", type=str, required=True)
     ap.add_argument("--top_n", type=int, default=10)
-    ap.add_argument("--model", type=str, default="gpt-4o-mini")
+    ap.add_argument("--model", type=str, default=os.getenv("OPENAI_INSIGHTS_MODEL", "gpt-6"))
     ap.add_argument("--out_json", type=str, required=True, help="Output path for {game_norm: text} JSON")
     ap.add_argument("--force", action="store_true", help="Overwrite existing out_json")
     args = ap.parse_args(argv)
@@ -311,6 +328,17 @@ def main(argv=None):
         return
     df = _ensure_core(df)
 
+    # Join the same target-week injury evidence used by the props model. The
+    # report is optional so historical or offline builds remain reproducible.
+    injury_path = Path(f"data/injuries/injuries_week{args.week}.csv")
+    if injury_path.exists() and "name_std" in df.columns:
+        inj = pd.read_csv(injury_path, low_memory=False)
+        if {"name_std", "source_status", "availability"}.issubset(inj.columns):
+            inj = inj[["name_std", "source_status", "availability"]].drop_duplicates("name_std")
+            df = df.merge(inj.rename(columns={"source_status": "injury_status",
+                                               "availability": "injury_availability"}),
+                          on="name_std", how="left")
+
     games: List[str] = list(pd.unique(df["game_norm"].dropna()))
     if not games:
         print("[error] No games found in merged CSV (missing game_norm).", file=sys.stderr)
@@ -330,8 +358,19 @@ def main(argv=None):
     if not weekly_overview.strip():
         # Fallback for weekly overview
         top_edge = df.nlargest(1, 'edge_bps').iloc[0] if 'edge_bps' in df.columns and len(df) > 0 else None
-        if top_edge is not None:
-            weekly_overview = f"Week {args.week} features {len(games)} games with several interesting edges. Top edge: {top_edge.get('player', 'Unknown')} {top_edge.get('market_std', '')} at {int(top_edge.get('edge_bps', 0))} bps. Check individual games for details."
+        eligible = df[df['edge_bps'].gt(0) & df['edge_bps'].le(MAX_INSIGHT_EDGE_BPS)
+                      & df['model_prob'].notna() & df['mkt_prob'].notna()].copy()
+        if 'book_count' in eligible.columns:
+            eligible = eligible[eligible['book_count'].fillna(0).ge(3)]
+        keys = [c for c in ['player', 'market_std', 'name', 'point'] if c in eligible.columns]
+        if keys:
+            eligible = eligible.sort_values('edge_bps', ascending=False).drop_duplicates(keys)
+        top_rows = eligible.head(3)
+        if len(top_rows):
+            angles = "; ".join(
+                f"{r['player']} {r['name']} {r['market_std']} ({int(r['edge_bps'])} bps)"
+                for _, r in top_rows.iterrows())
+            weekly_overview = f"Week {args.week} has {len(games)} games with consensus-supported model angles. The clearest examples are {angles}. Compare the exact line and price on each game page; these estimates are experimental."
         else:
             weekly_overview = f"Week {args.week} features {len(games)} games. Select a game above to see detailed analysis."
     print(f"    ✓ Weekly overview complete", file=sys.stderr)
