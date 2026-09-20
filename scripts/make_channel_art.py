@@ -110,6 +110,52 @@ def make_avatar(path):
     return path
 
 
+def make_watermark(path, size=150):
+    """YouTube's video watermark: sits over arbitrary footage, so it needs a
+    solid chip rather than bare letterforms, on a transparent canvas."""
+    scale = 8                                    # supersample, then downsample
+    big = size * scale
+    img = Image.new('RGBA', (big, big), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+
+    pad = int(big * 0.06)
+    draw.rounded_rectangle([pad, pad, big - pad, big - pad],
+                           radius=int(big * 0.22),
+                           fill=GREEN + (235,))
+
+    font = load_font(int(big * 0.42))
+    draw.text((big / 2, big / 2), 'FV', font=font, fill=DARK + (255,), anchor='mm')
+
+    img = img.resize((size, size), Image.LANCZOS)
+    img.save(path, 'PNG', optimize=True)
+    return path
+
+
+def make_chart_mark(path, width=520, on_dark=True):
+    """Transparent wordmark strip for overlaying on charts and screenshots.
+
+    "Fourth" is near-white, so it disappears on a pale background. The
+    on_dark=False variant swaps it for the site's ink colour instead.
+    """
+    scale = 4
+    w, h = width * scale, int(width * 0.16) * scale
+    img = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+
+    font = load_font(int(h * 0.62))
+    first = INK if on_dark else (23, 30, 40)
+    parts = [('Fourth ', first + (225,)), ('& ', BLUE + (225,)), ('Value', GREEN + (235,))]
+    total = sum(text_width(draw, t, font) for t, _ in parts)
+    x = (w - total) / 2
+    for text, colour in parts:
+        draw.text((x, h / 2), text, font=font, fill=colour, anchor='lm')
+        x += text_width(draw, text, font)
+
+    img = img.resize((width, int(width * 0.16)), Image.LANCZOS)
+    img.save(path, 'PNG', optimize=True)
+    return path
+
+
 def main():
     ap = argparse.ArgumentParser(description='Generate YouTube channel art')
     ap.add_argument('--out-dir', default='docs/assets/brand')
@@ -118,7 +164,11 @@ def main():
 
     b = make_banner(os.path.join(args.out_dir, 'youtube-banner.png'))
     a = make_avatar(os.path.join(args.out_dir, 'youtube-avatar.png'))
-    for p in (b, a):
+    w = make_watermark(os.path.join(args.out_dir, 'youtube-watermark.png'))
+    c = make_chart_mark(os.path.join(args.out_dir, 'watermark-wordmark.png'))
+    cl = make_chart_mark(os.path.join(args.out_dir, 'watermark-wordmark-light-bg.png'),
+                         on_dark=False)
+    for p in (b, a, w, c, cl):
         with Image.open(p) as im:
             print(f'{p}  {im.size[0]}x{im.size[1]}  {os.path.getsize(p)/1024:.0f} KB')
 
