@@ -111,6 +111,7 @@
           <li><strong>Player game logs:</strong> Weekly player stats from nflverse (official NFL data).</li>
           <li><strong>Schedule &amp; kickoff:</strong> Used for display (ET) and filtering upcoming games.</li>
           <li><strong>Defensive stats:</strong> Computed from opponent performance (yards allowed per game).</li>
+          <li><strong>Injury reports:</strong> Weekly nflverse designations are normalized with a UTC retrieval time and converted to conservative availability inputs. The official NFL injury page is the confirmation source for late status changes.</li>
         </ul>
 
         <h2 id="modeling">3) Modeling approach</h2>
@@ -157,6 +158,10 @@
 
         <h3>Exponential weighting:</h3>
         <p>For four complete observations with decay factor 0.4, unnormalized weights from oldest to newest are 0.4³, 0.4², 0.4 and 1. After normalization, those weights are approximately 3.9%, 9.9%, 24.6% and 61.6%. Missing observations change the normalization. A smaller decay factor places more weight on recent games.</p>
+
+        <h3>Injury adjustments:</h3>
+        <p>For a current-week report, <strong>Out/IR</strong> maps to 0% availability, <strong>Doubtful</strong> to 15%, <strong>Questionable</strong> to 65%, and <strong>Probable</strong> to 90%. Limited or missed practice without an official game designation receives only a small provisional adjustment. The player’s μ or λ is scaled and the source status is carried into the parameter snapshot. These are starting priors, not calibrated probabilities of playing.</p>
+        <p>The totals research screen compares the injury-adjusted total with captured market movement. It labels a possible overreaction only when an opening snapshot exists and the market move materially exceeds the model’s injury impact. Missing movement history produces no signal.</p>
 
         <h3>Matchup adjustments:</h3>
         <p>We apply two layers of matchup adjustments to account for both opponent strength and game location:</p>

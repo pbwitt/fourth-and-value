@@ -510,6 +510,7 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
       <p>{quote_line} Page built {datetime.now().strftime('%b %-d, %Y at %-I:%M %p')} local time &mdash;
       build time is not quote time.</p>
       <p>Lines move. Confirm the current price at your sportsbook before betting.</p>
+      <p><a href="../injuries/">Review the injury-versus-market reaction screen →</a></p>
     </footer>
   </main>
 

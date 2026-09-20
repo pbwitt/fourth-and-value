@@ -73,9 +73,10 @@ jobs:
           WEEK=${{ steps.week.outputs.week }}
           DATE=$(date +%Y-%m-%d)
           make --always-make monday_all SEASON=2026 WEEK=$WEEK
+          make --always-make nfl_totals_daily SEASON=2026 WEEK=$WEEK
           echo "Grading pending NFL bets..."
           python3 scripts/grade_bets_nfl.py || echo "No bets to grade"
-          git add docs/props/*.html docs/data/ai/*.json docs/sitemap.xml docs/robots.txt
+          git add docs/props/*.html docs/nfl/index.html docs/nfl/totals/index.html docs/nfl/injuries/index.html docs/data/ai/*.json docs/sitemap.xml docs/robots.txt
           if git diff --staged --quiet; then
             echo "No changes to commit"
             exit 0

@@ -24,6 +24,7 @@ QC_DIR     := data/qc
 PROPS_ALL  := $(PROPS_DIR)/latest_all_props.csv
 PARAMS     := $(PROPS_DIR)/params_week$(WEEK).csv
 MERGED     := $(PROPS_DIR)/props_with_model_week$(WEEK).csv
+INJURY_REPORT := data/injuries/injuries_week$(WEEK).csv
 
 PROPS_HTML := $(DOCS_DIR)/props/index.html
 TOP_HTML   := $(DOCS_DIR)/props/top.html
@@ -35,7 +36,7 @@ FAM_ARB_CSV := data/qc/family_arbitrage.csv
 INCOH_CSV  := data/qc/incoherent_books.csv
 
 # ---- Phony targets ----
-.PHONY: monday_all monday_all_pub weekly qc publish_pages props_now_pages serve_preview clean_pages clean
+.PHONY: monday_all monday_all_pub weekly qc publish_pages props_now_pages serve_preview clean_pages clean injuries
 .PHONY: nhl_daily nhl_daily_pub nhl_odds nhl_stats nhl_consensus nhl_edges nhl_page
 .PHONY: nhl_totals_fetch nhl_totals_features nhl_totals_train nhl_totals_predict nhl_totals_consensus nhl_totals_all
 
@@ -82,13 +83,19 @@ $(PROPS_ALL): scripts/fetch_all_player_props.py | $(PROPS_DIR) $(ODDS_CSV)
 	@echo "[VALIDATION] Checking props data freshness..."
 	@$(PY) scripts/validate_data_freshness.py --props $(PROPS_ALL) || (echo "[ERR] Props data is stale!"; exit 1)
 
-# 3) Build params
-$(PARAMS): scripts/make_player_prop_params.py $(PROPS_ALL) | $(PROPS_DIR)
+# 3) Fetch the target week's injury designations before modeling.
+injuries: $(INJURY_REPORT)
+
+$(INJURY_REPORT): scripts/fetch_injuries.py scripts/injury_adjustments.py
+	$(PY) scripts/fetch_injuries.py --season $(SEASON) --week $(WEEK)
+
+# 4) Build params
+$(PARAMS): scripts/make_player_prop_params.py scripts/injury_adjustments.py $(PROPS_ALL) $(INJURY_REPORT) | $(PROPS_DIR)
 	$(PY) scripts/make_player_prop_params.py \
 	  --season $(SEASON) --week $(WEEK) \
 	  --out $@
 
-# 4) Compute edges → merged CSV
+# 5) Compute edges → merged CSV
 $(MERGED): scripts/make_props_edges.py scripts/market_math.py models/nfl_prop_calibration.json $(PARAMS) $(PROPS_ALL) | $(PROPS_DIR)
 	$(PY) scripts/make_props_edges.py \
 	  --season $(SEASON) --week $(WEEK) \
@@ -394,9 +401,11 @@ NFL_TOTALS_PREDS := data/nfl/predictions/week_predictions.csv
 NFL_TOTALS_CONSENSUS := data/nfl/consensus/consensus.csv
 NFL_TOTALS_EDGES := data/nfl/consensus/edges.csv
 NFL_TOTALS_PAGE := docs/nfl/totals/index.html
+NFL_INJURY_SIGNAL := data/nfl/injuries/injury_totals_week$(WEEK).csv
+NFL_INJURY_PAGE := docs/nfl/injuries/index.html
 
 # Phony targets
-.PHONY: nfl_totals_fetch nfl_totals_features nfl_totals_train nfl_totals_predict nfl_totals_lines nfl_totals_consensus nfl_totals_page nfl_totals_daily
+.PHONY: nfl_totals_fetch nfl_totals_features nfl_totals_train nfl_totals_predict nfl_totals_lines nfl_totals_consensus nfl_totals_page nfl_totals_daily injury_totals_signal injury_totals_page
 
 # Fetch PBP data (one-time or when new season starts)
 nfl_totals_fetch:
@@ -468,8 +477,23 @@ nfl_totals_page:
 		--output $(NFL_TOTALS_PAGE) \
 		--week $(WEEK)
 
+injury_totals_signal: $(NFL_INJURY_SIGNAL)
+
+$(NFL_INJURY_SIGNAL): scripts/build_injury_totals_signal.py data/injuries/injuries_week$(WEEK).csv $(NFL_TOTALS_PREDS) data/nfl/consensus/totals_spreads_consensus.csv data/nfl/lines/line_movement.csv
+	$(PY) scripts/build_injury_totals_signal.py \
+		--injuries data/injuries/injuries_week$(WEEK).csv \
+		--predictions $(NFL_TOTALS_PREDS) \
+		--consensus data/nfl/consensus/totals_spreads_consensus.csv \
+		--movement data/nfl/lines/line_movement.csv \
+		--output $@
+
+injury_totals_page: $(NFL_INJURY_PAGE)
+
+$(NFL_INJURY_PAGE): scripts/build_injury_totals_page.py $(NFL_INJURY_SIGNAL)
+	$(PY) scripts/build_injury_totals_page.py --input $(NFL_INJURY_SIGNAL) --season $(SEASON) --week $(WEEK) --output $@
+
 # Weekly run: predict + consensus + page
-nfl_totals_daily: nfl_totals_predict nfl_totals_consensus nfl_totals_page
+nfl_totals_daily: nfl_totals_predict nfl_totals_consensus nfl_totals_page injury_totals_signal injury_totals_page
 	@echo "====================================================================="
 	@echo "✓ NFL totals update complete for Week $(WEEK)"
 	@echo "====================================================================="

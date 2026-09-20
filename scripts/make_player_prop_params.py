@@ -28,6 +28,7 @@ Usage:
 from __future__ import annotations
 
 from common_markets import standardize_input, apply_priors_if_missing, std_player_name
+from injury_adjustments import load_week_injuries
 
 # --- add near the top of the script (imports) ---
 from pathlib import Path
@@ -878,8 +879,12 @@ def load_player_adjustments() -> dict:
     import json
     from pathlib import Path
 
-    adj_file = Path(__file__).parent.parent / "data" / "player_adjustments.json"
-
+    root = Path(__file__).parent.parent
+    # ``config`` is tracked and deployable; the legacy data path remains a
+    # local override for backwards compatibility.
+    adj_file = root / "config" / "player_adjustments.json"
+    if not adj_file.exists():
+        adj_file = root / "data" / "player_adjustments.json"
     if not adj_file.exists():
         return {}
 
@@ -923,6 +928,19 @@ def apply_player_adjustment(mu: float, name_std: str, market_std: str, adjustmen
         return adjusted
 
     return mu
+
+
+def apply_availability_adjustment(value: float, name_std: str, availability: dict) -> float:
+    """Scale a player expectation by the current report availability."""
+    if not availability or pd.isna(value):
+        return value
+    multiplier = availability.get(name_std)
+    if multiplier is None:
+        return value
+    adjusted = value * float(multiplier)
+    if adjusted != value:
+        print(f"[injury] {name_std}: {value:.2f} → {adjusted:.2f} (availability {multiplier:.2f})")
+    return adjusted
 
 
 def apply_home_away_adjustment(mu: float, market_std: str, is_home: Optional[bool]) -> float:
@@ -1774,6 +1792,15 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
     if player_adjustments:
         print(f"[adjustments] Loaded manual adjustments for {len(player_adjustments)} players")
 
+    # Automated weekly injury report. Missing data is intentionally a no-op;
+    # the board should still build when the upstream report is delayed.
+    injury_path = Path(__file__).parent.parent / "data" / "injuries" / f"injuries_week{int(week)}.csv"
+    injuries = load_week_injuries(injury_path, season, week)
+    injury_availability = (dict(zip(injuries["name_std"], injuries["availability"]))
+                           if not injuries.empty else {})
+    if injury_availability:
+        print(f"[injury] Loaded {len(injury_availability)} actionable Week {week} designations")
+
     # Build player → name_std mapping for adjustments
     player_to_name_std = {}
     if "name_std" in cands.columns and "player" in cands.columns:
@@ -1807,6 +1834,7 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
                     name_std_val = player_to_name_std.get(player, player)
                     original_mu = mu[player]
                     adjusted_mu = apply_player_adjustment(original_mu, name_std_val, mkt, player_adjustments)
+                    adjusted_mu = apply_availability_adjustment(adjusted_mu, name_std_val, injury_availability)
                     mu_adjusted[player] = adjusted_mu
                 mu = pd.Series(mu_adjusted, index=mu.index)
 
@@ -1823,6 +1851,9 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
             )
         elif mkt in POISSON_MARKETS:
             lam = lam_for(mkt)
+            if injury_availability:
+                lam = pd.Series({p: apply_availability_adjustment(v, player_to_name_std.get(p, p), injury_availability)
+                                 for p, v in lam.items()}, index=lam.index)
             rows.append(
                 want.assign(
                     dist      = "poisson",
@@ -1845,6 +1876,12 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
     # back-compat: some downstream code expects 'market'
     if "market" not in params.columns and "market_std" in params.columns:
         params["market"] = params["market_std"]
+
+    # Preserve injury evidence alongside the adjusted parameters.
+    if injury_availability and "name_std" in params.columns:
+        params["injury_availability"] = params["name_std"].map(injury_availability)
+        params["injury_status"] = params["name_std"].map(
+            dict(zip(injuries["name_std"], injuries["source_status"])))
 
     # ensure types
     for col in ["mu","sigma","lam"]:
@@ -2047,7 +2084,8 @@ def main():
     # Final tidy + write
     cols = ["season","week","player","player_key","name_std","market_std","market",
         "dist","mu","sigma","lam","used_logs","is_home","no_real_data",
-        "implied_ypc","implied_ypr","implied_comp_pct","implied_ypc_pass","implied_cr"]
+        "implied_ypc","implied_ypr","implied_comp_pct","implied_ypc_pass","implied_cr",
+        "injury_availability","injury_status"]
     params = params[[c for c in cols if c in params.columns]].copy()
     params = standardize_input(params)           # adds market_std/name/point/name_std
     params = apply_priors_if_missing(params)     # fills missing mu/sigma/lam using PRIORS

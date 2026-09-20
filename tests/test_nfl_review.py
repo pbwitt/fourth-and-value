@@ -11,9 +11,43 @@ from market_math import add_market_comparisons, outcome_probabilities, expected_
 from validate_data_freshness import validate_props_freshness
 from nfl_build_team_features import add_rolling_features
 from nfl_find_consensus_edges import find_consensus_edges
+from injury_adjustments import availability_for_status, normalize_injury_report
+from build_injury_totals_signal import build_signal
 
 
 class PricingTests(unittest.TestCase):
+    def test_injury_statuses_are_conservative_and_auditable(self):
+        self.assertEqual(availability_for_status("Out"), 0.0)
+        self.assertAlmostEqual(availability_for_status("Questionable"), 0.65)
+        self.assertAlmostEqual(availability_for_status("", "Limited Participation in Practice"), 0.95)
+        self.assertIsNone(availability_for_status(""))
+
+    def test_injury_report_filters_week_and_keeps_most_restrictive_row(self):
+        raw = pd.DataFrame([
+            dict(season=2026, week=2, team="A", full_name="A Player", position="WR",
+                 report_status="Questionable", practice_status="Limited Participation in Practice"),
+            dict(season=2026, week=2, team="A", full_name="A Player", position="WR",
+                 report_status="Out", practice_status="Did Not Participate In Practice"),
+            dict(season=2026, week=1, team="A", full_name="Old Player", position="WR",
+                 report_status="Out", practice_status="Did Not Participate In Practice"),
+        ])
+        out = normalize_injury_report(raw, 2026, 2, "2026-09-20T12:00:00+00:00")
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out.iloc[0].source_status, "Out")
+        self.assertEqual(out.iloc[0].availability, 0.0)
+        self.assertEqual(out.iloc[0].retrieved_at, "2026-09-20T12:00:00+00:00")
+
+    def test_injury_totals_screen_requires_market_history_and_caps_prior(self):
+        injuries = pd.DataFrame([dict(team="A", position="QB", availability=0.0),
+                                 dict(team="A", position="WR", availability=0.0),
+                                 dict(team="B", position="RB", availability=0.0)])
+        predictions = pd.DataFrame([dict(game="B @ A", home_team="A", away_team="B", total_pred=45.0)])
+        consensus = pd.DataFrame([dict(game="B @ A", market="total", consensus_line=45.5)])
+        movement = pd.DataFrame(columns=["game", "total_move"])
+        out = build_signal(injuries, predictions, consensus, movement)
+        self.assertEqual(out.iloc[0].signal_status, "insufficient_market_history")
+        self.assertGreaterEqual(out.iloc[0].model_injury_impact_points, -12.0)
+
     def quote(self,game='g1',book='A',point=50.5,side='over',price=-110):
         return dict(game_id=game,player='A Player',market_std='rush_yds',bookmaker=book,point=point,name=side,price=price)
 
