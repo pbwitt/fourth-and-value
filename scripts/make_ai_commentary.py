@@ -301,7 +301,7 @@ def main(argv=None):
     ap.add_argument("--week", type=int, required=True)
     ap.add_argument("--merged_csv", type=str, required=True)
     ap.add_argument("--top_n", type=int, default=10)
-    ap.add_argument("--model", type=str, default=os.getenv("OPENAI_INSIGHTS_MODEL", "gpt-6"))
+    ap.add_argument("--model", type=str, default=os.getenv("OPENAI_INSIGHTS_MODEL", "gpt-6-astra"))
     ap.add_argument("--out_json", type=str, required=True, help="Output path for {game_norm: text} JSON")
     ap.add_argument("--force", action="store_true", help="Overwrite existing out_json")
     args = ap.parse_args(argv)

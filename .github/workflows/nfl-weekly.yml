@@ -10,6 +10,11 @@ on:
         description: 'NFL Week Number'
         required: false
         type: number
+      generate_insights:
+        description: 'Generate GPT-6 game insights (uses OpenAI credits)'
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: nfl-weekly-update
@@ -63,7 +68,7 @@ jobs:
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_INSIGHTS_MODEL: gpt-6
+          OPENAI_INSIGHTS_MODEL: gpt-6-astra
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
@@ -73,7 +78,11 @@ jobs:
           export OPENAI_API_KEY="${OPENAI_API_KEY}"
           WEEK=${{ steps.week.outputs.week }}
           DATE=$(date +%Y-%m-%d)
-          make --always-make monday_all SEASON=2026 WEEK=$WEEK
+          if [ "${{ github.event.inputs.generate_insights }}" = "true" ]; then
+            make --always-make monday_all SEASON=2026 WEEK=$WEEK SKIP_AI_INSIGHTS=0
+          else
+            make --always-make monday_all SEASON=2026 WEEK=$WEEK SKIP_AI_INSIGHTS=1
+          fi
           make --always-make nfl_totals_daily SEASON=2026 WEEK=$WEEK
           echo "Grading pending NFL bets..."
           python3 scripts/grade_bets_nfl.py || echo "No bets to grade"

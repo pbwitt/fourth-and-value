@@ -7,7 +7,7 @@ books. It also includes the exact side, line, price, book count, price-shopping
 data, and any target-week injury designations available in the normalized
 injury snapshot.
 
-The scheduled workflow sets `OPENAI_INSIGHTS_MODEL=gpt-6`. The generator reads
+The workflow sets `OPENAI_INSIGHTS_MODEL=gpt-6-astra`. The generator reads
 that variable (or accepts `--model`) and uses the OpenAI Responses API. The
 model must be enabled for the project associated with `OPENAI_API_KEY`; if the
 requested model is unavailable or the account has no quota, the generator
@@ -21,3 +21,9 @@ summary should be grounded in.
 
 OpenAI’s official API quickstart shows the Responses API pattern used here:
 <https://platform.openai.com/docs/quickstart/make-your-first-api-request>.
+
+Insights generation is opt in. The normal scheduled NFL refresh skips the AI
+target and leaves the last published Insights page unchanged. To refresh it,
+run the **NFL Weekly Update** workflow manually in GitHub Actions and enable
+**Generate GPT-6 game insights**. That checkbox is the credit-spend permission;
+leaving it off still refreshes the odds, models, and other site pages.

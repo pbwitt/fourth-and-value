@@ -35,6 +35,14 @@ ODDS_CSV   := $(ODDS_DIR)/latest.csv
 FAM_ARB_CSV := data/qc/family_arbitrage.csv
 INCOH_CSV  := data/qc/incoherent_books.csv
 
+# AI Insights spend API credits. Scheduled site refreshes can leave the last
+# generated Insights page in place; opt in with SKIP_AI_INSIGHTS=0.
+ifeq ($(SKIP_AI_INSIGHTS),1)
+WEEKLY_INSIGHTS :=
+else
+WEEKLY_INSIGHTS := $(INSIGHTS_HTML)
+endif
+
 # ---- Phony targets ----
 .PHONY: monday_all monday_all_pub weekly qc publish_pages props_now_pages serve_preview clean_pages clean injuries
 .PHONY: nhl_daily nhl_daily_pub nhl_odds nhl_stats nhl_consensus nhl_edges nhl_page
@@ -46,7 +54,7 @@ monday_all: weekly qc
 	@echo "[OK] All QC checks passed ✓"
 
 # Weekly pipeline (consensus removed - now integrated into Props page)
-weekly: $(PROPS_HTML) $(TOP_HTML) $(INSIGHTS_HTML) $(ARB_HTML)
+weekly: $(PROPS_HTML) $(TOP_HTML) $(WEEKLY_INSIGHTS) $(ARB_HTML)
 	$(PY) scripts/build_site_metadata.py
 
 # QC checks (run after weekly build)
