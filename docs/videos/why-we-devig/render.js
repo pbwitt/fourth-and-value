@@ -46,7 +46,7 @@
     const words=s.narration.split(/\s+/),chunkSize=9,chunks=[];for(let j=0;j<words.length;j+=chunkSize)chunks.push(words.slice(j,j+chunkSize).join(' '));
     const chunk=Math.min(chunks.length-1,Math.floor(local/Math.max(s.speech_duration,.1)*chunks.length));
     pill(80,1480,920,210,'#06090de8');wrap(chunks[chunk],120,1550,830,43,white,60);
-    if(!silent)text('Narrated explainer',108,1760,25,muted);text('fourthandvalue.com',108,1810,28,mint);
+    text('fourthandvalue.com',108,1810,28,mint);
     c.fillStyle='#273445';c.fillRect(108,1845,864,6);c.fillStyle=mint;c.fillRect(108,1845,864*Math.min(time/spec.duration,1),6);
   }
   draw(1);window.videoReady=true;window.drawVideoFrame=draw;

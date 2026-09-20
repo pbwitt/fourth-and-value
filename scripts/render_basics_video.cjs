@@ -26,7 +26,7 @@ const server = http.createServer((req, res) => {
     const page = await browser.newPage({viewport:{width:1080,height:1920},deviceScaleFactor:1});
     const errors=[];
     page.on('pageerror', err=>errors.push(err.message));
-    await page.goto(`http://127.0.0.1:${server.address().port}/videos/why-we-devig/render.html?silent=1`);
+    await page.goto(`http://127.0.0.1:${server.address().port}/videos/why-we-devig/render.html`);
     await page.waitForFunction(()=>window.videoReady);
     await page.locator('canvas').screenshot({path:path.join(output,'poster.png')});
     const data = await page.evaluate(()=>window.renderVideo());
