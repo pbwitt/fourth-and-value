@@ -23,7 +23,8 @@ DEFAULT_POINT_IMPACT = 0.25
 
 
 def build_signal(injuries: pd.DataFrame, predictions: pd.DataFrame,
-                 consensus: pd.DataFrame, movement: pd.DataFrame) -> pd.DataFrame:
+                 consensus: pd.DataFrame, movement: pd.DataFrame,
+                 lines: pd.DataFrame | None = None) -> pd.DataFrame:
     rows = []
     if predictions.empty:
         return pd.DataFrame()
@@ -46,6 +47,15 @@ def build_signal(injuries: pd.DataFrame, predictions: pd.DataFrame,
         m = movement[movement["game"] == gname] if not movement.empty else pd.DataFrame()
         market_move = float(pd.to_numeric(m.get("total_move"), errors="coerce").median()) if not m.empty else np.nan
         residual = market_move - model_impact if pd.notna(market_move) else np.nan
+        gl = lines[lines["game"] == gname] if lines is not None and not lines.empty else pd.DataFrame()
+        if not gl.empty:
+            over = gl.loc[pd.to_numeric(gl["total_over_price"], errors="coerce").idxmax()]
+            under = gl.loc[pd.to_numeric(gl["total_under_price"], errors="coerce").idxmax()]
+            best_over = f"{over['book']} {over['total_over_line']:.1f} ({over['total_over_price']:+.0f})"
+            best_under = f"{under['book']} {under['total_over_line']:.1f} ({under['total_under_price']:+.0f})"
+        else:
+            best_over = best_under = ""
+        movers = m.loc[pd.to_numeric(m["total_move"], errors="coerce").idxmin(), "book"] if not m.empty else ""
         if pd.isna(market_move):
             status = "insufficient_market_history"
         elif residual <= -1.5 and model_impact < 0:
@@ -61,7 +71,8 @@ def build_signal(injuries: pd.DataFrame, predictions: pd.DataFrame,
             "model_injury_impact_points": model_impact,
             "market_consensus_total": market_line, "market_total_move": market_move,
             "reaction_residual": residual, "home_injury_rows": counts[home],
-            "away_injury_rows": counts[away], "signal_status": status,
+            "away_injury_rows": counts[away], "largest_downward_move_book": movers,
+            "best_over": best_over, "best_under": best_under, "signal_status": status,
         })
     return pd.DataFrame(rows)
 
@@ -72,10 +83,12 @@ def main():
     ap.add_argument("--predictions", required=True)
     ap.add_argument("--consensus", required=True)
     ap.add_argument("--movement", required=True)
+    ap.add_argument("--lines", default=None)
     ap.add_argument("--output", required=True)
     args = ap.parse_args()
+    lines = pd.read_csv(args.lines) if args.lines else None
     out = build_signal(pd.read_csv(args.injuries), pd.read_csv(args.predictions),
-                       pd.read_csv(args.consensus), pd.read_csv(args.movement))
+                       pd.read_csv(args.consensus), pd.read_csv(args.movement), lines)
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(args.output, index=False)
     print(f"[injury-totals] wrote {len(out):,} game screens to {args.output}")

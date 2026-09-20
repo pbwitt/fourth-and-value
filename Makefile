@@ -486,6 +486,7 @@ $(NFL_INJURY_SIGNAL): scripts/build_injury_totals_signal.py data/injuries/injuri
 		--predictions $(NFL_TOTALS_PREDS) \
 		--consensus data/nfl/consensus/totals_spreads_consensus.csv \
 		--movement data/nfl/lines/line_movement.csv \
+		--lines data/nfl/lines/totals_spreads.csv \
 		--output $@
 
 injury_totals_page: $(NFL_INJURY_PAGE)

@@ -201,13 +201,15 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
       <h2>Injury reaction screen</h2>
       <p class="meta">Compare the model's estimated injury impact with captured total-line movement. These are research flags, not automated picks.</p>
       <div class="table-wrap"><table class="totals-summary"><thead><tr>
-        <th>Game</th><th class="num">Model injury impact</th><th class="num">Market move</th><th class="num">Residual</th><th>Status</th>
+        <th>Game</th><th class="num">Model injury impact</th><th class="num">Market move</th><th class="num">Residual</th><th>Best over</th><th>Best under</th><th>Status</th>
       </tr></thead><tbody>
 """
         for _, r in flagged.iterrows():
             move = '&mdash;' if pd.isna(r.get('market_total_move')) else f"{r['market_total_move']:+.1f}"
             residual = '&mdash;' if pd.isna(r.get('reaction_residual')) else f"{r['reaction_residual']:+.1f}"
-            html += f"<tr><td>{r['game']}</td><td class=\"num\">{r['model_injury_impact_points']:+.1f}</td><td class=\"num\">{move}</td><td class=\"num\">{residual}</td><td>{r['signal_status'].replace('_', ' ')}</td></tr>"
+            best_over = '&mdash;' if pd.isna(r.get('best_over')) or not r.get('best_over') else r.get('best_over')
+            best_under = '&mdash;' if pd.isna(r.get('best_under')) or not r.get('best_under') else r.get('best_under')
+            html += f"<tr><td>{r['game']}</td><td class=\"num\">{r['model_injury_impact_points']:+.1f}</td><td class=\"num\">{move}</td><td class=\"num\">{residual}</td><td>{best_over}</td><td>{best_under}</td><td>{r['signal_status'].replace('_', ' ')}</td></tr>"
         html += """</tbody></table></div>
       <p><a href="../injuries/">Open the full injury reaction dashboard →</a> · <a href="../../blog/injury-market-reaction-week-2-2026.html">Read the case study →</a></p>
     </section>
