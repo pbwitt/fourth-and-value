@@ -1,4 +1,4 @@
-// docs/nav.js (v=32) — Added Bet Tracker link (auth-only)
+// docs/nav.js (v=35) — Added Bet Tracker link (auth-only)
 (function () {
   // --- Find script & compute base (works locally and deployed) ---
   const scriptEl =
