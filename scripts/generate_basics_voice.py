@@ -13,8 +13,11 @@ ROOT = Path(__file__).resolve().parents[1]
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--generate-voice', action='store_true', help='Opt in to paid OpenAI speech requests')
+    parser.add_argument('--spec', default='content/videos/01-why-we-devig.json', help='JSON scene specification')
+    parser.add_argument('--output-dir', help='Audio/timeline directory (defaults beside the spec slug)')
     args = parser.parse_args()
-    spec = json.loads((ROOT / 'content/videos/01-why-we-devig.json').read_text())
+    spec_path = ROOT / args.spec
+    spec = json.loads(spec_path.read_text())
     if not args.generate_voice:
         print('Preview only. No API calls. Add --generate-voice to opt in.')
         print(json.dumps(spec, indent=2))
@@ -23,7 +26,7 @@ def main():
     from openai import OpenAI
     load_dotenv(ROOT / '.env')
     client = OpenAI(max_retries=0, timeout=90)
-    out = ROOT / 'docs/videos/why-we-devig'
+    out = ROOT / (args.output_dir or 'docs/videos/why-we-devig')
     out.mkdir(parents=True, exist_ok=True)
     timeline = []
     start = 0.0
@@ -58,7 +61,7 @@ def main():
                              duration=seconds + 0.55))
         start += seconds + 0.55
         print(f'Scene {i+1}: {seconds:.1f}s; saved/cached', flush=True)
-    spec.update(scenes=timeline, duration=round(start, 3), disclosure='AI-generated narration')
+    spec.update(scenes=timeline, duration=round(start, 3))
     (out / 'timeline.json').write_text(json.dumps(spec, indent=2) + '\n')
     print(f'Total: {start:.1f}s. No recurring job was created.')
 

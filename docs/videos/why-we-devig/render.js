@@ -1,6 +1,7 @@
 /* Accurate type and charts stay deterministic; AI supplies narration only. */
 (async()=>{
-  const spec=await fetch('timeline.json').then(r=>r.json());
+  const specFile=new URLSearchParams(location.search).get('spec')||'timeline.json';
+  const spec=await fetch(specFile).then(r=>r.json());
   const silent=new URLSearchParams(location.search).has('silent');
   const canvas=document.querySelector('canvas'), c=canvas.getContext('2d');
   const mint='#6ee7b7',white='#edf2f7',muted='#a8b8cd';
@@ -12,7 +13,7 @@
     for(const word of t.split(' ')){const trial=line?line+' '+word:word;if(c.measureText(trial).width>width&&line){text(line,x,y,size,color);y+=lineHeight;line=word;}else line=trial;}
     if(line)text(line,x,y,size,color);return y+lineHeight;
   }
-  function fit(t,x,y,size,color=white,weight=700){while(size>20){c.font=`${weight} ${size}px Arial`;if(c.measureText(t).width<=864)break;size-=1;}text(t,x,y,size,color,weight);}
+  function fit(t,x,y,size,color=white,weight=700,maxWidth=864){while(size>20){c.font=`${weight} ${size}px Arial`;if(c.measureText(t).width<=maxWidth)break;size-=1;}text(t,x,y,size,color,weight);}
   function pill(x,y,w,h,color){c.fillStyle=color;c.beginPath();c.roundRect(x,y,w,h,20);c.fill();}
   function draw(time){
     let i=spec.scenes.findIndex(s=>time<s.start+s.duration);if(i<0)i=spec.scenes.length-1;
@@ -21,12 +22,12 @@
     const glow=c.createRadialGradient(920,470,0,920,470,900);glow.addColorStop(0,'#153e34');glow.addColorStop(1,'#0b0e13');c.fillStyle=glow;c.fillRect(0,0,1080,1920);
     c.strokeStyle='#ffffff08';c.lineWidth=2;for(let y=200;y<1640;y+=130){c.beginPath();c.moveTo(100,y);c.lineTo(980,y);c.stroke();}
     text('FOURTH & VALUE',108,160,36,mint,700);
-    text('BETTING BASICS',108,225,25,muted,600);
+    text(spec.section_label || 'BETTING BASICS',108,225,25,muted,600);
     text(`${String(i+1).padStart(2,'0')} / 08`,825,160,27,muted);
     c.save();c.globalAlpha=0.45+enter*.55;c.translate(0,24*(1-enter));
     text(s.label,108,390,27,mint,700);
     let y=500;for(const line of s.headline.split('\n')){fit(line,108,y,78);y+=100;}
-    pill(108,770,864,260,'#13251f');fit(s.metric,150,914,100,mint);
+    pill(108,770,864,260,'#13251f');fit(s.metric,150,914,100,mint,700,780);
     wrap(s.detail,108,1095,840,36,muted,50);
     // Two-outcome proportional bars, or signed profit bars for the price example.
     if(i===3||i===4){
@@ -57,7 +58,7 @@
     if(dest)dest.stream.getAudioTracks().forEach(t=>stream.addTrack(t));
     const mimeType='video/mp4;codecs=avc1.42001E,mp4a.40.2';
     if(!MediaRecorder.isTypeSupported(mimeType))throw new Error('Chrome MP4 recording is required');
-    const recorder=new MediaRecorder(stream,{mimeType,videoBitsPerSecond:3500000,audioBitsPerSecond:128000});
+    const recorder=new MediaRecorder(stream,{mimeType,videoBitsPerSecond:1800000,audioBitsPerSecond:80000});
     const chunks=[];recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};
     const done=new Promise(resolve=>recorder.onstop=resolve);recorder.start(1000);
     const start=silent?performance.now()/1000:audioContext.currentTime+.12;

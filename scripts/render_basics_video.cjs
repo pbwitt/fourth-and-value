@@ -5,7 +5,9 @@ const path = require('node:path');
 const http = require('node:http');
 const { chromium } = require('playwright');
 const root = path.resolve(__dirname, '../docs');
-const output = path.join(root, 'videos/why-we-devig');
+const slug = process.env.VIDEO_SLUG || 'why-we-devig';
+const output = path.join(root, 'videos', slug);
+const spec = process.env.VIDEO_SPEC || 'timeline.json';
 const server = http.createServer((req, res) => {
   const file = path.resolve(root, '.' + decodeURIComponent(req.url.split('?')[0]));
   if (!file.startsWith(root + path.sep)) { res.writeHead(403); return res.end(); }
@@ -26,7 +28,7 @@ const server = http.createServer((req, res) => {
     const page = await browser.newPage({viewport:{width:1080,height:1920},deviceScaleFactor:1});
     const errors=[];
     page.on('pageerror', err=>errors.push(err.message));
-    await page.goto(`http://127.0.0.1:${server.address().port}/videos/why-we-devig/render.html`);
+    await page.goto(`http://127.0.0.1:${server.address().port}/videos/${slug}/render.html?spec=${encodeURIComponent(spec)}`);
     await page.waitForFunction(()=>window.videoReady);
     await page.locator('canvas').screenshot({path:path.join(output,'poster.png')});
     const data = await page.evaluate(()=>window.renderVideo());
