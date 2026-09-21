@@ -70,16 +70,17 @@ class FeedError(RuntimeError):
 
 
 class OddsClient:
-    def __init__(self, key):
+    def __init__(self, key, sport=SPORT):
         if not key:
             raise FeedError('ODDS_API_KEY is missing')
         self.key = key
+        self.sport = sport
         self.quota_remaining = None
         self.requests = 0
 
     def get(self, suffix, **params):
         try:
-            response = requests.get(f'https://api.the-odds-api.com/v4/sports/{SPORT}/{suffix}',
+            response = requests.get(f'https://api.the-odds-api.com/v4/sports/{self.sport}/{suffix}',
                                     params=dict(params, apiKey=self.key), timeout=25)
             self.requests += 1
             self.quota_remaining = response.headers.get('x-requests-remaining')
@@ -91,15 +92,15 @@ class OddsClient:
             raise FeedError(f'Odds provider request failed ({type(error).__name__})') from None
 
 
-def flatten(event, now):
+def flatten(event, now, sport=SPORT, markets=MARKETS, prop_markets=PROP_MARKETS):
     rows = []
     kickoff = timestamp(event.get('commence_time'))
-    if not kickoff or kickoff <= now or event.get('sport_key', SPORT) != SPORT:
+    if not kickoff or kickoff <= now or event.get('sport_key', sport) != sport:
         return rows
     for book in event.get('bookmakers', []):
         for market in book.get('markets', []):
             key = market.get('key')
-            if key not in MARKETS:
+            if key not in markets:
                 continue
             updated = timestamp(market.get('last_update') or book.get('last_update'))
             if not updated or not timedelta(minutes=-5) <= now - updated <= timedelta(hours=24):
@@ -109,7 +110,7 @@ def flatten(event, now):
                 if not math.isfinite(probability):
                     continue
                 side = str(outcome.get('name', ''))
-                player = outcome.get('description', '') if key in PROP_MARKETS else ''
+                player = outcome.get('description', '') if key in prop_markets else ''
                 point = outcome.get('point')
                 if key != 'h2h':
                     try:
@@ -118,7 +119,7 @@ def flatten(event, now):
                         continue
                     if not math.isfinite(point):
                         continue
-                if (key in PROP_MARKETS and not player) or (key in PROP_MARKETS + ['totals'] and side not in ['Over', 'Under']):
+                if (key in prop_markets and not player) or (key in list(prop_markets) + ['totals'] and side not in ['Over', 'Under']):
                     continue
                 if key in ['spreads', 'h2h'] and side not in [event['home_team'], event['away_team']]:
                     continue
@@ -126,7 +127,7 @@ def flatten(event, now):
                     home_team=event['home_team'], away_team=event['away_team'],
                     game=f"{event['away_team']} @ {event['home_team']}",
                     book=book['key'], book_label=book['title'], market=key,
-                    market_label=MARKETS[key], player=player, side=side, line=point,
+                    market_label=markets[key], player=player, side=side, line=point,
                     price=float(outcome['price']), book_probability=probability,
                     quoted_at=iso(updated)))
     return rows
@@ -153,7 +154,7 @@ def compare(rows):
     for row in rows:
         pairs[(*comparison_key(row), row['book'])].append(row)
     for pair in pairs.values():
-        expected = {'Over', 'Under'} if pair[0]['market'] in PROP_MARKETS + ['totals'] else {pair[0]['home_team'], pair[0]['away_team']}
+        expected = {pair[0]['home_team'], pair[0]['away_team']} if pair[0]['market'] in ['spreads', 'h2h'] else {'Over', 'Under'}
         total = sum(r['book_probability'] for r in pair)
         valid = len(pair) == 2 and {r['side'] for r in pair} == expected
         for row in pair:

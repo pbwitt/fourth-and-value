@@ -6,12 +6,12 @@ DATE   ?= $(shell date +%Y-%m-%d)
 
 # Require SEASON/WEEK for NFL targets
 ifeq ($(strip $(SEASON)),)
-  ifeq ($(filter nhl_%,$(MAKECMDGOALS)),)
+  ifeq ($(filter nhl_% nba_%,$(MAKECMDGOALS)),)
     $(error SEASON=YYYY required (e.g., SEASON=2025))
   endif
 endif
 ifeq ($(strip $(WEEK)),)
-  ifeq ($(filter nhl_%,$(MAKECMDGOALS)),)
+  ifeq ($(filter nhl_% nba_%,$(MAKECMDGOALS)),)
     $(error WEEK=N required (e.g., WEEK=3))
   endif
 endif
@@ -192,209 +192,28 @@ clean:
 
 
 # ========================================================================
-# NHL Daily Pipeline
-# ========================================================================
+# NHL regular-season publishing (legacy model scripts are research-only).
+.PHONY: nhl_daily nhl_pages nhl_test nhl_daily_pub nhl_totals_daily
+nhl_daily:
+	$(PY) scripts/nhl/refresh.py
 
-# NHL directories
-NHL_DATA_DIR := data/nhl
-NHL_PROC_DIR := $(NHL_DATA_DIR)/processed
-NHL_CONS_DIR := $(NHL_DATA_DIR)/consensus
-NHL_PROPS_DIR := $(NHL_DATA_DIR)/props
-NHL_DOCS_DIR := docs/nhl/props
+nhl_pages:
+	$(PY) scripts/nhl/refresh.py --offline
 
-# NHL outputs
-NHL_ODDS_PROPS := $(NHL_PROC_DIR)/odds_props_$(DATE).csv
-NHL_ODDS_GAMES := $(NHL_PROC_DIR)/odds_games_$(DATE).csv
-NHL_STATS_SKATERS := $(NHL_PROC_DIR)/skater_logs_$(DATE).parquet
-NHL_STATS_GOALIES := $(NHL_PROC_DIR)/goalie_logs_$(DATE).parquet
-NHL_CONSENSUS_PROPS := $(NHL_CONS_DIR)/consensus_props_$(DATE).csv
-NHL_CONSENSUS_GAMES := $(NHL_CONS_DIR)/consensus_games_$(DATE).csv
-NHL_MODELS := $(NHL_DATA_DIR)/models/sog_model_latest.pkl
-NHL_PROPS_MODEL := $(NHL_PROPS_DIR)/props_with_model_$(DATE).csv
-NHL_QC_REPORT := $(NHL_DATA_DIR)/qc/qc_report_$(DATE).json
-NHL_PAGE := $(NHL_DOCS_DIR)/index.html
+nhl_test:
+	$(PY) -m unittest discover -s tests -p 'test_nhl_refresh.py'
 
-# Full daily pipeline
-nhl_daily: $(NHL_PAGE) nhl_totals_daily
-	@echo "===================================================================="
-	@echo "NHL daily build complete for $(DATE)"
-	@echo "===================================================================="
-	@echo "✓ Odds:      $(NHL_ODDS_PROPS)"
-	@echo "✓ Stats:     $(NHL_STATS_SKATERS)"
-	@echo "✓ Consensus: $(NHL_CONSENSUS_PROPS)"
-	@echo "✓ Edges:     $(NHL_PROPS_MODEL)"
-	@echo "✓ Props Page: $(NHL_PAGE)"
-	@echo "✓ Totals Page: $(NHL_TOTALS_PAGE)"
-	@echo "===================================================================="
-	@echo "Running QC checks..."
-ifeq ($(LIVE),1)
-	@$(PY) scripts/nhl/nhl_qc_checks.py --date $(DATE) --warn-only
-else
-	@$(PY) scripts/nhl/nhl_qc_checks.py --date $(DATE)
-endif
-	@echo "===================================================================="
-	@echo "Grading pending bets..."
-	@echo "===================================================================="
-	@$(PY) scripts/grade_bets_nhl.py --date $(DATE) || echo "No bets to grade"
+nhl_totals_daily: nhl_daily
 
-# NHL daily build + publish to prod (requires LIVE=1)
-# Note: Git operations should be handled by caller (e.g., GitHub Actions workflow)
-nhl_daily_pub: nhl_daily
-ifeq ($(LIVE),1)
-	@echo "===================================================================="
-	@echo "Publishing NHL props page to production..."
-	@echo "===================================================================="
-	@git add $(NHL_PAGE) $(NHL_TOTALS_PAGE) $(NHL_PROPS_MODEL) $(NHL_QC_REPORT) || true
-	@if ! git diff --staged --quiet; then \
-		git commit -m "NHL: Update props and totals pages for $(DATE)"; \
-		git pull --rebase origin main; \
-		git push; \
-		echo "✓ Published to GitHub Pages"; \
-	else \
-		echo "No changes to commit"; \
-	fi
-else
-	@echo "===================================================================="
-	@echo "DRY RUN - NHL page built but not published"
-	@echo "===================================================================="
-	@echo "To publish to production, run:"
-	@echo "  make nhl_daily_pub DATE=$(DATE) LIVE=1"
-	@echo "===================================================================="
-endif
+# Publish through the isolated, tested workflow rather than staging a workspace.
+nhl_daily_pub:
+	gh workflow run nhl-daily.yml --ref main
 
-# Individual steps
-nhl_odds: $(NHL_ODDS_PROPS) $(NHL_ODDS_GAMES)
+# Retired shortcuts must not overwrite the current pages with old model outputs.
+nhl_odds nhl_stats nhl_consensus nhl_edges nhl_page nhl_totals_fetch nhl_totals_features nhl_totals_train nhl_totals_predict nhl_totals_consensus nhl_totals_page nhl_totals_all:
+	@echo "Retired NHL model shortcut. Use make nhl_daily or nhl_pages; see NHL_README.md."
+	@exit 1
 
-nhl_stats: $(NHL_STATS_SKATERS) $(NHL_STATS_GOALIES)
-
-nhl_consensus: $(NHL_CONSENSUS_PROPS) $(NHL_CONSENSUS_GAMES)
-
-nhl_edges: $(NHL_PROPS_MODEL)
-
-nhl_page: $(NHL_PAGE)
-
-# Fetch NHL odds
-$(NHL_ODDS_PROPS) $(NHL_ODDS_GAMES): scripts/nhl/fetch_nhl_odds.py | $(NHL_PROC_DIR)
-	$(PY) scripts/nhl/fetch_nhl_odds.py --date $(DATE)
-
-# Fetch NHL stats
-$(NHL_STATS_SKATERS) $(NHL_STATS_GOALIES): scripts/nhl/fetch_nhl_stats.py | $(NHL_PROC_DIR)
-	$(PY) scripts/nhl/fetch_nhl_stats.py --date $(DATE)
-
-# Train models (uncalibrated)
-$(NHL_MODELS): $(NHL_STATS_SKATERS) scripts/nhl/train_sog_model.py scripts/nhl/train_scoring_models.py | $(NHL_DATA_DIR)/models
-	$(PY) scripts/nhl/train_sog_model.py --date $(DATE)
-	$(PY) scripts/nhl/train_scoring_models.py --date $(DATE)
-
-# Compute consensus (needed for calibration targets)
-$(NHL_CONSENSUS_PROPS) $(NHL_CONSENSUS_GAMES): $(NHL_ODDS_PROPS) scripts/nhl/make_nhl_consensus.py | $(NHL_CONS_DIR)
-	$(PY) scripts/nhl/make_nhl_consensus.py --date $(DATE)
-
-# Calibrate models (depends on consensus)
-$(NHL_DATA_DIR)/models/.calibrated_$(DATE): $(NHL_MODELS) $(NHL_CONSENSUS_PROPS) scripts/nhl/calibrate_nhl_models.py
-	$(PY) scripts/nhl/calibrate_nhl_models.py --date $(DATE)
-	touch $@
-
-# Compute edges (depends on calibrated models)
-$(NHL_PROPS_MODEL): $(NHL_ODDS_PROPS) $(NHL_CONSENSUS_PROPS) $(NHL_DATA_DIR)/models/.calibrated_$(DATE) scripts/nhl/make_nhl_edges.py | $(NHL_PROPS_DIR)
-	$(PY) scripts/nhl/make_nhl_edges.py --date $(DATE)
-
-# Build page
-$(NHL_PAGE): $(NHL_PROPS_MODEL) scripts/nhl/build_nhl_props_page.py | $(NHL_DOCS_DIR)
-	$(PY) scripts/nhl/build_nhl_props_page.py --date $(DATE)
-
-# Ensure NHL directories exist
-$(NHL_PROC_DIR) $(NHL_CONS_DIR) $(NHL_PROPS_DIR) $(NHL_DOCS_DIR) $(NHL_DATA_DIR)/models:
-	mkdir -p $@
-
-# ========================================================================
-# NHL Team Totals Pipeline (NEW)
-# ========================================================================
-
-NHL_SEASON ?= 20252026
-NHL_GAMES_CSV := data/nhl/raw/games.csv
-NHL_PLAYER_STATS_CSV := data/nhl/raw/player_stats.csv
-NHL_TEAM_FEATURES_CSV := data/nhl/processed/team_features.csv
-NHL_MODEL_PKL := data/nhl/models/ridge_team_totals.pkl
-NHL_PREDICTIONS_CSV := data/nhl/predictions/today.csv
-NHL_CONSENSUS_EDGES_CSV := data/nhl/consensus/edges.csv
-NHL_CONSENSUS_CSV := data/nhl/consensus/consensus.csv
-NHL_TOTALS_PAGE := docs/nhl/totals/index.html
-
-# Fetch historical games for the season
-nhl_totals_fetch:
-	@echo "===================================================================="
-	@echo "Fetching NHL games for season $(NHL_SEASON)..."
-	@echo "===================================================================="
-	$(PY) scripts/nhl_fetch_games.py --season $(NHL_SEASON) --output $(NHL_GAMES_CSV)
-	@echo "===================================================================="
-	@echo "Fetching player stats for games..."
-	@echo "===================================================================="
-	$(PY) scripts/nhl_fetch_player_stats.py --games $(NHL_GAMES_CSV) --output $(NHL_PLAYER_STATS_CSV)
-	@echo "✓ Data fetched"
-
-# Build team-level features from player stats
-nhl_totals_features:
-	@echo "===================================================================="
-	@echo "Building team-level features..."
-	@echo "===================================================================="
-	$(PY) scripts/nhl_build_features.py --input $(NHL_PLAYER_STATS_CSV) --output $(NHL_TEAM_FEATURES_CSV)
-	@echo "✓ Features built"
-
-# Train model
-nhl_totals_train:
-	@echo "===================================================================="
-	@echo "Training team totals model..."
-	@echo "===================================================================="
-	$(PY) scripts/nhl_train_model.py --input $(NHL_TEAM_FEATURES_CSV) --model-type ridge --output-dir data/nhl/models
-	@echo "✓ Model trained"
-
-# Generate predictions for today
-nhl_totals_predict:
-	@echo "===================================================================="
-	@echo "Generating predictions for today..."
-	@echo "===================================================================="
-	$(PY) scripts/nhl_predict_totals.py --model $(NHL_MODEL_PKL) --team-features $(NHL_TEAM_FEATURES_CSV) --output $(NHL_PREDICTIONS_CSV)
-	@echo "✓ Predictions generated"
-
-# Find consensus edges (books out of sync with market)
-nhl_totals_consensus:
-	@echo "===================================================================="
-	@echo "Finding consensus edges..."
-	@echo "===================================================================="
-	$(PY) scripts/nhl_find_consensus_edges.py --predictions $(NHL_PREDICTIONS_CSV) --output $(NHL_CONSENSUS_EDGES_CSV)
-	@echo "✓ Consensus edges identified"
-
-# Build HTML page (uses date-specific consensus files from props pipeline)
-nhl_totals_page:
-	@echo "===================================================================="
-	@echo "Building NHL totals page..."
-	@echo "===================================================================="
-	$(PY) scripts/nhl_build_totals_page.py
-	@echo "✓ Page built: $(NHL_TOTALS_PAGE)"
-
-# Full pipeline: fetch → features → train → predict → consensus → page
-nhl_totals_all: nhl_totals_fetch nhl_totals_features nhl_totals_train nhl_totals_predict nhl_totals_consensus nhl_totals_page
-	@echo "===================================================================="
-	@echo "✓ NHL Totals Pipeline Complete"
-	@echo "===================================================================="
-	@echo "Predictions: $(NHL_PREDICTIONS_CSV)"
-	@echo "Consensus edges: $(NHL_CONSENSUS_EDGES_CSV)"
-	@echo "Page: $(NHL_TOTALS_PAGE)"
-
-# Daily run (fetch → features → train model + predictions + consensus + page)
-nhl_totals_daily: nhl_totals_fetch nhl_totals_features nhl_totals_train nhl_totals_predict nhl_totals_consensus nhl_totals_page
-	@echo "===================================================================="
-	@echo "✓ Daily NHL totals update complete"
-	@echo "===================================================================="
-	@echo "View at: $(NHL_TOTALS_PAGE)"
-
-# ========================================================================
-# End NHL Team Totals Pipeline
-# ========================================================================
-
-# ========================================================================
-# End NHL Pipeline
 # ========================================================================
 
 

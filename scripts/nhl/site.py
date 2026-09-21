@@ -1,0 +1,49 @@
+"""Current-season NHL pages; no embedded historical betting cards."""
+from html import escape
+from nhl.refresh import ROOT
+from site_metadata import metadata
+
+
+def build(state):
+    season = str(state['season'])
+    label = season[:4] + '–' + season[-2:]
+    pages = [('index.html', 'NHL Overview', 'overview'), ('props/index.html', 'Player Props', 'props'),
+             ('totals/index.html', 'Game Lines', 'lines'), ('top.html', 'Market Watch', 'watch'),
+             ('methods.html', 'NHL Methods', 'methods')]
+    for filename, title, page in pages:
+        path = ROOT / 'docs/nhl' / filename
+        rel = '../..' if '/' in filename else '..'
+        nhl = '..' if '/' in filename else '.'
+        links = '<nav class="subnav" aria-label="NHL sections">' + ''.join(
+            f'<a href="{nhl}/{f}"' + (' aria-current="page"' if f == filename else '') + f'>{t}</a>'
+            for f,t,_ in pages) + '</nav>'
+        if page == 'overview':
+            intro = '''<p class="lead">Fresh hockey markets, clear prices, and regular-season context.</p>
+<div class="actions"><a class="button primary" href="totals/">Compare game lines →</a><a class="button" href="props/">Compare player props →</a></div>
+<div class="grid"><article class="panel"><h2>Player props</h2><p>Shots on goal, goals, assists and points. Compare books at the same line.</p><a href="props/">Open props →</a></article><article class="panel"><h2>Game lines</h2><p>Totals, puck lines and moneylines with margin removed from paired prices.</p><a href="totals/">Open game lines →</a></article><article class="panel"><h2>Market Watch</h2><p>Find prices that differ from at least three other books, then examine the evidence.</p><a href="top.html">Explore market differences →</a></article></div>
+<section class="panel"><h2>Ready for the regular season</h2><p>Only games confirmed as regular-season fixtures by the NHL schedule enter these boards. Preseason and playoff markets are excluded. Player props are checked within 48 hours of puck drop.</p><p>Fresh NHL statistics support labeled historical references. Last season’s scoring rates do not account for new lines, injuries, ice time or starting goalies. Model-backed recommendations remain under review.</p><a href="methods.html">How to read the NHL numbers →</a></section>
+<section class="section"><h2>Upcoming regular-season games</h2><p class="muted">Official NHL schedule, next 45 days. Odds may appear closer to game day.</p><div id="schedule" class="grid"></div></section>'''
+        elif page == 'methods':
+            intro = '''<div class="help"><p class="lead">Keep price comparisons, historical references and predictions distinct.</p>
+<h2>Fresh regular-season markets</h2><p>The Odds API supplies book prices. Each event must match the home team, away team and start time on the official NHL schedule, with game type 2 in the current season. Unmatched events, preseason, playoffs, postponed games and started games are excluded. We retain provider quote timestamps and hide prices older than 24 hours. A failed refresh hides saved offers until the feed recovers.</p>
+<h2>Consensus and best price</h2><p>Margin is removed only when both sides exist at the same book, game, player, market and line. Puck-line pairs use opposite handicaps. Each distinct book gets one vote in the median fair probability. Best price compares the exact same line and outcome.</p><p>Market Watch excludes the quoted book from its reference and requires at least three other paired books. Disagreement is a research signal, not proof of value or a guaranteed profit. Whole-number lines can push; market probabilities are conditional on a non-push result.</p>
+<h2>Player references</h2><p>We refresh NHL regular-season summaries for the current and previous season. Until a player has 20 current-season appearances, we use the previous season only if it has at least 20 appearances. Once the threshold is met, the current-season rate replaces it. Every reference names its season and sample size. Ambiguous identities and missing players stay unavailable.</p><p>The average rate is total shots, goals, assists or points divided by games played. A Poisson reference estimates over, under and push probabilities from that mean. Under an integer line excludes the push; it is not simply one minus the over probability. Shots can be more variable than Poisson assumes. These are uncalibrated references, not recommendations, and no default 50% probability substitutes for a missing player.</p>
+<h2>Game-total references</h2><p>The reference mean averages each team’s goals per game with its opponent’s goals conceded per game, then adds the two team estimates. Both teams must have at least 20 games from the same reference season. We do not infer a moneyline, puck-line probability or profitable bet from this mean. Overtime, shootouts and bookmaker settlement rules require separate treatment before totals probabilities are published.</p>
+<h2>What is still under review</h2><p>The retired totals training path included same-game box-score inputs and full-sample opponent/split averages. That leaks information unavailable before puck drop. The previous player path could substitute market consensus for a missing model estimate. Those outputs no longer feed these public pages.</p><p>Production picks require corrected pregame features, chronological testing, probability calibration and comparison with timestamped odds. Starting goalie, line assignments, power-play role, ice time, injuries and rest need verified inputs. Historical references do not include those adjustments.</p>
+<h2>Updates and sources</h2><p>Markets refresh twice daily. Statistics are checked at least daily and include completed dates only, excluding today. Historical references expire if their fetch is more than 36 hours old. Empty markets are a valid state; old December cards never serve as a fallback.</p><p><a href="https://www.nhl.com/schedule">NHL schedule</a> · <a href="https://www.nhl.com/stats/">NHL statistics</a> · <a href="https://the-odds-api.com/sports/nhl-odds.html">The Odds API NHL coverage</a></p></div>'''
+        else:
+            lead = {'props':'Compare shots on goal, goals, assists and points. Props appear as books post them near puck drop.',
+                    'lines':'Regular-season totals, puck lines and moneylines. Historical scoring references are labeled separately.',
+                    'watch':'Offers that differ from at least three other books at the same line. These are research leads, not validated model picks.'}[page]
+            intro = f'''<p class="lead">{lead}</p>
+<div class="filters"><label>Player or matchup<input id="search" type="search" placeholder="Search NHL…"></label><label>Market<select id="market"><option value="">All markets</option></select></label><label>Sportsbook<select id="book"><option value="">All books</option></select></label><label>Game<select id="game"><option value="">All games</option></select></label></div>
+<div class="checks"><label><input type="checkbox" id="best" checked> Best price at each line</label><button id="reset">Reset filters</button></div><p id="result-count" role="status"></p><div id="results" class="prop-grid"></div><button id="more" hidden>Show more</button>
+<section class="help section"><h2>Read the comparison</h2><p>Book probability is the break-even rate at that price. Paired fair probability removes the book’s margin. Consensus uses distinct books at the same line. Historical references are uncalibrated and do not qualify model picks.</p><a href="{nhl}/methods.html">NHL methods and limitations →</a></section>'''
+        body = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} | Fourth &amp; Value</title>
+{metadata(path, title+' | Fourth & Value', 'NHL regular-season odds, player props, game lines and market consensus from Fourth & Value.')}
+<link rel="stylesheet" href="{rel}/assets/site.css"><link rel="icon" href="{rel}/assets/logo.svg"></head><body><a class="skip-link" href="#main">Skip to content</a><div id="nav-root"></div><script src="{rel}/nav.js?v=38"></script>
+<main class="wrap" id="main" data-nhl-page="{page}" data-feed="{nhl}/data/latest.json">{links}<p class="eyebrow">NHL · {label}</p><h1>{title}</h1>
+<div class="notice" id="feed-status" role="status"><strong>NHL regular-season market snapshot</strong><p>Last successful check: {escape(str(state.get('last_success_at') or 'Not yet checked'))}. Enable JavaScript to view current quote availability.</p></div>
+<p class="muted" id="history-status"></p>{intro}<footer>Fourth &amp; Value · <a href="{rel}/terms.html">Terms &amp; privacy</a> · <a href="{rel}/videos/">Videos</a></footer></main><script src="{rel}/assets/nhl.js?v=1" defer></script></body></html>'''
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body)

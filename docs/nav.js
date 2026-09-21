@@ -52,7 +52,7 @@
   .fv-sport-dropdown.nhl-sport .fv-sport-menu a[aria-current="page"]{background:rgba(79,195,247,0.15);color:#4FC3F7;}
 
   /* Burger */
-  .fv-burger{display:none;flex-direction:column;align-items:center;justify-content:center;width:44px;height:44px;border-radius:10px;border:1px solid var(--nav-border);background:transparent;color:var(--nav-fg);}
+  .fv-burger{display:none;flex-direction:column;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border-radius:10px;border:1px solid var(--nav-border);background:transparent;color:var(--nav-fg);}
   .fv-burger span{display:block;width:22px;height:2px;background:currentColor;margin:3px 0;transition:transform .2s,opacity .2s;}
 
   /* Mobile menu */
@@ -163,8 +163,11 @@
       label: 'NHL 🏒',
       className: 'nhl-sport',
       items: [
+        { href: `${base}/nhl/`, label: 'NHL Overview' },
         { href: `${base}/nhl/props/index.html`, label: 'Props' },
-        { href: `${base}/nhl/totals/index.html`, label: 'Game Totals' },
+        { href: `${base}/nhl/totals/index.html`, label: 'Game Lines' },
+        { href: `${base}/nhl/top.html`, label: 'Market Watch' },
+        { href: `${base}/nhl/methods.html`, label: 'NHL Methods' },
       ]
     },
     {

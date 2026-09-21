@@ -54,3 +54,5 @@ The interaction smoke test uses the checked-in snapshot and a clock anchored to 
 - `.github/workflows/nfl-weekly.yml`: scheduled NFL refresh.
 
 The NFL totals page is historical research. Its inputs and model evaluation need revalidation before current forecasts resume. Private bet tracking uses Supabase; credentials belong in environment variables, never in public site files.
+
+NHL regular-season refresh and operating notes: [NHL_README.md](NHL_README.md).

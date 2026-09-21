@@ -2,9 +2,9 @@ name: NHL Daily Update
 
 on:
   schedule:
-    # Run at 1 PM UTC (8 AM EST / 5 AM PST) every day during NHL season
-    - cron: '0 13 * * *'
-  workflow_dispatch:  # Allow manual triggers
+    # 10:30 AM and 4:30 PM Eastern during daylight time; hourly DST shift in winter.
+    - cron: '30 14,20 * * *'
+  workflow_dispatch:
 
 concurrency:
   group: nhl-daily-update
@@ -13,61 +13,76 @@ concurrency:
 jobs:
   update-nhl:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: write
+      pages: write
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+        with:
+          # Queued refreshes must include the previous run's published snapshot.
+          ref: main
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
-
+          cache: pip
       - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Restore historical season summaries
+        uses: actions/cache@v4
+        with:
+          path: data/nhl/history
+          key: nhl-history-v2-${{ github.run_id }}
+          restore-keys: nhl-history-v2-
+      - name: Verify NHL math and publishing guards
         run: |
-          pip install -r requirements.txt
-
-      - name: Run NHL daily pipeline
+          python -m unittest discover -s tests -p 'test_nhl_refresh.py'
+          python -m unittest discover -s tests -p 'test_nba.py'
+      - name: Refresh NHL markets
+        id: refresh
+        continue-on-error: true
         env:
-          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ODDS_API_KEY: ${{ secrets.NHL_ODDS_API_KEY || secrets.ODDS_API_KEY }}
+        run: python scripts/nhl/refresh.py
+      - name: Validate published timestamps and season
+        id: validate
+        if: steps.refresh.outcome == 'success'
+        run: python scripts/validate_nhl_freshness.py
+      - name: Archive odds and model inputs for later review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nhl-snapshot-${{ github.run_id }}
+          path: |
+            data/nhl/snapshots/
+            data/nhl/history/
+          retention-days: 90
+          if-no-files-found: ignore
+      - name: Publish NHL pages and feed status
+        id: publish
+        if: always() && (steps.refresh.outcome == 'failure' || steps.validate.outcome == 'success')
         run: |
-          export ODDS_API_KEY="${ODDS_API_KEY}"
-          DATE=$(date +%Y-%m-%d)
-
-          echo "Running NHL daily pipeline for $DATE..."
-          make nhl_daily DATE=$DATE
-
-      - name: Commit and push changes
-        run: |
-          git config user.name "GitHub Actions Bot"
-          git config user.email "actions@github.com"
-
-          DATE=$(date +%Y-%m-%d)
-
-          # Check if there are changes to commit
-          if git diff --quiet docs/nhl/; then
-            echo "No changes to commit"
-            exit 0
-          fi
-
-          # Stage changes
-          git add docs/nhl/props/index.html docs/nhl/totals/index.html
-          git add data/nhl/props/props_with_model_${DATE}.csv || true
-          git add data/nhl/qc/qc_report_${DATE}.json || true
-
-          # Commit
-          git commit -m "NHL: Update props and totals pages for ${DATE}" -m "🤖 Automated update via GitHub Actions"
-
-          # Push, rebasing on top of any commits that landed since checkout
-          for i in 1 2 3; do
-            git pull --rebase origin main && git push && break
-            echo "Push attempt $i failed, retrying..."
-            sleep 5
-            if [ "$i" = "3" ]; then
-              echo "::error::Failed to push after 3 attempts"
+          git config user.name 'GitHub Actions Bot'
+          git config user.email 'actions@github.com'
+          git add docs/nhl/
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'NHL: refresh market snapshot and pages'
+          for attempt in 1 2 3; do
+            if ! git pull --rebase origin main; then
+              git rebase --abort || true
+              echo '::error::Concurrent NHL edit needs review; snapshot saved in artifacts.'
               exit 1
             fi
+            if git push origin HEAD:main; then exit 0; fi
+            sleep 5
           done
+          exit 1
+      - name: Rebuild public site
+        if: always() && steps.publish.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # A commit made with GITHUB_TOKEN does not automatically rebuild Pages.
+        run: gh api --method POST "repos/$GITHUB_REPOSITORY/pages/builds" --jq .status
+      - name: Report upstream odds failures
+        if: steps.refresh.outcome == 'failure'
+        run: exit 1
