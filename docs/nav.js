@@ -172,6 +172,7 @@
     { type: 'link', href: `${base}/editorial/`, label: 'Editorial' },
     { type: 'link', href: `${base}/blog/`, label: 'Blog' },
     { type: 'link', href: `${base}/videos/`, label: 'Videos' },
+    { type: 'link', href: 'https://youtube.com/@fourthandvalue', label: 'YouTube', external: true },
     { type: 'link', href: `${base}/tracking/`, label: '📊 Bet Tracker' },
   ];
 
@@ -194,6 +195,10 @@
       const a = document.createElement('a');
       a.href = item.href;
       a.textContent = item.label;
+      if (item.external) {
+        a.target = '_blank';
+        a.rel = 'noopener';
+      }
 
       if (isCurrentPage(item.href)) {
         a.setAttribute('aria-current', 'page');
