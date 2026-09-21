@@ -57,7 +57,7 @@ jobs:
         id: refresh
         continue-on-error: true
         env:
-          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          ODDS_API_KEY: ${{ secrets.NBA_ODDS_API_KEY || secrets.ODDS_API_KEY }}
         run: python scripts/nba/pipeline.py
       - name: Archive odds and model inputs for later review
         if: always()

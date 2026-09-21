@@ -29,7 +29,7 @@ Source documentation: https://the-odds-api.com/liveapi/guides/v4/ and https://th
 
 ## Automation
 
-`.github/workflows/nba-daily.yml` runs at 15:00 and 21:00 UTC and supports manual dispatch. It reuses the existing repository `ODDS_API_KEY` secret. Stats calls are free and optional on manual runs; failure does not invent baselines or prevent odds publishing. No OpenAI secret is used.
+`.github/workflows/nba-daily.yml` runs at 15:00 and 21:00 UTC and supports manual dispatch. It uses `NBA_ODDS_API_KEY`, falling back to the repository `ODDS_API_KEY` secret. The NBA-specific secret was configured from the verified local credential after the shared workflow credential returned HTTP 401 during launch testing. Stats calls are free and optional on manual runs; failure does not invent baselines or prevent odds publishing. No OpenAI secret is used.
 
 The workflow tests pricing behavior, restores cached regular-season history, attempts prior/current-season game logs, refreshes odds, saves 90-day artifacts, commits only `docs/nba/`, and pushes with rebase/retry. It explicitly requests a GitHub Pages rebuild after publishing because a bot-token commit does not trigger one. A failed odds fetch publishes an error state and fails the job, preserving the last success time and saved evidence. Check Actions for runner-specific feed access problems.
 
@@ -44,7 +44,7 @@ De-vig needs both outcomes from the same book/event/player/market/line. Spread p
 
 ## Prediction readiness
 
-The initial launch includes live market infrastructure and an optional historical reference layer. **It does not claim to have a validated NBA player or game prediction model.** NBA Stats denied/timed out from the local environment during setup; the loader and scheduled retry are in place. Never report statistics as loaded until a history file actually exists.
+The initial launch includes live market infrastructure and an optional historical reference layer. **It does not claim to have a validated NBA player or game prediction model.** NBA Stats denied/timed out locally and on GitHub runners during setup; the loader and scheduled retry are in place. Never report statistics as loaded until a history file actually exists.
 
 Player baselines require 20–30 previous regular-season appearances and show the source's last game date. They use player IDs for deduplication and suppress ambiguous name matches. The mean and smoothed historical hit rate do not adjust minutes, injuries, role changes, opponent or rest; they cannot qualify model picks.
 
