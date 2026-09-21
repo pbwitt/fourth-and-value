@@ -33,7 +33,7 @@ const server = http.createServer((req, res) => {
     await page.locator('canvas').screenshot({path:path.join(output,'poster.png')});
     const data = await page.evaluate(()=>window.renderVideo());
     if(errors.length) throw new Error(errors.join('\n'));
-    fs.writeFileSync(path.join(output,'why-we-devig.mp4'),Buffer.from(data,'base64'));
+    fs.writeFileSync(path.join(output,`${slug}.mp4`),Buffer.from(data,'base64'));
     // Decode the exported file in Chrome as a container/playback sanity check.
     const verification = await page.evaluate(async()=>{
       const video=document.createElement('video'); video.preload='auto';
