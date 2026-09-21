@@ -21,6 +21,7 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+      pages: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -66,6 +67,7 @@ jobs:
           retention-days: 90
           if-no-files-found: ignore
       - name: Publish NBA pages and feed status
+        id: publish
         if: always()
         run: |
           git config user.name 'GitHub Actions Bot'
@@ -78,6 +80,12 @@ jobs:
             sleep 5
           done
           exit 1
+      - name: Rebuild public site
+        if: always() && steps.publish.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # A commit made with GITHUB_TOKEN does not automatically rebuild Pages.
+        run: gh api --method POST "repos/$GITHUB_REPOSITORY/pages/builds" --jq .status
       - name: Report upstream odds failures
         if: steps.refresh.outcome == 'failure'
         run: exit 1

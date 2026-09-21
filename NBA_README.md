@@ -31,7 +31,7 @@ Source documentation: https://the-odds-api.com/liveapi/guides/v4/ and https://th
 
 `.github/workflows/nba-daily.yml` runs at 15:00 and 21:00 UTC and supports manual dispatch. It reuses the existing repository `ODDS_API_KEY` secret. Stats calls are free and optional on manual runs; failure does not invent baselines or prevent odds publishing. No OpenAI secret is used.
 
-The workflow tests pricing behavior, restores cached regular-season history, attempts prior/current-season game logs, refreshes odds, saves 90-day artifacts, commits only `docs/nba/`, and pushes with rebase/retry. A failed odds fetch publishes an error state and fails the job, preserving the last success time and saved evidence. Check Actions for runner-specific feed access problems.
+The workflow tests pricing behavior, restores cached regular-season history, attempts prior/current-season game logs, refreshes odds, saves 90-day artifacts, commits only `docs/nba/`, and pushes with rebase/retry. It explicitly requests a GitHub Pages rebuild after publishing because a bot-token commit does not trigger one. A failed odds fetch publishes an error state and fails the job, preserving the last success time and saved evidence. Check Actions for runner-specific feed access problems.
 
 ## Artifacts and correctness
 
