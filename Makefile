@@ -6,12 +6,12 @@ DATE   ?= $(shell date +%Y-%m-%d)
 
 # Require SEASON/WEEK for NFL targets
 ifeq ($(strip $(SEASON)),)
-  ifeq ($(filter nhl_% nba_%,$(MAKECMDGOALS)),)
+  ifeq ($(filter nhl_% nba_% mlb_%,$(MAKECMDGOALS)),)
     $(error SEASON=YYYY required (e.g., SEASON=2025))
   endif
 endif
 ifeq ($(strip $(WEEK)),)
-  ifeq ($(filter nhl_% nba_%,$(MAKECMDGOALS)),)
+  ifeq ($(filter nhl_% nba_% mlb_%,$(MAKECMDGOALS)),)
     $(error WEEK=N required (e.g., WEEK=3))
   endif
 endif
@@ -351,3 +351,13 @@ nba_test:
 	$(PROPS_ALL): .FORCE scripts/fetch_all_player_props.py | $(PROPS_DIR) $(ODDS_CSV)
 		$(PY) scripts/fetch_all_player_props.py
 		@test -s $(PROPS_ALL) || (echo "[ERR] $(PROPS_ALL) not created"; exit 1)
+
+.PHONY: mlb_daily mlb_pages mlb_test
+mlb_daily:
+	$(PY) scripts/mlb/refresh.py
+
+mlb_pages:
+	$(PY) scripts/mlb/refresh.py --offline
+
+mlb_test:
+	$(PY) -m unittest discover -s tests -p 'test_mlb.py'
