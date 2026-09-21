@@ -1,4 +1,4 @@
-// docs/nav.js (v=35) — Added Bet Tracker link (auth-only)
+// docs/nav.js (v=37) — NBA sections and responsive multi-sport navigation
 (function () {
   // --- Find script & compute base (works locally and deployed) ---
   const scriptEl =
@@ -15,23 +15,23 @@
   :root{
     --nav-h:64px; --nav-bg:#0b0b0b; --nav-fg:#ffffff; --nav-fg-dim:#cbd5e1; --nav-border:#27324a;
   }
-  @media (max-width:1050px){ :root{ --nav-h:56px; } }
+  @media (max-width:1400px){ :root{ --nav-h:56px; } }
 
   .fv-nav{position:sticky;top:0;z-index:9999;width:100%;background:var(--nav-bg);color:var(--nav-fg);border-bottom:1px solid var(--nav-border);}
-  .fv-nav-inner{max-width:1100px;margin:0 auto;padding:0 12px;height:var(--nav-h);display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:12px;}
+  .fv-nav-inner{max-width:1520px;margin:0 auto;padding:0 12px;height:var(--nav-h);display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:12px;}
 
   .fv-left{display:flex;align-items:center;gap:12px;min-width:0;}
   .fv-logo{display:flex;align-items:center;gap:10px;min-width:0;text-decoration:none;}
   .fv-logo img{height:60px!important;max-height:60px;width:auto;display:block;object-fit:contain;margin-top:2px;}
   .fv-logo .fv-brand{font-weight:700;letter-spacing:.2px;white-space:nowrap;color:var(--nav-fg);}
-  @media (max-width:1050px){
+  @media (max-width:1400px){
     .fv-logo img{height:40px!important;max-height:40px;margin-top:0;}
     .fv-logo .fv-brand{font-size:15px;}
   }
   .fv-brand .fv-accent { color: #22c55e; } /* green-500; tweak if you had a different hex */
 
-  .fv-links{display:flex;align-items:center;gap:14px;}
-  .fv-links a{color:var(--nav-fg-dim);text-decoration:none;padding:8px 10px;border-radius:10px;line-height:1;font-size:15px;}
+  .fv-links{display:flex;align-items:center;gap:8px;}
+  .fv-links a{color:var(--nav-fg-dim);text-decoration:none;padding:8px 8px;border-radius:10px;line-height:1;font-size:14px;}
   .fv-links a:hover,.fv-links a[aria-current="page"]{color:var(--nav-fg);background:rgba(255,255,255,0.06);}
 
   /* Sport dropdowns */
@@ -56,7 +56,7 @@
   .fv-burger span{display:block;width:22px;height:2px;background:currentColor;margin:3px 0;transition:transform .2s,opacity .2s;}
 
   /* Mobile menu */
-  @media (max-width:1050px){
+  @media (max-width:1400px){
     .fv-burger{display:flex;}
     .fv-links{
       position:absolute;left:0;right:0;top:var(--nav-h);
@@ -82,7 +82,7 @@
   .fv-nav.menu-open .fv-burger span:nth-child(3){transform:translateY(-8px) rotate(-45deg);}
 
   /* Utility: hide on mobile */
-  @media (max-width:1050px){
+  @media (max-width:1400px){
     .hide-mobile{display:none!important;}
   }
   `;
@@ -165,6 +165,18 @@
       items: [
         { href: `${base}/nhl/props/index.html`, label: 'Props' },
         { href: `${base}/nhl/totals/index.html`, label: 'Game Totals' },
+      ]
+    },
+    {
+      type: 'dropdown',
+      label: 'NBA 🏀',
+      className: 'nba-sport',
+      items: [
+        { href: `${base}/nba/`, label: 'NBA Overview' },
+        { href: `${base}/nba/props/`, label: 'Player Props' },
+        { href: `${base}/nba/totals/`, label: 'Game Lines' },
+        { href: `${base}/nba/top.html`, label: 'Market Watch' },
+        { href: `${base}/nba/methods.html`, label: 'NBA Methods' },
       ]
     },
     { type: 'link', href: `${base}/methods.html`, label: 'Methods' },

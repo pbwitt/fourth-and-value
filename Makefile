@@ -513,6 +513,17 @@ nfl_totals_daily: nfl_totals_predict nfl_totals_consensus nfl_totals_page injury
 # End NFL Team Totals Pipeline
 # ========================================================================
 
+# NBA market pipeline; no paid commentary generation.
+.PHONY: nba_daily nba_pages nba_test
+nba_daily:
+	$(PY) scripts/nba/pipeline.py
+
+nba_pages:
+	$(PY) scripts/nba/pipeline.py --offline
+
+nba_test:
+	$(PY) -m unittest discover -s tests -p 'test_nba.py'
+
 
 .FORCE:
 	$(ODDS_CSV): .FORCE scripts/fetch_odds.py | $(ODDS_DIR)

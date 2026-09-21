@@ -4,6 +4,8 @@ A static sports-analysis site published from `docs/`, with Python pipelines for 
 
 Read the [NFL site review and traffic plan](reports/NFL_SITE_REVIEW_2026-09-09.md) for the September 2026 changes, validation results and remaining model limitations.
 
+NBA market pages, preseason behavior, scheduled updates and prediction-readiness notes are documented in [NBA operations](NBA_README.md). Run `make nba_daily PY=.venv/bin/python` to refresh NBA markets.
+
 ## Preview
 
 ```sh

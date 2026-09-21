@@ -1,0 +1,83 @@
+name: NBA Daily Update
+
+on:
+  schedule:
+    # 11 AM and 5 PM Eastern during daylight time; hourly DST shift in winter.
+    - cron: '0 15,21 * * *'
+  workflow_dispatch:
+    inputs:
+      refresh_history:
+        description: 'Try loading NBA Stats game logs (no paid model calls)'
+        type: boolean
+        default: true
+
+concurrency:
+  group: nba-daily-update
+  cancel-in-progress: false
+
+jobs:
+  update-nba:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Restore historical box scores
+        uses: actions/cache@v4
+        with:
+          path: data/nba/history
+          key: nba-history-v1-${{ github.run_id }}
+          restore-keys: nba-history-v1-
+      - name: Verify NBA math and publishing guards
+        run: python -m unittest discover -s tests -p 'test_nba.py'
+      - name: Update historical game logs
+        if: github.event_name == 'schedule' || inputs.refresh_history
+        # Markets still publish if NBA Stats blocks a runner; no invented data.
+        run: |
+          NBA_YEAR=$(python -c 'from datetime import datetime; n=datetime.now(); print(n.year if n.month>=10 else n.year-1)')
+          NBA_PREVIOUS=$(python -c "print(int('$NBA_YEAR')-1)")
+          NBA_SEASON=$(python -c "y=int('$NBA_YEAR'); print(f'{y}-{(y+1)%100:02}')")
+          NBA_PRIOR=$(python -c "y=int('$NBA_PREVIOUS'); print(f'{y}-{(y+1)%100:02}')")
+          if [ ! -f "data/nba/history/$NBA_PRIOR.json" ]; then
+            python scripts/nba/pipeline.py --history-season "$NBA_PRIOR" --offline || echo '::warning::Prior NBA game logs unavailable; baselines withheld.'
+          fi
+          python scripts/nba/pipeline.py --history-season "$NBA_SEASON" --offline || echo '::warning::Current NBA game logs unavailable; saved history retained.'
+      - name: Refresh NBA markets
+        id: refresh
+        continue-on-error: true
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: python scripts/nba/pipeline.py
+      - name: Archive odds and model inputs for later review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nba-snapshot-${{ github.run_id }}
+          path: |
+            data/nba/snapshots/
+            data/nba/history/
+          retention-days: 90
+          if-no-files-found: ignore
+      - name: Publish NBA pages and feed status
+        if: always()
+        run: |
+          git config user.name 'GitHub Actions Bot'
+          git config user.email 'actions@github.com'
+          git add docs/nba/
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'NBA: refresh market snapshot and pages'
+          for attempt in 1 2 3; do
+            if git pull --rebase origin main && git push origin HEAD:main; then exit 0; fi
+            sleep 5
+          done
+          exit 1
+      - name: Report upstream odds failures
+        if: steps.refresh.outcome == 'failure'
+        run: exit 1
