@@ -86,7 +86,7 @@ def build_page(args, top_only=False):
     html = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{escape(title)} | Fourth &amp; Value</title>{metadata(args.out,title+' | Fourth & Value',description)}
 <link rel="icon" href="{rel}/assets/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="{rel}/assets/site.css"></head>
-<body><a class="skip-link" href="#main">Skip to props</a><div id="nav-root"></div><script src="{rel}/nav.js?v=33"></script>
+<body><a class="skip-link" href="#main">Skip to props</a><div id="nav-root"></div><script src="{rel}/nav.js?v=42"></script>
 <main id="main" class="wrap">{nfl_links(rel, 'Top picks' if top_only else 'Player props')}
 <p class="eyebrow">{context}</p><h1>{title}</h1>
 <p class="lead">{'A shortlist of positive model edges with player data, fitted calibration and recent quotes.' if top_only else 'Find a player, compare the same line across books, and see what supports the model estimate.'}</p>

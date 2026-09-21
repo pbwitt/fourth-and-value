@@ -16,7 +16,7 @@ def build(state):
         nhl = '..' if '/' in filename else '.'
         links = '<nav class="subnav" aria-label="NHL sections">' + ''.join(
             f'<a href="{nhl}/{f}"' + (' aria-current="page"' if f == filename else '') + f'>{t}</a>'
-            for f,t,_ in pages) + '</nav>'
+            for f,t,_ in pages if f != 'methods.html') + '</nav>'
         if page == 'overview':
             intro = '''<p class="lead">Fresh hockey markets, clear prices, and regular-season context.</p>
 <div class="actions"><a class="button primary" href="totals/">Compare game lines →</a><a class="button" href="props/">Compare player props →</a></div>
@@ -41,7 +41,7 @@ def build(state):
 <section class="help section"><h2>Read the comparison</h2><p>Book probability is the break-even rate at that price. Paired fair probability removes the book’s margin. Consensus uses distinct books at the same line. Historical references are uncalibrated and do not qualify model picks.</p><a href="{nhl}/methods.html">NHL methods and limitations →</a></section>'''
         body = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} | Fourth &amp; Value</title>
 {metadata(path, title+' | Fourth & Value', 'NHL regular-season odds, player props, game lines and market consensus from Fourth & Value.')}
-<link rel="stylesheet" href="{rel}/assets/site.css"><link rel="icon" href="{rel}/assets/logo.svg"></head><body><a class="skip-link" href="#main">Skip to content</a><div id="nav-root"></div><script src="{rel}/nav.js?v=38"></script>
+<link rel="stylesheet" href="{rel}/assets/site.css"><link rel="icon" href="{rel}/assets/logo.svg"></head><body><a class="skip-link" href="#main">Skip to content</a><div id="nav-root"></div><script src="{rel}/nav.js?v=42"></script>
 <main class="wrap" id="main" data-nhl-page="{page}" data-feed="{nhl}/data/latest.json">{links}<p class="eyebrow">NHL · {label}</p><h1>{title}</h1>
 <div class="notice" id="feed-status" role="status"><strong>NHL regular-season market snapshot</strong><p>Last successful check: {escape(str(state.get('last_success_at') or 'Not yet checked'))}. Enable JavaScript to view current quote availability.</p></div>
 <p class="muted" id="history-status"></p>{intro}<footer>Fourth &amp; Value · <a href="{rel}/terms.html">Terms &amp; privacy</a> · <a href="{rel}/videos/">Videos</a></footer></main><script src="{rel}/assets/nhl.js?v=1" defer></script></body></html>'''

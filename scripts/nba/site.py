@@ -15,7 +15,7 @@ def build(state):
         rel = '../..' if '/' in filename else '..'
         nba = '..' if '/' in filename else '.'
         links = '<nav class="subnav" aria-label="NBA sections">' + ''.join(
-            f'<a href="{nba}/{f}"' + (' aria-current="page"' if f == filename else '') + f'>{t}</a>' for f,t in pages) + '</nav>'
+            f'<a href="{nba}/{f}"' + (' aria-current="page"' if f == filename else '') + f'>{t}</a>' for f,t in pages if f != 'methods.html') + '</nav>'
         if filename == 'index.html':
             intro = '''<p class="lead">Follow the schedule, compare sportsbooks and inspect NBA player props in one place.</p>
 <div class="actions"><a class="button primary" href="props/">Compare player props →</a><a class="button" href="totals/">Compare game lines →</a></div>
@@ -47,7 +47,7 @@ def build(state):
         body = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} | Fourth &amp; Value</title>
 {metadata(path, title+' | Fourth & Value', 'NBA odds, player props, game lines and market consensus from Fourth & Value.')}
 <link rel="stylesheet" href="{rel}/assets/site.css"><link rel="icon" href="{rel}/assets/logo.svg"></head>
-<body><a class="skip-link" href="#main">Skip to content</a><div id="nav-root"></div><script src="{rel}/nav.js?v=37"></script>
+<body><a class="skip-link" href="#main">Skip to content</a><div id="nav-root"></div><script src="{rel}/nav.js?v=42"></script>
 <main class="wrap" id="main" data-nba-page="{page}" data-feed="{nba}/data/latest.json">{links}<p class="eyebrow">NBA · 2026–27</p><h1>{title}</h1>
 <div class="notice" id="feed-status" role="status"><strong>NBA market snapshot</strong><p>Last successful check: {escape(str(state.get('last_success_at') or 'Not yet checked'))}. Enable JavaScript to view current quote availability.</p></div>
 {intro}<footer>Fourth &amp; Value · <a href="{rel}/terms.html">Terms &amp; privacy</a> · <a href="{rel}/videos/">Videos</a></footer></main>

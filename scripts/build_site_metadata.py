@@ -6,7 +6,7 @@ from html import escape, unescape
 from site_metadata import SITE, DOCS, metadata
 
 DESCRIPTIONS={
-    'methods.html':'How Fourth & Value estimates NFL and NHL probabilities, compares sportsbook prices and evaluates model limitations.',
+    'methods.html':'How Fourth & Value estimates NFL probabilities, compares sportsbook prices and evaluates model limitations.',
     'blog/index.html':'NFL betting explainers covering sportsbook margins, model uncertainty, line shopping and football analysis.',
     'research/index.html':'Read Fourth & Value research on probability calibration, Brier scores and evaluating sports models.',
     'tracking/index.html':'Track your sports bets and review your results with a free Fourth & Value account.',

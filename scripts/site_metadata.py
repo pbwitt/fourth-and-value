@@ -28,7 +28,7 @@ def metadata(out, title, description):
 
 def nfl_links(rel, current=''):
     links = [('NFL overview', 'nfl/'), ('Player props', 'props/'), ('Top picks', 'props/top.html'),
-             ('Game totals', 'nfl/totals/'), ('Methods', 'methods.html#edge-nfl')]
+             ('Game totals', 'nfl/totals/')]
     return '<nav class="subnav" aria-label="NFL">' + ''.join(
         f'<a href="{rel}/{href}"' + (' aria-current="page"' if label == current else '') + f'>{label}</a>'
         for label, href in links) + '</nav>'

@@ -158,6 +158,7 @@
         { href: `${base}/props/top.html`, label: 'Top Picks' },
         { href: `${base}/props/arbitrage.html`, label: 'Pricing checks' },
         { href: `${base}/nfl/totals/index.html`, label: 'Game Totals' },
+        { href: `${base}/methods.html`, label: 'NFL Methods' },
       ]
     },
     {
@@ -196,7 +197,6 @@
         { href: `${base}/mlb/methods.html`, label: 'MLB Methods' },
       ]
     },
-    { type: 'link', href: `${base}/methods.html`, label: 'Methods' },
     { type: 'link', href: `${base}/research/`, label: 'Research' },
     { type: 'link', href: `${base}/editorial/`, label: 'Editorial' },
     { type: 'link', href: `${base}/blog/`, label: 'Blog' },

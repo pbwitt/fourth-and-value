@@ -38,7 +38,7 @@ def build(state):
         mlb = '..' if '/' in filename else '.'
         links = '<nav class="subnav" aria-label="MLB sections">' + ''.join(
             f'<a href="{mlb}/{f}"' + (' aria-current="page"' if f == filename else '') + f'>{t}</a>'
-            for f,t,_ in pages) + '</nav>'
+            for f,t,_ in pages if f != 'methods.html') + '</nav>'
         if page == 'overview':
             intro = '''<p class="lead">Follow the pennant race into October. Compare baseball prices with the matchup in view.</p>
 <div class="actions"><a class="button primary" href="picks.html">See model picks →</a><a class="button" href="props/">Explore player forecasts →</a><a class="button" href="validation.html">Review model results →</a></div>
@@ -68,7 +68,7 @@ def build(state):
 <section class="help section"><h2>Read the comparison</h2><p>Book probability is the break-even rate at that price. Paired fair probability removes the book’s margin. Consensus uses distinct books at the same line. Season statistics describe past performance and do not qualify model picks.</p><a href="{mlb}/methods.html">MLB methods and limitations →</a></section>'''
         body = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} | Fourth &amp; Value</title>
 {metadata(path, title+' | Fourth & Value', 'MLB regular-season and postseason odds, player props, game lines and market consensus from Fourth & Value.')}
-<link rel="stylesheet" href="{rel}/assets/site.css"><link rel="stylesheet" href="{rel}/assets/mlb.css?v=1"><link rel="icon" href="{rel}/assets/logo.svg"></head><body><a class="skip-link" href="#main">Skip to content</a><div id="nav-root"></div><script src="{rel}/nav.js?v=41"></script>
+<link rel="stylesheet" href="{rel}/assets/site.css"><link rel="stylesheet" href="{rel}/assets/mlb.css?v=1"><link rel="icon" href="{rel}/assets/logo.svg"></head><body><a class="skip-link" href="#main">Skip to content</a><div id="nav-root"></div><script src="{rel}/nav.js?v=42"></script>
 <main class="wrap" id="main" data-mlb-page="{page}" data-feed="{mlb}/data/latest.json">{links}<p class="eyebrow">MLB · {label}</p><h1>{title}</h1>
 <div class="notice" id="feed-status" role="status"><strong>MLB baseball market snapshot</strong><p>Last successful check: {escape(str(state.get('last_success_at') or 'Not yet checked'))}. Enable JavaScript to view current quote availability.</p></div>
 <p class="muted" id="history-status"></p><section class="panel mlb-model-summary" id="model-status" aria-label="Model coverage"></section>{intro}<footer>Fourth &amp; Value · <a href="{rel}/terms.html">Terms &amp; privacy</a> · <a href="{rel}/videos/">Videos</a></footer></main><script src="{rel}/assets/mlb.js?v=2" defer></script></body></html>'''
