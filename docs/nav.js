@@ -190,7 +190,9 @@
         { href: `${base}/mlb/`, label: 'MLB Overview' },
         { href: `${base}/mlb/props/`, label: 'Player Props' },
         { href: `${base}/mlb/totals/`, label: 'Game Lines' },
+        { href: `${base}/mlb/picks.html`, label: 'Model Picks' },
         { href: `${base}/mlb/top.html`, label: 'Market Watch' },
+        { href: `${base}/mlb/validation.html`, label: 'Model Results' },
         { href: `${base}/mlb/methods.html`, label: 'MLB Methods' },
       ]
     },

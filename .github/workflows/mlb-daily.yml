@@ -13,7 +13,7 @@ concurrency:
 jobs:
   update-mlb:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 40
     permissions:
       contents: write
       pages: write
@@ -28,21 +28,29 @@ jobs:
           cache: pip
       - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Restore historical season summaries
+      - name: Restore game history and trained MLB models
         uses: actions/cache@v4
         with:
-          path: data/mlb/history
-          key: mlb-history-v1-${{ github.run_id }}
-          restore-keys: mlb-history-v1-
+          path: |
+            data/mlb/history
+            data/mlb/model_data
+            data/mlb/models
+          key: mlb-models-v1-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: mlb-models-v1-${{ runner.os }}-
       - name: Verify MLB math and publishing guards
         run: |
-          python -m unittest discover -s tests -p 'test_mlb.py'
+          python -m unittest discover -s tests -p 'test_mlb*.py'
           python -m unittest discover -s tests -p 'test_nba.py'
+      - name: Update history and train chronological models
+        id: models
+        continue-on-error: true
+        run: python scripts/mlb/train.py
       - name: Refresh MLB markets
         id: refresh
         continue-on-error: true
         env:
           ODDS_API_KEY: ${{ secrets.MLB_ODDS_API_KEY || secrets.ODDS_API_KEY }}
+          MLB_TRAINING_FAILED: ${{ steps.models.outcome != 'success' && '1' || '0' }}
         run: python scripts/mlb/refresh.py
       - name: Validate published timestamps and season
         id: validate
@@ -56,6 +64,9 @@ jobs:
           path: |
             data/mlb/snapshots/
             data/mlb/history/
+            data/mlb/models/
+            data/mlb/model_data/manifest.json
+            docs/mlb/data/validation.json
           retention-days: 90
           if-no-files-found: ignore
       - name: Publish MLB pages and feed status
@@ -66,7 +77,7 @@ jobs:
           git config user.email 'actions@github.com'
           git add docs/mlb/
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'MLB: refresh market snapshot and pages'
+          git commit -m 'MLB: refresh models, forecasts and market snapshot'
           for attempt in 1 2 3; do
             if ! git pull --rebase origin main; then
               git rebase --abort || true
@@ -83,6 +94,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         # A commit made with GITHUB_TOKEN does not automatically rebuild Pages.
         run: gh api --method POST "repos/$GITHUB_REPOSITORY/pages/builds" --jq .status
-      - name: Report upstream odds failures
-        if: steps.refresh.outcome == 'failure'
+      - name: Report upstream model or odds failures
+        if: steps.refresh.outcome == 'failure' || steps.models.outcome == 'failure'
         run: exit 1

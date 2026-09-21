@@ -4,6 +4,7 @@ import argparse
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 import os
+import math
 from pathlib import Path
 import sys
 from zoneinfo import ZoneInfo
@@ -65,7 +66,7 @@ def schedule(now):
                 home_team=home['team']['name'], away_team=away['team']['name'],
                 home_team_id=home['team']['id'], away_team_id=away['team']['id'],
                 home_pitcher=home.get('probablePitcher'), away_pitcher=away.get('probablePitcher'),
-                venue=g.get('venue', {}).get('name'), game_number=g.get('gameNumber', 1),
+                venue=g.get('venue', {}).get('name'), venue_id=g.get('venue', {}).get('id'), game_number=g.get('gameNumber', 1),
                 doubleheader=g.get('doubleHeader', 'N') != 'N',
                 series_game=g.get('seriesGameNumber'), if_necessary=g.get('ifNecessary') == 'Y',
                 lineup_status='Batting lineups not verified')
@@ -140,7 +141,7 @@ def context(row, game, history):
                game_number=game['game_number'], doubleheader=game['doubleheader'],
                if_necessary=game.get('if_necessary', False), series_game=game.get('series_game'),
                venue=game['venue'], lineup_status=game['lineup_status'],
-               model_probability=None, model_status='MLB predictions are not validated', stat_context=None)
+               model_probability=None, model_status='Forecast pending model checks', stat_context=None)
     if game['doubleheader']:
         row['game'] += f" · Game {game['game_number']}"
     group = 'pitching' if row['market'].startswith('pitcher_') else 'hitting'
@@ -196,7 +197,7 @@ def refresh(client, now, games, history):
         props_events_skipped=max(0,len(near)-20), history_checked_at=history.get('fetched_at'),
         history_through_date=history.get('through_date'), history_error=history.get('error'),
         history_players={k:len(v) for k,v in history.get('groups', {}).items()},
-        requests=client.requests, quota_remaining=client.quota_remaining, model_status='No validated MLB predictions')
+        requests=client.requests, quota_remaining=client.quota_remaining, model_status='Forecast pending model checks')
 
 
 def validate(state, now):
@@ -212,6 +213,20 @@ def validate(state, now):
             or not timedelta(minutes=-5) <= now-quote <= timedelta(hours=12)):
             errors.append('MLB snapshot contains an ineligible or expired market')
             break
+        if row.get('model_probability') is not None:
+            p,push=row['model_probability'],row.get('model_push_probability')
+            if (not isinstance(push,(int,float)) or not all(math.isfinite(v) for v in [p,push])
+                or min(p,push)<0 or p+push>1+1e-9 or not row.get('model_version')):
+                errors.append('MLB snapshot contains an invalid forecast distribution')
+                break
+        if row.get('is_model_pick'):
+            from mlb.predict import pick_reason
+            checked_model=timestamp(state.get('model_checked_at'))
+            if (row.get('model_probability') is None or not checked_model
+                or not timedelta(minutes=-5)<=now-checked_model<=timedelta(minutes=90)
+                or pick_reason(row,state.get('model_validation',{}),now)):
+                errors.append('MLB snapshot contains a model pick that fails eligibility checks')
+                break
     return errors
 
 
@@ -235,10 +250,17 @@ def main():
             history = load_history(now)
             client = OddsClient(os.getenv('MLB_ODDS_API_KEY') or os.getenv('ODDS_API_KEY'), SPORT)
             state = refresh(client, now, games, history)
+            from mlb.predict import attach
+            state = attach(state, datetime.now(UTC), official_json)
             # Long prop fetches can cross first pitch; remove those games before publishing.
             finished = datetime.now(UTC)
             state['rows'] = [r for r in state['rows'] if timestamp(r['commence_time']) > finished]
             state['events'] = [g for g in state['events'] if timestamp(g['commence_time']) > finished]
+            if state.get('model_summary'):
+                from collections import Counter
+                state['model_summary'].update(forecasts=sum(r.get('model_probability') is not None for r in state['rows']),
+                    picks=sum(r.get('is_model_pick',False) for r in state['rows']),
+                    unavailable_reasons=dict(Counter(r['model_status'] for r in state['rows'] if r.get('model_probability') is None)))
             state['status'] = 'ready' if state['rows'] else 'waiting_for_markets'
             save_json(ROOT/'data/mlb/snapshots'/(now.strftime('%Y%m%dT%H%M%SZ')+'.json'), state)
         except FeedError as error:

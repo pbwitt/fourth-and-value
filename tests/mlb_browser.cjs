@@ -18,7 +18,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];
     for(const width of [390,768,1280,1440,1920]){
       const p=await browser.newPage({viewport:{width,height:1000}});p.on('pageerror',e=>errors.push(e.message));
-      for(const route of ['/mlb/','/mlb/props/','/mlb/totals/','/mlb/top.html','/mlb/methods.html','/nba/','/']){
+      for(const route of ['/mlb/','/mlb/props/','/mlb/totals/','/mlb/picks.html','/mlb/validation.html','/mlb/top.html','/mlb/methods.html','/nba/','/']){
         await p.goto(base+route);if(route.startsWith('/mlb'))await p.waitForFunction(()=>!document.getElementById('feed-status').textContent.includes('Enable JavaScript'));
         assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,`Overflow ${width} ${route}`);
         assert.equal(await p.locator('.mlb-sport').count(),1);
@@ -51,6 +51,22 @@ const server=http.createServer((req,res)=>{
     assert(p.url().includes('phase=postseason'));
     fixture={...fixture,status:'feed_error'};await p.reload();await p.waitForFunction(()=>document.getElementById('feed-status').textContent.includes('failed'));assert.equal(await p.locator('.prop-card').count(),0);
     fixture={...fixture,status:'ready',last_success_at:new Date(+now-25*3600e3).toISOString()};await p.reload();await p.waitForFunction(()=>document.getElementById('feed-status').textContent.includes('needs a refresh'));assert.equal(await p.locator('.prop-card').count(),0);
+    // A populated own-model card must include push-aware probabilities and expire independently of the odds board.
+    const pick={...row,line:5,model_probability:.52,model_push_probability:.08,model_mean:5.4,model_fair_price:-130,
+      model_ev_pct:8,model_edge_pp:4.1,model_status:'Eligible experimental model pick',is_model_pick:true,model_inputs:{'Recent starts':10},model_input_through:'2026-09-20',model_version:'fixture'};
+    fixture={...fixture,last_success_at:now.toISOString(),model_checked_at:now.toISOString(),rows:[pick],model_summary:{forecasts:1,picks:1}};
+    await p.goto(base+'/mlb/picks.html');await p.waitForSelector('.prop-card');
+    assert((await p.locator('.prop-card').textContent()).includes('52.0%'));
+    assert((await p.locator('.prop-card').textContent()).includes('8.0%'));
+    assert((await p.locator('.prop-card').textContent()).includes('Experimental model pick'));
+    fixture={...fixture,model_checked_at:new Date(+now-91*60e3).toISOString()};await p.reload();
+    await p.waitForFunction(()=>document.getElementById('model-status').textContent.includes('need a fresh input check'));
+    assert.equal(await p.locator('.prop-card').count(),0);
+    await p.goto(base+'/mlb/props/');await p.waitForSelector('.prop-card');
+    assert((await p.locator('.prop-card').textContent()).includes('Research forecast: model inputs need a fresh check'));
+    fixture={...fixture,model_checked_at:now.toISOString(),rows:[{...pick,quoted_at:new Date(+now-91*60e3).toISOString()}]};
+    await p.goto(base+'/mlb/picks.html');await p.waitForFunction(()=>document.getElementById('result-count').textContent.includes('matching offers'));
+    assert.equal(await p.locator('.prop-card').count(),0);
     assert.deepEqual(errors,[]);console.log('PASS: MLB nav/layout at five widths, postseason/props filters, best-book selection, error/stale suppression.');
   }finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);server.close();process.exitCode=1;});

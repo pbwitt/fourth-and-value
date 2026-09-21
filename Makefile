@@ -352,12 +352,15 @@ nba_test:
 		$(PY) scripts/fetch_all_player_props.py
 		@test -s $(PROPS_ALL) || (echo "[ERR] $(PROPS_ALL) not created"; exit 1)
 
-.PHONY: mlb_daily mlb_pages mlb_test
-mlb_daily:
+.PHONY: mlb_daily mlb_models mlb_pages mlb_test
+mlb_daily: mlb_models
 	$(PY) scripts/mlb/refresh.py
+
+mlb_models:
+	$(PY) scripts/mlb/train.py
 
 mlb_pages:
 	$(PY) scripts/mlb/refresh.py --offline
 
 mlb_test:
-	$(PY) -m unittest discover -s tests -p 'test_mlb.py'
+	$(PY) -m unittest discover -s tests -p 'test_mlb*.py'

@@ -5,7 +5,9 @@
 - `/mlb/`: schedule, probable pitchers and regular/postseason filter
 - `/mlb/props/`: pitcher strikeouts/outs; batter hits, total bases, home runs and RBIs
 - `/mlb/totals/`: full-game moneyline, run line and total
-- `/mlb/top.html`: Market Watch; same-line disagreements, not model best bets
+- `/mlb/picks.html`: experimental independent model picks
+- `/mlb/validation.html`: chronological model results and check status
+- `/mlb/top.html`: Market Watch; same-line disagreements, separate from model picks
 - `/mlb/methods.html`: methods, settlement caveats and prediction limitations
 
 ## Commands
@@ -26,7 +28,7 @@ The official MLB Stats API `/api/v1/schedule` provides the next 45 days with `pr
 
 An odds event must match both team names and a start time within ten minutes. MLB game IDs and start times separate doubleheaders; duplicate or ambiguous provider matches are withheld. Athletics aliases are normalized explicitly. New postseason fixtures appear automatically when teams/times and provider odds are available. A failed schedule call stops market publishing rather than admitting unverified events.
 
-Probable starters are provisional, not confirmed lineups. Both names appear on schedule and quote cards. Batting lineups are not verified. There are no automated weather, injury, bullpen or workload adjustments.
+Probable starters are provisional, not confirmed lineups. Both names appear on schedule and quote cards. Batter forecasts require a complete published starting order from the upcoming box score. Models include recent bullpen usage and pitcher workload. Weather, handedness, injury and explicit tactical substitution adjustments remain outside this first version.
 
 ## Statistics and model status
 
@@ -34,7 +36,7 @@ MLB regular-season `byDateRange` statistics cover January 1 through yesterday in
 
 Batter context shows PA, AVG, OPS and counting stats. Pitcher context shows IP, starts, K, K/9 and ERA. Rates use outs, not decimal innings: 5.2 IP = 17 outs. No league-average or 50% fallback is used. Statistics refresh after 12 hours or a new Eastern cutoff date; public context expires after 36 hours and is hidden on a stats-feed failure.
 
-**This launch has no validated MLB prediction model.** `model_probability` is always null. Regular-season stats are historical context, not postseason workload forecasts. Before model picks: verify batting order, expected plate appearances, pitcher handedness and workload, opponent and park factors, weather, bullpen availability, and postseason deployment; perform chronological outcome/odds validation and calibration. Whole-number pushes, participation, listed-pitcher and postponement rules must be handled by book/market. First-five markets are not mixed with full-game markets.
+**Independent MLB models are implemented.** All six prop markets and full-game lines have forecast support. Initial chronological outcome checks control market eligibility; current starters, published hitter orders, quote age and estimated edge control individual picks. Regular-season totals failed the initial reference comparison and remain research-only. See [MLB_MODEL_README.md](MLB_MODEL_README.md) for complete implementation, actual validation results, cutoff dates, limitations and recovery instructions. The models are experimental, with no historical betting-ROI claim.
 
 ## Odds and budgets
 
@@ -46,10 +48,12 @@ Quotes expire after 12 hours, or at first pitch. Boards refresh open tabs every 
 
 `.github/workflows/mlb-daily.yml` runs at 15:15 and 21:15 UTC (11:15 AM and 5:15 PM Eastern daylight time; one hour earlier in winter), plus manual dispatch. It uses a dedicated `MLB_ODDS_API_KEY`, falling back to `ODDS_API_KEY`. The dedicated secret is configured from the verified local credential without changing NFL/NHL/NBA settings.
 
-The job checks out current main after queued runs, runs MLB and shared NBA math tests, restores the statistics cache, refreshes/validates, uploads 90-day audit artifacts, commits only `docs/mlb/`, and requests a GitHub Pages rebuild. A feed failure publishes an error state and fails the job; a validation failure blocks the bad snapshot. Conflicts stop with the audit artifact retained.
+The job checks out current main after queued runs, runs MLB and shared NBA math tests, restores the statistics and game-history/model caches, trains and calibrates on chronological partitions, refreshes/validates, uploads 90-day audit artifacts, commits only `docs/mlb/`, and requests a GitHub Pages rebuild. A feed failure publishes an error state and fails the job; a model-training failure suppresses model forecasts and fails the job while allowing fresh market comparisons. A validation failure blocks the bad snapshot. Conflicts stop with the audit artifact retained.
 
 - Public feed: `docs/mlb/data/latest.json`
 - Statistics cache: `data/mlb/history/current.json`
+- Model artifacts and exact compressed training observations: `data/mlb/models/`
+- Public model audit: `docs/mlb/data/validation.json`
 - Timestamped snapshots: `data/mlb/snapshots/<UTC>.json`
 - Implementation: `scripts/mlb/refresh.py`, `scripts/mlb/site.py`, `docs/assets/mlb.js`
 - Shared price helpers: `scripts/nba/pipeline.py`, with explicit MLB market/sport arguments
