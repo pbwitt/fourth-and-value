@@ -1,4 +1,4 @@
-// docs/nav.js (v=37) — NBA sections and responsive multi-sport navigation
+// docs/nav.js (v=39) — site navigation and footer social links
 (function () {
   // --- Find script & compute base (works locally and deployed) ---
   const scriptEl =
@@ -33,6 +33,8 @@
   .fv-links{display:flex;align-items:center;gap:8px;}
   .fv-links a{color:var(--nav-fg-dim);text-decoration:none;padding:8px 8px;border-radius:10px;line-height:1;font-size:14px;}
   .fv-links a:hover,.fv-links a[aria-current="page"]{color:var(--nav-fg);background:rgba(255,255,255,0.06);}
+  .fv-social-footer{max-width:1200px;margin:40px auto 0;padding:20px 24px 32px;border-top:1px solid var(--nav-border);color:var(--nav-fg-dim);font-size:14px;}
+  .fv-social-footer a{color:#93c5fd;}
 
   /* Sport dropdowns */
   .fv-sport-dropdown{position:relative;}
@@ -187,7 +189,6 @@
     { type: 'link', href: `${base}/editorial/`, label: 'Editorial' },
     { type: 'link', href: `${base}/blog/`, label: 'Blog' },
     { type: 'link', href: `${base}/videos/`, label: 'Videos' },
-    { type: 'link', href: 'https://youtube.com/@fourthandvalue', label: 'YouTube', external: true },
     { type: 'link', href: `${base}/tracking/`, label: '📊 Bet Tracker' },
   ];
 
@@ -299,6 +300,32 @@
   inner.appendChild(links);
   nav.appendChild(inner);
   slot.replaceWith(nav);
+
+  // Keep social destinations together in the footer across generated pages.
+  function addSocialLinks() {
+    let footer = document.querySelector('footer') || document.querySelector('.footer');
+    if (!footer) {
+      footer = document.createElement('footer');
+      footer.className = 'fv-social-footer';
+      footer.textContent = 'Fourth & Value';
+      document.body.appendChild(footer);
+    }
+    let x = footer.querySelector('a[href="https://x.com/fourthandvalue"]');
+    if (!x) {
+      x = document.createElement('a');
+      x.href = 'https://x.com/fourthandvalue';
+      x.textContent = 'X · @fourthandvalue';
+      footer.append(document.createTextNode(' · '), x);
+    }
+    if (!footer.querySelector('a[href*="youtube.com/@fourthandvalue"]')) {
+      const youtube = document.createElement('a');
+      youtube.href = 'https://youtube.com/@fourthandvalue';
+      youtube.textContent = 'YouTube';
+      x.after(document.createTextNode(' · '), youtube);
+    }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addSocialLinks, {once:true});
+  else addSocialLinks();
 
   // Events
   burger.addEventListener('click', () => {
