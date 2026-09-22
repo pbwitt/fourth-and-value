@@ -58,7 +58,7 @@ Our Week Three refresh includes completed games through Monday night. But the au
 
 **On screen:** The prop / we're investigating · Kraft under 3.5 receptions
 
-The most concrete prop discussion is Tucker Kraft under three and a half receptions on Thursday. DraftKings offered plus one twenty-three in our snapshot. BetOnline had plus one twenty-five, the highest listed payout. Our model projects two point two eight catches and a fifty-seven point nine percent under probability. The same-line market consensus is forty-two point four percent. That is a substantial disagreement, not a reason to skip the homework.
+The most concrete prop discussion is Tucker Kraft under three and a half receptions on Thursday. The snapshot captured prices from plus one sixteen to plus one twenty-five. Our model projects two point two eight catches and a fifty-seven point nine percent under probability. The same-line market consensus is forty-two point four percent. That is a substantial disagreement, not a reason to skip the homework.
 
 ## 10. THE REASON TO WAIT
 
@@ -82,7 +82,7 @@ Minnesota at Tampa Bay is an over research candidate around forty-three, with Ky
 
 **On screen:** A cheaper price / can buy a worse line · Under 50.5 vs. under 50
 
-For Chargers–Bills, BetRivers had under fifty and a half at minus one fourteen. BetMGM had under fifty at minus one oh eight. At exactly fifty points, the first wins and the second refunds. For Minnesota, over forty-two and a half cost more than over forty-three. We need a scoring distribution to value those trades. Comparing juice without comparing the number can lead to the wrong choice.
+For Chargers–Bills, one book posted under fifty and a half at minus one fourteen. Another had under fifty at minus one oh eight. At exactly fifty points, the first wins and the second refunds. For Minnesota, over forty-two and a half cost more than over forty-three. We need a scoring distribution to value those trades. Comparing juice without comparing the number can lead to the wrong choice.
 
 ## 14. THE REST OF THE WATCHLIST
 

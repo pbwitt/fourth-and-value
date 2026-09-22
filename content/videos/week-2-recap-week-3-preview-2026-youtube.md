@@ -1,6 +1,6 @@
 # YouTube publication package
 
-Status: owner approved creation and publication September22, 2026. Narrated widescreen master runtime: 6:28, 1920×1080, approximately75MB. Owner uploads to YouTube.
+Status: owner approved creation and publication September22, 2026. Narrated widescreen master runtime: 6:25, 1920×1080, approximately 75MB. No sportsbook is named anywhere in the narration or on-screen text. Owner uploads to YouTube.
 
 MP4: `docs/videos/week-2-recap-week-3-preview-2026/fourth-and-value-week-2-recap-week-3-preview-2026.mp4`
 
@@ -52,14 +52,15 @@ Chapters from the final narration timeline (rounded down to whole seconds):
 02:06 Jones, Skattebo and the injury case study
 02:58 Week 3 data and injury coverage
 03:21 Kraft: the conditional Thursday prop
-04:16 Quarterback changes and totals to research
-05:07 Shop the number
-05:32 What to watch before betting
+04:14 Quarterback changes and totals to research
+05:05 Shop the number
+05:29 What to watch before betting
 
 ## Production handoff
 
 - Source: `content/videos/week-2-recap-week-3-preview-2026.json`.
-- Review copy: matching `.md` file; 1,042 spoken words; rendered runtime 6:28.
+- Review copy: matching `.md` file; rendered runtime 6:25.
+- Sportsbook names are deliberately absent from all narration and on-screen text (YouTube gambling-policy safety). Scene 9 cites a price range; scene 13 says "one book" / "another". The article retains the full named price tables.
 - Preserve Cedar voiceover. No on-screen narration-production label.
 - 1920×1080 landscape master uses `scripts/render_editorial_video.cjs` and a dedicated canvas layout.
 - Use the three article charts, a two-pick scorecard, and a same-line Kraft price card. Keep chart labels readable by revealing subsets rather than shrinking the 16-game chart onto one frame.
