@@ -21,9 +21,10 @@ class WriterGuards(unittest.TestCase):
         self.packet={'markets':[{'id':'q1'}],'model_rows':[]}
     def test_diverse_allocation(self):
         slots=w.slots([{'sport':'NFL'},{'sport':'MLB'}])
-        self.assertEqual(len(slots),6)
-        self.assertEqual(sum(s=='MLB' for s,_ in slots),2)
-        self.assertEqual({s for s,_ in slots},{'MLB','NFL','NBA','NHL'})
+        self.assertEqual(len(slots),2)
+        self.assertEqual({s for s,_ in slots},{'MLB','NFL'})
+        next_slots=w.slots([{'sport':'NFL'},{'sport':'MLB'}],catalog=[{'sport':'NFL','date':'2026-09-22'},{'sport':'MLB','date':'2026-09-22'}])
+        self.assertEqual({s for s,_ in next_slots},{'NBA','NHL'})
     def test_valid(self):
         self.assertEqual(w.validate(self.article,self.response,self.packet,self.now),600)
     def test_invented_market_rejected(self):
@@ -67,7 +68,7 @@ class WriterGuards(unittest.TestCase):
         from tempfile import TemporaryDirectory
         from unittest.mock import patch
         with TemporaryDirectory() as directory:
-            with patch.object(w,'STATE',Path(directory)),patch.object(w,'call_api',side_effect=RuntimeError('OpenAI HTTP 429 credit_balance_exhausted')) as api,patch.object(w,'evidence',return_value={}),patch.object(w.ed,'render_home'),patch('builtins.print'):
+            with patch.object(w,'STATE',Path(directory)),patch.object(w,'call_api',side_effect=RuntimeError('OpenAI HTTP 429 credit_balance_exhausted')) as api,patch.object(w,'evidence',return_value={}),patch.object(w.reporting,'collect',return_value=[{'url':'https://mlb.com/news/example','excerpt':'test'}]),patch.object(w.budget,'PATH',Path(directory)/'budget.json'),patch.object(w.budget,'checkpoint'),patch.object(w.ed,'render_home'),patch('builtins.print'):
                 w.run(self.now)
                 self.assertEqual(api.call_count,1)
                 state=w.load(Path(directory)/'2026-09-22.json',{})

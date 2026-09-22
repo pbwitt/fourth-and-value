@@ -12,6 +12,14 @@ def event():
             'bookmakers':[{'key':k,'last_update':NOW.isoformat(),'markets':[{'key':'totals','outcomes':[{'name':'Over','point':p,'price':-110},{'name':'Under','point':p,'price':-110}]}]} for k,p in [('one',40.5),('two',41.5)]]}
 
 class EditorialTests(unittest.TestCase):
+    def test_feature_expiry_and_opinion_separation(self):
+        a={'kind':'Analysis','date':'2026-09-22','featured_until':NOW.isoformat()}
+        self.assertFalse(m.featured_now(a,NOW))
+        self.assertTrue(m.featured_now(a,NOW-timedelta(seconds=1)))
+        a.pop('featured_until')
+        self.assertFalse(m.featured_now(a,NOW+timedelta(days=4)))
+        a['kind']='Opinion'
+        self.assertFalse(m.featured_now(a,NOW))
     def test_started_and_stale_quotes_excluded(self):
         e=event();e['commence_time']=(NOW-timedelta(seconds=1)).isoformat()
         self.assertEqual(m.summarize_events('NFL',[e],NOW,{}),[])

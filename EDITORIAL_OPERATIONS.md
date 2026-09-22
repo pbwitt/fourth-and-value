@@ -4,11 +4,11 @@ The homepage combines a curated lead, an automated market rundown, recent report
 
 ## Schedule and costs
 
-`.github/workflows/editorial-daily.yml` collects a morning edition at **8:07 AM America/New_York**, adjusting for daylight saving time. GitHub schedules can be delayed; this is a target, not an exact-time promise. At **17 minutes past each hour**, it checks the private queue for approved articles and refreshes homepage freshness labels.
+`.github/workflows/editorial-daily.yml` collects a morning edition at **6:07 AM America/New_York**, adjusting for daylight saving time. GitHub schedules can be delayed; this is a target, not an exact-time promise. At **17 minutes past each hour**, it checks the private queue for approved articles and refreshes homepage freshness labels.
 
 The morning edition makes one full-game totals request per sport (NFL, MLB, NBA, NHL) with existing Odds API credentials and reads four public ESPN RSS feeds. It does **not** train models or generate new prop forecasts. Existing sports/model refreshes continue separately. The authorized Astra writer then researches and directly publishes original features, using the server-side `OPENAI_API_KEY` secret. See the original-analysis operating details below.
 
-Each edition is at `/briefing/YYYY-MM-DD.html`; `/briefing/` is the latest. Data is stored under `docs/briefing/history/`, with immutable timestamped snapshots under `snapshots/`. The report covers NFL games within seven days and other sports within 48 hours. It labels market observations as research, not recommendations. ESPN headlines are linked, limited to 24 words and not expanded into unsupported facts. No article bodies are scraped.
+Each edition is at `/briefing/YYYY-MM-DD.html`; `/briefing/` is the latest. Data is stored under `docs/briefing/history/`, with immutable timestamped snapshots under `snapshots/`. The report covers NFL games within seven days and other sports within 48 hours. It labels market observations as research, not recommendations. ESPN headlines are linked, limited to 24 words and not expanded into unsupported facts. The briefing links headlines; the separate feature writer reads bounded publisher excerpts privately.
 
 ## Private editorial desk
 
@@ -54,93 +54,111 @@ Missing odds/news fail closed per sport and remain visible in coverage notes. St
 
 The public homepage and morning briefing can run before the private database migration. Until the SQL is installed and an owner is provisioned, the private desk clearly reports unavailable access/setup and does not pretend to save ideas. Owner email is pending user confirmation. Automated long-form analysis is authorized and runs independently of this optional private desk.
 
-## Original analysis — September 22 update
+## Automated original analysis — budget revision, September 22
 
-The owner authorized paid Astra generation and direct publication on September 22.
-The automated newsroom does **not** depend on the Supabase review queue. The private
-idea/opinion desk remains optional; its approval rules apply only to owner drafts.
+Enabled in `config/editorial.json`: **two article opportunities per day**, exact model
+`gpt-6-astra`, low reasoning, standard service tier. No fallback model. Runs on GitHub
+Actions at **06:07 America/New_York**, without the owner's computer. GitHub may delay
+scheduled jobs; publication follows research, factual checking and the Pages build.
+Hourly runs update freshness and approved owner drafts without paid article calls.
 
-- Exact model: `gpt-6-astra`; reasoning effort: `high`. No model fallback.
-- Morning edition: 08:07 America/New_York, hosted on GitHub Actions. The computer can be off.
-- Six maximum story slots: one for each NFL/MLB/NBA/NHL, plus two extra slots allocated
-  to leagues with fresh upcoming totals. Currently this normally means two NFL and
-  two MLB stories. NBA/NHL rotate into extra slots as their boards become active.
-- Slots are opportunities, not a guaranteed article quota. Offseason coverage must
-  have a real current roster, injury, schedule or market question. Unverifiable
-  stories are skipped. Recent titles are supplied to discourage repetitive angles.
-- Each article researches the live web, then a separate Astra call checks facts.
-  Sources are displayed with section-level links and dates. At least two domains,
-  one recent source, substantial depth and valid evidence references are required.
-- Original analysis leads the homepage. ESPN RSS remains an input to the factual
-  briefing, not the sole source for feature research.
-- Only fresh future-game quotes enter an article's market packet (six-hour limit).
-  MLB model rows must have `is_model_pick`; stale/unsupported predictions are omitted.
-  NFL articles receive fresh totals plus dated model means from the public props export when within 24 hours. Saved model references carry no stale odds or EV; their limitations remain explicit. MLB references may similarly supply dated model inputs without a current recommendation.
-  NBA/NHL unvalidated or withheld forecasts must never be called proven edges.
-- Injury causation is a hypothesis unless supported by timestamped before/after
-  quotes. No invented openers, adjusted probabilities or guaranteed bets.
-- Evidence snapshots are public at `/editorial/evidence/`; article dates remain fixed.
-  Published prices are historical observations, not a promise of current availability.
+The allocator prefers leagues covered least recently, breaking ties in favor of
+active boards and rotating ties daily. It tries other leagues if current sources
+are unavailable. MLB/NFL/NBA/NHL all participate; no offseason filler is required.
+Two is a maximum, not a guarantee: inadequate reporting, factual failures, funding
+errors or budget limits can produce fewer articles. Existing daily slots, including
+failed/started slots, never automatically repeat. Today's six launch articles count
+as an already completed edition; the smaller format starts tomorrow.
 
-### Spend and failure controls
+### Research and quality
 
-Only the morning edition or an explicit manual briefing refresh invokes the writer.
-Hourly homepage updates make no paid writing calls. `writing_enabled` is the kill
-switch in `config/editorial.json`. The existing GitHub `OPENAI_API_KEY` secret is used
-server-side; it is never copied into HTML or browser JavaScript.
+The collector reads public RSS from ESPN, CBS, Yahoo and (for MLB) MLB.com, then
+fetches bounded excerpts from approved publisher hosts. Reports must be no older
+than 72 hours; at least two publisher hosts are required. Blocked or unavailable
+pages are skipped. There is no paid web-search tool. Two publishers repeating the
+same report do not constitute independent corroboration.
 
-A daily ledger in `docs/editorial/runs/YYYY-MM-DD.json` stores the allocation,
-started/published/skipped states, token usage and failure reasons. Completed or
-started slots are not retried automatically, including on a same-day manual rerun.
-Each story allows one research call (12,000 output tokens / 8 web tool calls) and
-one audit (4,000 output tokens / 4 web tool calls). Six slots means at most twelve
-model requests and 96,000 output tokens per normal edition, plus input and search
-charges. These are ceilings, not expected usage or a dollar spending cap. Set an
-API project budget separately if desired. No other paid insights job is enabled.
+Astra writes 550–750 words using those excerpts and fresh local market/model evidence.
+A separate Astra request checks the draft against the original packet. Unsupported
+injury facts, invented prices/model adjustments, unproven news-to-line causation and
+repetitive angles fail review. News does not silently alter model estimates. A pass
+or watchlist is allowed when there is no defensible bet. The automated check reduces
+errors but is not a guarantee; the owner reviews the live site.
 
-Network failures do not trigger paid retries. If the runner crashes before its ledger
-is pushed, GitHub cannot recover the uncommitted ledger; inspect the API usage before
-manually rerunning a failed job. Likewise, interrupted `started` slots require an
-intentional ledger repair after checking usage. A failure does not publish an
-unfinished article. Automated factual review reduces errors but cannot guarantee
-correctness; the owner reviews the live site and can request corrections.
+Source links and dates appear with each article. Public evidence snapshots include
+our market/model data and source metadata, **not publisher excerpts**. API responses
+remain in ignored `.editorial-cache/`; secrets never enter public files.
 
-Local run (load the API key into the environment without printing it):
+Fresh future-game quotes have a six-hour maximum age. Background model references
+must be at most 24 hours old and carry no stale quote or EV. Feature packets retain
+model status and data cutoff dates; no validation result is inferred from missing
+data. NBA/NHL research-only estimates must not be presented as established edges.
+
+New previews leave the homepage when a referenced quoted game starts; otherwise
+analysis expires from the homepage after three days. The blog retains the articles.
+Opinions stay separate and are never generated in the owner's voice. Existing
+Pirates prose is unchanged. A market-briefing lead fills an empty homepage safely.
+
+### Spending guard and recovery
+
+`docs/editorial/budget.json` enforces **$9 over a rolling seven days for this writer**.
+This new policy excludes the already incurred six-story launch cost, other OpenAI
+jobs, Odds API charges and taxes. It is not an organization-wide billing limit.
+Prices are pinned to the official Astra pricing checked September 22: $12.50/M input
+as a conservative allowance including cache writes, $50/M output. Recheck these rates
+before changing models or if OpenAI pricing changes.
+
+Each story allows one write (18,000 input UTF-8 bytes + framing allowance; 3,200
+output tokens) and one audit (24,000 input bytes + framing; 1,000 output tokens).
+No paid tools, retries or priority tier. A conservative full-story reservation with
+10% headroom is recorded **before** the first call. CI commits and pushes the budget
+and started slot before spending; checkpoint failure prevents the call. Settled
+usage replaces the reservation using conservative rates without cached discounts.
+Timeouts or missing usage retain the full reservation. When the next reservation
+would cross $9, generation stops; price/homepage refreshes continue. This can yield
+fewer than fourteen weekly articles. Actual costs are tracked, not promised.
+
+CI checkpoints include completed public articles from earlier slots so a later crash
+cannot publish only their catalog metadata. The final publication commit includes
+settled budget, pages, catalogs, evidence and daily ledgers. Inspect
+`docs/editorial/runs/YYYY-MM-DD.json` and Actions logs for skips or funding failures.
+Never delete an uncertain reservation or started slot without checking API usage.
+
+`writing_enabled: false` stops new paid articles. The manual workflow has an optional
+`check_api` switch, default false: a tiny, budgeted live request against the actual
+GitHub secret. Its reservation also persists first. A successful probe demonstrates
+API access at that moment, not a guaranteed future credit balance. API prepaid
+credits are separate from ChatGPT/Codex usage credits and spending-limit meters.
+
+### Verification and manual operation
 
 ```
+python -m unittest discover -s tests -p 'test_editorial*.py'
 python scripts/editorial.py --refresh
 python scripts/editorial_writer.py
 python scripts/editorial.py
-python -m unittest discover -s tests -p 'test_editorial*.py'
 ```
 
-Publish the article HTML, evidence, ledger, catalog, homepage, blog index and sitemap
-together. Never stage `.env` or unrelated local drafts. Existing Pirates analysis
-is unchanged. The daily writer does not edit past articles or author opinions in
-the owner's name.
+Tests cover freshness, escaping, citations, duplicate runs, publication/audit flow,
+source handling, seven-day budget expiry, retained uncertain charges and checkpoint
+failure. Local runs need environment credentials; scripts do not load `.env`.
+Use the GitHub workflow for normal publication so reservations are durable before
+paid calls. No paid retry is automatic.
 
+### Historical launch
 
-### Launch edition and funding status
+September 22's six launch features used Astra high and paid web research. Five had
+a second paid audit; the sixth audit returned `credit_balance_exhausted` and was
+checked directly against original reports before publication. The launch cost drove
+this budget revision. The small local API probe subsequently succeeded; check the
+cloud probe separately because GitHub may hold a different key.
 
-On September 22, six original features were prepared: two NFL, two MLB, one NBA
-and one NHL. Astra high researched all six. Five passed the separate paid audit.
-The sixth audit returned `429 credit_balance_exhausted`; its article was instead
-checked directly against the linked original reports, the frozen book quotes and
-the local model-validation artifact before publication. Its ledger identifies
-that direct source check and preserves the API failure. The automated writer has
-no bypass for a failed audit.
+### Verification for this release
 
-Future paid editions require a funded OpenAI API balance. The morning price
-briefing and previously published articles do not require writing credits. On a
-credit-balance error the writer stops the remaining paid slots, records the error,
-and emits a workflow warning; it never silently switches models. Once funding is
-restored, the next scheduled day's edition can run normally. Inspect the dated
-ledger before any same-day retry, since recorded slots intentionally do not repeat.
-
-
-### Budget revision
-
-The owner set a new target below $10 per week. Paid editorial writing is paused
-with `writing_enabled: false` while the smaller format is selected. Existing
-articles and scheduled price refreshes continue. Do not re-enable the six-story
-Astra high edition under this budget.
+All 25 editorial tests passed, as did desktop/mobile browser checks. Two bounded
+private rehearsals cost approximately $0.15 and $0.16 under conservative accounting.
+The first was rejected for calling shared-source reporting independent corroboration;
+the instruction was corrected and the second completed writing, factual review and
+HTML/evidence publication to `/private/tmp/fv-editorial-rehearsal/`, not the live site.
+These test charges are included in the new budget. One successful rehearsal is not
+a guarantee of future publication or a representative weekly cost benchmark.

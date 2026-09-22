@@ -1,12 +1,16 @@
 name: Editorial Morning Briefing
 on:
   schedule:
-    - cron: '7 8 * * *'
+    - cron: '7 6 * * *'
       timezone: America/New_York
     - cron: '17 * * * *'
       timezone: America/New_York
   workflow_dispatch:
     inputs:
+      check_api:
+        description: Verify the configured API key with a bounded paid probe
+        type: boolean
+        default: false
       refresh_briefing:
         description: Collect fresh prices/news and publish today's briefing
         type: boolean
@@ -37,15 +41,21 @@ jobs:
       - name: Verify freshness, escaping and publication guards
         run: python -m unittest discover -s tests -p 'test_editorial*.py'
       - name: Collect and build the morning edition
-        if: github.event.schedule == '7 8 * * *' || (github.event_name == 'workflow_dispatch' && inputs.refresh_briefing)
+        if: github.event.schedule == '7 6 * * *' || (github.event_name == 'workflow_dispatch' && inputs.refresh_briefing)
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
           MLB_ODDS_API_KEY: ${{ secrets.MLB_ODDS_API_KEY }}
           NBA_ODDS_API_KEY: ${{ secrets.NBA_ODDS_API_KEY }}
           NHL_ODDS_API_KEY: ${{ secrets.NHL_ODDS_API_KEY }}
         run: python scripts/editorial.py --refresh
+      - name: Check API access when explicitly requested
+        if: github.event_name == 'workflow_dispatch' && inputs.check_api
+        continue-on-error: true
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python scripts/editorial_writer.py --check-api
       - name: Research and publish original analysis
-        if: github.event.schedule == '7 8 * * *' || (github.event_name == 'workflow_dispatch' && inputs.refresh_briefing)
+        if: github.event.schedule == '7 6 * * *' || (github.event_name == 'workflow_dispatch' && inputs.refresh_briefing)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python scripts/editorial_writer.py
@@ -56,7 +66,7 @@ jobs:
         run: |
           git config user.name 'Fourth & Value Editorial'
           git config user.email 'actions@github.com'
-          git add docs/index.html docs/briefing/ docs/editorial/articles/ docs/editorial/published.json docs/editorial/evidence/ docs/editorial/runs/ docs/editorial/index.html docs/blog/index.html docs/sitemap.xml
+          git add docs/index.html docs/briefing/ docs/editorial/articles/ docs/editorial/published.json docs/editorial/evidence/ docs/editorial/runs/ docs/editorial/budget.json docs/editorial/index.html docs/blog/index.html docs/sitemap.xml
           if ! git diff --cached --quiet; then
             git commit -m 'Editorial: publish briefing and approved articles'
             for attempt in 1 2 3; do

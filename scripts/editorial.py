@@ -134,15 +134,22 @@ def context(data,now):
         summary=f"{len(games)} upcoming games have comparable fresh totals in this edition. We’re watching differences between books and changes since the previous snapshot." if games else 'No current price comparison is being promoted. Read the dated analysis below while the next snapshot is collected.',
         cards=cards,games=games,news=news[:10],coverage=data.get('coverage',{}))
 
+def featured_now(article,now):
+    if article['kind']=='Opinion':return False
+    expiry=stamp(article['featured_until']) if article.get('featured_until') else stamp(article['date']+'T00:00:00+00:00')+timedelta(days=3)
+    return now<expiry
+
 def render_home(data,now):
     catalog=list(CFG['articles'])
     published=DOCS/'editorial/published.json'
     if published.exists():catalog+=json.loads(published.read_text())
     catalog.sort(key=lambda a:(a['date'],a.get('published_at','')),reverse=True)
-    eligible=[a for a in catalog if a.get('featured') and a['kind']!='Opinion']
-    lead=eligible[0] if eligible else next(a for a in catalog if a['kind']!='Opinion')
+    current=[a for a in catalog if featured_now(a,now)]
+    eligible=[a for a in current if a.get('featured')]
+    fallback=dict(title='The daily market briefing',excerpt='Compare current prices across the leagues and follow what changes next.',sport='Sports',kind='Market watch',url='/briefing/',date=now.astimezone(ETZ).date().isoformat())
+    lead=next(iter(eligible or current),fallback)
     ctx=context(data,now)
-    ctx.update(lead=lead,features=[a for a in catalog if a['kind']!='Opinion' and a['url']!=lead['url']][:9],opinions=[a for a in catalog if a['kind']=='Opinion'][:2])
+    ctx.update(lead=lead,features=[a for a in current if a['url']!=lead['url']][:6],opinions=[a for a in catalog if a['kind']=='Opinion'][:2])
     (DOCS/'index.html').write_text(ENV.get_template('home.html').render(**ctx)+'\n')
     # Opinion remains a distinct, permanent archive; approved analysis also
     # appears in the existing blog without rebuilding any authored article.
