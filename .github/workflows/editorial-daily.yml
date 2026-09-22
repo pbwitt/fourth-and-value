@@ -49,6 +49,7 @@ jobs:
           NHL_ODDS_API_KEY: ${{ secrets.NHL_ODDS_API_KEY }}
         run: python scripts/editorial.py --refresh
       - name: Check API access when explicitly requested
+        id: api_check
         if: github.event_name == 'workflow_dispatch' && inputs.check_api
         continue-on-error: true
         env:
@@ -86,5 +87,10 @@ jobs:
         run: gh api --method POST "repos/$GITHUB_REPOSITORY/pages/builds" --jq .status
       - name: Acknowledge successful publication
         run: python scripts/editorial.py --ack --receipt /tmp/editorial-receipt.json
+      - name: Report explicit API check failure
+        if: github.event_name == 'workflow_dispatch' && inputs.check_api && steps.api_check.outcome == 'failure'
+        run: |
+          echo '::error::Cloud API check failed. Price updates published, but writing credentials or funding require attention.'
+          exit 1
       # Private ideas and drafts are never logged or uploaded as public artifacts.
       # The paid writer runs only for the morning edition or an explicit manual refresh.

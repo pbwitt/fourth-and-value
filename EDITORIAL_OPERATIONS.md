@@ -162,3 +162,9 @@ the instruction was corrected and the second completed writing, factual review a
 HTML/evidence publication to `/private/tmp/fv-editorial-rehearsal/`, not the live site.
 These test charges are included in the new budget. One successful rehearsal is not
 a guarantee of future publication or a representative weekly cost benchmark.
+
+Cloud verification found GitHub's old API secret returned `401 invalid_api_key`,
+while the local key passed. The GitHub secret was replaced securely with the tested
+local key. Explicit health-check failures now mark the workflow failed after price
+publication, rather than appearing as an overall success. See the latest public
+`/editorial/runs/health.json` for the confirmed cloud probe status.

@@ -261,6 +261,10 @@ def check_api(now):
         if result.get('status')!='completed':raise RuntimeError('Health check incomplete')
         ed.write_json(path,{'at':now.isoformat(),'status':'passed','model':request['model']})
         print('API access confirmed for the configured writer key.')
+    except (RuntimeError,requests.RequestException,KeyError) as exc:
+        reason='Network failure' if isinstance(exc,requests.RequestException) else str(exc)[:200]
+        ed.write_json(STATE/'health.json',{'at':now.isoformat(),'status':'failed','reason':reason})
+        raise
     finally:budget.settle(key,usages,complete)
 
 if __name__=='__main__':
