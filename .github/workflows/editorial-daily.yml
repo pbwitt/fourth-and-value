@@ -19,7 +19,7 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 90
     permissions:
       contents: write
       pages: write
@@ -35,7 +35,7 @@ jobs:
           python-version: '3.11'
       - run: pip install requests jinja2
       - name: Verify freshness, escaping and publication guards
-        run: python -m unittest discover -s tests -p 'test_editorial.py'
+        run: python -m unittest discover -s tests -p 'test_editorial*.py'
       - name: Collect and build the morning edition
         if: github.event.schedule == '7 8 * * *' || (github.event_name == 'workflow_dispatch' && inputs.refresh_briefing)
         env:
@@ -44,6 +44,11 @@ jobs:
           NBA_ODDS_API_KEY: ${{ secrets.NBA_ODDS_API_KEY }}
           NHL_ODDS_API_KEY: ${{ secrets.NHL_ODDS_API_KEY }}
         run: python scripts/editorial.py --refresh
+      - name: Research and publish original analysis
+        if: github.event.schedule == '7 8 * * *' || (github.event_name == 'workflow_dispatch' && inputs.refresh_briefing)
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python scripts/editorial_writer.py
       - name: Prepare owner-approved articles and homepage
         run: python scripts/editorial.py --publish-approved --receipt /tmp/editorial-receipt.json
       - name: Publish public pages only
@@ -51,7 +56,7 @@ jobs:
         run: |
           git config user.name 'Fourth & Value Editorial'
           git config user.email 'actions@github.com'
-          git add docs/index.html docs/briefing/ docs/editorial/articles/ docs/editorial/published.json docs/editorial/index.html docs/blog/index.html docs/sitemap.xml
+          git add docs/index.html docs/briefing/ docs/editorial/articles/ docs/editorial/published.json docs/editorial/evidence/ docs/editorial/runs/ docs/editorial/index.html docs/blog/index.html docs/sitemap.xml
           if ! git diff --cached --quiet; then
             git commit -m 'Editorial: publish briefing and approved articles'
             for attempt in 1 2 3; do
@@ -72,4 +77,4 @@ jobs:
       - name: Acknowledge successful publication
         run: python scripts/editorial.py --ack --receipt /tmp/editorial-receipt.json
       # Private ideas and drafts are never logged or uploaded as public artifacts.
-      # No OPENAI_API_KEY is injected into this workflow.
+      # The paid writer runs only for the morning edition or an explicit manual refresh.

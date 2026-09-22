@@ -138,11 +138,11 @@ def render_home(data,now):
     catalog=list(CFG['articles'])
     published=DOCS/'editorial/published.json'
     if published.exists():catalog+=json.loads(published.read_text())
-    catalog.sort(key=lambda a:a['date'],reverse=True)
+    catalog.sort(key=lambda a:(a['date'],a.get('published_at','')),reverse=True)
     eligible=[a for a in catalog if a.get('featured') and a['kind']!='Opinion']
     lead=eligible[0] if eligible else next(a for a in catalog if a['kind']!='Opinion')
     ctx=context(data,now)
-    ctx.update(lead=lead,features=[a for a in catalog if a['kind']!='Opinion'][:3],opinions=[a for a in catalog if a['kind']=='Opinion'][:2])
+    ctx.update(lead=lead,features=[a for a in catalog if a['kind']!='Opinion'][:9],opinions=[a for a in catalog if a['kind']=='Opinion'][:2])
     (DOCS/'index.html').write_text(ENV.get_template('home.html').render(**ctx)+'\n')
     # Opinion remains a distinct, permanent archive; approved analysis also
     # appears in the existing blog without rebuilding any authored article.
