@@ -60,6 +60,16 @@ class WriterGuards(unittest.TestCase):
         with patch.dict(w.ed.CFG,{'writing_enabled':False}),patch.object(w,'call_api') as api:
             w.run(self.now)
             api.assert_not_called()
+    def test_credit_exhaustion_stops_remaining_slots(self):
+        from tempfile import TemporaryDirectory
+        from unittest.mock import patch
+        with TemporaryDirectory() as directory:
+            with patch.object(w,'STATE',Path(directory)),patch.object(w,'call_api',side_effect=RuntimeError('OpenAI HTTP 429 credit_balance_exhausted')) as api,patch.object(w,'evidence',return_value={}),patch.object(w.ed,'render_home'),patch('builtins.print'):
+                w.run(self.now)
+                self.assertEqual(api.call_count,1)
+                state=w.load(Path(directory)/'2026-09-22.json',{})
+                self.assertTrue(state['funding_required'])
+                self.assertEqual(len(state['slots']),1)
     def test_rerun_does_not_make_paid_calls(self):
         from tempfile import TemporaryDirectory
         from unittest.mock import patch

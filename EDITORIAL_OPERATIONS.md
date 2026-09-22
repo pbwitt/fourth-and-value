@@ -118,3 +118,21 @@ Publish the article HTML, evidence, ledger, catalog, homepage, blog index and si
 together. Never stage `.env` or unrelated local drafts. Existing Pirates analysis
 is unchanged. The daily writer does not edit past articles or author opinions in
 the owner's name.
+
+
+### Launch edition and funding status
+
+On September 22, six original features were prepared: two NFL, two MLB, one NBA
+and one NHL. Astra high researched all six. Five passed the separate paid audit.
+The sixth audit returned `429 credit_balance_exhausted`; its article was instead
+checked directly against the linked original reports, the frozen book quotes and
+the local model-validation artifact before publication. Its ledger identifies
+that direct source check and preserves the API failure. The automated writer has
+no bypass for a failed audit.
+
+Future paid editions require a funded OpenAI API balance. The morning price
+briefing and previously published articles do not require writing credits. On a
+credit-balance error the writer stops the remaining paid slots, records the error,
+and emits a workflow warning; it never silently switches models. Once funding is
+restored, the next scheduled day's edition can run normally. Inspect the dated
+ledger before any same-day retry, since recorded slots intentionally do not repeat.
