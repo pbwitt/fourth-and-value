@@ -1,0 +1,75 @@
+name: Editorial Morning Briefing
+on:
+  schedule:
+    - cron: '7 8 * * *'
+      timezone: America/New_York
+    - cron: '17 * * * *'
+      timezone: America/New_York
+  workflow_dispatch:
+    inputs:
+      refresh_briefing:
+        description: Collect fresh prices/news and publish today's briefing
+        type: boolean
+        default: true
+
+concurrency:
+  group: editorial-publishing
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pages: write
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.UPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests jinja2
+      - name: Verify freshness, escaping and publication guards
+        run: python -m unittest discover -s tests -p 'test_editorial.py'
+      - name: Collect and build the morning edition
+        if: github.event.schedule == '7 8 * * *' || (github.event_name == 'workflow_dispatch' && inputs.refresh_briefing)
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          MLB_ODDS_API_KEY: ${{ secrets.MLB_ODDS_API_KEY }}
+          NBA_ODDS_API_KEY: ${{ secrets.NBA_ODDS_API_KEY }}
+          NHL_ODDS_API_KEY: ${{ secrets.NHL_ODDS_API_KEY }}
+        run: python scripts/editorial.py --refresh
+      - name: Prepare owner-approved articles and homepage
+        run: python scripts/editorial.py --publish-approved --receipt /tmp/editorial-receipt.json
+      - name: Publish public pages only
+        id: push
+        run: |
+          git config user.name 'Fourth & Value Editorial'
+          git config user.email 'actions@github.com'
+          git add docs/index.html docs/briefing/ docs/editorial/articles/ docs/editorial/published.json docs/editorial/index.html docs/blog/index.html docs/sitemap.xml
+          if ! git diff --cached --quiet; then
+            git commit -m 'Editorial: publish briefing and approved articles'
+            for attempt in 1 2 3; do
+              if ! git pull --rebase origin main; then
+                git rebase --abort || true
+                echo '::error::Concurrent publication needs review. Approved drafts stay in the private queue.'
+                exit 1
+              fi
+              if git push origin HEAD:main; then exit 0; fi
+              sleep 5
+            done
+            exit 1
+          fi
+      - name: Rebuild site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST "repos/$GITHUB_REPOSITORY/pages/builds" --jq .status
+      - name: Acknowledge successful publication
+        run: python scripts/editorial.py --ack --receipt /tmp/editorial-receipt.json
+      # Private ideas and drafts are never logged or uploaded as public artifacts.
+      # No OPENAI_API_KEY is injected into this workflow.
