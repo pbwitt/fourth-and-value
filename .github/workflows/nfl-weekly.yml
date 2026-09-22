@@ -2,16 +2,17 @@ name: NFL Weekly Update
 
 on:
   schedule:
-    # Run at 2 PM UTC (9 AM EST / 6 AM PST) every Monday during NFL season
-    - cron: '0 14 * * 1'
-  workflow_dispatch:  # Allow manual triggers
+    # Wednesday 14:00 UTC: 10 AM Eastern daylight / 9 AM Eastern standard.
+    # After Monday results are published, before Thursday's opener.
+    - cron: '0 14 * * 3'
+  workflow_dispatch:
     inputs:
       week:
-        description: 'NFL Week Number'
+        description: 'Optional upcoming regular-season week (auto-detected if empty)'
         required: false
         type: number
       generate_insights:
-        description: 'Generate GPT-6 game insights (uses OpenAI credits)'
+        description: 'Explicitly approve paid game insights for this run'
         required: false
         type: boolean
         default: false
@@ -23,82 +24,105 @@ concurrency:
 jobs:
   update-nfl:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: write
+      pages: write
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
-
+          cache: pip
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-
-      - name: Determine week number
+        run: pip install -r requirements.txt
+      - name: Verify NFL math and refresh selection
+        run: python -m unittest discover -s tests -p 'test_nfl*.py'
+      - name: Select upcoming week from the schedule
         id: week
-        run: |
-          if [ -n "${{ github.event.inputs.week }}" ]; then
-            echo "week=${{ github.event.inputs.week }}" >> $GITHUB_OUTPUT
-          else
-            # Auto-detect week number using Python
-            WEEK=$(python3 -c "from datetime import datetime, timezone; start = datetime(2026, 9, 9, tzinfo=timezone.utc); days = (datetime.now(timezone.utc) - start).days; print(max(1, min(days // 7 + 1, 18)))")
-            echo "Auto-detected week: $WEEK"
-            echo "week=$WEEK" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Fetch weekly player stats
-        run: |
-          WEEK=${{ steps.week.outputs.week }}
-          # career_baseline.py needs several prior seasons for its position
-          # pools and per-player career baselines (see scripts/career_baseline.py).
-          for yr in 2020 2021 2022 2023 2024 2025; do
-            python3 scripts/fetch_weekly_player_stats.py --season $yr
-          done
-          # Current season's file won't exist yet until nflverse publishes
-          # the first week's box scores - that's expected early in the
-          # season, so don't fail the whole run over it.
-          python3 scripts/fetch_weekly_player_stats.py --season 2026 || echo "No 2026 weekly stats published yet, will use career baseline"
-          python3 scripts/fetch_defensive_stats.py --season 2026 --week $WEEK
-
-      - name: Run NFL weekly pipeline
         env:
-          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_INSIGHTS_MODEL: gpt-6-astra
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          REQUESTED_WEEK: ${{ inputs.week }}
         run: |
-          git config user.name "GitHub Actions Bot"
-          git config user.email "actions@github.com"
-          export ODDS_API_KEY="${ODDS_API_KEY}"
-          export OPENAI_API_KEY="${OPENAI_API_KEY}"
-          WEEK=${{ steps.week.outputs.week }}
-          DATE=$(date +%Y-%m-%d)
-          if [ "${{ github.event.inputs.generate_insights }}" = "true" ]; then
-            make --always-make monday_all SEASON=2026 WEEK=$WEEK SKIP_AI_INSIGHTS=0
+          if [ -n "$REQUESTED_WEEK" ] && [ "$REQUESTED_WEEK" != "0" ]; then
+            python scripts/prepare_nfl_refresh.py --select --week "$REQUESTED_WEEK"
           else
-            make --always-make monday_all SEASON=2026 WEEK=$WEEK SKIP_AI_INSIGHTS=1
+            python scripts/prepare_nfl_refresh.py --select
           fi
-          make --always-make nfl_totals_daily SEASON=2026 WEEK=$WEEK
-          echo "Grading pending NFL bets..."
-          python3 scripts/grade_bets_nfl.py || echo "No bets to grade"
-          git add docs/props/*.html docs/nfl/index.html docs/nfl/totals/index.html docs/nfl/injuries/index.html docs/data/ai/*.json docs/sitemap.xml docs/robots.txt
-          if git diff --staged --quiet; then
-            echo "No changes to commit"
-            exit 0
-          fi
-          git commit -m "Update NFL props for Week $WEEK - Generated with GitHub Actions"
-
-          for i in 1 2 3; do
-            git pull --rebase origin main && git push && break
-            echo "Push attempt $i failed, retrying..."
-            sleep 5
-            if [ "$i" = "3" ]; then
-              echo "::error::Failed to push after 3 attempts"
+      - name: Restore historical inputs and line history
+        if: steps.week.outputs.active == 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            data/weekly_player_stats_*.parquet
+            data/nfl/refresh/pbp_*.parquet
+            data/nfl/lines/history/
+          key: nfl-refresh-v1-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: nfl-refresh-v1-${{ runner.os }}-
+      - name: Prepare current player stats and totals model
+        if: steps.week.outputs.active == 'true'
+        env:
+          NFL_SEASON: ${{ steps.week.outputs.season }}
+          NFL_WEEK: ${{ steps.week.outputs.week }}
+        run: |
+          python scripts/prepare_nfl_refresh.py --season "$NFL_SEASON" --week "$NFL_WEEK"
+          python scripts/fetch_defensive_stats.py --season "$NFL_SEASON" --week "$NFL_WEEK"
+      - name: Refresh NFL projections, prices and pages
+        id: refresh
+        if: steps.week.outputs.active == 'true'
+        env:
+          ODDS_API_KEY: ${{ secrets.NFL_ODDS_API_KEY || secrets.MLB_ODDS_API_KEY || secrets.ODDS_API_KEY }}
+          OPENAI_API_KEY: ${{ github.event_name == 'workflow_dispatch' && inputs.generate_insights && secrets.OPENAI_API_KEY || '' }}
+          OPENAI_INSIGHTS_MODEL: gpt-6-astra
+          APPROVE_INSIGHTS: ${{ github.event_name == 'workflow_dispatch' && inputs.generate_insights && 'true' || 'false' }}
+          NFL_SEASON: ${{ steps.week.outputs.season }}
+          NFL_WEEK: ${{ steps.week.outputs.week }}
+        run: |
+          skip_insights=1
+          if [ "$APPROVE_INSIGHTS" = "true" ]; then skip_insights=0; fi
+          make --always-make monday_all SEASON="$NFL_SEASON" WEEK="$NFL_WEEK" SKIP_AI_INSIGHTS="$skip_insights"
+          make --always-make nfl_totals_daily SEASON="$NFL_SEASON" WEEK="$NFL_WEEK" SKIP_AI_INSIGHTS=1
+      - name: Preserve model inputs and run diagnostics
+        if: always() && steps.week.outputs.active == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nfl-refresh-${{ github.run_id }}
+          path: |
+            data/nfl/refresh/manifest.json
+            data/nfl/models/
+            data/nfl/processed/
+            data/nfl/predictions/
+            data/nfl/lines/
+            data/nfl/injuries/
+            data/injuries/
+            data/props/
+            data/qc/
+          retention-days: 30
+          if-no-files-found: ignore
+      - name: Publish refreshed NFL pages
+        id: publish
+        if: steps.refresh.outcome == 'success'
+        env:
+          NFL_WEEK: ${{ steps.week.outputs.week }}
+        run: |
+          git config user.name 'GitHub Actions Bot'
+          git config user.email 'actions@github.com'
+          git add docs/props/ docs/nfl/ docs/data/ai/ docs/sitemap.xml docs/robots.txt
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "NFL: refresh Week $NFL_WEEK projections and prices"
+          for attempt in 1 2 3; do
+            if ! git pull --rebase origin main; then
+              git rebase --abort || true
+              echo '::error::Concurrent edit needs review; run artifacts are preserved.'
               exit 1
             fi
+            if git push origin HEAD:main; then exit 0; fi
+            sleep 5
           done
+          exit 1
+      - name: Rebuild public site
+        if: steps.publish.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST "repos/$GITHUB_REPOSITORY/pages/builds" --jq .status

@@ -6,6 +6,17 @@ import pickle
 import os
 from datetime import datetime
 
+def live_features(history, team, feature_cols, is_home):
+    """Use completed games through the cutoff, including the most recent game."""
+    rows=history[history['team']==team].sort_values(['game_date','game_id'])
+    values=[]
+    for feature in feature_cols:
+        if feature=='is_home':values.append(is_home)
+        else:
+            metric,window=feature.rsplit('_L',1)
+            values.append(float(rows[metric].tail(int(window)).mean()))
+    return values
+
 def load_schedule(season):
     """
     Season schedule with kickoff dates. Cached per season so a rebuild does not
@@ -93,8 +104,8 @@ def generate_predictions(model_path='data/nfl/models/ridge_totals.pkl',
             # Build feature vectors (remove 'is_home' from feature_cols if it exists, add it manually)
             base_features = [f for f in feature_cols if f != 'is_home']
 
-            home_features = home_row[base_features].values[0].tolist() + [1]  # is_home=1
-            away_features = away_row[base_features].values[0].tolist() + [0]  # is_home=0
+            home_features = live_features(history, home_team, feature_cols, 1)
+            away_features = live_features(history, away_team, feature_cols, 0)
 
             # Predict home and away separately
             home_pred = model.predict([home_features])[0]

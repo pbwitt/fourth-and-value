@@ -3,6 +3,7 @@ PY ?= python3
 SEASON ?=
 WEEK   ?=
 DATE   ?= $(shell date +%Y-%m-%d)
+SKIP_AI_INSIGHTS ?= 1
 
 # Require SEASON/WEEK for NFL targets
 ifeq ($(strip $(SEASON)),)
@@ -279,6 +280,7 @@ nfl_totals_lines:
 	@echo "====================================================================="
 	$(PY) scripts/nfl_fetch_totals_spreads.py \
 		--output data/nfl/lines/totals_spreads.csv
+	$(PY) scripts/snapshot_totals_lines.py --lines data/nfl/lines/totals_spreads.csv --movement
 	@echo "✓ Book lines fetched"
 
 # Calculate consensus across books
