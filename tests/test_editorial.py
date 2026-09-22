@@ -41,6 +41,21 @@ class EditorialTests(unittest.TestCase):
         g=m.summarize_events('NFL',[event()],NOW,{})
         c=m.context({'generated_at':(NOW-timedelta(hours=7)).isoformat(),'games':g},NOW)
         self.assertEqual(c['cards'],[])
+    def test_movement_card_names_books_and_prices(self):
+        g=m.summarize_events('NFL',[event()],NOW,{'generated_at':(NOW-timedelta(hours=1)).isoformat(),'games':[{'sport':'NFL','id':'abc','books':{'one':39.5,'two':40.5}}]})
+        cards=m.market_cards(g)
+        self.assertEqual(len(cards),1)
+        self.assertEqual(cards[0]['kind'],'Movement')
+        self.assertIn('up 1',cards[0]['text'])
+        self.assertIn('one · Over 40.5 (-110)',cards[0]['prices'][0])
+        self.assertIn('two · Under 41.5 (-110)',cards[0]['prices'][1])
+    def test_equal_lines_are_not_labeled_disagreement(self):
+        e=event()
+        for book in e['bookmakers']:
+            for out in book['markets'][0]['outcomes']:out['point']=41.5
+        cards=m.market_cards(m.summarize_events('NFL',[e],NOW,{}))
+        self.assertEqual(cards[0]['kind'],'Next up')
+        self.assertIn('All 2 books',cards[0]['text'])
     def test_editorial_content_is_escaped(self):
         html=m.ENV.get_template('article.html').render(title='<script>alert(1)</script>',paragraphs=['<img src=x onerror=alert(1)>'],links=[])
         self.assertNotIn('<script>alert',html);self.assertIn('&lt;img',html)

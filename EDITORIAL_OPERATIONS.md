@@ -6,7 +6,7 @@ The homepage combines a curated lead, an automated market rundown, recent report
 
 `.github/workflows/editorial-daily.yml` collects a morning edition at **6:07 AM America/New_York**, adjusting for daylight saving time. GitHub schedules can be delayed; this is a target, not an exact-time promise. At **17 minutes past each hour**, it checks the private queue for approved articles and refreshes homepage freshness labels.
 
-The morning edition makes one full-game totals request per sport (NFL, MLB, NBA, NHL) with existing Odds API credentials and reads four public ESPN RSS feeds. It does **not** train models or generate new prop forecasts. Existing sports/model refreshes continue separately. The authorized Astra writer then researches and directly publishes original features, using the server-side `OPENAI_API_KEY` secret. See the original-analysis operating details below.
+Each price edition makes one full-game totals request per sport (NFL, MLB, NBA, NHL) with existing Odds API credentials and reads four public ESPN RSS feeds. It does **not** train models or generate new prop forecasts. Existing sports/model refreshes continue separately. The authorized Astra writer then researches and directly publishes original features, using the server-side `OPENAI_API_KEY` secret. See the original-analysis operating details below.
 
 Each edition is at `/briefing/YYYY-MM-DD.html`; `/briefing/` is the latest. Data is stored under `docs/briefing/history/`, with immutable timestamped snapshots under `snapshots/`. The report covers NFL games within seven days and other sports within 48 hours. It labels market observations as research, not recommendations. ESPN headlines are linked, limited to 24 words and not expanded into unsupported facts. The briefing links headlines; the separate feature writer reads bounded publisher excerpts privately.
 
@@ -60,7 +60,7 @@ Enabled in `config/editorial.json`: **two article opportunities per day**, exact
 `gpt-6-astra`, low reasoning, standard service tier. No fallback model. Runs on GitHub
 Actions at **06:07 America/New_York**, without the owner's computer. GitHub may delay
 scheduled jobs; publication follows research, factual checking and the Pages build.
-Hourly runs update freshness and approved owner drafts without paid article calls.
+Hourly runs rebuild the homepage and latest briefing to remove expired games and prices, and publish approved owner drafts without paid article calls.
 
 The allocator prefers leagues covered least recently, breaking ties in favor of
 active boards and rotating ties daily. It tries other leagues if current sources
@@ -168,3 +168,19 @@ while the local key passed. The GitHub secret was replaced securely with the tes
 local key. Explicit health-check failures now mark the workflow failed after price
 publication, rather than appearing as an overall success. See the latest public
 `/editorial/runs/health.json` for the confirmed cloud probe status.
+
+## Market rundown refresh
+
+Four price editions: 06:07, 11:07, 16:07 and 21:07 America/New_York. Only the
+morning run generates articles; later editions use existing Odds API credentials
+and public feeds, with no OpenAI calls. This adds up to twelve odds requests daily
+above the previous single edition (provider quota still applies). Hourly renders
+remove stale/started games from the latest briefing while retaining dated archives.
+
+Cards select a mover, a book disagreement and the next distinct game, skipping
+categories without evidence. Movement and disagreement rank proportionally to the
+market median for cross-sport selection, not by betting value. Cards identify books
+and prices at the lowest over total and highest under total; these are observed
+line extremes, not EV recommendations. The briefing links recent original analysis
+and shows counts of changed medians and differing book totals. No invented movement,
+news causation or freshness timestamps are used to create the appearance of activity.

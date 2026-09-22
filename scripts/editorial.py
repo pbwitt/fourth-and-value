@@ -115,6 +115,34 @@ def refresh(now):
     write_json(PUBLIC/'snapshots'/f'{now.strftime("%Y%m%dT%H%M%SZ")}.json',data)
     return data
 
+def market_cards(games):
+    """Highlight distinct observations, not three copies of the same range sentence."""
+    if not games:return []
+    selected=[];used=set()
+    movers=sorted((g for g in games if g.get('change')),key=lambda g:-abs(g['change'])/g['median'])
+    gaps=sorted((g for g in games if g['maximum']>g['minimum']),key=lambda g:-(g['maximum']-g['minimum'])/g['median'])
+    for kind,pool in [('Movement',movers),('Book disagreement',gaps),('Next up',sorted(games,key=lambda g:g['commence_time']))]:
+        g=next((g for g in pool if g['id'] not in used),None)
+        if not g:continue
+        used.add(g['id'])
+        if kind=='Movement':
+            since=stamp(g['change_from']).astimezone(ETZ).strftime('%b %d at %I:%M %p ET') if g.get('change_from') else 'the previous snapshot'
+            text=f"The matched-book median moved {'up' if g['change']>0 else 'down'} {abs(g['change']):g} since {since}. The current all-book median is {g['median']:g}; this measures movement, not its cause."
+        elif kind=='Book disagreement':
+            text=f"A {g['maximum']-g['minimum']:g}-point gap separates the lowest and highest totals across {len(g['books'])} books. The number available depends on where you bet; compare the attached prices too."
+        else:
+            text=f"Starts {g['start_label']}. "
+            text+=(f"All {len(g['books'])} books show a total of {g['median']:g}; the prices can still differ." if g['minimum']==g['maximum'] else f"Books show totals from {g['minimum']:g} to {g['maximum']:g}, with a median of {g['median']:g}.")
+            if g.get('change')==0:text+=' No net change in the matched-book median since the previous check.'
+        quotes=g.get('quotes',[]);prices=[]
+        if quotes:
+            low=min(quotes,key=lambda q:(q['line'],-q['over_price']))
+            high=max(quotes,key=lambda q:(q['line'],q['under_price']))
+            prices=[f"Lowest over total: {low['label']} · Over {low['line']:g} ({low['over_price']:+g})",f"Highest under total: {high['label']} · Under {high['line']:g} ({high['under_price']:+g})"]
+        selected.append(dict(sport=g['sport'],title=g['game'],kind=kind,text=text,prices=prices,
+            note=f"{g['start_label']} · {len(g['books'])} books observed",url='/nfl/totals/' if g['sport']=='NFL' else f"/{g['sport'].lower()}/totals/"))
+    return selected
+
 def context(data,now):
     # Even a non-refresh render must not revive stale or already-started quotes.
     games=[]
@@ -124,14 +152,12 @@ def context(data,now):
             if stamp(g['commence_time'])>now and all(timedelta(0)<=now-stamp(q['quoted_at'])<=timedelta(hours=6) for q in g.get('quotes',[])):
                 games.append(g)
     news=[n for n in data.get('news',[]) if timedelta(0)<=now-stamp(n['published_at'])<=timedelta(hours=36)]
-    candidates=sorted(games,key=lambda x:(-(x['maximum']-x['minimum']),x['commence_time']))[:3]
-    cards=[]
-    for g in candidates:
-        cards.append(dict(sport=g['sport'],title=g['game'],text=f"Observed totals range from {g['minimum']:g} to {g['maximum']:g} across {len(g['books'])} books. The median is {g['median']:g}. Compare the price as well as the number before deciding whether the difference is useful.",
-            note=f"{g['start_label']} · {g['change_label']}",url='/nfl/totals/' if g['sport']=='NFL' else f"/{g['sport'].lower()}/totals/"))
+    cards=market_cards(games)
+    moved=sum(bool(g.get('change')) for g in games)
+    divided=sum(g['maximum']>g['minimum'] for g in games)
     date=stamp(data['generated_at']).astimezone(ETZ) if data.get('generated_at') else now.astimezone(ETZ)
     return dict(date_label=date.strftime('%A, %B %d'),snapshot_label='Prices checked '+date.strftime('%b %d at %I:%M %p ET')+(' · refresh pending' if not fresh else ''),
-        summary=f"{len(games)} upcoming games have comparable fresh totals in this edition. We’re watching differences between books and changes since the previous snapshot." if games else 'No current price comparison is being promoted. Read the dated analysis below while the next snapshot is collected.',
+        summary=f"{len(games)} upcoming games checked · {moved} with a changed matched-book median · {divided} with different totals across books." if games else 'No upcoming games currently have fresh, comparable totals. The next scheduled price check will update this board.',
         cards=cards,games=games,news=news[:10],coverage=data.get('coverage',{}))
 
 def featured_now(article,now):
@@ -157,19 +183,22 @@ def render_home(data,now):
     (DOCS/'editorial/index.html').write_text('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Opinion | Fourth &amp; Value</title><meta name="description" content="Independent opinion on sports, accountability and the institutions behind the games."><link rel="canonical" href="https://fourthandvalue.com/editorial/"><link rel="stylesheet" href="/assets/editorial.css"></head><body><div id="nav-root"></div><script src="/nav.js?v=42"></script><main class="newsroom article"><p class="eyebrow">Independent perspectives</p><h1>Opinion.</h1><p class="lead">The arguments beyond the numbers. Each piece is clearly labeled and approved by its author.</p>'+opinion_cards+'<footer><a href="/">Home</a> · <a href="/editorial/inbox.html">Editorial desk</a></footer></main></body></html>\n')
     blog=DOCS/'blog/index.html';text=blog.read_text()
     text=re.sub(r'<!-- editorial-managed:start -->.*?<!-- editorial-managed:end -->','',text,flags=re.S)
-    entries='<li class="post" data-title="Daily market briefing" data-excerpt="Fresh prices and reporting"><h2><a href="/briefing/">The daily market briefing</a></h2><p class="excerpt">Observed prices, differences between books and recent reporting. Updated each morning.</p></li>'
+    entries='<li class="post" data-title="Daily market briefing" data-excerpt="Fresh prices and reporting"><h2><a href="/briefing/">The daily market briefing</a></h2><p class="excerpt">Observed prices, differences between books and recent reporting. Updated throughout the day.</p></li>'
     for a in catalog:
         if not a['url'].startswith('/editorial/articles/') or a['kind']=='Opinion':continue
         entries+='<li class="post" data-title="'+html_lib.escape(a['title'],quote=True)+'" data-excerpt="'+html_lib.escape(a['excerpt'],quote=True)+'"><h2><a href="'+a['url']+'">'+html_lib.escape(a['title'])+'</a></h2><div class="meta">'+a['date']+' · Analysis</div><p class="excerpt">'+html_lib.escape(a['excerpt'])+'</p></li>'
     text=text.replace('<ul id="posts" class="list">','<ul id="posts" class="list"><!-- editorial-managed:start -->'+entries+'<!-- editorial-managed:end -->')
     blog.write_text(text)
 
-def render_briefing(data,now):
-    ctx=context(data,now);day=now.astimezone(ETZ).date().isoformat()
+def render_briefing(data,now,archive=True):
+    ctx=context(data,now);day=stamp(data['generated_at']).astimezone(ETZ).date().isoformat() if data.get('generated_at') else now.astimezone(ETZ).date().isoformat()
+    path=DOCS/'editorial/published.json'
+    articles=json.loads(path.read_text()) if path.exists() else []
+    ctx['analysis']=sorted((a for a in articles if featured_now(a,now)),key=lambda a:(a['date'],a.get('published_at','')),reverse=True)[:3]
     ctx.update(title=f"The market rundown: {now.astimezone(ETZ).strftime('%B %d, %Y')}",url=f'/briefing/{day}.html',evidence_url=f'/briefing/history/{day}.json')
     PUBLIC.mkdir(exist_ok=True,parents=True)
     html=ENV.get_template('briefing.html').render(**ctx)+'\n'
-    (PUBLIC/f'{day}.html').write_text(html)
+    if archive:(PUBLIC/f'{day}.html').write_text(html)
     (PUBLIC/'index.html').write_text(html.replace(f'https://fourthandvalue.com/briefing/{day}.html','https://fourthandvalue.com/briefing/'))
 
 def api_headers():
@@ -227,8 +256,9 @@ def main():
     if args.ack:acknowledge(args.receipt);return
     now=datetime.now(timezone.utc)
     if args.publish_approved:publish_approved(now,args.receipt)
-    if args.refresh:data=refresh(now);render_briefing(data,now)
+    if args.refresh:data=refresh(now)
     else:data=json.loads((PUBLIC/'latest.json').read_text()) if (PUBLIC/'latest.json').exists() else {}
+    render_briefing(data,now,archive=args.refresh)
     render_home(data,now)
     # Only published URLs are discoverable; private desk itself stays noindex.
     sitemap=DOCS/'sitemap.xml';text=sitemap.read_text()

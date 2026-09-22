@@ -3,6 +3,8 @@ on:
   schedule:
     - cron: '7 6 * * *'
       timezone: America/New_York
+    - cron: '7 11,16,21 * * *'
+      timezone: America/New_York
     - cron: '17 * * * *'
       timezone: America/New_York
   workflow_dispatch:
@@ -40,8 +42,8 @@ jobs:
       - run: pip install requests jinja2
       - name: Verify freshness, escaping and publication guards
         run: python -m unittest discover -s tests -p 'test_editorial*.py'
-      - name: Collect and build the morning edition
-        if: github.event.schedule == '7 6 * * *' || (github.event_name == 'workflow_dispatch' && inputs.refresh_briefing)
+      - name: Refresh market prices and briefing
+        if: github.event.schedule == '7 6 * * *' || github.event.schedule == '7 11,16,21 * * *' || (github.event_name == 'workflow_dispatch' && inputs.refresh_briefing)
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
           MLB_ODDS_API_KEY: ${{ secrets.MLB_ODDS_API_KEY }}
