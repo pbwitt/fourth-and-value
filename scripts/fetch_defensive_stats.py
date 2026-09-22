@@ -15,6 +15,7 @@ Usage:
 """
 
 import argparse
+from pathlib import Path
 import pandas as pd
 import numpy as np
 
@@ -31,7 +32,8 @@ def fetch_defensive_stats(season: int, week: int) -> pd.DataFrame:
 
     Returns DataFrame with team-level defensive ratings (0-2 scale, 1.0 = league average)
     """
-    if not NFL_OK:
+    cached = Path(f'data/weekly_player_stats_{season}.parquet')
+    if not NFL_OK and not cached.exists():
         print("[WARN] nfl_data_py not available, using neutral defensive ratings")
         return pd.DataFrame({
             'team': [],
@@ -42,7 +44,12 @@ def fetch_defensive_stats(season: int, week: int) -> pd.DataFrame:
 
     # Fetch weekly data for the season up to specified week
     try:
-        df = nfl.import_weekly_data([season], ['QB', 'RB', 'WR', 'TE'])
+        # The weekly workflow has just downloaded and checked this season's
+        # current nflverse release. Reuse it instead of the retired library URL.
+        df = pd.read_parquet(cached) if cached.exists() else nfl.import_weekly_data([season])
+        df = df.rename(columns={key:value for key,value in
+            {'passing_attempts':'attempts','rushing_attempts':'carries'}.items()
+            if key in df.columns and value not in df.columns})
     except Exception as e:
         print(f"[WARN] Could not fetch NFL data: {e}")
         return pd.DataFrame({
