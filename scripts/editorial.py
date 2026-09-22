@@ -1,6 +1,6 @@
-"""Build factual daily editions and publish only owner-approved private drafts.
+"""Build factual daily editions, render published features and publish approved private drafts.
 
-No writing-model calls. Never logs private queue content or API URLs with keys.
+Paid research runs separately in editorial_writer.py. Never logs private queue content or API URLs with keys.
 """
 import argparse
 from datetime import datetime, timedelta, timezone
@@ -142,7 +142,7 @@ def render_home(data,now):
     eligible=[a for a in catalog if a.get('featured') and a['kind']!='Opinion']
     lead=eligible[0] if eligible else next(a for a in catalog if a['kind']!='Opinion')
     ctx=context(data,now)
-    ctx.update(lead=lead,features=[a for a in catalog if a['kind']!='Opinion'][:9],opinions=[a for a in catalog if a['kind']=='Opinion'][:2])
+    ctx.update(lead=lead,features=[a for a in catalog if a['kind']!='Opinion' and a['url']!=lead['url']][:9],opinions=[a for a in catalog if a['kind']=='Opinion'][:2])
     (DOCS/'index.html').write_text(ENV.get_template('home.html').render(**ctx)+'\n')
     # Opinion remains a distinct, permanent archive; approved analysis also
     # appears in the existing blog without rebuilding any authored article.
@@ -232,6 +232,6 @@ def main():
         link='https://fourthandvalue.com'+path
         if f'<loc>{link}</loc>' not in text:text=text.replace('</urlset>',f'  <url><loc>{link}</loc></url>\n</urlset>')
     sitemap.write_text(text)
-    print('Public homepage rendered. No writing API calls made.')
+    print('Public homepage and archives rendered.')
 
 if __name__=='__main__':main()

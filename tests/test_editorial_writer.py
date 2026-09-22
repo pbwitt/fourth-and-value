@@ -38,11 +38,33 @@ class WriterGuards(unittest.TestCase):
     def test_stale_reporting_rejected(self):
         for s in self.article['sources']:s['published_at']='2026-08-01'
         with self.assertRaises(ValueError):w.validate(self.article,self.response,self.packet,self.now)
+    def test_old_price_is_removed_from_recent_model_context(self):
+        from unittest.mock import patch
+        board={'model_checked_at':'2026-09-22T12:00:00Z','rows':[{
+            'event_id':'game','market':'pitcher_strikeouts','player':'Example',
+            'game':'Example game','commence_time':'2026-09-23T00:00:00Z',
+            'quoted_at':'2026-09-22T08:00:00Z','is_model_pick':True,
+            'model_mean':5.3,'price':-110,'model_ev_pct':12}]}
+        def fake_load(path,default):
+            return {} if path==w.ed.PUBLIC/'latest.json' else board
+        with patch.object(w,'load',side_effect=fake_load):
+            packet=w.evidence('MLB',self.now)
+            self.assertEqual(packet['model_rows'],[])
+            self.assertEqual(len(packet['model_references']),1)
+            self.assertNotIn('price',packet['model_references'][0])
+            self.assertNotIn('model_ev_pct',packet['model_references'][0])
+            board['model_checked_at']='2026-09-20T12:00:00Z'
+            self.assertEqual(w.evidence('MLB',self.now)['model_references'],[])
+    def test_kill_switch_prevents_paid_calls(self):
+        from unittest.mock import patch
+        with patch.dict(w.ed.CFG,{'writing_enabled':False}),patch.object(w,'call_api') as api:
+            w.run(self.now)
+            api.assert_not_called()
     def test_rerun_does_not_make_paid_calls(self):
         from tempfile import TemporaryDirectory
         from unittest.mock import patch
         with TemporaryDirectory() as directory:
-            with patch.object(w,'STATE',Path(directory)),patch.object(w,'call_api') as api,patch.object(w.ed,'render_home'):
+            with patch.object(w,'STATE',Path(directory)),patch.object(w,'call_api') as api,patch.object(w.ed,'render_home'),patch('builtins.print'):
                 day='2026-09-22'
                 w.ed.write_json(Path(directory)/(day+'.json'),{'allocation':[['NFL','news-market']], 'slots':{'0-nfl':{'status':'started'}}})
                 w.run(self.now)
