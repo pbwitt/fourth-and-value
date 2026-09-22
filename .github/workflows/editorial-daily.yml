@@ -64,6 +64,10 @@ jobs:
         run: python scripts/editorial_writer.py
       - name: Prepare owner-approved articles and homepage
         run: python scripts/editorial.py --publish-approved --receipt /tmp/editorial-receipt.json
+      - name: Include responsible-use notices
+        run: |
+          python scripts/site_notices.py
+          python -m unittest discover -s tests -p 'test_site_notices.py'
       - name: Publish public pages only
         id: push
         run: |

@@ -100,6 +100,10 @@ jobs:
             data/qc/
           retention-days: 30
           if-no-files-found: ignore
+      - name: Include responsible-use notices
+        run: |
+          python scripts/site_notices.py
+          python -m unittest discover -s tests -p 'test_site_notices.py'
       - name: Publish refreshed NFL pages
         id: publish
         if: steps.refresh.outcome == 'success'

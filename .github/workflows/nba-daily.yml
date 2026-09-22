@@ -69,9 +69,15 @@ jobs:
             data/nba/history/
           retention-days: 90
           if-no-files-found: ignore
+      - name: Include responsible-use notices
+        id: notices
+        if: always()
+        run: |
+          python scripts/site_notices.py --scope nba
+          python -m unittest discover -s tests -p 'test_site_notices.py'
       - name: Publish NBA pages and feed status
         id: publish
-        if: always()
+        if: always() && steps.notices.outcome == 'success'
         run: |
           git config user.name 'GitHub Actions Bot'
           git config user.email 'actions@github.com'

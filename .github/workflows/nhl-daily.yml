@@ -58,9 +58,15 @@ jobs:
             data/nhl/history/
           retention-days: 90
           if-no-files-found: ignore
+      - name: Include responsible-use notices
+        id: notices
+        if: always()
+        run: |
+          python scripts/site_notices.py --scope nhl
+          python -m unittest discover -s tests -p 'test_site_notices.py'
       - name: Publish NHL pages and feed status
         id: publish
-        if: always() && (steps.refresh.outcome == 'failure' || steps.validate.outcome == 'success')
+        if: always() && steps.notices.outcome == 'success' && (steps.refresh.outcome == 'failure' || steps.validate.outcome == 'success')
         run: |
           git config user.name 'GitHub Actions Bot'
           git config user.email 'actions@github.com'

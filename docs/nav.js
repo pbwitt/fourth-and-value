@@ -10,6 +10,14 @@
 
   const LOGO = `${base}/assets/logo-fv.svg`; // change path if needed
 
+  // Responsible-use notices persist even when a generator rebuilds a page.
+  if (!document.querySelector('script[data-fv-responsible-use]')) {
+    const noticeScript = document.createElement('script');
+    noticeScript.src = `${base}/assets/responsible-use.js?v=1`;
+    noticeScript.dataset.fvResponsibleUse = 'true';
+    document.head.appendChild(noticeScript);
+  }
+
   // --- Styles ---
   const css = `
   :root{

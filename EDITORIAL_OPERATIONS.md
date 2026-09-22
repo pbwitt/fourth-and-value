@@ -184,3 +184,29 @@ and prices at the lowest over total and highest under total; these are observed
 line extremes, not EV recommendations. The briefing links recent original analysis
 and shows counts of changed medians and differing book totals. No invented movement,
 news causation or freshness timestamps are used to create the appearance of activity.
+
+## Responsible-use notices
+
+`python scripts/site_notices.py` applies static notices to public HTML without
+changing authored analysis or publication dates. Use `--scope mlb`, `nba` or `nhl`
+for league-only builds. All five publishing workflows run the applicator and its
+coverage tests before committing public pages. The shared navigation also loads
+`assets/responsible-use.js` as a fallback for new pages generated outside those jobs;
+existing notices are detected to prevent duplicates. Keep its copy aligned with
+`scripts/site_notices.py` when changing language. Styles are in
+`assets/responsible-use.css`.
+
+Betting tools, analysis, research and the tracker receive a concise notice near the
+heading. Public pages receive a responsible-use footer linking to terms, responsible
+play and NCPG support. Opinion/home/listing pages use only the footer. Redirects,
+authoring templates and video-render canvases are excluded; video landing pages
+are covered. Existing MP4s and off-site YouTube descriptions are not modified.
+
+The terms explain uncertainty, stale quotes, backtests, hypothetical edges,
+arbitrage/settlement risks, adult access versus local wagering eligibility, and
+personal wagering responsibility. NCPG's current national resource was verified
+September 22, 2026: https://www.ncpgambling.org/help-treatment/ (1-800-MY-RESET).
+Privacy copy now describes private editorial submissions and distinguishes account
+data from technical/provider data. AdSense remains inactive; provider-specific
+privacy disclosures and applicable consent controls must be implemented before
+activation. These changes are not a legal opinion or certification of enforceability.
