@@ -9,6 +9,9 @@ import editorial_writer as w
 
 class WriterGuards(unittest.TestCase):
     def setUp(self):
+        from unittest.mock import patch
+        enabled=patch.dict(w.ed.CFG,{"writing_enabled":True})
+        enabled.start();self.addCleanup(enabled.stop)
         self.now=datetime(2026,9,22,16,tzinfo=timezone.utc)
         self.urls=['https://mlb.com/news/a','https://apnews.com/article/b']
         self.response={'output':[{'action':{'sources':[{'url':u} for u in self.urls]}}]}

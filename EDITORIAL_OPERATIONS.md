@@ -136,3 +136,11 @@ credit-balance error the writer stops the remaining paid slots, records the erro
 and emits a workflow warning; it never silently switches models. Once funding is
 restored, the next scheduled day's edition can run normally. Inspect the dated
 ledger before any same-day retry, since recorded slots intentionally do not repeat.
+
+
+### Budget revision
+
+The owner set a new target below $10 per week. Paid editorial writing is paused
+with `writing_enabled: false` while the smaller format is selected. Existing
+articles and scheduled price refreshes continue. Do not re-enable the six-story
+Astra high edition under this budget.
