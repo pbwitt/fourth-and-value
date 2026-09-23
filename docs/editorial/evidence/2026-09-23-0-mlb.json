@@ -1,0 +1,47 @@
+{
+  "as_of": "2026-09-23T11:42:03.408665+00:00",
+  "sport": "MLB",
+  "markets": [],
+  "model_rows": [],
+  "model_references": [],
+  "methods": "## Feature windows\n\nAll windows also have a 370-day maximum lookback.\n\n- Team: last 40 games; runs scored/allowed, PA and K/H/HR/BB/TB rates. Bullpen RA/9 is computed from team pitching minus the starter. Bullpen workload is pitches in the previous three calendar days.\n- Pitcher: last 15 starts; last-five outs and pitches, batters faced, K/BB/H/HR rates, runs per out, and rest capped at 30 days.\n- Batter: last 60 appearances; rates per PA, last 20 starting appearances for PA context, original/published batting slot and a transparent projected-PA input.\n- Park: last 100 games at the venue, shrunk by 40 games toward nine combined runs. This is a venue scoring indicator, not an isolated park factor; home-team quality can influence it.\n- Matchup: home/away and postseason indicators; own and opponent team and starter features.\n\nSmall samples shrink toward fixed league-like priors. Missing players do not receive public league-average or 50% predictions. Teams require ten prior games, each probable starter three prior starts, and hitters 50 prior PA plus a published lineup match.\n\nThese models do not explicitly use handedness, weather forecasts, injuries, umpires, lineup-wide weighted batter projections, or tactical pinch-hit/starter-hook predictions. Hitter PA is a feature, not a simulated lineup. Recent workload and the postseason indicator provide partial context but cannot replace",
+  "model_status": "Independent MLB forecasts available",
+  "limitations": "NFL injury adjustments are not established by this evidence. A live total is not a prop forecast. Only validated fresh model rows are included. Historical quotes are not openers.",
+  "reporting": [
+    {
+      "title": "'Let’s go 5-0': Astros control their destiny after moving into tie for AL West lead",
+      "url": "https://www.mlb.com/news/astros-move-into-tie-for-first-place-in-al-west",
+      "published_at": "2026-09-23",
+      "published_timestamp": "2026-09-23T06:15:00+00:00",
+      "id": "s1",
+      "retrieved_at": "2026-09-23T11:41:57.537479+00:00"
+    },
+    {
+      "title": "Boundless confidence powers Rays to AL East title, home-field through ALCS",
+      "url": "https://www.mlb.com/news/rays-clinch-2026-al-east-title",
+      "published_at": "2026-09-23",
+      "published_timestamp": "2026-09-23T04:54:00+00:00",
+      "id": "s2",
+      "retrieved_at": "2026-09-23T11:41:57.537479+00:00"
+    },
+    {
+      "title": "Shohei Ohtani expected to come off injured list Wednesday as Dodgers ramp up for postseason",
+      "url": "https://www.cbssports.com/mlb/news/shohei-ohtani-injury-los-angeles-dodgers-mlb-playoffs/",
+      "published_at": "2026-09-23",
+      "published_timestamp": "2026-09-23T00:08:35+00:00",
+      "id": "s3",
+      "retrieved_at": "2026-09-23T11:41:57.537479+00:00"
+    }
+  ],
+  "validation_context": {
+    "input_through": "2026-09-21",
+    "training_through": "2026-07-23",
+    "calibration_through": "2026-08-22",
+    "test_start": "2026-08-23",
+    "test_end": "2026-09-21"
+  },
+  "model_data_dates": {
+    "history_through": "2026-09-21",
+    "weights_trained_through": "2026-07-23"
+  }
+}
