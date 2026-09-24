@@ -103,7 +103,9 @@ def select_target(packet,allow_model=False):
     existing=packet.get('target_game')
     if existing:return existing
     markets=packet.get('markets',[])
-    if len(markets)==1:return target_record(markets[0],'single-market')
+    if len(markets)==1:
+        target=target_record(markets[0],'single-market')
+        if target.get('event_id') or target.get('game'):return target
     source_texts=[(str(source.get('title',''))+' '+str(source.get('url',''))).lower() for source in packet.get('reporting',[])]
     scored=[]
     for market in markets:
