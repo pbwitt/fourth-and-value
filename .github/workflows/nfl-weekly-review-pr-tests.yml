@@ -1,0 +1,33 @@
+name: NFL Weekly Review PR Tests
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/nfl_weekly_review.py'
+      - 'scripts/review_week*.py'
+      - 'tests/test_nfl*.py'
+      - '.github/workflows/nfl-weekly.yml'
+      - 'reports/week2-2026/**'
+
+permissions:
+  contents: read
+
+jobs:
+  nfl-weekly-review-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Compile weekly review script
+        run: python -m py_compile scripts/nfl_weekly_review.py
+      - name: Run NFL tests
+        run: python -m unittest discover -s tests -p 'test_nfl*.py'
+      - name: Reconcile published Week 2 benchmark
+        run: python scripts/nfl_weekly_review.py verify-week2
