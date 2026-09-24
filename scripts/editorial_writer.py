@@ -204,9 +204,10 @@ def run(now,limit=2):
     games=ed.context(load(ed.PUBLIC/'latest.json',{}),now)['games']
     # Persist allocation so refresh/retry cannot change the same day's slots.
     collected={}
-    if not state.get('allocation'):
-        allocation=[]
+    if len(state.get('allocation',[]))<2:
+        allocation=list(state.get('allocation',[]))
         for sport,angle in slots(games,now.date().toordinal(),catalog,4):
+            if sport in {s for s,_ in allocation}:continue
             candidate=evidence(sport,now)
             try:require_data(candidate)
             except ValueError as exc:

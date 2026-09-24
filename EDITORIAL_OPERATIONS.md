@@ -4,7 +4,7 @@ The homepage combines a curated lead, an automated market rundown, recent report
 
 ## Schedule and costs
 
-`.github/workflows/editorial-daily.yml` collects a morning edition at **6:07 AM America/New_York**, adjusting for daylight saving time. GitHub schedules can be delayed; this is a target, not an exact-time promise. At **17 minutes past each hour**, it checks the private queue for approved articles and refreshes homepage freshness labels.
+`.github/workflows/editorial-daily.yml` collects a morning edition at **5:07 AM America/New_York**, adjusting for daylight saving time. GitHub schedules can be delayed; this is a target, not an exact-time promise. At **17 minutes past each hour**, it checks the private queue for approved articles and refreshes homepage freshness labels.
 
 Each price edition makes one full-game totals request per sport (NFL, MLB, NBA, NHL) with existing Odds API credentials and reads four public ESPN RSS feeds. It does **not** train models or generate new prop forecasts. Existing sports/model refreshes continue separately. The authorized Astra writer then researches and directly publishes original features, using the server-side `OPENAI_API_KEY` secret. See the original-analysis operating details below.
 
@@ -58,7 +58,7 @@ The public homepage and morning briefing can run before the private database mig
 
 Enabled in `config/editorial.json`: **two article opportunities per day**, exact model
 `gpt-6-astra`, low reasoning, standard service tier. No fallback model. Runs on GitHub
-Actions at **06:07 America/New_York**, without the owner's computer. GitHub may delay
+Actions at **05:07 America/New_York**, without the owner's computer. GitHub may delay
 scheduled jobs; publication follows research, factual checking and the Pages build.
 Hourly runs rebuild the homepage and latest briefing to remove expired games and prices, and publish approved owner drafts without paid article calls.
 
@@ -171,8 +171,8 @@ publication, rather than appearing as an overall success. See the latest public
 
 ## Market rundown refresh
 
-Four price editions: 06:07, 11:07, 16:07 and 21:07 America/New_York. Only the
-morning run generates articles; later editions use existing Odds API credentials
+Five price editions: 05:07, 06:37, 11:07, 16:07 and 21:07 America/New_York. Only the
+two morning runs can generate articles; later editions use existing Odds API credentials
 and public feeds, with no OpenAI calls. This adds up to twelve odds requests daily
 above the previous single edition (provider quota still applies). Hourly renders
 remove stale/started games from the latest briefing while retaining dated archives.
@@ -242,3 +242,11 @@ forecast. The gate does not fabricate projections or force an offseason story.
 `python scripts/editorial_writer.py --inspect-data` reports availability without
 calling a paid API. Existing September 23 analysis remains dated; it is not silently
 rewritten with later quotes.
+
+The first morning sequence now starts at 05:07 Eastern, with a 06:37 catch-up.
+Both refresh MLB before checking article readiness. The catch-up skips any slot
+that already incurred a paid attempt; it only fills unattempted or data-waiting
+slots within the same two-article daily maximum and budget. There is no guarantee
+of an exact completion time from GitHub's scheduler. The failing cloud NFL odds
+credential was replaced with the local credential verified against the NFL totals
+endpoint, restoring the opportunity to cover NFL as well as MLB tomorrow.

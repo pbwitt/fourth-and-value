@@ -1,7 +1,9 @@
 name: Editorial Morning Briefing
 on:
   schedule:
-    - cron: '7 6 * * *'
+    - cron: '7 5 * * *'
+      timezone: America/New_York
+    - cron: '37 6 * * *'
       timezone: America/New_York
     - cron: '7 11,16,21 * * *'
       timezone: America/New_York
@@ -24,7 +26,7 @@ concurrency:
 
 jobs:
   refresh-mlb:
-    if: github.event.schedule == '7 6 * * *' || (github.event_name == 'workflow_dispatch' && inputs.refresh_briefing)
+    if: github.event.schedule == '7 5 * * *' || github.event.schedule == '37 6 * * *' || (github.event_name == 'workflow_dispatch' && inputs.refresh_briefing)
     permissions:
       contents: write
       pages: write
@@ -53,7 +55,7 @@ jobs:
       - name: Verify freshness, escaping and publication guards
         run: python -m unittest discover -s tests -p 'test_editorial*.py'
       - name: Refresh market prices and briefing
-        if: github.event.schedule == '7 6 * * *' || github.event.schedule == '7 11,16,21 * * *' || (github.event_name == 'workflow_dispatch' && inputs.refresh_briefing)
+        if: github.event.schedule == '7 5 * * *' || github.event.schedule == '37 6 * * *' || github.event.schedule == '7 11,16,21 * * *' || (github.event_name == 'workflow_dispatch' && inputs.refresh_briefing)
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
           MLB_ODDS_API_KEY: ${{ secrets.MLB_ODDS_API_KEY }}
@@ -70,7 +72,7 @@ jobs:
       - name: Record current data readiness
         run: python scripts/editorial_writer.py --inspect-data
       - name: Research and publish original analysis
-        if: github.event.schedule == '7 6 * * *' || (github.event_name == 'workflow_dispatch' && inputs.refresh_briefing)
+        if: github.event.schedule == '7 5 * * *' || github.event.schedule == '37 6 * * *' || (github.event_name == 'workflow_dispatch' && inputs.refresh_briefing)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python scripts/editorial_writer.py
