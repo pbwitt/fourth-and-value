@@ -433,3 +433,14 @@ inside an isolated temporary directory, including charts and public review data.
 - **Repeat run:** reuse the existing archive and overwrite the same deterministic
   article/report paths rather than creating duplicates.
 
+
+### September 24 integration review
+
+Weekly archive CSVs are explicitly included in Git despite the global CSV ignore
+rule, so fresh runners can verify and grade the saved inputs. Totals direction
+records remain descriptive; units include only games with an actual archived
+quote on the same line and side, with the priced/unpriced counts disclosed.
+The Week 3 migration archive is the modeled board, not the published shortlist;
+its reconstructed selection universe is labeled accordingly. The new weekly
+workflow has local regression coverage but still needs its first scheduled
+production recap after Week 3 finishes.

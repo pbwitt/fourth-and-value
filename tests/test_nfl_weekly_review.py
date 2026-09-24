@@ -110,6 +110,26 @@ class WeeklyReviewTests(unittest.TestCase):
             self.assertTrue((root/'docs/blog/week-3-week-4-2026/preview.svg').exists())
             self.assertTrue((root/'docs/blog/week-3-2026-review-data.json').exists())
 
+    def test_new_weekly_csv_archives_are_not_ignored(self):
+        import subprocess
+        for filename in ['pregame/props.csv','review/tickets.csv']:
+            result=subprocess.run(['git','check-ignore','--no-index','-v',
+                'reports/nfl-weekly/2026/week-4/'+filename],cwd=review.ROOT,capture_output=True,text=True)
+            self.assertIn(':!reports/nfl-weekly/**/*.csv',result.stdout)
+
+    def test_unoffered_median_never_counts_as_a_wager(self):
+        archive={'predictions':pd.DataFrame([dict(game='ATL @ GB',total_pred=46)]),
+                 'lines':pd.DataFrame([dict(game='ATL @ GB',book=book,total_over_line=line,
+                     total_over_price=-110,total_under_price=-110) for book,line in [('a',43),('b',44)]])}
+        for final in [42,48]:
+            schedule=pd.DataFrame([dict(season=2026,week=3,game_type='REG',away_team='ATL',home_team='GB',
+                home_score=24,away_score=final-24,total_line=43.5)])
+            games,summary=review.totals_metrics(archive,schedule,2026,3)
+            self.assertTrue(pd.isna(games.iloc[0].model_units))
+            self.assertEqual(summary['model_direction']['units'],0)
+            self.assertEqual(summary['model_direction']['unpriced_games'],1)
+            self.assertEqual(summary['model_direction']['priced_games'],0)
+
     def test_week2_published_benchmark_still_reconciles(self):
         checks=review.verify_week2()
         self.assertTrue(all(checks.values()))
