@@ -447,8 +447,9 @@ production recap after Week 3 finishes.
 
 ### Automatic NFL refresh schedule (updated September 24, 2026)
 
-All three schedules use America/New_York, including daylight-saving changes:
-Wednesday 10:00 AM, Thursday 5:00 PM, Sunday 8:00 AM. Sunday is early enough for
+All schedules use America/New_York, including daylight-saving changes:
+Wednesday 10:00 AM; Thursday 5:00 PM; Sunday 8:00 AM, 11:00 AM, 12:30 PM,
+3:55 PM and 8:00 PM. Sunday is early enough for
 most international games; actual GitHub execution can be delayed. Each refresh
 updates player projections, injuries, odds and public boards. Paid game insights
 remain off unless explicitly approved on a manual run. Scheduled pregame archive
@@ -466,7 +467,8 @@ consume credits. All current workflows use one US region. The free sports-list
 quota check on September 24 reported 2,956 used + 17,044 remaining = 20,000 credits
 for the local ODDS_API_KEY. This does not verify distinct GitHub sport-specific keys.
 
-For a full 30-day NBA/NHL/NFL month, excluding MLB and extra manual/retry runs:
+Baseline before the four additional Sunday runs: for a full 30-day NBA/NHL/NFL
+month, excluding MLB and extra manual/retry runs:
 
 | Feed | Planning assumption | Approx. monthly credits |
 | --- | --- | --- |
@@ -489,3 +491,15 @@ days, MLB alone is about 26,460–39,060 credits. Real usage depends on remainin
 pregame events and available markets at each time. October has only a partial NBA
 month; do not treat the full-month winter estimate plus postseason example as an
 exact October forecast. No MLB/NBA/NHL refresh frequency was changed by this task.
+
+The four additional Sunday refreshes add approximately 17–18 executions in a
+30-day month. At an illustrative average of 8 remaining/in-play events per run,
+that adds about 2,300 credits; at 16 events with all markets returned, about
+4,500–4,700. The revised planning range is roughly 17,000–23,500 credits/month
+without MLB. This can exceed 20,000; there is no enforced quota cap on these
+refresh workflows. Afternoon/evening event counts should fall as games finish,
+but the collector may still fetch in-play events before page freshness filters
+remove them. Actual returned markets and schedule shape determine charges.
+The added runs do not enable paid game insights or repeat weekly recap generation.
+Times are workflow start targets, not guaranteed pre-kickoff publication times;
+GitHub queuing and the existing model preparation take additional time.
