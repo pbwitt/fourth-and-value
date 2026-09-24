@@ -30,6 +30,13 @@ class WriterGuards(unittest.TestCase):
     def test_invented_market_rejected(self):
         self.article['market_ids']=['fake']
         with self.assertRaises(ValueError):w.validate(self.article,self.response,self.packet,self.now)
+    def test_unrelated_target_model_reference_rejected(self):
+        self.packet={'markets':[{'id':'q1','event_id':'target','game':'Padres @ Dodgers'}],
+            'model_rows':[{'id':'m1','event_id':'other','game':'Cardinals @ Pirates'}],
+            'model_references':[],
+            'target_game':{'event_id':'target','game':'Padres @ Dodgers'}}
+        self.article['market_ids']=['q1','m1']
+        with self.assertRaisesRegex(ValueError,'another matchup'):w.validate(self.article,self.response,self.packet,self.now)
     def test_unvisited_source_rejected(self):
         self.article['sources'][0]['url']='https://mlb.com/invented'
         with self.assertRaises(ValueError):w.validate(self.article,self.response,self.packet,self.now)
