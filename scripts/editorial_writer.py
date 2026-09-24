@@ -161,7 +161,6 @@ def evidence(sport, now):
         if not fresh or not upcoming or identity in seen or not row.get('is_model_pick'):continue
         seen.add(identity)
         models.append(dict(id='model-'+str(len(models)),**row))
-        if len(models)>=12:break
     # Model context may outlive a price. Strip stale quotes and all EV claims.
     references=[]
     if sport=='NFL':
@@ -178,7 +177,6 @@ def evidence(sport, now):
                 if not valid or row.get('mu') is None or identity in seen:continue
                 seen.add(identity)
                 references.append(dict(id='reference-'+str(len(references)),game=row['game'],player=row['player'],market=row['market_label'],model_mean=row['mu'],model_status=row['model_status'],snapshot_quote_time=row['last_update'],note='Saved model context only, not a fresh prop quote or verified current player projection; input cutoff is not exported. No current EV supplied.'))
-                if len(references)>=12:break
     else:
         for row in board.get('rows',[]):
             try:
@@ -188,7 +186,6 @@ def evidence(sport, now):
             if not valid or row.get('model_mean') is None or identity in seen:continue
             seen.add(identity)
             references.append(dict(id='reference-'+str(len(references)),**{k:row.get(k) for k in ['event_id','commence_time','game','player','market','market_label','side','model_mean','model_mean_label','model_inputs','model_status','model_input_through','model_version']},note='Saved projection only; no current price or EV. Interpret the supplied validation status, not a betting recommendation.'))
-            if len(references)>=12:break
     methods=''
     if sport=='MLB':
         notes=(ed.ROOT/'MLB_MODEL_README.md').read_text()
