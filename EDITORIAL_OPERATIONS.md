@@ -290,3 +290,80 @@ attempts never automatically repeat. This replaces a daily slot, not an extra
 paid article, and retains the rolling spending cap.
 
 Regression checks: `python -m unittest discover -s tests -p 'test_editorial*.py'`.
+
+
+## Resilient daily editorial scheduling
+
+The daily workflow no longer decides whether to write by comparing
+`github.event.schedule` to exact cron strings. The named morning schedules remain
+useful target times, but GitHub scheduling delays or a missed morning event must not
+silently suppress the writer.
+
+Every scheduled run now begins with `scripts/editorial_schedule.py`, which classifies
+the run from current state:
+
+- current Eastern time
+- today's published analysis count
+- today's editorial slot ledger
+- `funding_required`
+- uncertain `started` slots
+- briefing freshness
+- MLB board/model freshness
+
+Scheduled runs after 5:00 AM Eastern may fill an unattempted or
+`waiting_for_data` slot. This includes the ordinary hourly maintenance schedule, so
+a missed 5:07 or 6:37 event can be rescued later without changing the daily two-story
+limit.
+
+The planner does **not** automatically retry a slot that reached `started`, because
+a paid request may already have occurred. It also does not bypass the global
+`writing_enabled` switch, the daily publication limit, or a funding-required state.
+
+MLB refreshes are state-aware. A retryable MLB slot or recoverable MLB data skip can
+request a fresh MLB update when the current board is not already fresh. Briefing
+refreshes are similarly based on freshness and writer need rather than one exact cron
+expression.
+
+### False-green guard
+
+Whenever the planner says the writer is eligible, `editorial_writer.py` records a
+writer marker in the daily ledger:
+
+```json
+{
+  "last_writer_check": {
+    "at": "...",
+    "status": "completed",
+    "counts": {
+      "published": 0,
+      "skipped": 0,
+      "started": 0,
+      "waiting_for_data": 1
+    }
+  }
+}
+```
+
+The workflow then runs a separate verification step. If a writer was expected but a
+recent **completed** marker is absent, the workflow fails instead of reporting green.
+
+A completed marker does not mean an article had to publish. It means the writer
+actually executed and reached a terminal scheduling result. A legitimate
+`waiting_for_data`, factual-audit rejection, or funding failure remains visible in
+the daily ledger and Actions logs.
+
+### Diagnostics
+
+The planner logs:
+
+- run mode: `morning`, `catch-up`, `market-refresh`, `maintenance`, or `manual`
+- Eastern planner timestamp
+- whether the writer was eligible
+- whether briefing/MLB refreshes were requested
+- the reason the writer was or was not needed
+
+Regression coverage explicitly tests an 8:00 AM Eastern hourly event with the
+non-morning cron string and requires it to rescue an unattempted slot. It also tests
+the pre-5 AM guard, retryable `waiting_for_data`, non-retryable `started` slots,
+daily limits, funding state, MLB freshness, manual behavior, the writer kill switch,
+and the completed-marker assertion.
