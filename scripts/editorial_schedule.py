@@ -101,7 +101,7 @@ def plan(root=ROOT,now=None,event_name=None,event_schedule=None,manual_refresh=F
 
     need,need_reason=writer_need(root,now)
     after_start=(local.hour>=5)
-    writer_eligible=manual or (event_name=="schedule" and after_start and need)
+    writer_eligible=bool(need and (manual or (event_name=="schedule" and after_start)))
 
     briefing=load(Path(root)/"docs/briefing/latest.json",{})
     briefing_at=briefing.get("generated_at")
