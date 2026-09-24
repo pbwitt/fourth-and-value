@@ -70,6 +70,46 @@ class WeeklyReviewTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'not fully completed'):
                 review.review_week(2026,3,4,root)
 
+    def test_end_to_end_review_writes_dynamic_article_and_charts(self):
+        with TemporaryDirectory() as td:
+            root=Path(td);(root/'data').mkdir();(root/'docs/blog').mkdir(parents=True)
+            schedule=pd.DataFrame([dict(game_id='2026_03_ATL_GB',season=2026,week=3,game_type='REG',
+                away_team='ATL',home_team='GB',away_score=20,home_score=24,total_line=43.5)])
+            schedule.to_csv(root/'data/schedule_2026.csv',index=False)
+            stats=pd.DataFrame([dict(season=2026,week=3,season_type='REG',game_id='2026_03_ATL_GB',
+                player_display_name='Example Player',attempts=30,carries=0,targets=0,receptions=0,passing_yards=250,
+                completions=20,passing_tds=2,passing_interceptions=0,receiving_yards=0,rushing_yards=0)])
+            stats.to_parquet(root/'data/weekly_player_stats_2026.parquet',index=False)
+
+            def archive(week,game,away_name,home_name,player,total_pred,line):
+                base=root/'reports/nfl-weekly/2026'/f'week-{week}'/'pregame';base.mkdir(parents=True)
+                props=pd.DataFrame([dict(game_id=f'book-{week}',game=f'{away_name} @ {home_name}',
+                    commence_time='2026-10-01T00:15:00Z',home_team=home_name,away_team=away_name,
+                    player=player,market_std='pass_attempts',name='under',point=31.5,price=-110,
+                    bookmaker='book',mu=27.0,model_prob=.60,consensus_prob=.50,ev_per_100=8.0,
+                    model_status='Calibration fitted; not prospectively validated')])
+                props.to_csv(base/'props.csv',index=False);props.to_csv(base/'top_picks.csv',index=False)
+                pd.DataFrame([dict(game=game,home_team=game.split(' @ ')[1],away_team=game.split(' @ ')[0],
+                    season=2026,week=week,total_pred=total_pred)]).to_csv(base/'week_predictions.csv',index=False)
+                pd.DataFrame([dict(game=game,book='book',total_over_line=line,total_over_price=-110,total_under_price=-110)]).to_csv(base/'totals_spreads.csv',index=False)
+                files=[]
+                for path in base.iterdir():
+                    if path.name!='manifest.json':
+                        files.append(dict(path=str(path.relative_to(root)),sha256=review.sha(path),bytes=path.stat().st_size))
+                (base/'manifest.json').write_text(json.dumps(dict(files=files)))
+            archive(3,'ATL @ GB','Atlanta Falcons','Green Bay Packers','Example Player',42.0,43.0)
+            archive(4,'DAL @ NYG','Dallas Cowboys','New York Giants','Preview Player',47.0,44.5)
+
+            summary=review.review_week(2026,3,4,root)
+            self.assertEqual(summary['completed_week'],3)
+            article=root/'docs/blog/week-3-recap-week-4-preview-2026.html'
+            self.assertTrue(article.exists())
+            self.assertIn('Week 3 review',article.read_text())
+            self.assertTrue((root/'docs/blog/week-3-week-4-2026/totals.svg').exists())
+            self.assertTrue((root/'docs/blog/week-3-week-4-2026/props.svg').exists())
+            self.assertTrue((root/'docs/blog/week-3-week-4-2026/preview.svg').exists())
+            self.assertTrue((root/'docs/blog/week-3-2026-review-data.json').exists())
+
     def test_week2_published_benchmark_still_reconciles(self):
         checks=review.verify_week2()
         self.assertTrue(all(checks.values()))
