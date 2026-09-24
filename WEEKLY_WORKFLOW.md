@@ -343,3 +343,93 @@ If QC fails and you're not sure why:
 2. Review git history: `git log --oneline -10`
 3. Compare to last week's successful run
 4. Don't push if in doubt - better to skip a week than publish bad data
+
+
+---
+
+## Automated NFL weekly market review
+
+The Wednesday `NFL Weekly Update` now does more than refresh the upcoming week's
+props and totals. It also preserves an auditable pregame record and, beginning with
+the next completed week, publishes a recurring Week N recap / Week N+1 preview.
+
+### Wednesday sequence
+
+1. Select the upcoming regular-season week.
+2. Refresh player history, defensive inputs, props, totals, spreads and site pages.
+3. Freeze the upcoming week's pregame evidence under:
+   `reports/nfl-weekly/<season>/week-<N>/pregame/`
+4. Hash every frozen input and write `manifest.json`.
+5. Grade Week N-1 only after every official game is complete and player statistics
+   are available.
+6. Generate deterministic review outputs under:
+   `reports/nfl-weekly/<season>/week-<N-1>/review/`
+7. Publish:
+   `docs/blog/week-<N-1>-recap-week-<N>-preview-<season>.html`
+8. Generate the weekly totals, prop-market and preview-gap SVG charts.
+9. Publish normal NFL pages even if the review step fails, then deliberately mark
+   the workflow failed so a missing weekly review cannot hide behind a green run.
+
+### What is frozen before kickoff
+
+The archive includes the current modeled prop board, the published top-pick payload,
+raw totals predictions, sportsbook total/spread lines, and available injury/consensus
+files. Once a weekly archive exists, a later run validates its SHA-256 hashes and
+reuses it. It never silently replaces the pregame evidence.
+
+If the workflow is first run after any archived game has already started, snapshot
+creation fails rather than creating hindsight-contaminated evidence.
+
+### What is calculated after the week
+
+All grading is deterministic Python, not generated prose:
+
+- one highest-EV archived selection per player / game / modeled market
+- wins, losses, pushes and unresolved outcomes
+- units and ROI
+- result breakdown by prop market
+- representative-line model and de-vigged-consensus Brier scores
+- game-block bootstrap interval for the Brier difference
+- raw totals model direction record and units at archived same-line prices
+- model, archived-market and recorded-close mean absolute error
+- upcoming-week model-minus-market total gaps
+- upcoming-week prop watchlist from the frozen shortlist
+
+Missing player/result evidence remains unresolved. It is never converted to a
+winning under. Pushes settle as zero units.
+
+### Transitional Week 3 behavior
+
+The new immutable archives begin after this feature is deployed. The existing
+`reports/week3-2026-preview/` snapshot is retained as the explicit migration
+source for the first Week 3 recap / Week 4 preview. From Week 4 onward, the recurring
+workflow uses the immutable weekly archives created by the Wednesday job.
+
+### Verification
+
+Pull requests that touch this system run:
+
+```bash
+python -m py_compile scripts/nfl_weekly_review.py
+python -m unittest discover -s tests -p 'test_nfl*.py'
+python scripts/nfl_weekly_review.py verify-week2
+```
+
+The Week 2 benchmark must continue to reconcile the published audited scorecard,
+including 447 selected / 434 graded prop selections, approximately +5.17 units,
+10 closing unders and 6 closing overs, and the published model/market Brier values.
+
+A synthetic end-to-end test also builds a complete Week N recap / Week N+1 preview
+inside an isolated temporary directory, including charts and public review data.
+
+### Failure handling
+
+- **Snapshot failure:** hard failure. Do not publish a supposedly auditable weekly
+  refresh without preserving its pregame evidence.
+- **Review failure:** normal NFL pages may still publish, but the final workflow
+  status is red with an explicit weekly-review error.
+- **Incomplete completed week:** no recap is generated.
+- **Archive hash mismatch:** stop and investigate; do not overwrite.
+- **Repeat run:** reuse the existing archive and overwrite the same deterministic
+  article/report paths rather than creating duplicates.
+
