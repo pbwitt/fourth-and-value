@@ -89,6 +89,18 @@ class EditorialScheduleTests(unittest.TestCase):
         self.assertTrue(result['refresh_mlb'])
         self.assertEqual(result['mode'],'manual')
 
+    def test_manual_refresh_respects_writer_kill_switch(self):
+        td,root=self.make_root();self.addCleanup(td.cleanup)
+        (root/'config/editorial.json').write_text(json.dumps({
+            'writing_enabled':False,'writer':{'daily_story_limit':2}
+        }))
+        now=datetime(2026,9,24,13,0,tzinfo=timezone.utc)
+        result=sched.plan(root,now,event_name='workflow_dispatch',manual_refresh=True)
+        self.assertFalse(result['writer_eligible'])
+        self.assertTrue(result['refresh_briefing'])
+        self.assertTrue(result['refresh_mlb'])
+        self.assertEqual(result['writer_reason'],'writing_disabled')
+
     def test_expected_writer_requires_recent_completed_marker(self):
         td,root=self.make_root();self.addCleanup(td.cleanup)
         now=datetime(2026,9,24,13,0,tzinfo=timezone.utc)
