@@ -166,8 +166,8 @@ def verify_writer(root=ROOT,now=None,expected=False):
     state=today_state(root,now)
     marker=state.get("last_writer_check",{})
     checked=stamp(marker.get("at"))
-    if not checked or abs((now-checked.astimezone(timezone.utc)).total_seconds())>7200:
-        raise SystemExit("Writer was expected but today's ledger has no recent writer execution marker")
+    if marker.get("status")!="completed" or not checked or abs((now-checked.astimezone(timezone.utc)).total_seconds())>7200:
+        raise SystemExit("Writer was expected but today's ledger has no recent completed writer execution marker")
     print(json.dumps(dict(status="verified",last_writer_check=marker,
         slots={k:v.get("status") for k,v in state.get("slots",{}).items()},
         published_today=len(today_catalog(root,now)))))
