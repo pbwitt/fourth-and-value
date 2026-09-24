@@ -25,17 +25,54 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      mode: ${{ steps.plan.outputs.mode }}
+      writer_eligible: ${{ steps.plan.outputs.writer_eligible }}
+      refresh_briefing: ${{ steps.plan.outputs.refresh_briefing }}
+      refresh_mlb: ${{ steps.plan.outputs.refresh_mlb }}
+      writer_reason: ${{ steps.plan.outputs.writer_reason }}
+      eastern_time: ${{ steps.plan.outputs.eastern_time }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Plan this editorial run from current state
+        id: plan
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          manual=false
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.refresh_briefing }}" = "true" ]; then manual=true; fi
+          python scripts/editorial_schedule.py --manual-refresh "$manual"
+      - name: Show planner decision
+        run: |
+          echo "mode=${{ steps.plan.outputs.mode }}"
+          echo "writer_eligible=${{ steps.plan.outputs.writer_eligible }}"
+          echo "refresh_briefing=${{ steps.plan.outputs.refresh_briefing }}"
+          echo "refresh_mlb=${{ steps.plan.outputs.refresh_mlb }}"
+          echo "reason=${{ steps.plan.outputs.writer_reason }}"
+
   refresh-mlb:
-    if: github.event.schedule == '7 5 * * *' || github.event.schedule == '37 6 * * *' || (github.event_name == 'workflow_dispatch' && inputs.refresh_briefing)
+    needs: plan
+    if: needs.plan.outputs.refresh_mlb == 'true'
     permissions:
       contents: write
       pages: write
     uses: ./.github/workflows/mlb-daily.yml
     secrets: inherit
+
   publish:
-    needs: refresh-mlb
+    needs: [plan, refresh-mlb]
     # Briefing/freshness still publishes after an upstream failure; writer checks data separately.
-    if: always() && !cancelled()
+    if: always() && !cancelled() && needs.plan.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
@@ -55,7 +92,7 @@ jobs:
       - name: Verify freshness, escaping and publication guards
         run: python -m unittest discover -s tests -p 'test_editorial*.py'
       - name: Refresh market prices and briefing
-        if: github.event.schedule == '7 5 * * *' || github.event.schedule == '37 6 * * *' || github.event.schedule == '7 11,16,21 * * *' || (github.event_name == 'workflow_dispatch' && inputs.refresh_briefing)
+        if: needs.plan.outputs.refresh_briefing == 'true'
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
           MLB_ODDS_API_KEY: ${{ secrets.MLB_ODDS_API_KEY }}
@@ -71,11 +108,19 @@ jobs:
         run: python scripts/editorial_writer.py --check-api
       - name: Record current data readiness
         run: python scripts/editorial_writer.py --inspect-data
+      - name: Show resilient run classification
+        run: |
+          echo "Editorial mode: ${{ needs.plan.outputs.mode }}"
+          echo "Eastern planner time: ${{ needs.plan.outputs.eastern_time }}"
+          echo "Writer reason: ${{ needs.plan.outputs.writer_reason }}"
       - name: Research and publish original analysis
-        if: github.event.schedule == '7 5 * * *' || github.event.schedule == '37 6 * * *' || (github.event_name == 'workflow_dispatch' && inputs.refresh_briefing)
+        if: needs.plan.outputs.writer_eligible == 'true'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python scripts/editorial_writer.py
+      - name: Verify expected writer execution
+        if: always() && needs.plan.outputs.writer_eligible == 'true'
+        run: python scripts/editorial_schedule.py --verify-writer --expected-writer true
       - name: Prepare owner-approved articles and homepage
         run: python scripts/editorial.py --publish-approved --receipt /tmp/editorial-receipt.json
       - name: Include responsible-use notices
