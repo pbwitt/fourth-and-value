@@ -329,6 +329,8 @@ def run(now,limit=2):
         print('Writing disabled in config; no paid calls.');return
     cfg=ed.CFG['writer'];day=now.astimezone(ed.ETZ).date().isoformat()
     statepath=STATE/(day+'.json');state=load(statepath,{'date':day,'slots':{}})
+    state['last_writer_check']={'at':datetime.now(timezone.utc).isoformat(),'status':'started'}
+    ed.write_json(statepath,state)
     catalogpath=ed.DOCS/'editorial/published.json';catalog=load(catalogpath,[])
     games=ed.context(load(ed.PUBLIC/'latest.json',{}),now)['games']
     # Persist allocation so refresh/retry cannot change the same day's slots.
@@ -433,6 +435,8 @@ def run(now,limit=2):
             budget.settle(reservation,usages,accounted)
             ed.write_json(statepath,state)
     counts={status:sum(v['status']==status for v in state['slots'].values()) for status in ['published','skipped','started','waiting_for_data']}
+    state['last_writer_check']={'at':datetime.now(timezone.utc).isoformat(),'status':'completed','counts':counts}
+    ed.write_json(statepath,state)
     print('Edition results: '+json.dumps(counts),flush=True)
     if not counts['published']:print('::warning::No original articles published in this edition; inspect the daily ledger.')
     ed.render_home(load(ed.PUBLIC/'latest.json',{}),datetime.now(timezone.utc))
