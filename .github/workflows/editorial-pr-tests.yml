@@ -5,6 +5,10 @@ on:
     paths:
       - 'scripts/editorial*.py'
       - 'tests/test_editorial*.py'
+      - 'tests/editorial_permissions.cjs'
+      - 'supabase/editorial*.sql'
+      - 'docs/editorial/*.js'
+      - '.github/workflows/editorial*.yml'
       - 'config/editorial.json'
       - 'EDITORIAL_OPERATIONS.md'
 
@@ -23,3 +27,10 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - run: python -m unittest discover -s tests -p 'test_editorial*.py'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test private reader permissions in isolated PostgreSQL
+        run: |
+          npm install --prefix /tmp/fv-editorial-db @electric-sql/pglite@0.5.8
+          FV_PGLITE=/tmp/fv-editorial-db/node_modules/@electric-sql/pglite node tests/editorial_permissions.cjs

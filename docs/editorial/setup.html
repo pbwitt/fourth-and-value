@@ -1,0 +1,78 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Editorial setup | Fourth &amp; Value</title><link rel="stylesheet" href="/assets/editorial.css"><link rel="stylesheet" href="/assets/responsible-use.css?v=1"></head><body><main class="newsroom workspace"><h1>Enable reader suggestions</h1><p>This is a one-time administrator step. In your existing Supabase project, open SQL Editor, start a new query, paste this SQL and click Run. It preserves your existing ideas.</p><button id="copy" type="button">Copy setup SQL</button><p id="message" role="status"></p><textarea id="sql" readonly aria-label="Supabase setup SQL" style="height:420px;font-family:monospace">-- Run once after editorial.sql. Existing private ideas/drafts are preserved.
+begin;
+alter table public.editorial_ideas add column if not exists research_error text;
+alter table public.editorial_ideas add column if not exists requires_review boolean not null default false;
+alter table public.editorial_ideas add column if not exists approved_by uuid references auth.users(id);
+alter table public.editorial_ideas add column if not exists research_requested_at timestamptz;
+alter table public.editorial_ideas add column if not exists notification_sent_at timestamptz;
+alter table public.editorial_ideas add column if not exists draft_notification_sent_at timestamptz;
+-- Backfill the trusted approving account for already-approved legacy drafts.
+update public.editorial_ideas set approved_by=user_id where status in (&#x27;approved&#x27;,&#x27;publishing&#x27;,&#x27;published&#x27;) and approved_by is null;
+drop policy if exists &quot;editor owns ideas&quot; on public.editorial_ideas;
+drop policy if exists &quot;read own ideas or editor inbox&quot; on public.editorial_ideas;
+create policy &quot;read own ideas or editor inbox&quot; on public.editorial_ideas for select to authenticated
+ using(user_id=auth.uid() or (auth.jwt()-&gt;&#x27;app_metadata&#x27;-&gt;&gt;&#x27;fv_editor&#x27;)=&#x27;true&#x27;);
+drop policy if exists &quot;submit own idea&quot; on public.editorial_ideas;
+create policy &quot;submit own idea&quot; on public.editorial_ideas for insert to authenticated
+ with check(user_id=auth.uid());
+drop policy if exists &quot;edit ideas as editor&quot; on public.editorial_ideas;
+create policy &quot;edit ideas as editor&quot; on public.editorial_ideas for update to authenticated
+ using((auth.jwt()-&gt;&#x27;app_metadata&#x27;-&gt;&gt;&#x27;fv_editor&#x27;)=&#x27;true&#x27;)
+ with check((auth.jwt()-&gt;&#x27;app_metadata&#x27;-&gt;&gt;&#x27;fv_editor&#x27;)=&#x27;true&#x27;);
+create or replace function public.guard_editorial_approval() returns trigger language plpgsql
+set search_path=public,extensions as $$
+declare changed boolean; content_hash text;
+begin
+ new.updated_at=now();
+ content_hash=encode(digest(convert_to(jsonb_build_array(new.title,new.body,new.byline,new.sources,new.kind,new.featured,new.publish_on,new.idea,new.sport)::text,&#x27;UTF8&#x27;),&#x27;sha256&#x27;),&#x27;hex&#x27;);
+ if TG_OP=&#x27;INSERT&#x27; then
+   new.created_at=now();
+   new.requires_review=coalesce((auth.jwt()-&gt;&#x27;app_metadata&#x27;-&gt;&gt;&#x27;fv_editor&#x27;)::boolean,false) is not true;
+   new.approved_by=null; new.research_requested_at=null;
+   new.notification_sent_at=null; new.draft_notification_sent_at=null; new.research_error=null;
+   if new.requires_review then
+     if length(new.idea)&gt;2000 or new.title&lt;&gt;&#x27;&#x27; or new.body&lt;&gt;&#x27;&#x27; or new.byline&lt;&gt;&#x27;&#x27; or new.sources&lt;&gt;&#x27;&#x27; or new.featured or new.publish_on is not null then
+       raise exception &#x27;Reader submissions contain an idea, sport and type only.&#x27;;
+     end if;
+     -- Serialise this account&#x27;s submissions before checking the daily limit.
+     perform pg_advisory_xact_lock(hashtextextended(auth.uid()::text,0));
+     if (select count(*) from public.editorial_ideas where user_id=auth.uid() and created_at&gt;now()-interval &#x27;24 hours&#x27;)&gt;=3 then
+       raise exception &#x27;Please limit suggestions to three per day.&#x27;;
+     end if;
+   end if;
+   new.status=case when length(trim(new.body))&gt;0 then &#x27;review&#x27; else &#x27;submitted&#x27; end; new.approved_hash=null; new.published_url=null;
+ else
+   if new.user_id is distinct from old.user_id or new.requires_review is distinct from old.requires_review then
+     raise exception &#x27;Submission ownership and review requirement cannot change.&#x27;;
+   end if;
+   new.approved_by=old.approved_by;
+   if new.research_requested_at is distinct from old.research_requested_at then
+     if coalesce(auth.jwt()-&gt;&#x27;app_metadata&#x27;-&gt;&gt;&#x27;fv_editor&#x27;,&#x27;false&#x27;)&lt;&gt;&#x27;true&#x27; then
+       raise exception &#x27;Only an editor can request research.&#x27;;
+     end if;
+     if old.status&lt;&gt;&#x27;submitted&#x27; or old.kind&lt;&gt;&#x27;analysis&#x27; then raise exception &#x27;Only submitted analysis ideas can enter research.&#x27;; end if;
+     new.research_requested_at=now();
+   end if;
+   if old.status in (&#x27;publishing&#x27;,&#x27;researching&#x27;) and auth.role()&lt;&gt;&#x27;service_role&#x27; then raise exception &#x27;Publication is in progress; retry editing after it finishes.&#x27;; end if;
+   changed = (new.title,new.body,new.byline,new.sources,new.kind,new.featured,new.publish_on,new.idea,new.sport)
+      is distinct from (old.title,old.body,old.byline,old.sources,old.kind,old.featured,old.publish_on,old.idea,old.sport);
+   if changed then new.status=case when length(trim(new.body))&gt;0 then &#x27;review&#x27; else &#x27;submitted&#x27; end; new.approved_hash=null; end if;
+   if new.status=&#x27;approved&#x27; and old.status&lt;&gt;&#x27;approved&#x27; then
+     if coalesce(auth.jwt()-&gt;&#x27;app_metadata&#x27;-&gt;&gt;&#x27;fv_editor&#x27;,&#x27;false&#x27;)&lt;&gt;&#x27;true&#x27; or old.status&lt;&gt;&#x27;review&#x27; or length(trim(new.title))=0 or length(trim(new.body))&lt;100 or length(trim(new.byline))=0 then
+       raise exception &#x27;Save a complete draft, then approve it as its owner.&#x27;;
+     end if;
+     new.approved_hash=content_hash; new.approved_by=auth.uid();
+   elsif new.status=&#x27;approved&#x27; and not changed then new.approved_hash=old.approved_hash;
+   end if;
+   if new.status=&#x27;publishing&#x27; and (auth.role()&lt;&gt;&#x27;service_role&#x27; or old.status not in (&#x27;approved&#x27;,&#x27;publishing&#x27;) or changed) then
+     raise exception &#x27;Only the publisher can claim an approved version.&#x27;;
+   end if;
+   if new.status=&#x27;published&#x27; and (auth.role()&lt;&gt;&#x27;service_role&#x27; or old.status&lt;&gt;&#x27;publishing&#x27; or new.approved_hash is distinct from old.approved_hash) then
+     raise exception &#x27;Only the publisher can mark an approved draft published.&#x27;;
+   end if;
+   if new.status not in (&#x27;approved&#x27;,&#x27;publishing&#x27;,&#x27;published&#x27;) then new.approved_hash=null; new.approved_by=null; end if;
+ end if;
+ return new;
+end $$;
+commit;
+</textarea><p>In Authentication → URL Configuration, keep the editorial desk redirect and add:</p><p><code>https://fourthandvalue.com/editorial/suggest.html</code></p><p>Email alerts also need a Resend API key and verified sender configured privately in GitHub Actions secrets. The inbox notification works without email delivery.</p><p><a href="/editorial/inbox.html">Back to the editorial desk</a></p></main><script>document.getElementById('copy').onclick=async()=>{const field=document.getElementById('sql');try{await navigator.clipboard.writeText(field.value);document.getElementById('message').textContent='Copied. Paste into Supabase SQL Editor and run.';}catch{field.focus();field.select();document.getElementById('message').textContent='SQL selected. Copy it and paste into Supabase SQL Editor.';}};</script><!-- fv-notices:footer:start --><section id="fv-responsible-footer" class="fv-use-footer" aria-label="Responsible use"><p>Fourth &amp; Value provides sports analysis for informational and entertainment purposes. We do not accept wagers. You are responsible for your wagering decisions and for meeting applicable age and legal requirements. Never wager money you cannot afford to lose.</p><p><a href="/terms.html">Terms &amp; privacy</a> · <a href="/terms.html#responsible-play">Responsible play</a> · U.S. gambling support: call or text <a href="tel:+18006973738">1-800-MY-RESET</a> or <a href="https://www.ncpgambling.org/help-treatment/">find confidential help</a>.</p></section><!-- fv-notices:footer:end --></body></html>

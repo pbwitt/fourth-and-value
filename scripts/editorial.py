@@ -219,7 +219,7 @@ def publish_approved(now,receipt):
     for row in response.json():
         if not row.get('approved_hash') or (row.get('publish_on') and row['publish_on']>now.astimezone(ETZ).date().isoformat()):continue
         # A revoked editor cannot publish through an old queued approval.
-        user=requests.get(base+'/auth/v1/admin/users/'+row['user_id'],headers=api_headers(),timeout=20)
+        user=requests.get(base+'/auth/v1/admin/users/'+(row.get('approved_by') or row['user_id']),headers=api_headers(),timeout=20)
         if not user.ok or user.json().get('app_metadata',{}).get('fv_editor') is not True:continue
         if not re.fullmatch(r'[0-9a-f-]{36}',row['id']):continue
         if not row['title'].strip() or len(row['body'].strip())<100 or not row['byline'].strip():continue

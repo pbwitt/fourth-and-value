@@ -1,0 +1,56 @@
+/* Isolated PostgreSQL integration test. FV_PGLITE points to a temporary npm install. */
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const mod=process.env.FV_PGLITE||'@electric-sql/pglite';
+const {PGlite}=require(mod),{pgcrypto}=require(mod+(path.isAbsolute(mod)?'/dist/contrib/pgcrypto.cjs':'/contrib/pgcrypto'));
+(async()=>{
+ const db=new PGlite({extensions:{pgcrypto}}),root=path.join(__dirname,'..');
+ await db.exec(`create schema auth; create schema extensions;
+ create role anon; create role authenticated; create role service_role bypassrls;
+ create table auth.users(id uuid primary key);
+ create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claims',true),'')::jsonb->>'sub' $$;
+ ` .replace("select nullif(current_setting('request.jwt.claims',true),'')::jsonb->>'sub'", "select (nullif(current_setting('request.jwt.claims',true),'')::jsonb->>'sub')::uuid"));
+ await db.exec(`create function auth.jwt() returns jsonb language sql stable as $$ select nullif(current_setting('request.jwt.claims',true),'')::jsonb $$;
+ create function auth.role() returns text language sql stable as $$ select auth.jwt()->>'role' $$;
+ grant usage on schema auth,public,extensions to authenticated,anon,service_role;
+ grant select on auth.users to authenticated,service_role;
+ insert into auth.users values ('11111111-1111-1111-1111-111111111111'),('22222222-2222-2222-2222-222222222222'),('33333333-3333-3333-3333-333333333333');`);
+ await db.exec(fs.readFileSync(path.join(root,'supabase/editorial.sql'),'utf8'));
+ await db.exec(fs.readFileSync(path.join(root,'supabase/editorial_submissions.sql'),'utf8'));
+ const reader='11111111-1111-1111-1111-111111111111',other='22222222-2222-2222-2222-222222222222',owner='33333333-3333-3333-3333-333333333333';
+ async function as(role,id,editor=false){await db.exec('reset role');await db.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({role,sub:id,app_metadata:{fv_editor:editor}})]);await db.exec('set role '+role);}
+ async function rejected(sql,params=[]){let failed=false;try{await db.query(sql,params);}catch{failed=true;}assert.ok(failed,'Expected rejection: '+sql);}
+ await as('authenticated',reader);
+ const row=(await db.query("insert into public.editorial_ideas(idea) values ('A reader angle') returning *")).rows[0];
+ assert.equal(row.requires_review,true);assert.equal(row.status,'submitted');assert.equal(row.approved_by,null);
+ await rejected("insert into public.editorial_ideas(idea,title) values ('Bypass','Fake published title')");
+ await rejected("insert into public.editorial_ideas(user_id,idea) values ($1,'Impersonate editor')",[owner]);
+ await db.query("insert into public.editorial_ideas(idea,created_at) values ('Second',now()-interval '10 days'),('Third',now()-interval '10 days')");
+ await rejected("insert into public.editorial_ideas(idea) values ('Fourth')");
+ assert.equal((await db.query("update public.editorial_ideas set status='approved' where id=$1 returning id",[row.id])).rows.length,0);
+ await as('authenticated',other);
+ assert.equal((await db.query('select id from public.editorial_ideas')).rows.length,0);
+ await as('anon',null);await rejected('select id from public.editorial_ideas');
+ await as('authenticated',owner,true);
+ assert.equal((await db.query('select id from public.editorial_ideas')).rows.length,3);
+ await db.query('update public.editorial_ideas set research_requested_at=now() where id=$1',[row.id]);
+ await rejected('update public.editorial_ideas set requires_review=false where id=$1',[row.id]);
+ await as('service_role',null);
+ await db.query("update public.editorial_ideas set status='researching' where id=$1",[row.id]);
+ await db.query("update public.editorial_ideas set title='Generated title',body=$2,byline='Fourth & Value',sources='https://example.com/source',status='review' where id=$1",[row.id,'Supported context. '.repeat(10)]);
+ await rejected("update public.editorial_ideas set status='approved' where id=$1",[row.id]);
+ await as('authenticated',owner,true);
+ let approved=(await db.query("update public.editorial_ideas set status='approved' where id=$1 returning *",[row.id])).rows[0];
+ assert.equal(approved.approved_by,owner);assert.equal(approved.approved_hash.length,64);
+ let changed=(await db.query("update public.editorial_ideas set title='Revised title' where id=$1 returning *",[row.id])).rows[0];
+ assert.equal(changed.status,'review');assert.equal(changed.approved_hash,null);assert.equal(changed.approved_by,null);
+ await db.query("update public.editorial_ideas set status='approved' where id=$1",[row.id]);
+ await rejected("update public.editorial_ideas set status='published' where id=$1",[row.id]);
+ const own=(await db.query("insert into public.editorial_ideas(idea) values ('Owner topic') returning *")).rows[0];
+ assert.equal(own.requires_review,false);
+ assert.equal((await db.query("update public.editorial_ideas set idea='Edited topic' where id=$1 returning status",[own.id])).rows[0].status,'submitted');
+ await as('service_role',null);
+ await db.query("update public.editorial_ideas set status='publishing' where id=$1",[row.id]);
+ await db.query("update public.editorial_ideas set status='published',published_url='/article' where id=$1",[row.id]);
+ assert.equal((await db.query('select status from public.editorial_ideas where id=$1',[row.id])).rows[0].status,'published');
+ await db.close();console.log('PostgreSQL permission checks passed: private intake, rate limit, research acceptance, approval, invalidation and publication.');
+})().catch(e=>{console.error(e);process.exitCode=1;});

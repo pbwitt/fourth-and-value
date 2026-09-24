@@ -367,3 +367,70 @@ non-morning cron string and requires it to rescue an unattempted slot. It also t
 the pre-5 AM guard, retryable `waiting_for_data`, non-retryable `started` slots,
 daily limits, funding state, MLB freshness, manual behavior, the writer kill switch,
 and the completed-marker assertion.
+
+## Phone ideas and reader submissions (September 24)
+
+Owner flow: sign in at `/editorial/inbox.html`, enter a short angle and sport,
+then Save idea. Title and body are optional. Submitted owner **analysis** ideas
+are considered ahead of ordinary rotation when daily slots are allocated;
+Thursday NFL priority remains first. One sport per daily edition still applies.
+Already allocated/attempted slots are not replaced, so late ideas may wait until
+the next day. Each researched idea uses one of the two existing daily paid
+attempts and the same rolling $9 guard; no additional paid service is used.
+A topic is not factual evidence. Fresh data, source collection and factual audit
+must pass. Successful owner ideas publish directly and are archived privately.
+Opinion ideas and general `Sports` ideas require personal editorial work; the
+writer does not invent an owner's opinion. Submit analysis under its actual sport.
+
+Reader flow: `/editorial/suggest.html` uses email sign-in, accepts at most three
+short suggestions per account per day, and exposes no other reader's submissions.
+Suggestions appear in the editor's inbox notification count. The editor can
+archive one or Accept for research. Acceptance authorizes one budgeted research
+attempt, **not publication**. The generated headline/body/sources are saved only
+in Supabase as Review, attributed to Fourth & Value and stamped with the market
+snapshot time. The editor can preview, edit and approve the exact saved draft.
+The existing hourly publisher then publishes it. Reader identity and original
+submission text are not exported to the public article or logs. Draft content
+changes invalidate prior approval. Research failures archive the idea with a
+private explanation instead of automatically charging again. A hard process crash
+can leave Researching/started; inspect the ledger before manually recovering it.
+
+### One-time activation
+
+1. Execute `supabase/editorial_submissions.sql` in the existing project's SQL
+   editor, after the already-installed `supabase/editorial.sql`. The browser page
+   `/editorial/setup.html` provides an exact copy button. Existing rows are kept;
+   reader origins are recorded immutably and require an editor's approval.
+   Current server credentials cannot execute schema-management SQL, so the project
+   administrator must perform this step. Do not rerun the old base SQL afterward.
+2. Add `https://fourthandvalue.com/editorial/suggest.html` to Supabase Auth's
+   allowed redirect URLs; retain the inbox URL. Sign out/in after changing roles.
+3. For email, configure GitHub Actions secrets `RESEND_API_KEY` and
+   `EDITORIAL_NOTIFY_FROM` (a sender address on a verified Resend domain).
+   `EDITORIAL_NOTIFY_EMAIL` is already configured privately for the owner.
+   Never commit the API key. Delivery uses https://api.resend.com/emails; see
+   https://resend.com/docs/api-reference/emails/send-email.
+   https://resend.com/docs/dashboard/emails/idempotency-keys documents the
+   provider's 24-hour deduplication window. Persistent notification timestamps
+   suppress ordinary repeats. A delivery followed by a failed database update
+   lasting beyond that provider window can produce a duplicate alert.
+4. Notification checks run with the hourly editorial workflow. Alerts contain a
+   desk link, not private submission text. New reader suggestions and completed
+   review drafts get separate alerts. No email is sent without configured
+   credentials; the inbox counts remain available. Notification failure cannot
+   block public market refreshes. This is an inbox badge, not OS push notifications.
+
+### Verification
+
+- `python -m unittest discover -s tests -p 'test_editorial*.py'` covers owner
+  direct publication, reader draft-only routing, acceptance, privacy and email
+  failure/idempotency behavior without paid API calls.
+- `tests/editorial_permissions.cjs` executes both SQL files in isolated PostgreSQL
+  (PGlite with pgcrypto). It verifies cross-account isolation, insert validation,
+  server-enforced daily limits, editor acceptance, approval, approval invalidation,
+  and service-only publishing. Set `FV_PGLITE` to the installed package directory.
+- Browser checks at 390px and 1440px verify idea-only saves, the reader submission
+  form, review controls and no horizontal overflow using isolated mock accounts.
+- After activation, submit one real reader suggestion, check its inbox badge,
+  confirm an email arrives, accept research, and verify the draft stays private
+  until approved. Live email delivery is unverified until Resend is configured.

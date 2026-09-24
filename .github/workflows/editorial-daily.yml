@@ -121,6 +121,13 @@ jobs:
       - name: Verify expected writer execution
         if: always() && needs.plan.outputs.writer_eligible == 'true'
         run: python scripts/editorial_schedule.py --verify-writer --expected-writer true
+      - name: Notify owner about reader suggestions and review drafts
+        continue-on-error: true
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EDITORIAL_NOTIFY_FROM: ${{ secrets.EDITORIAL_NOTIFY_FROM }}
+          EDITORIAL_NOTIFY_EMAIL: ${{ secrets.EDITORIAL_NOTIFY_EMAIL }}
+        run: python scripts/editorial_ideas.py
       - name: Prepare owner-approved articles and homepage
         run: python scripts/editorial.py --publish-approved --receipt /tmp/editorial-receipt.json
       - name: Include responsible-use notices
