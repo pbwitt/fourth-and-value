@@ -250,3 +250,22 @@ slots within the same two-article daily maximum and budget. There is no guarante
 of an exact completion time from GitHub's scheduler. The failing cloud NFL odds
 credential was replaced with the local credential verified against the NFL totals
 endpoint, restoring the opportunity to cover NFL as well as MLB tomorrow.
+
+## Recurring Thursday NFL preview
+
+On Thursdays (America/New_York), reserve one of the two daily article slots for
+the upcoming Thursday NFL matchup(s) in the odds feed. Friday UTC kickoffs count
+as Thursday when appropriate in Eastern time. With multiple Thursday games, lead
+with the evening game. No Thursday game means normal league rotation.
+
+The preview uses only those games’ market snapshots and matching model records,
+plus current team-specific reporting from multiple publishers. Cover verified
+availability, matchup context, named book prices, model limitations, a countercase,
+and a supported lean or pass. Do not manufacture a wager or injury-driven move.
+Targeted collection checks up to 30 recent items per feed, matching team names in
+headlines/URLs and excluding promotional offers. All usual source and data gates
+remain in force. Unspent slots missing data/reporting can retry at 06:37; paid
+attempts never automatically repeat. This replaces a daily slot, not an extra
+paid article, and retains the rolling spending cap.
+
+Regression checks: `python -m unittest discover -s tests -p 'test_editorial*.py'`.

@@ -19,12 +19,40 @@ Return ONLY a JSON object, no Markdown fences, with keys: publish (boolean), rea
 def load(path, default):
     return json.loads(path.read_text()) if path.exists() else default
 
-def slots(games, rotation=0, catalog=(), limit=2):
+def slots(games, rotation=0, catalog=(), limit=2, now=None):
     leagues=list(ed.CFG['sports'])
     active={g['sport'] for g in games}
     last={s:max((a['date'] for a in catalog if a.get('sport')==s),default='') for s in leagues}
     ordered=sorted(leagues,key=lambda s:(last[s],s not in active,(leagues.index(s)-rotation)%len(leagues)))
-    return [(s,'news-market') for s in ordered[:limit]]
+    thursday=thursday_games(games,now) if now else []
+    priority=[('NFL','thursday-preview:'+','.join(g['id'] for g in thursday))] if thursday else []
+    return (priority+[(s,'news-market') for s in ordered if not priority or s!='NFL'])[:limit]
+
+
+def thursday_games(games,now):
+    day=now.astimezone(ed.ETZ).date()
+    if day.weekday()!=3:return []
+    result=[]
+    for game in games:
+        try:start=ed.stamp(game['commence_time'])
+        except (KeyError,ValueError,TypeError):continue
+        if game.get('sport')=='NFL' and start>now and start.astimezone(ed.ETZ).date()==day:result.append(game)
+    return sorted(result,key=lambda g:g['commence_time'],reverse=True)
+
+def focus_preview(packet,angle):
+    if not angle.startswith('thursday-preview:'):return packet
+    ids=set(angle.split(':',1)[1].split(','))
+    packet=dict(packet)
+    packet['markets']=[g for g in packet['markets'] if g['id'].removeprefix('total-') in ids]
+    names={tuple(part.strip().split()[-1].lower() for part in g['game'].split('@')) for g in packet['markets']}
+    for key in ['model_rows','model_references']:
+        packet[key]=[r for r in packet.get(key,[]) if r.get('event_id') in ids or tuple(part.strip().split()[-1].lower() for part in r.get('game','').split('@') if part.strip()) in names]
+    packet['preview_instruction']='Thursday NFL preview: lead with the evening matchup. Cover matchup context, verified player availability, the current total and named book prices, any available model estimate and its limitations, a countercase, and a supported lean or explicit pass. Do not invent props or force a wager. If multiple Thursday games are supplied, identify the slate and prioritize the latest kickoff. Include Thursday preview and the featured teams in the headline.'
+    return packet
+
+def preview_terms(packet,angle):
+    if not angle.startswith('thursday-preview:'):return ()
+    return tuple(dict.fromkeys(part.strip().split()[-1].lower() for g in packet['markets'] for part in g['game'].split('@')))
 
 
 def evidence(sport, now):
@@ -206,8 +234,12 @@ def run(now,limit=2):
     collected={}
     if len(state.get('allocation',[]))<2:
         allocation=list(state.get('allocation',[]))
-        for sport,angle in slots(games,now.date().toordinal(),catalog,4):
+        for sport,angle in slots(games,now.date().toordinal(),catalog,4,now):
             if sport in {s for s,_ in allocation}:continue
+            if angle.startswith('thursday-preview:'):
+                allocation.append((sport,angle))
+                if len(allocation)>=2:break
+                continue
             candidate=evidence(sport,now)
             try:require_data(candidate)
             except ValueError as exc:
@@ -222,17 +254,18 @@ def run(now,limit=2):
         key=f'{index}-{sport.lower()}'
         if key in state['slots'] and state['slots'][key].get('status')!='waiting_for_data':continue
         story_now=datetime.now(timezone.utc)
-        packet=evidence(sport,story_now)
+        packet=focus_preview(evidence(sport,story_now),angle)
         try:require_data(packet)
         except ValueError as exc:
             state['slots'][key]={'status':'waiting_for_data','reason':str(exc),'data_readiness':packet.get('data_readiness',{})}
             ed.write_json(statepath,state);continue
-        packet['reporting']=collected.get(sport) or reporting.collect(sport,story_now)
+        terms=preview_terms(packet,angle)
+        packet['reporting']=collected.get(sport) or (reporting.collect(sport,story_now,terms=terms) if terms else reporting.collect(sport,story_now))
         packet=compact(packet)
         require_data(packet)
         recent=[a['title'] for a in ed.CFG['articles']+catalog if a.get('sport')==sport][-8:]
         if not packet['reporting']:
-            state['slots'][key]={'status':'skipped','reason':'Insufficient current publisher evidence'}
+            state['slots'][key]={'status':'waiting_for_data','reason':'Insufficient current publisher evidence for the assigned matchup'}
             ed.write_json(statepath,state)
             continue
         reservation=day+'-'+key

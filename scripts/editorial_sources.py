@@ -57,7 +57,7 @@ def text_content(html):
         if len(p.split())>=12 and not re.search(r'privacy policy|all rights reserved|subscribe to|sign up for|terms of use',p,re.I):paragraphs.append(p)
     return '\n\n'.join(dict.fromkeys(paragraphs))
 
-def candidates(sport,now):
+def candidates(sport,now,limit=3):
     feeds=[f'https://sports.yahoo.com/{sport.lower()}/rss.xml',f'https://www.cbssports.com/rss/headlines/{sport.lower()}/',ed.CFG['news_feeds'][sport]]
     if sport=='MLB':feeds.insert(0,'https://www.mlb.com/feeds/news/rss.xml')
     found=[]
@@ -73,12 +73,13 @@ def candidates(sport,now):
                 if not title:continue
                 found.append(dict(title=title[:200],url=url,published_at=date.date().isoformat(),published_timestamp=date.isoformat()))
                 count+=1
-                if count>=3:break
+                if count>=limit:break
         except (requests.RequestException,ValueError,ET.ParseError):continue
     return found
 
-def collect(sport,now,seen_urls=()):
-    found=candidates(sport,now)
+def collect(sport,now,seen_urls=(),terms=()):
+    found=candidates(sport,now,limit=30 if terms else 3)
+    if terms:found=[s for s in found if any(term in (s['title']+' '+s['url']).lower() for term in terms) and not re.search(r'promo code|bonus bets|sign.up offer',s['title'],re.I)]
     # Prefer new reporting; a materially updated story may still use an older source.
     found.sort(key=lambda s:(s['url'] in seen_urls,-ed.stamp(s['published_timestamp']).timestamp()))
     selected=[];hosts=set()
