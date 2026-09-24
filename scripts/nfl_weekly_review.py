@@ -369,7 +369,8 @@ def pct(value):
     return 'n/a' if value is None else f'{100*value:.1f}%'
 
 
-def render_article(season,completed,preview,summary,totals,prop,preview_data,outdir):
+def render_article(season,completed,preview,summary,totals,prop,preview_data,outdir,root=ROOT):
+    blog=Path(root)/'docs/blog';blog.mkdir(parents=True,exist_ok=True)
     title=f'NFL Week {completed} review: the model receipts and the Week {preview} watchlist'
     desc=f'An audited Week {completed} scorecard using frozen pregame data, plus Fourth & Value model-market disagreements to research for Week {preview}.'
     ticket=summary['props']['tickets'];closing=summary['totals']['closing'];prob=summary['props'].get('probability_overall')
@@ -388,13 +389,13 @@ def render_article(season,completed,preview,summary,totals,prop,preview_data,out
 <h2>Week {preview}: disagreement is a research question</h2><p>The new weekly refresh is frozen before the first kickoff. The largest raw totals disagreements are:</p><ul>{gaps or '<li>No complete model/market total comparisons passed the archive checks.</li>'}</ul><figure><img src="week-{completed}-week-{preview}-{season}/preview.svg" alt="Week {preview} model minus market total gaps" style="width:100%"><figcaption>Raw model minus archived median total. These gaps are not automatically betting recommendations.</figcaption></figure>
 <h3>Player props to recheck</h3><ul>{props or '<li>No qualifying modeled prop rows were available in the frozen preview shortlist.</li>'}</ul><p>These are saved prices from the weekly archive. Recheck the current line, price, injury status and role before treating any one of them as actionable. Model status labels are shown rather than hidden.</p>
 <h2>Audit notes</h2><p>The completed-week scorecard uses only the frozen pregame archive for Week {completed} and official results/player statistics available after the games. The preview uses a separate frozen Week {preview} archive. The workflow refuses to create a new archive after a game has started, refuses to overwrite an existing archive whose hashes do not match, and refuses to publish a review while any official Week {completed} game remains unplayed.</p><p><a href="week-{completed}-{season}-review-data.json">Download the public review data</a> · <a href="/">Back to Fourth &amp; Value</a></p></main></body></html>'''
-    path=BLOG/f'week-{completed}-recap-week-{preview}-preview-{season}.html'
+    path=blog/f'week-{completed}-recap-week-{preview}-preview-{season}.html'
     path.write_text(html_text+'\n')
     return path,title,desc
 
 
-def update_discovery(path,title,desc,date):
-    blog=BLOG/'index.html'
+def update_discovery(path,title,desc,date,root=ROOT):
+    blog=Path(root)/'docs/blog/index.html'
     if blog.exists():
         text=blog.read_text();href='./'+Path(path).name
         if href not in text:
@@ -403,7 +404,7 @@ def update_discovery(path,title,desc,date):
             if marker not in text:raise ValueError('Blog managed marker missing')
             text=text.replace(marker,marker+card)
             blog.write_text(text)
-    sitemap=ROOT/'docs/sitemap.xml'
+    sitemap=Path(root)/'docs/sitemap.xml'
     if sitemap.exists():
         text=sitemap.read_text();url='https://fourthandvalue.com/blog/'+Path(path).name
         if url not in text:
@@ -435,7 +436,8 @@ def review_week(season,completed,preview,root=ROOT):
     prop['tickets'].to_csv(review_dir/'tickets.csv',index=False)
     prop['paired'].to_csv(review_dir/'probability_comparison.csv',index=False)
     games.to_csv(review_dir/'games.csv',index=False)
-    outdir=BLOG/f'week-{completed}-week-{preview}-{season}'
+    blog=Path(root)/'docs/blog';blog.mkdir(parents=True,exist_ok=True)
+    outdir=blog/f'week-{completed}-week-{preview}-{season}'
     outdir.mkdir(parents=True,exist_ok=True)
     close_col='closing_error' if 'closing_error' in games else 'market_error'
     chart(outdir/'totals.svg',f'Week {completed}: final points vs recorded close','Negative finished under; positive finished over',
@@ -449,10 +451,10 @@ def review_week(season,completed,preview,root=ROOT):
         tickets=json.loads(prop['tickets'][['stat_game','player','market_std','name','point','price','bookmaker','model_prob','consensus_prob','ev_per_100','actual','outcome','units','grading_status']].to_json(orient='records')) if not prop['tickets'].empty else [],
         games=json.loads(games[['game','home_score','away_score','actual_total','market_total','total_pred','total_line','model_pick','model_result','model_units']].to_json(orient='records')),
         preview=preview_data)
-    data_path=BLOG/f'week-{completed}-{season}-review-data.json'
+    data_path=blog/f'week-{completed}-{season}-review-data.json'
     data_path.write_text(json.dumps(public,indent=2,allow_nan=False)+'\n')
-    article,title,desc=render_article(season,completed,preview,summary,games,prop,preview_data,outdir)
-    update_discovery(article,title,desc,datetime.now().date().isoformat())
+    article,title,desc=render_article(season,completed,preview,summary,games,prop,preview_data,outdir,root)
+    update_discovery(article,title,desc,datetime.now().date().isoformat(),root)
     print(json.dumps(dict(status='published',article=str(article.relative_to(root)),summary=str((review_dir/'summary.json').relative_to(root)),
         tickets=summary['props']['tickets'],totals=summary['totals']['model_direction']),indent=2))
     return summary
