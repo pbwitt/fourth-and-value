@@ -2,9 +2,11 @@ name: MLB Daily Update
 
 on:
   schedule:
-    # 11:15 AM and 5:15 PM Eastern during daylight time; hourly DST shift in winter.
-    - cron: '15 15,21 * * *'
+    # Morning editorial calls this workflow before writing; daytime checks keep picks fresh.
+    - cron: '15 10-22 * * *'
+      timezone: America/New_York
   workflow_dispatch:
+  workflow_call:
 
 concurrency:
   group: mlb-daily-update

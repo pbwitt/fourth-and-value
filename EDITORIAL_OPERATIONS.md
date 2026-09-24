@@ -90,7 +90,7 @@ our market/model data and source metadata, **not publisher excerpts**. API respo
 remain in ignored `.editorial-cache/`; secrets never enter public files.
 
 Fresh future-game quotes have a six-hour maximum age. Background model references
-must be at most 24 hours old and carry no stale quote or EV. Feature packets retain
+must be at most six hours old and carry no stale quote or EV. Feature packets retain
 model status and data cutoff dates; no validation result is inferred from missing
 data. NBA/NHL research-only estimates must not be presented as established edges.
 
@@ -210,3 +210,35 @@ Privacy copy now describes private editorial submissions and distinguishes accou
 data from technical/provider data. AdSense remains inactive; provider-specific
 privacy disclosures and applicable consent controls must be implemented before
 activation. These changes are not a legal opinion or certification of enforceability.
+
+## September 23: data before editorial publication
+
+The earlier schedules let morning writing precede the MLB daily model update. An
+input-size reducer could also remove every market row. Both are corrected. The
+morning editorial job now calls the reusable MLB refresh workflow, waits for it to
+finish and checks out the published main branch afterward. It then fetches the
+current all-league price briefing, records per-league readiness, and only then writes.
+Hourly homepage-only runs do not launch MLB or paid writing. Manual price/writer
+refreshes follow the same MLB dependency. Failed data jobs do not prevent price
+status publication, but cannot bypass the writer's readiness checks.
+
+MLB also refreshes hourly at :15 from 10 a.m. through 10 p.m. America/New_York.
+The 90-minute model-pick expiry is unchanged; scheduling delays can still leave
+gaps, and we do not extend stale picks to disguise them. This increases Odds API
+requests; OpenAI article count and the $9 rolling budget remain unchanged.
+
+All analysis requires a fresh current-day briefing and an actual current market or
+model record. MLB additionally requires successful quotes and model checks within
+90 minutes, a ready model, and model history through yesterday's Eastern date.
+Missing data is recorded before any paid call. Unspent waiting slots may be retried
+after data recovery; previously attempted paid slots are never automatically retried.
+The writer must cite at least one current evidence ID in its article. The input
+reducer keeps at least one market and model row when available, reducing repeated
+book quotes, background references and source excerpts first. Oversized requests
+remain blocked by the existing budget limits.
+
+NFL, NBA and NHL may use fresh price data without claiming a current or validated
+forecast. The gate does not fabricate projections or force an offseason story.
+`python scripts/editorial_writer.py --inspect-data` reports availability without
+calling a paid API. Existing September 23 analysis remains dated; it is not silently
+rewritten with later quotes.

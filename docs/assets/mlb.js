@@ -17,7 +17,7 @@
   const events=(data.events||[]).filter(e=>Date.parse(e.commence_time)>now);
   const rows=(!stale&&!failed?(data.rows||[]):[]).filter(r=>Date.parse(r.commence_time)>now&&now-Date.parse(r.quoted_at)<=12*3600e3&&Date.parse(r.quoted_at)<=now+300e3);
   let message=failed?'The latest MLB refresh failed. Saved odds are hidden until the feed recovers.':stale?'The MLB snapshot needs a refresh. Stale odds are hidden.':rows.length?'Saved MLB quotes are available. Confirm the current price with your sportsbook.':'Waiting for MLB markets. No recent quotes are available in this snapshot.';
-  status.innerHTML=`<strong>${esc(message)}</strong><p>Last successful check: ${esc(time(data.last_success_at))}. ${rows.length} quotes · ${events.length} scheduled games.</p>`;
+  status.innerHTML=`<strong>${esc(message)}</strong><p>Last successful check: ${esc(time(data.last_success_at))}. ${rows.length} quotes · ${events.length} scheduled games.</p><p>MLB refreshes before morning analysis and is scheduled hourly from 10:15 a.m. through 10:15 p.m. ET. Model picks expire after 90 minutes; delayed runs may leave a gap.</p>`;
   $('history-status').textContent=data.history_error?'Season statistics are unavailable while the MLB feed recovers.':data.history_checked_at?'Regular-season statistics through '+data.history_through_date+'; checked '+time(data.history_checked_at)+'.':'Season statistics are awaiting an update.';
   if(data.props_events_skipped)$('history-status').textContent+=' Props coverage cap: '+data.props_events_skipped+' additional games await a later refresh.';
   const modelAge=now-Date.parse(data.model_checked_at);

@@ -23,7 +23,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  refresh-mlb:
+    if: github.event.schedule == '7 6 * * *' || (github.event_name == 'workflow_dispatch' && inputs.refresh_briefing)
+    permissions:
+      contents: write
+      pages: write
+    uses: ./.github/workflows/mlb-daily.yml
+    secrets: inherit
   publish:
+    needs: refresh-mlb
+    # Briefing/freshness still publishes after an upstream failure; writer checks data separately.
+    if: always() && !cancelled()
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
@@ -57,6 +67,8 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python scripts/editorial_writer.py --check-api
+      - name: Record current data readiness
+        run: python scripts/editorial_writer.py --inspect-data
       - name: Research and publish original analysis
         if: github.event.schedule == '7 6 * * *' || (github.event_name == 'workflow_dispatch' && inputs.refresh_briefing)
         env:
