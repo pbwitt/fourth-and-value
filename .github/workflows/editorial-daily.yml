@@ -11,6 +11,14 @@ on:
       timezone: America/New_York
   workflow_dispatch:
     inputs:
+      idea_id:
+        description: 'Private idea UUID for an editor-authorized Write now request'
+        type: string
+        required: false
+      publish_own:
+        description: 'Publish an owner idea only if its saved request also permits it'
+        type: boolean
+        default: false
       check_api:
         description: Verify the configured API key with a bounded paid probe
         type: boolean
@@ -43,15 +51,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - run: pip install requests jinja2
       - name: Plan this editorial run from current state
         id: plan
         env:
+          REQUESTED_ID: ${{ inputs.idea_id }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.UPABASE_SERVICE_ROLE_KEY }}
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           GITHUB_EVENT_SCHEDULE: ${{ github.event.schedule }}
         run: |
           manual=false
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.refresh_briefing }}" = "true" ]; then manual=true; fi
-          python scripts/editorial_schedule.py --manual-refresh "$manual"
+          python scripts/editorial_schedule.py --manual-refresh "$manual" --idea-id "$REQUESTED_ID"
       - name: Show planner decision
         run: |
           echo "mode=${{ steps.plan.outputs.mode }}"
@@ -117,10 +129,23 @@ jobs:
         if: needs.plan.outputs.writer_eligible == 'true'
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: python scripts/editorial_writer.py
+          REQUESTED_ID: ${{ inputs.idea_id }}
+          PUBLISH_OWN: ${{ inputs.publish_own }}
+        run: |
+          if [ -n "$REQUESTED_ID" ]; then
+            if [ "$PUBLISH_OWN" = "true" ]; then
+              python scripts/editorial_writer.py --idea "$REQUESTED_ID" --publish-own
+            else
+              python scripts/editorial_writer.py --idea "$REQUESTED_ID"
+            fi
+          else
+            python scripts/editorial_writer.py
+          fi
       - name: Verify expected writer execution
         if: always() && needs.plan.outputs.writer_eligible == 'true'
-        run: python scripts/editorial_schedule.py --verify-writer --expected-writer true
+        env:
+          REQUESTED_ID: ${{ inputs.idea_id }}
+        run: python scripts/editorial_schedule.py --verify-writer --expected-writer true --idea-id "$REQUESTED_ID"
       - name: Notify owner about reader suggestions and review drafts
         continue-on-error: true
         env:

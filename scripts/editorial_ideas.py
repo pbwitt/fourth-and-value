@@ -26,6 +26,7 @@ def pending(now):
     rows=request('GET','/rest/v1/editorial_ideas',params={'status':'eq.submitted','select':'*','order':'created_at.asc','limit':'100'})
     result=[]
     for row in rows:
+        if row.get('write_now_requested_at'):continue
         if row.get('kind')!='analysis' or row.get('body','').strip():continue
         if row.get('sport') not in ed.CFG['sports']:continue
         if row.get('publish_on') and row['publish_on']>now.astimezone(ed.ETZ).date().isoformat():continue
@@ -49,7 +50,7 @@ def get(idea_id):
 
 def claim(row):
     return bool(request('PATCH','/rest/v1/editorial_ideas',params={
-        'id':'eq.'+row['id'],'status':'eq.submitted','updated_at':'eq.'+row['updated_at']},json={'status':'researching'}))
+        'id':'eq.'+row['id'],'status':'eq.submitted','updated_at':'eq.'+row['updated_at']},json={'status':'researching','research_error':None}))
 
 
 def context(row,packet):
@@ -77,6 +78,12 @@ def finish(row):
     request('PATCH','/rest/v1/editorial_ideas',params={'id':'eq.'+row['id'],'status':'eq.researching'},json={'status':'archived'})
 
 
+def waiting(row,message):
+    try:
+        request('PATCH','/rest/v1/editorial_ideas',params={'id':'eq.'+row['id'],'status':'eq.submitted'},json={'research_error':message})
+    except (RuntimeError,requests.RequestException):pass
+
+
 def fail(row):
     request('PATCH','/rest/v1/editorial_ideas',params={'id':'eq.'+row['id'],'status':'eq.researching'},
         json={'status':'archived','research_error':'Research could not produce a verified article. Archived to prevent repeated charges. Submit a revised idea to try again.'})
@@ -84,8 +91,7 @@ def fail(row):
 
 def notify(now):
     if not configured():return
-    rows=request('GET','/rest/v1/editorial_ideas',params={'requires_review':'eq.true',
-        'or':'(and(status.eq.submitted,notification_sent_at.is.null),and(status.eq.review,draft_notification_sent_at.is.null))','select':'id,status,notification_sent_at,draft_notification_sent_at','order':'created_at.asc','limit':'100'})
+    rows=request('GET','/rest/v1/editorial_ideas',params={'or':'(and(requires_review.eq.true,status.eq.submitted,notification_sent_at.is.null),and(status.eq.review,draft_notification_sent_at.is.null))','select':'id,status,notification_sent_at,draft_notification_sent_at','order':'created_at.asc','limit':'100'})
     groups=[('submitted','notification_sent_at'),('review','draft_notification_sent_at')]
     key=os.getenv('RESEND_API_KEY');sender=os.getenv('EDITORIAL_NOTIFY_FROM');recipient=os.getenv('EDITORIAL_NOTIFY_EMAIL')
     if not all([key,sender,recipient]):

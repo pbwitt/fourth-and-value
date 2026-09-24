@@ -6,6 +6,8 @@ on:
       - 'scripts/editorial*.py'
       - 'tests/test_editorial*.py'
       - 'tests/editorial_permissions.cjs'
+      - 'tests/editorial_dispatch.cjs'
+      - 'supabase/functions/editorial-write-now/**'
       - 'supabase/editorial*.sql'
       - 'docs/editorial/*.js'
       - '.github/workflows/editorial*.yml'
@@ -30,6 +32,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - run: node tests/editorial_dispatch.cjs
       - name: Test private reader permissions in isolated PostgreSQL
         run: |
           npm install --prefix /tmp/fv-editorial-db @electric-sql/pglite@0.5.8

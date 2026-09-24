@@ -434,3 +434,54 @@ can leave Researching/started; inspect the ledger before manually recovering it.
 - After activation, submit one real reader suggestion, check its inbox badge,
   confirm an email arrives, accept research, and verify the draft stays private
   until approved. Live email delivery is unverified until Resend is configured.
+
+## Write now: explicit extra research, September 24
+
+The phone desk now distinguishes Save idea (daily queue) from Write now (a
+separate, explicit writing request). Select a saved submitted analysis idea under
+NFL/MLB/NBA/NHL. Write now defaults to a private draft for approval. An owner can
+select automatic publication for their own idea; a reader-originated idea cannot
+bypass draft approval. A future earliest-publication date also prevents immediate
+automatic publication. Opinion/general Sports submissions need personal editing.
+
+An on-demand request can run after the two automatic daily slots are filled, but
+still uses the shared rolling $9 budget. Separate UUID-keyed state and reservation
+keys prevent duplicate paid attempts and filename collisions. Source/data checks
+remain mandatory. A free data/source failure can be explicitly retried; a started
+or terminal paid attempt cannot. On-demand-reserved ideas are excluded from the
+automatic rotation, preventing an automatic publish while a draft was requested.
+Failed dispatch keeps the idea reserved for explicit retry instead of silently
+returning it to automatic publication. New drafts, including owner-requested ones,
+are eligible for configured email notifications. No OS push notification is added.
+
+### Activation
+
+Use `/editorial/write-now-setup.html` for copy buttons and dashboard steps:
+1. Run `supabase/editorial_write_now.sql` after the reader-submission migration.
+2. Deploy `supabase/functions/editorial-write-now/index.ts` as the Edge Function
+   `editorial-write-now`, keeping JWT verification enabled.
+3. Set Edge Function secret `GITHUB_EDITORIAL_TOKEN`: a fine-grained GitHub token
+   limited to this repository with Actions read/write. Supabase supplies its URL
+   and anon key. Do not expose the dispatch token in HTML or JavaScript.
+4. Test a saved idea from the desk, then verify the draft remains private.
+
+Existing service-role credentials cannot deploy Edge Functions or execute SQL
+schema migrations; a Supabase administrator must perform those setup steps.
+Email still needs RESEND_API_KEY and EDITORIAL_NOTIFY_FROM in GitHub Actions.
+The recipient is configured. Delivery is checked by the editorial workflow;
+while the desk is open, inbox counts refresh every 60 seconds. GitHub queuing and
+refresh processing mean Write now is a job request, not instant article output.
+
+The function checks the caller's current Supabase editor metadata, restricts
+origins to the production site, validates the saved idea, uses an optimistic
+update to prevent simultaneous clicks, and keeps the GitHub token server-side.
+SQL enforces a one-minute request cooldown and forces reader requests to drafts.
+Only the idea UUID and publication preference reach GitHub workflow inputs.
+Reference: https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event
+and https://supabase.com/docs/guides/functions/secrets.
+
+Verification includes `node tests/editorial_dispatch.cjs` (mocked network), the
+PostgreSQL permission integration test with the additional migration, and Python
+coverage proving explicit owner requests produce private drafts even with both
+automatic daily slots already published. No live paid generation or email delivery
+is claimed until the function and email credentials are configured and tested.

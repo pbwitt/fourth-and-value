@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -158,12 +159,13 @@ def write_outputs(result,path):
             stream.write(f"{key}={value}\n")
 
 
-def verify_writer(root=ROOT,now=None,expected=False):
+def verify_writer(root=ROOT,now=None,expected=False,idea_id=None):
     now=(now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     if not expected:
         print(json.dumps(dict(status="not-required")))
         return
-    state=today_state(root,now)
+    if idea_id and not re.fullmatch(r'[0-9a-f-]{36}',idea_id):raise ValueError('Invalid idea identifier')
+    state=load(Path(root)/'docs/editorial/runs'/('requested-'+idea_id+'.json'),{}) if idea_id else today_state(root,now)
     marker=state.get("last_writer_check",{})
     checked=stamp(marker.get("at"))
     if marker.get("status")!="completed" or not checked or abs((now-checked.astimezone(timezone.utc)).total_seconds())>7200:
@@ -175,6 +177,7 @@ def verify_writer(root=ROOT,now=None,expected=False):
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--idea-id",default="")
     p.add_argument("--verify-writer",action="store_true")
     p.add_argument("--expected-writer",choices=["true","false"],default="false")
     p.add_argument("--event-name",default=os.getenv("GITHUB_EVENT_NAME",""))
@@ -182,10 +185,18 @@ def main():
     p.add_argument("--manual-refresh",choices=["true","false"],default="false")
     args=p.parse_args()
     if args.verify_writer:
-        verify_writer(expected=args.expected_writer=="true")
+        verify_writer(expected=args.expected_writer=="true",idea_id=args.idea_id or None)
         return
     result=plan(event_name=args.event_name,event_schedule=args.event_schedule,
         manual_refresh=args.manual_refresh=="true")
+    if args.idea_id:
+        if args.event_name!='workflow_dispatch' or not re.fullmatch(r'[0-9a-f-]{36}',args.idea_id):raise SystemExit('Invalid Write now request')
+        import editorial_ideas as ideas
+        row=ideas.get(args.idea_id)
+        if not row or row.get('kind')!='analysis' or row.get('sport') not in ('NFL','MLB','NBA','NHL'):raise SystemExit('Idea is unavailable or needs personal editorial work')
+        if not row.get('write_now_requested_at'):raise SystemExit('Idea has no editor-authorized Write now request')
+        eligible=bool(config(ROOT).get('writing_enabled') and row['status']=='submitted')
+        result.update(mode='requested-idea',writer_eligible=eligible,writer_needed=eligible,writer_reason='explicit_editor_request',refresh_briefing=eligible,refresh_mlb=eligible and row['sport']=='MLB')
     print(json.dumps(result,indent=2))
     write_outputs(result,os.getenv("GITHUB_OUTPUT"))
 

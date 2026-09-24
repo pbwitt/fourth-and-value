@@ -325,18 +325,24 @@ def payload(instructions,data,phase):
     budget.bounds(result,phase)
     return result
 
-def run(now,limit=2):
+def run(now,limit=2,idea_id=None,publish_own=False):
     if not ed.CFG.get('writing_enabled'):
         print('Writing disabled in config; no paid calls.');return
     cfg=ed.CFG['writer'];day=now.astimezone(ed.ETZ).date().isoformat()
-    statepath=STATE/(day+'.json');state=load(statepath,{'date':day,'slots':{}})
+    if idea_id and not re.fullmatch(r'[0-9a-f-]{36}',idea_id):raise ValueError('Invalid idea identifier')
+    statepath=STATE/((('requested-'+idea_id) if idea_id else day)+'.json')
+    state=load(statepath,{'date':day,'slots':{}})
+    if idea_id and not state.get('allocation'):
+        requested=ideas.get(idea_id)
+        if not requested or requested.get('kind')!='analysis' or requested.get('sport') not in ed.CFG['sports']:raise ValueError('Requested idea is unavailable or needs personal editorial work')
+        state['allocation']=[(requested['sport'],'idea:'+idea_id)]
     state['last_writer_check']={'at':datetime.now(timezone.utc).isoformat(),'status':'started'}
     ed.write_json(statepath,state)
     catalogpath=ed.DOCS/'editorial/published.json';catalog=load(catalogpath,[])
     games=ed.context(load(ed.PUBLIC/'latest.json',{}),now)['games']
     # Persist allocation so refresh/retry cannot change the same day's slots.
     collected={}
-    if len(state.get('allocation',[]))<2:
+    if not idea_id and len(state.get('allocation',[]))<2:
         allocation=list(state.get('allocation',[]))
         regular=slots(games,now.date().toordinal(),catalog,4,now)
         try:queued=ideas.pending(now)
@@ -370,6 +376,9 @@ def run(now,limit=2):
             except (RuntimeError,requests.RequestException):
                 state['slots'][key]={'status':'waiting_for_data','reason':'Private idea could not be loaded'}
                 ed.write_json(statepath,state);continue
+            if idea and idea.get('write_now_requested_at') and not idea_id:
+                state['slots'][key]={'status':'skipped','reason':'Idea reserved for an explicit Write now request'}
+                ed.write_json(statepath,state);continue
             if not idea or idea['status']!='submitted' or idea.get('kind')!='analysis' or idea.get('sport')!=sport or (not idea['owner_idea'] and not idea.get('research_requested_at')):
                 state['slots'][key]={'status':'skipped','reason':'Idea no longer eligible for research'}
                 ed.write_json(statepath,state);continue
@@ -377,6 +386,7 @@ def run(now,limit=2):
         packet=focus_preview(evidence(sport,story_now),angle)
         try:require_data(packet)
         except ValueError as exc:
+            if idea:ideas.waiting(idea,'Waiting for fresh market/model data. No writing charge has been made.')
             state['slots'][key]={'status':'waiting_for_data','reason':str(exc),'data_readiness':packet.get('data_readiness',{})}
             ed.write_json(statepath,state);continue
         terms=preview_terms(packet,angle)
@@ -396,11 +406,13 @@ def run(now,limit=2):
         require_data(packet)
         recent=[a['title'] for a in ed.CFG['articles']+catalog if a.get('sport')==sport][-8:]
         if not packet['reporting']:
+            if idea:ideas.waiting(idea,'Waiting for sufficient current reporting. No writing charge has been made.')
             state['slots'][key]={'status':'waiting_for_data','reason':'Insufficient current publisher evidence for the assigned matchup'}
             ed.write_json(statepath,state)
             continue
-        reservation=day+'-'+key
+        reservation=('requested-'+idea_id) if idea_id else day+'-'+key
         if not budget.reserve(reservation,story_now,cfg['weekly_budget_usd']):
+            if idea:ideas.waiting(idea,'Writing is paused by the weekly spending guard or an existing reservation. No new paid request was made.')
             print('::warning::Rolling editorial budget reached; no paid request.');break
         usages=[];accounted=True;idea_claimed=False
         state['slots'][key]={'status':'started','model':cfg['model'],'effort':cfg['reasoning_effort'],'at':story_now.isoformat()}
@@ -438,13 +450,13 @@ def run(now,limit=2):
             verdict=json.loads(re.sub(r'^```(?:json)?\s*|\s*```$','',response_text(review).strip()))
             state['slots'][key]['audit_reason']='Private idea audit completed' if idea else verdict.get('reason','')
             if verdict.get('pass') is not True:raise ValueError('Factual audit did not pass: '+verdict.get('reason',''))
-            if idea and not idea['owner_idea']:
+            if idea and (not idea['owner_idea'] or (idea_id and not (publish_own and idea.get('write_now_publish',False) and (not idea.get('publish_on') or idea['publish_on']<=day)))):
                 ideas.save_draft(idea,article,story_now)
                 state['slots'][key].update(status='review',words=words)
-                print('Reader-inspired draft saved privately for editor approval.',flush=True)
+                print('Requested draft saved privately for editor approval.',flush=True)
                 continue
             if idea:ideas.finish(idea)
-            slug=f'{day}-{key}';url=f'/editorial/articles/{slug}.html'
+            slug=f'{day}-idea-{idea_id}' if idea_id else f'{day}-{key}';url=f'/editorial/articles/{slug}.html'
             item=dict(title=article['title'],excerpt=article['excerpt'],sport=sport,kind='Analysis',date=day,url=url,featured=True,published_at=datetime.now(timezone.utc).isoformat())
             starts=[ed.stamp(g['commence_time']) for g in packet['markets'] if g['id'] in article['market_ids']]
             item['featured_until']=min(starts+[story_now+timedelta(days=3)]).isoformat()
@@ -499,7 +511,7 @@ def check_api(now):
     finally:budget.settle(key,usages,complete)
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('--limit',type=int,default=2);p.add_argument('--check-api',action='store_true');p.add_argument('--inspect-data',action='store_true');a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('--limit',type=int,default=2);p.add_argument('--idea');p.add_argument('--publish-own',action='store_true');p.add_argument('--check-api',action='store_true');p.add_argument('--inspect-data',action='store_true');a=p.parse_args()
     if a.inspect_data:
         for sport in ed.CFG['sports']:
             packet=evidence(sport,datetime.now(timezone.utc))
@@ -507,4 +519,4 @@ if __name__=='__main__':
             except ValueError as exc:packet['data_readiness'].update(ready=False,reason=str(exc))
             print(json.dumps(dict(sport=sport,**packet['data_readiness'],markets=len(packet['markets']),model_rows=len(packet['model_rows']),model_references=len(packet['model_references']))))
     elif a.check_api:check_api(datetime.now(timezone.utc))
-    else:run(datetime.now(timezone.utc),a.limit)
+    else:run(datetime.now(timezone.utc),a.limit,idea_id=a.idea,publish_own=a.publish_own)

@@ -16,6 +16,7 @@ const {PGlite}=require(mod),{pgcrypto}=require(mod+(path.isAbsolute(mod)?'/dist/
  insert into auth.users values ('11111111-1111-1111-1111-111111111111'),('22222222-2222-2222-2222-222222222222'),('33333333-3333-3333-3333-333333333333');`);
  await db.exec(fs.readFileSync(path.join(root,'supabase/editorial.sql'),'utf8'));
  await db.exec(fs.readFileSync(path.join(root,'supabase/editorial_submissions.sql'),'utf8'));
+ await db.exec(fs.readFileSync(path.join(root,'supabase/editorial_write_now.sql'),'utf8'));
  const reader='11111111-1111-1111-1111-111111111111',other='22222222-2222-2222-2222-222222222222',owner='33333333-3333-3333-3333-333333333333';
  async function as(role,id,editor=false){await db.exec('reset role');await db.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({role,sub:id,app_metadata:{fv_editor:editor}})]);await db.exec('set role '+role);}
  async function rejected(sql,params=[]){let failed=false;try{await db.query(sql,params);}catch{failed=true;}assert.ok(failed,'Expected rejection: '+sql);}
@@ -32,7 +33,9 @@ const {PGlite}=require(mod),{pgcrypto}=require(mod+(path.isAbsolute(mod)?'/dist/
  await as('anon',null);await rejected('select id from public.editorial_ideas');
  await as('authenticated',owner,true);
  assert.equal((await db.query('select id from public.editorial_ideas')).rows.length,3);
- await db.query('update public.editorial_ideas set research_requested_at=now() where id=$1',[row.id]);
+ const requested=(await db.query('update public.editorial_ideas set research_requested_at=now(),write_now_requested_at=now(),write_now_publish=true where id=$1 returning *',[row.id])).rows[0];
+ assert.equal(requested.write_now_publish,false);
+ await rejected('update public.editorial_ideas set write_now_requested_at=now() where id=$1',[row.id]);
  await rejected('update public.editorial_ideas set requires_review=false where id=$1',[row.id]);
  await as('service_role',null);
  await db.query("update public.editorial_ideas set status='researching' where id=$1",[row.id]);

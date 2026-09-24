@@ -1,0 +1,68 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Write now setup | Fourth &amp; Value</title><link rel="stylesheet" href="/assets/editorial.css"><link rel="stylesheet" href="/assets/responsible-use.css?v=1"></head><body><main class="newsroom workspace"><h1>Connect Write now</h1><p>One-time administrator setup. This connects the phone button to the writer without putting private credentials in the browser. Complete the <a href="/editorial/setup.html">reader-submission setup</a> first if you have not already.</p><h2>1. Run this SQL in Supabase</h2><p>Open your existing project → SQL Editor → New query. Copy, paste and Run.</p><button data-copy="sql">Copy Write now SQL</button><textarea id="sql" readonly style="height:260px;font-family:monospace" aria-label="Write now SQL">-- Run after editorial_submissions.sql. Existing ideas are preserved.
+begin;
+alter table public.editorial_ideas add column if not exists write_now_requested_at timestamptz;
+alter table public.editorial_ideas add column if not exists write_now_publish boolean not null default false;
+create or replace function public.guard_editorial_write_request() returns trigger
+language plpgsql set search_path=public,extensions as $$
+begin
+ if TG_OP=&#x27;INSERT&#x27; then
+   new.write_now_requested_at=null; new.write_now_publish=false;
+ elsif (new.write_now_requested_at,new.write_now_publish) is distinct from (old.write_now_requested_at,old.write_now_publish) then
+   if coalesce(auth.jwt()-&gt;&#x27;app_metadata&#x27;-&gt;&gt;&#x27;fv_editor&#x27;,&#x27;false&#x27;)&lt;&gt;&#x27;true&#x27; or old.status&lt;&gt;&#x27;submitted&#x27; or new.status&lt;&gt;&#x27;submitted&#x27; or old.kind&lt;&gt;&#x27;analysis&#x27; then
+     raise exception &#x27;Only an editor may request writing for a submitted analysis idea.&#x27;;
+   end if;
+   if old.write_now_requested_at&gt;now()-interval &#x27;1 minute&#x27; then raise exception &#x27;Writing was just requested; wait before retrying.&#x27;; end if;
+   new.write_now_requested_at=now();
+   -- A reader&#x27;s origin can never be converted to automatic publication.
+   if old.requires_review or old.user_id is distinct from auth.uid() then new.write_now_publish=false; end if;
+ end if;
+ return new;
+end $$;
+drop trigger if exists editorial_write_request_guard on public.editorial_ideas;
+create trigger editorial_write_request_guard before insert or update on public.editorial_ideas
+ for each row execute function public.guard_editorial_write_request();
+commit;
+</textarea><h2>2. Create the server connection</h2><p>In Supabase, open Edge Functions → Deploy a new function → Via Editor. Name it <strong>editorial-write-now</strong>. Replace the contents of index.ts with the code below and deploy. Keep JWT verification enabled.</p><button data-copy="function">Copy function code</button><textarea id="function" readonly style="height:320px;font-family:monospace" aria-label="Edge Function code">// Deploy as editorial-write-now. Keep GITHUB_EDITORIAL_TOKEN in Edge Function secrets.
+// No service-role token is needed: database calls retain the editor&#x27;s own JWT.
+const origin = &#x27;https://fourthandvalue.com&#x27;;
+const cors = {&#x27;Access-Control-Allow-Origin&#x27;:origin,&#x27;Access-Control-Allow-Headers&#x27;:&#x27;authorization, x-client-info, apikey, content-type&#x27;,&#x27;Access-Control-Allow-Methods&#x27;:&#x27;POST, OPTIONS&#x27;,&#x27;Vary&#x27;:&#x27;Origin&#x27;};
+function reply(status,message){return new Response(JSON.stringify(message),{status,headers:{...cors,&#x27;Content-Type&#x27;:&#x27;application/json&#x27;}});}
+async function handle(req){
+ if(req.headers.get(&#x27;origin&#x27;)!==origin)return reply(403,{error:&#x27;Unsupported origin&#x27;});
+ if(req.method===&#x27;OPTIONS&#x27;)return new Response(null,{status:204,headers:cors});
+ if(req.method!==&#x27;POST&#x27;)return reply(405,{error:&#x27;POST required&#x27;});
+ const authorization=req.headers.get(&#x27;authorization&#x27;)||&#x27;&#x27;;
+ if(!authorization.startsWith(&#x27;Bearer &#x27;))return reply(401,{error:&#x27;Sign in first&#x27;});
+ const base=Deno.env.get(&#x27;SUPABASE_URL&#x27;),key=Deno.env.get(&#x27;SUPABASE_ANON_KEY&#x27;),token=Deno.env.get(&#x27;GITHUB_EDITORIAL_TOKEN&#x27;);
+ if(!base||!key||!token)return reply(503,{error:&#x27;Write now needs its server connection configured.&#x27;});
+ try{
+  const headers={apikey:key,Authorization:authorization,&#x27;Content-Type&#x27;:&#x27;application/json&#x27;};
+  const auth=await fetch(base+&#x27;/auth/v1/user&#x27;,{headers});
+  if(!auth.ok)return reply(401,{error:&#x27;Sign in again&#x27;});
+  const user=await auth.json();
+  if(user.app_metadata?.fv_editor!==true)return reply(403,{error:&#x27;Editor access required&#x27;});
+  const raw=await req.text();if(raw.length&gt;1000)return reply(400,{error:&#x27;Request too large&#x27;});
+  let input;try{input=JSON.parse(raw);}catch{return reply(400,{error:&#x27;Invalid request&#x27;});}
+  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(input.idea_id||&#x27;&#x27;))return reply(400,{error:&#x27;Invalid idea identifier&#x27;});
+  const endpoint=base+&#x27;/rest/v1/editorial_ideas?id=eq.&#x27;+input.idea_id;
+  const loaded=await fetch(endpoint+&#x27;&amp;select=*&#x27;,{headers});
+  if(!loaded.ok)return reply(502,{error:&#x27;Cannot load that idea&#x27;});
+  const row=(await loaded.json())[0];
+  if(!row||row.status!==&#x27;submitted&#x27;||row.kind!==&#x27;analysis&#x27;||![&#x27;NFL&#x27;,&#x27;MLB&#x27;,&#x27;NBA&#x27;,&#x27;NHL&#x27;].includes(row.sport))return reply(409,{error:&#x27;Choose a submitted analysis idea under a specific sport.&#x27;});
+  if(row.write_now_requested_at&amp;&amp;Date.now()-Date.parse(row.write_now_requested_at)&lt;60000)return reply(409,{error:&#x27;That request was just sent. Give it a minute before retrying.&#x27;});
+  const publish=!!input.publish_own&amp;&amp;row.user_id===user.id&amp;&amp;!row.requires_review;
+  // Compare-and-swap stops two clicks queuing separate requests concurrently.
+  const saved=await fetch(endpoint+&#x27;&amp;status=eq.submitted&amp;updated_at=eq.&#x27;+encodeURIComponent(row.updated_at),{
+   method:&#x27;PATCH&#x27;,headers:{...headers,Prefer:&#x27;return=representation&#x27;},body:JSON.stringify({
+    research_requested_at:new Date().toISOString(),write_now_requested_at:new Date().toISOString(),write_now_publish:publish})});
+  if(!saved.ok)return reply(503,{error:&#x27;Write now database setup is missing or the idea changed. Refresh the desk.&#x27;});
+  if(!(await saved.json()).length)return reply(409,{error:&#x27;Idea changed. Refresh before requesting again.&#x27;});
+  const dispatched=await fetch(&#x27;https://api.github.com/repos/pbwitt/fourth-and-value/actions/workflows/editorial-daily.yml/dispatches&#x27;,{
+   method:&#x27;POST&#x27;,headers:{Authorization:&#x27;Bearer &#x27;+token,Accept:&#x27;application/vnd.github+json&#x27;,&#x27;Content-Type&#x27;:&#x27;application/json&#x27;,&#x27;X-GitHub-Api-Version&#x27;:&#x27;2026-03-10&#x27;},
+   body:JSON.stringify({ref:&#x27;main&#x27;,inputs:{idea_id:row.id,publish_own:publish,refresh_briefing:true,check_api:false}})});
+  if(!dispatched.ok)return reply(502,{error:&#x27;The writer could not be started. The idea is saved; retry Write now after a minute.&#x27;});
+  return reply(202,{message:publish?&#x27;Research requested. Your article can publish after checks pass.&#x27;:&#x27;Research requested. The finished draft will wait for your approval.&#x27;});
+ }catch{return reply(502,{error:&#x27;Connection failed. Your idea is saved; refresh and check its status before retrying.&#x27;});}
+}
+Deno.serve(handle);
+</textarea><h2>3. Add its GitHub credential</h2><p>In GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens, create a token limited to <strong>pbwitt/fourth-and-value</strong>, with repository <strong>Actions: Read and write</strong>. Set an expiry you can maintain. No code-writing permission is needed.</p><p>In Supabase → Edge Functions → Secrets, add <strong>GITHUB_EDITORIAL_TOKEN</strong> and paste that token as its value. Never put it in a public file or send it in chat. Supabase supplies SUPABASE_URL and SUPABASE_ANON_KEY automatically.</p><h2>4. Test from your phone</h2><p>Open the editorial desk, select a submitted analysis idea and press Write now. It requests an extra research attempt within the weekly budget. The default result is a private draft. Reader-originated articles always require approval. GitHub queues and data refreshes can take several minutes; missing sources or exhausted budget will hold the article.</p><p>Email alerts are separate: GitHub Actions still needs RESEND_API_KEY and EDITORIAL_NOTIFY_FROM. Your notification recipient is already configured privately. Inbox counts refresh once a minute while the desk is open.</p><p id="message" role="status"></p><p><a href="/editorial/inbox.html">Open editorial desk</a></p></main><script>for(const button of document.querySelectorAll('[data-copy]'))button.onclick=async()=>{const field=document.getElementById(button.dataset.copy);try{await navigator.clipboard.writeText(field.value);document.getElementById('message').textContent='Copied.';}catch{field.focus();field.select();document.getElementById('message').textContent='Selected. Copy the text manually.';}};</script><!-- fv-notices:footer:start --><section id="fv-responsible-footer" class="fv-use-footer" aria-label="Responsible use"><p>Fourth &amp; Value provides sports analysis for informational and entertainment purposes. We do not accept wagers. You are responsible for your wagering decisions and for meeting applicable age and legal requirements. Never wager money you cannot afford to lose.</p><p><a href="/terms.html">Terms &amp; privacy</a> · <a href="/terms.html#responsible-play">Responsible play</a> · U.S. gambling support: call or text <a href="tel:+18006973738">1-800-MY-RESET</a> or <a href="https://www.ncpgambling.org/help-treatment/">find confidential help</a>.</p></section><!-- fv-notices:footer:end --></body></html>
