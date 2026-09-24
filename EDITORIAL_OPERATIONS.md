@@ -89,6 +89,27 @@ Source links and dates appear with each article. Public evidence snapshots inclu
 our market/model data and source metadata, **not publisher excerpts**. API responses
 remain in ignored `.editorial-cache/`; secrets never enter public files.
 
+### Matchup-aware Fourth & Value evidence
+
+Daily features now identify a target matchup when the reporting clearly points to
+one, when a preview explicitly names one, or when a current eligible model pick can
+be paired with matchup-specific reporting. Once a target is established, unrelated
+model rows are removed before the evidence packet is compacted. Target-game market
+records, eligible model picks and research-only model references are retained ahead
+of unrelated/background evidence.
+
+Eligible model evidence may come from player props, moneylines, spreads/run lines
+or totals. The writer is instructed to use the most informative supported market
+rather than defaulting to a total. Current model-pick records can carry the quoted
+book/line, model probability, fair price, edge/EV and selected inputs; research-only
+references remain clearly labeled and carry no stale price or EV.
+
+Model availability is also recorded by event. If a target matchup has no forecast,
+the packet preserves the model's explicit reason when available (for example,
+waiting for both probable starters) rather than substituting a forecast from a
+different game or vaguely implying that all model data are missing. Publication
+validation rejects model evidence from another matchup when a target game is set.
+
 Fresh future-game quotes have a six-hour maximum age. Background model references
 must be at most six hours old and carry no stale quote or EV. Feature packets retain
 model status and data cutoff dates; no validation result is inferred from missing
