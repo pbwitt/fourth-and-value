@@ -444,3 +444,48 @@ The Week 3 migration archive is the modeled board, not the published shortlist;
 its reconstructed selection universe is labeled accordingly. The new weekly
 workflow has local regression coverage but still needs its first scheduled
 production recap after Week 3 finishes.
+
+### Automatic NFL refresh schedule (updated September 24, 2026)
+
+All three schedules use America/New_York, including daylight-saving changes:
+Wednesday 10:00 AM, Thursday 5:00 PM, Sunday 8:00 AM. Sunday is early enough for
+most international games; actual GitHub execution can be delayed. Each refresh
+updates player projections, injuries, odds and public boards. Paid game insights
+remain off unless explicitly approved on a manual run. Scheduled pregame archive
+creation and recap generation remain Wednesday-only; Thursday/Sunday do not
+attempt to re-freeze a week after its first kickoff. Manual runs retain their
+existing archive/review behavior. Publishing handles an absent weekly archive
+directory on a runner that has not created one yet.
+
+### Odds API planning estimate
+
+Provider accounting: https://the-odds-api.com/liveapi/guides/v4/
+Odds credits count markets × regions, not simply HTTP calls. Event prop odds
+charge unique returned markets; event discovery is free and empty results do not
+consume credits. All current workflows use one US region. The free sports-list
+quota check on September 24 reported 2,956 used + 17,044 remaining = 20,000 credits
+for the local ODDS_API_KEY. This does not verify distinct GitHub sport-specific keys.
+
+For a full 30-day NBA/NHL/NFL month, excluding MLB and extra manual/retry runs:
+
+| Feed | Planning assumption | Approx. monthly credits |
+| --- | --- | --- |
+| NBA | 60 refreshes × (3 board markets + 11 prop markets × 12–16 events) | 8,100–10,740 |
+| NHL | 60 refreshes × (3 + 4 × 12–16 events) | 3,060–4,020 |
+| NFL | 13 refreshes × (5 board markets + 16 × 14–16 events) | 2,977–3,393 |
+| Rundown | 4–6 refreshes/day × 4 sports × 30 days | 480–720 |
+| Total | Assumes all requested markets available | 14,617–18,873 |
+
+This is approximately 2,600–3,400 HTTP calls, including free event discovery.
+The game counts are scenario assumptions, not a forecast from an actual future
+schedule. NBA/NHL query up to 16 upcoming events within 48 hours, so tomorrow's
+games may be fetched repeatedly. Missing prop markets reduce actual credits;
+additional runs increase them. Writer catch-ups may request more frequent odds.
+
+MLB is the major overlap risk: 13 daytime refreshes plus roughly one morning run.
+At 2–4 events per run over 20 active postseason dates, add about 4,200–7,560
+credits (14 × 20 × (3 + 6 × events)). At 10–15 events/run over 30 regular-season
+days, MLB alone is about 26,460–39,060 credits. Real usage depends on remaining
+pregame events and available markets at each time. October has only a partial NBA
+month; do not treat the full-month winter estimate plus postseason example as an
+exact October forecast. No MLB/NBA/NHL refresh frequency was changed by this task.
