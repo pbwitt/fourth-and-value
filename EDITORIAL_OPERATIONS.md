@@ -491,8 +491,8 @@ the form buttons. Changing the immediate-publication checkbox does not mark the
 article dirty; article edits still require saving, with an explicit hint. Function
 errors display either the server error or message field. Browser checks at 390px
 and 1440px verified default private requests, explicit owner publication, error
-feedback, unsaved-edit blocking, and reader publication controls. The live dispatch
-remains unverified pending a successful signed-in owner request.
+feedback, unsaved-edit blocking, and reader publication controls. The live dispatch was subsequently verified; see the requested-topic fix below.
+A completed private draft remains unverified.
 
 Requested-topic research fix (September 24): the first live Write now dispatch
 worked, but the writer returned publish=false because a Jayden Daniels request
@@ -506,3 +506,5 @@ feed discovery, not unrestricted web research; it cannot guarantee coverage of
 every player. The previous paid attempt remains archived; do not clear its budget
 reservation or trigger a paid retry implicitly. All 62 editorial tests pass,
 including the Daniels/Reed topic regression and zero paid calls on missing sources.
+
+Current pause/resume checklist: see EDITORIAL_HANDOFF.md (September 24, 2026).
