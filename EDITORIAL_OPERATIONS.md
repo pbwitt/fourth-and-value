@@ -485,3 +485,11 @@ PostgreSQL permission integration test with the additional migration, and Python
 coverage proving explicit owner requests produce private drafts even with both
 automatic daily slots already published. No live paid generation or email delivery
 is claimed until the function and email credentials are configured and tested.
+
+Write now feedback fix (September 24): action messages are also shown beside
+the form buttons. Changing the immediate-publication checkbox does not mark the
+article dirty; article edits still require saving, with an explicit hint. Function
+errors display either the server error or message field. Browser checks at 390px
+and 1440px verified default private requests, explicit owner publication, error
+feedback, unsaved-edit blocking, and reader publication controls. The live dispatch
+remains unverified pending a successful signed-in owner request.
