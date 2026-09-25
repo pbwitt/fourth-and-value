@@ -60,6 +60,12 @@ def context(row,packet):
         re.search(r'(?<![a-z])'+re.escape(team.strip().split()[-1].lower())+r'(?![a-z])',text)
         for team in g.get('game','').split('@') if team.strip())]
     terms=tuple(dict.fromkeys(team.strip().split()[-1].lower() for g in matched for team in g['game'].split('@')))
+    if not terms:
+        # Names are discovery hints, never evidence. Keep full names together so
+        # Jayden Daniels cannot match a headline about Jayden Reed.
+        topic=re.sub(r"^(?:please\s+)?(?:highlight|feature|investigate|cover|analyze|analyse|discuss|research)\s+",'',row['idea'],flags=re.I)
+        names=re.findall(r"\b[A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+)*",topic)
+        terms=tuple(name.lower() for name in names if name not in {'Use','Then','Does','How','What','Why','The','Is','Can','Look'})
     return matched,terms
 
 

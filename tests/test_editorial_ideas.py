@@ -13,6 +13,27 @@ class IdeaTests(unittest.TestCase):
     def row(self,**updates):
         return dict(id='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',user_id='reader',sport='NFL',kind='analysis',
             idea='Investigate Falcons injuries',body='',status='submitted',created_at='2026-09-24T10:00:00Z',updated_at='v1',**updates)
+    def test_player_topic_keeps_full_name(self):
+        row=dict(self.row(),idea="Highlight Jayden Daniel's injury. Use data and research")
+        games=[{'id':'total-1','game':'Atlanta Falcons @ Green Bay Packers'}]
+        matched,terms=ideas.context(row,{'markets':games})
+        self.assertEqual(matched,[])
+        self.assertEqual(terms,('jayden daniel',))
+
+    def test_missing_player_reporting_never_calls_paid_writer(self):
+        row=dict(self.row(),owner_idea=True,idea="Highlight Jayden Daniel's injury")
+        with TemporaryDirectory() as td:
+            root=Path(td);docs=root/'docs';state=docs/'editorial/runs';state.mkdir(parents=True)
+            packet={'markets':[{'id':'q1','game':'Atlanta Falcons @ Green Bay Packers'}],'model_rows':[],'data_readiness':{'ready':True}}
+            with patch.dict(w.ed.CFG,{'writing_enabled':True}),patch.object(w.ed,'DOCS',docs),patch.object(w.ed,'ROOT',root),patch.object(w,'STATE',state),patch.object(w.ed,'render_home'),patch.object(w,'evidence',return_value=packet),patch.object(w.reporting,'collect',return_value=[]) as collect,patch.object(w.ideas,'get',return_value=row),patch.object(w.ideas,'waiting') as waiting,patch.object(w,'call_api') as api,patch.object(w.budget,'reserve') as reserve,patch.object(w,'select_target') as target:
+                w.run(self.now,idea_id=row['id'])
+            api.assert_not_called();reserve.assert_not_called();target.assert_not_called()
+            self.assertEqual(collect.call_count,1)
+            self.assertEqual(collect.call_args.kwargs['terms'],('jayden daniel',))
+            waiting.assert_called_once()
+            ledger=json.loads((state/('requested-'+row['id']+'.json')).read_text())
+            self.assertEqual(ledger['slots']['0-nfl']['status'],'waiting_for_data')
+
     def test_readers_require_research_acceptance_and_opinion_never_auto_writes(self):
         external=self.row(requires_review=True)
         with patch.object(ideas,'configured',return_value=True),patch.object(ideas,'request',return_value=[external]),patch.object(ideas,'is_editor',return_value=False):

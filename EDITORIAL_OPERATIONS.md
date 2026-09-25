@@ -493,3 +493,16 @@ errors display either the server error or message field. Browser checks at 390px
 and 1440px verified default private requests, explicit owner publication, error
 feedback, unsaved-edit blocking, and reader publication controls. The live dispatch
 remains unverified pending a successful signed-in owner request.
+
+Requested-topic research fix (September 24): the first live Write now dispatch
+worked, but the writer returned publish=false because a Jayden Daniels request
+received Falcons–Packers / Jayden Reed evidence. No draft was produced. Submitted
+ideas now retain their topic through source selection and compaction instead of
+being replaced by a generic market pick. Unmatched named players use full-name
+discovery hints, including hyphen-normalized URLs. No relevant two-publisher
+reporting means waiting_for_data before budget reservation or a paid call. Topics
+without recognizable player/team names wait for clarification. This is limited
+feed discovery, not unrestricted web research; it cannot guarantee coverage of
+every player. The previous paid attempt remains archived; do not clear its budget
+reservation or trigger a paid retry implicitly. All 62 editorial tests pass,
+including the Daniels/Reed topic regression and zero paid calls on missing sources.

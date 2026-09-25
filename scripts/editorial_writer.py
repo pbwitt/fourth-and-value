@@ -282,7 +282,7 @@ def call_api(payload):
 
 def compact(packet):
     packet=dict(packet)
-    target=select_target(packet)
+    target=None if packet.get('requested_topic') else select_target(packet)
     if target:packet=focus_target(packet,target)
     words=set(re.findall(r'[a-z]{4,}', ' '.join(r['title'] for r in packet.get('reporting',[]) if r.get('title')).lower()))-{'with','from','have','this','that','after','before','news','team'}
     for key in ['markets','model_rows','model_references']:
@@ -394,8 +394,13 @@ def run(now,limit=2,idea_id=None,publish_own=False):
             matched,terms=ideas.context(idea,packet)
             if matched:packet=focus_preview(packet,'thursday-preview:'+','.join(g['id'].removeprefix('total-') for g in matched))
             packet.pop('preview_instruction',None)
+            packet['requested_topic']=True
+            if not terms:
+                ideas.waiting(idea,'Please name the player or team in your idea so research can find relevant reporting. No writing charge has been made.')
+                state['slots'][key]={'status':'waiting_for_data','reason':'Requested topic could not be resolved'}
+                ed.write_json(statepath,state);continue
         packet['reporting']=collected.get(sport) or (reporting.collect(sport,story_now,terms=terms) if terms else reporting.collect(sport,story_now))
-        target=select_target(packet,allow_model=True)
+        target=None if idea else select_target(packet,allow_model=True)
         if target:
             targeted=reporting.collect(sport,story_now,terms=game_terms(target.get('game')))
             if targeted:
@@ -406,7 +411,7 @@ def run(now,limit=2,idea_id=None,publish_own=False):
         require_data(packet)
         recent=[a['title'] for a in ed.CFG['articles']+catalog if a.get('sport')==sport][-8:]
         if not packet['reporting']:
-            if idea:ideas.waiting(idea,'Waiting for sufficient current reporting. No writing charge has been made.')
+            if idea:ideas.waiting(idea,'Waiting for reporting about your requested player or team from at least two publishers. No writing charge has been made.')
             state['slots'][key]={'status':'waiting_for_data','reason':'Insufficient current publisher evidence for the assigned matchup'}
             ed.write_json(statepath,state)
             continue

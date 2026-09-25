@@ -79,7 +79,7 @@ def candidates(sport,now,limit=3):
 
 def collect(sport,now,seen_urls=(),terms=()):
     found=candidates(sport,now,limit=30 if terms else 3)
-    if terms:found=[s for s in found if any(term in (s['title']+' '+s['url']).lower() for term in terms) and not re.search(r'promo code|bonus bets|sign.up offer',s['title'],re.I)]
+    if terms:found=[s for s in found if any(term in (s['title']+' '+s['url'].replace('-', ' ').replace('_', ' ')).lower() for term in terms) and not re.search(r'promo code|bonus bets|sign.up offer',s['title'],re.I)]
     # Prefer new reporting; a materially updated story may still use an older source.
     found.sort(key=lambda s:(s['url'] in seen_urls,-ed.stamp(s['published_timestamp']).timestamp()))
     selected=[];hosts=set()
