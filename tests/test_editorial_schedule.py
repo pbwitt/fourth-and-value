@@ -114,6 +114,31 @@ class EditorialScheduleTests(unittest.TestCase):
             'at':'2026-09-24T12:59:00+00:00','status':'completed','counts':{'published':0,'waiting_for_data':1}}})
         sched.verify_writer(root,now,expected=True)
 
+    def test_explicit_nfl_request_refreshes_model_after_daily_limit(self):
+        from io import StringIO
+        from unittest.mock import patch
+        import editorial_ideas as ideas
+        td,root=self.make_root();self.addCleanup(td.cleanup)
+        identifier='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+        row={'kind':'analysis','sport':'NFL','status':'submitted','write_now_requested_at':'2026-09-26T12:00:00Z'}
+        with patch.object(sched,'ROOT',root),patch.object(sched,'plan',return_value={'writer_eligible':False,'refresh_nfl':False}),patch.object(ideas,'get',return_value=row),patch.object(sched,'write_outputs') as output,patch('sys.stdout',new_callable=StringIO),patch('sys.argv',['editorial_schedule.py','--event-name','workflow_dispatch','--idea-id',identifier]):
+            sched.main()
+        result=output.call_args.args[0]
+        self.assertTrue(result['writer_eligible']);self.assertTrue(result['refresh_nfl'])
+        self.assertTrue(result['refresh_briefing']);self.assertFalse(result['refresh_mlb'])
+
+    def test_requested_story_success_requires_a_completed_draft(self):
+        td,root=self.make_root();self.addCleanup(td.cleanup)
+        now=datetime(2026,9,26,12,tzinfo=timezone.utc)
+        identifier='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+        path=root/'docs/editorial/runs'/('requested-'+identifier+'.json')
+        state={'last_writer_check':{'at':now.isoformat(),'status':'completed'},'slots':{'0-nfl':{'status':'skipped'}}}
+        path.write_text(json.dumps(state))
+        with self.assertRaisesRegex(SystemExit,'did not produce'):
+            sched.verify_writer(root,now,expected=True,idea_id=identifier)
+        state['slots']['0-nfl']['status']='review';path.write_text(json.dumps(state))
+        sched.verify_writer(root,now,expected=True,idea_id=identifier)
+
     def test_delivery_target_is_630_eastern_in_summer_and_winter(self):
         for month,utc_hour in ((9,10),(12,11)):
             with self.subTest(month=month):

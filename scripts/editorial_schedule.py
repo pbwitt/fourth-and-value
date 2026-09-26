@@ -181,6 +181,8 @@ def verify_writer(root=ROOT,now=None,expected=False,idea_id=None):
     checked=stamp(marker.get("at"))
     if marker.get("status")!="completed" or not checked or abs((now-checked.astimezone(timezone.utc)).total_seconds())>7200:
         raise SystemExit("Writer was expected but today's ledger has no recent completed writer execution marker")
+    if idea_id and not any(slot.get('status') in ('review','published') for slot in state.get('slots',{}).values()):
+        raise SystemExit('Requested story did not produce a completed draft or article. Check its status in the private editorial desk; no automatic paid retry.')
     print(json.dumps(dict(status="verified",last_writer_check=marker,
         slots={k:v.get("status") for k,v in state.get("slots",{}).items()},
         published_today=len(today_catalog(root,now)))))
@@ -271,7 +273,7 @@ def main():
         if not row or row.get('kind')!='analysis' or row.get('sport') not in ('NFL','MLB','NBA','NHL'):raise SystemExit('Idea is unavailable or needs personal editorial work')
         if not row.get('write_now_requested_at'):raise SystemExit('Idea has no editor-authorized Write now request')
         eligible=bool(config(ROOT).get('writing_enabled') and row['status']=='submitted')
-        result.update(mode='requested-idea',writer_eligible=eligible,writer_needed=eligible,writer_reason='explicit_editor_request',refresh_briefing=eligible,refresh_mlb=eligible and row['sport']=='MLB')
+        result.update(mode='requested-idea',writer_eligible=eligible,writer_needed=eligible,writer_reason='explicit_editor_request',refresh_briefing=eligible,refresh_mlb=eligible and row['sport']=='MLB',refresh_nfl=eligible and row['sport']=='NFL')
     print(json.dumps(result,indent=2))
     write_outputs(result,os.getenv("GITHUB_OUTPUT"))
 
