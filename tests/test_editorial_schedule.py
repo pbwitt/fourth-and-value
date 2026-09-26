@@ -114,6 +114,31 @@ class EditorialScheduleTests(unittest.TestCase):
             'at':'2026-09-24T12:59:00+00:00','status':'completed','counts':{'published':0,'waiting_for_data':1}}})
         sched.verify_writer(root,now,expected=True)
 
+    def test_delivery_fails_after_deadline_even_if_writer_completed(self):
+        td,root=self.make_root();self.addCleanup(td.cleanup)
+        now=datetime(2026,9,26,12,0,tzinfo=timezone.utc)
+        self.write_state(root,'2026-09-26',{'last_writer_check':{
+            'at':now.isoformat(),'status':'completed','counts':{'published':1}}})
+        with self.assertRaisesRegex(SystemExit,'0/2'):
+            sched.verify_delivery(root,now)
+
+    def test_delivery_counts_unique_existing_public_articles(self):
+        td,root=self.make_root();self.addCleanup(td.cleanup)
+        now=datetime(2026,9,26,12,0,tzinfo=timezone.utc)
+        articles=root/'docs/editorial/articles';articles.mkdir()
+        rows=[{'date':'2026-09-26','kind':'Analysis','url':f'/editorial/articles/{name}.html'} for name in ('a','b')]
+        (root/'docs/editorial/published.json').write_text(json.dumps(rows+[rows[0]]))
+        (articles/'a.html').write_text('published')
+        with self.assertRaisesRegex(SystemExit,'1/2'):
+            sched.verify_delivery(root,now)
+        (articles/'b.html').write_text('published')
+        self.assertEqual(sched.verify_delivery(root,now)['status'],'complete')
+
+    def test_before_deadline_missing_delivery_is_pending(self):
+        td,root=self.make_root();self.addCleanup(td.cleanup)
+        now=datetime(2026,9,26,11,0,tzinfo=timezone.utc)
+        self.assertEqual(sched.verify_delivery(root,now)['status'],'pending')
+
 
 if __name__=='__main__':
     unittest.main()

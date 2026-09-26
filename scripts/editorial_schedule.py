@@ -175,15 +175,46 @@ def verify_writer(root=ROOT,now=None,expected=False,idea_id=None):
         published_today=len(today_catalog(root,now)))))
 
 
+def verify_delivery(root=ROOT,now=None):
+    """Check the product delivered, after publishing so a partial edition survives."""
+    now=(now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    cfg=config(root)
+    limit=min(int(cfg.get('writer',{}).get('daily_story_limit',2) or 2),2)
+    # A catalog entry without its public article is not a delivery.
+    delivered={row.get('url') for row in today_catalog(root,now)
+        if str(row.get('url','')).startswith('/editorial/articles/')
+        and (Path(root)/'docs'/row['url'].lstrip('/')).is_file()}
+    state=today_state(root,now)
+    due=now.astimezone(ET).hour>=8
+    result=dict(date=now.astimezone(ET).date().isoformat(),expected=limit,
+        published=len(delivered),status='complete' if len(delivered)>=limit else 'overdue' if due else 'pending',
+        writer_reason=writer_need(root,now)[1],
+        slots={key:value.get('status') for key,value in state.get('slots',{}).items()},
+        data_skips=state.get('data_skips',{}))
+    print(json.dumps(result,indent=2))
+    summary=os.getenv('GITHUB_STEP_SUMMARY')
+    if summary:
+        with open(summary,'a') as stream:
+            stream.write(f"\n## Morning articles: {len(delivered)}/{limit} — {result['status']}\n\n")
+            stream.write('```json\n'+json.dumps(result,indent=2)+'\n```\n')
+    if due and len(delivered)<limit:
+        raise SystemExit(f"Morning edition incomplete: {len(delivered)}/{limit} articles published; inspect delivery diagnostics")
+    return result
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--idea-id",default="")
     p.add_argument("--verify-writer",action="store_true")
+    p.add_argument("--verify-delivery",action="store_true")
     p.add_argument("--expected-writer",choices=["true","false"],default="false")
     p.add_argument("--event-name",default=os.getenv("GITHUB_EVENT_NAME",""))
     p.add_argument("--event-schedule",default=os.getenv("GITHUB_EVENT_SCHEDULE",""))
     p.add_argument("--manual-refresh",choices=["true","false"],default="false")
     args=p.parse_args()
+    if args.verify_delivery:
+        verify_delivery()
+        return
     if args.verify_writer:
         verify_writer(expected=args.expected_writer=="true",idea_id=args.idea_id or None)
         return

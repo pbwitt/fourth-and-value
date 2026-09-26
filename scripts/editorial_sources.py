@@ -78,7 +78,9 @@ def candidates(sport,now,limit=3):
     return found
 
 def collect(sport,now,seen_urls=(),terms=()):
-    found=candidates(sport,now,limit=30 if terms else 3)
+    # Three headlines per publisher can all be blocked or too short. Search a
+    # bounded deeper pool before declaring an entire league unavailable.
+    found=candidates(sport,now,limit=30 if terms else 12)
     if terms:found=[s for s in found if any(term in (s['title']+' '+s['url'].replace('-', ' ').replace('_', ' ')).lower() for term in terms) and not re.search(r'promo code|bonus bets|sign.up offer',s['title'],re.I)]
     # Prefer new reporting; a materially updated story may still use an older source.
     found.sort(key=lambda s:(s['url'] in seen_urls,-ed.stamp(s['published_timestamp']).timestamp()))

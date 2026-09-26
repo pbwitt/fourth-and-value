@@ -1,0 +1,58 @@
+name: Morning Article Delivery Watchdog
+
+on:
+  schedule:
+    - cron: '53 6-9 * * *'
+      timezone: America/New_York
+  # A completed sports refresh is another opportunity to recover a missed cron.
+  workflow_run:
+    workflows: ['MLB Daily Update']
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: editorial-delivery-watchdog
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Recover a missing morning edition and report delivery
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          from datetime import datetime, timezone
+          import json, os, subprocess, sys
+          sys.path.insert(0, 'scripts')
+          import editorial_schedule as schedule
+          now = datetime.now(timezone.utc)
+          if not 5 <= now.astimezone(schedule.ET).hour < 10:
+              print('Outside morning recovery window')
+              raise SystemExit(0)
+          needed, reason = schedule.writer_need(schedule.ROOT, now)
+          if needed:
+              raw = subprocess.check_output(['gh', 'run', 'list', '--workflow', 'editorial-daily.yml',
+                  '--limit', '30', '--json', 'status'], text=True)
+              active = any(run['status'] in ('queued', 'in_progress', 'waiting', 'pending', 'requested')
+                  for run in json.loads(raw))
+              if not active:
+                  subprocess.run(['gh', 'workflow', 'run', 'editorial-daily.yml', '--ref', 'main',
+                      '-f', 'refresh_briefing=true'], check=True)
+                  print('Recovery dispatched: ' + reason)
+              else:
+                  print('Editorial run already active; no duplicate dispatch')
+          schedule.verify_delivery(now=now)
+          PY

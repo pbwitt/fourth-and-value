@@ -49,4 +49,16 @@ class ThursdayPreview(unittest.TestCase):
         self.assertEqual(len(result),2)
         self.assertTrue(all('unrelated' not in x['url'] for x in result))
 
+    def test_general_research_searches_beyond_three_headlines(self):
+        rows=[{'title':'News', 'url':f'https://www.espn.com/{i}',
+               'published_timestamp':self.now.isoformat()} for i in range(3)]
+        rows += [{'title':'Usable news','url':url,'published_timestamp':self.now.isoformat()}
+                 for url in ('https://www.espn.com/usable','https://www.cbssports.com/usable')]
+        def candidates(sport,now,limit):return rows[:limit]
+        def fetch(url):return 'verified '*110 if url.endswith('usable') else 'too short'
+        with patch.object(sources,'candidates',side_effect=candidates),patch.object(sources,'fetch',side_effect=fetch),patch.object(sources,'text_content',side_effect=lambda text:text):
+            result=sources.collect('NFL',self.now)
+        self.assertEqual(len(result),2)
+        self.assertTrue(all(row['url'].endswith('usable') for row in result))
+
 if __name__=='__main__':unittest.main()

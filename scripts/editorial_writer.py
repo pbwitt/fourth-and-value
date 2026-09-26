@@ -364,6 +364,9 @@ def run(now,limit=2,idea_id=None,publish_own=False):
             sources=reporting.collect(sport,now)
             if sources:
                 collected[sport]=sources;allocation.append((sport,angle))
+                state.setdefault('data_skips',{}).pop(sport,None)
+            else:
+                state.setdefault('data_skips',{})[sport]='Insufficient readable current reporting from two publishers'
             if len(allocation)>=2:break
         state['allocation']=allocation
         ed.write_json(statepath,state)

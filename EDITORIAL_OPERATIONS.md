@@ -56,26 +56,36 @@ The public homepage and morning briefing can run before the private database mig
 
 ## Automated original analysis — budget revision, September 22
 
-Enabled in `config/editorial.json`: **two article opportunities per day**, exact model
+Enabled in `config/editorial.json`: **two published articles each morning, with an 8 AM Eastern delivery check**, exact model
 `gpt-6-astra`, low reasoning, standard service tier. No fallback model. Runs on GitHub
 Actions at **05:07 America/New_York**, without the owner's computer. GitHub may delay
 scheduled jobs; publication follows research, factual checking and the Pages build.
-Hourly runs rebuild the homepage and latest briefing to remove expired games and prices, and publish approved owner drafts without paid article calls.
+Additional triggers at :27 and :47 from 5–9 AM recover delayed starts. Hourly runs also retry unfilled, eligible article slots; completed or uncertain paid attempts are not repeated. The independent Morning Article Delivery Watchdog checks at 6:53–9:53 AM and after MLB refreshes during the morning window. It dispatches recovery if no editorial run is active and reports an overdue edition as a failed check.
 
 The allocator prefers leagues covered least recently, breaking ties in favor of
 active boards and rotating ties daily. It tries other leagues if current sources
 are unavailable. MLB/NFL/NBA/NHL all participate; no offseason filler is required.
-Two is a maximum, not a guarantee: inadequate reporting, factual failures, funding
-errors or budget limits can produce fewer articles. Existing daily slots, including
-failed/started slots, never automatically repeat. Today's six launch articles count
-as an already completed edition; the smaller format starts tomorrow.
+Two published articles is the delivery target. Inadequate reporting, factual failures,
+funding errors or budget limits must be visible as incomplete delivery, never a
+successful edition. Quality and spending guards remain in force. Existing paid
+failed/started slots are not blindly repeated; the delivery summary identifies
+blocked states for recovery. Missing source evidence remains retryable.
+
+The delivery check counts unique catalog URLs with existing public article files,
+not writer invocations or drafts. It runs after publication so a partial edition and
+its diagnostics are preserved before the workflow fails. Before 8 AM, an incomplete
+edition is pending; from 8 AM it fails with the counts and blocking reasons in the
+Actions summary. A Pages build request is still separate from completed deployment.
+GitHub cron is best effort; redundant triggers and a watchdog on the same platform
+cannot guarantee delivery through a GitHub-wide outage.
 
 ### Research and quality
 
 The collector reads public RSS from ESPN, CBS, Yahoo and (for MLB) MLB.com, then
 fetches bounded excerpts from approved publisher hosts. Reports must be no older
 than 72 hours; at least two publisher hosts are required. Blocked or unavailable
-pages are skipped. There is no paid web-search tool. Two publishers repeating the
+pages are skipped. General research searches up to 12 headlines per publisher,
+and matchup research up to 30; missing readable reporting is recorded in the ledger. There is no paid web-search tool. Two publishers repeating the
 same report do not constitute independent corroboration.
 
 Astra writes 550–750 words using those excerpts and fresh local market/model evidence.
