@@ -51,15 +51,36 @@ recovery. A successful live replacement remains unverified until a new owner
 request. 110 Python tests, PostgreSQL permissions, and mobile/desktop browser
 checks pass. No schema or Edge Function deployment is needed.
 
+## Contributor flow verified live
+
+The owner wants this kept simple: contributor sends an idea, editor chooses to
+develop it, editor reviews and approves or archives the draft. Chat remains an
+available direct publishing route. Do not add roles, screens or version history
+without a concrete need.
+
+On September 26, two temporary reader accounts submitted through the production
+suggestion page at phone and desktop widths. A temporary editor account verified
+the production inbox, preview, exact-draft approval and approval invalidation on
+editing. Live database checks confirmed cross-reader isolation, editor visibility,
+and refusal of reader approval and paid-writing requests. A clearly labelled
+draft fixture exercised the handoff; it was dated 2099-12-31 to exclude it from
+publication. All three temporary accounts and their submissions were removed.
+No emails, paid generation or test articles were sent/published.
+
+Remaining contributor checks: an actual person receiving/opening the email sign-in
+link, and a real reader idea completing paid generation. The existing successful
+real owner draft proves generation separately; do not describe the fixture test
+as a real generated reader article.
+
 ## Next steps requiring the owner's real review/account
 
 1. Owner opens https://fourthandvalue.com/editorial/inbox.html, refreshes, selects
    the Review draft and previews it. Publication has not been approved.
 2. After the owner approves the exact saved content, verify the hourly publisher
    and actual public page. Do not equate draft generation with approved publication.
-3. Test a separate reader account: submission, owner acceptance, private draft,
-   approval, and isolation from other readers. Automated permission checks passed;
-   the real reader-account journey is still unverified.
+3. A friend opens https://fourthandvalue.com/editorial/suggest.html, signs in using
+   their email link and sends an actual idea. Owner chooses whether to develop it;
+   verify real generation and final review without changing the simple workflow.
 
 ## Remaining infrastructure
 

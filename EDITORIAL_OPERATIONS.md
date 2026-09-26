@@ -613,3 +613,18 @@ requests remain locked until the writer finishes. An explicit dispatch failure
 allows retry immediately (the server still enforces its one-minute cooldown).
 After the queue timeout, manual recovery is available; no timeout triggers an
 automatic paid request. Queue updates show the completed draft or private error.
+
+### Live contributor verification — September 26
+
+Two temporary readers successfully used the production suggestion form at 390px
+and 1440px. Reader access to the editor desk, other readers' submissions, approval,
+and the paid-writing function was denied. A temporary editor could see and accept
+the reader idea. A labelled fixture verified private draft storage, production
+preview/approval, and removal of approval after an edit. Its 2099-12-31 date kept
+it out of publication. All temporary users and submissions were removed. No
+emails, paid calls or test articles were published. Actual emailed sign-in and
+paid generation for a real reader suggestion remain to be checked with a friend.
+
+The owner's preferred scope is simple: submit an idea → editor accepts it for
+development → editor reviews and approves or archives. Chat remains another
+direct publishing route; do not add workflow layers merely to expand this desk.
