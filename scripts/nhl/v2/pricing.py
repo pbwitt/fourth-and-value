@@ -24,7 +24,8 @@ def american(dec):
 def key(row):
     line=row['line']
     if row['market']=='spreads' and row['side']==row['away_team']: line=-line
-    return row['event_id'],row.get('player_id') or row['player'],row['market'],line,row.get('settlement_profile','unverified')
+    return (row['event_id'],row.get('player_id') or row['player'],row['market'],line,
+            row.get('settlement_profile','unverified'),row['commence_time'],row.get('nhl_game_id'))
 
 
 def push_capable(row):
@@ -85,7 +86,7 @@ def compare(rows,now=None):
     return rows
 
 
-def price(probabilities,offered,minimum_ev=.02,lower_win=None):
+def price(probabilities,offered,minimum_ev=.02,lower_win=None,scenarios=None):
     win,push,loss=(float(probabilities[k]) for k in ['win','push','loss'])
     if min(win,push,loss)<-1e-10 or abs(win+push+loss-1)>1e-7:
         raise ValueError('Invalid settlement probabilities')
@@ -94,13 +95,20 @@ def price(probabilities,offered,minimum_ev=.02,lower_win=None):
     lower=win if lower_win is None else lower_win
     if not 0<=lower<=win+1e-9: raise ValueError('Invalid lower sensitivity probability')
     minimum=(1-push+minimum_ev)/lower if lower>0 else None
+    rank=lower*math.log1p(.0025*(dec-1))+(1-push-lower)*math.log1p(-.0025)
+    if scenarios:
+        checked=[probabilities,*scenarios]
+        for p in checked:
+            if min(p.values())<0 or abs(sum(p.values())-1)>1e-7: raise ValueError('Invalid scenario probabilities')
+        minimum=max((1-p['push']+minimum_ev)/p['win'] for p in checked) if all(p['win']>0 for p in checked) else None
+        rank=min(p['win']*math.log1p(.0025*(dec-1))+p['loss']*math.log1p(-.0025) for p in checked)
     return dict(model_probability=win,independent_probability=win,final_probability=win,
         push_probability=push,loss_probability=loss,conditional_probability=win/(1-push) if push<1 else None,
         fair_decimal=fair,fair_odds=american(fair) if fair else None,
         estimated_ev=win*(dec-1)-loss,minimum_acceptable_decimal=minimum,
         minimum_acceptable_odds=american(minimum) if minimum else None,minimum_ev_target=minimum_ev,
         sensitivity_lower_win=lower,probability_basis='unconditional_win_given_action',
-        rank_score=lower*math.log1p(.0025*(dec-1))+(1-push-lower)*math.log1p(-.0025))
+        rank_score=rank)
 
 
 def signal(row):

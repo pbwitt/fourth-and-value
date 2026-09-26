@@ -27,6 +27,20 @@ def validate(state, now):
         if not quote or not timedelta(minutes=-5) <= now - quote <= timedelta(hours=24) or not start or start <= now:
             errors.append('Snapshot contains an expired quote or a started game')
             break
+        probability = row.get('independent_probability')
+        if probability is not None:
+            model_time = timestamp(row.get('model_data_checked_at'))
+            if not model_time or not timedelta(0) <= now-model_time < timedelta(hours=36):
+                errors.append('Independent model inputs are expired')
+                break
+            push, loss = row.get('push_probability'), row.get('loss_probability')
+            if (not isinstance(push,(int,float)) or not isinstance(loss,(int,float)) or
+                min(probability,push,loss)<0 or abs(probability+push+loss-1)>1e-7):
+                errors.append('Independent settlement probabilities are invalid')
+                break
+            if not row.get('model_version') or not row.get('forecast_id'):
+                errors.append('Independent forecast provenance is missing')
+                break
     return errors
 
 

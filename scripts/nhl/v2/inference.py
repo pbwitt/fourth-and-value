@@ -1,5 +1,5 @@
 """Fail-closed adapter from frozen NHL models to the existing public quote contract."""
-from datetime import timedelta
+from datetime import datetime,timedelta,timezone
 import gzip
 import hashlib
 import json
@@ -39,7 +39,8 @@ def live_history(now):
     checked=stamp(last['checked_at']) if last.get('checked_at') else None
     if not checked or not timedelta(0)<=now-checked<timedelta(hours=12):
         collect([season_for(now)],root,now.date().isoformat())
-        write_json(checked_path,dict(checked_at=iso(now),season=season_for(now)))
+        checked=datetime.now(timezone.utc)
+        write_json(checked_path,dict(checked_at=iso(checked),season=season_for(now)))
     archive=MODEL_DIR/'history.json.gz'
     with gzip.open(archive,'rt') as f: past=json.load(f)
     manifest=json.loads((MODEL_DIR/'manifest.json').read_text())
@@ -48,11 +49,13 @@ def live_history(now):
     games,players,manifests=load(root,[season_for(now)])
     # Current season supersedes any same-season bootstrap history; never duplicate records.
     return ([g for g in past['games'] if g['season']!=season_for(now)]+games,
-            [r for r in past['players'] if r['season']!=season_for(now)]+players,iso(now))
+            [r for r in past['players'] if r['season']!=season_for(now)]+players,iso(checked))
 
 
 def annotate(rows,games,players,events,models,manifest,now,history_checked_at,roster=None,reviews=None):
     if manifest['trained_through']>=now.date().isoformat(): raise ValueError('Model training window is not pre-decision')
+    if (now.date()-datetime.fromisoformat(manifest['trained_through']).date()).days>400:
+        raise ValueError('Model artifact requires annual retraining')
     if not timedelta(0)<=now-stamp(history_checked_at)<timedelta(hours=36): raise ValueError('Stale independent-model inputs')
     state=history_at(games,players,now)
     event_map={g['nhl_game_id']:g for g in events}
@@ -64,6 +67,7 @@ def annotate(rows,games,players,events,models,manifest,now,history_checked_at,ro
     cache={}
     for row in rows:
         row.update(model_probability=None,independent_probability=None,final_probability=None,
+            decision_at=iso(now),
             model_version=VERSION,feature_schema=FEATURE_SCHEMA,model_data_checked_at=history_checked_at,
             validation_status=manifest['validation_status'],analyst_status='unreviewed',
             recommendation=False,model_status='Independent model unavailable',market_weight=0,
@@ -99,6 +103,7 @@ def annotate(rows,games,players,events,models,manifest,now,history_checked_at,ro
                 features=state.player_features(pid,records[-1]['position'],g['game_date'],now)
                 cache[k]=(features,models['shots'].pmfs(features)[0],models['scoring'].pmfs(features))
             f,shots,scoring=cache[k]; j=MARKETS.index(row['market']); pmf=shots if j==0 else scoring[j]
+            row['model_inputs']=f
             probs=outcome(pmf,row['line'],row['side'])
             # Scenario bounds, not confidence intervals or evidence of a learned injury effect.
             scenario=[]
@@ -106,27 +111,32 @@ def annotate(rows,games,players,events,models,manifest,now,history_checked_at,ro
                 changed={**f,'base_means':[x*multiplier for x in f['base_means']],
                          'opportunity_means':[x*multiplier for x in f['opportunity_means']]}
                 pm=models['shots' if j==0 else 'scoring'].pmfs(changed)[j]
-                scenario.append(outcome(pm,row['line'],row['side'])['win'])
+                scenario.append(outcome(pm,row['line'],row['side']))
             row.update(projected_mean=float(np.dot(np.arange(len(pmf)),pmf)),projected_toi=f['projected_toi'],
                 history_games=f['history_games'],conditional_on_participation=True,participation_probability=None,
                 lineup_assumption='Participation required for action; current role and active lineup unconfirmed',
                 key_drivers=[f"{f['history_games']} prior appearances; last game {f['last_game']}",f"Projected ice time {f['projected_toi']:.1f} minutes; separately shrunk production rate"],
                 uncertainties=['Line and power-play assignment not verified','Injury/return risk not quantified','Rookie estimates use position priors'],
-                sensitivity=dict(assumption='Production/opportunity means ±10%; not a confidence interval',win_min=min(scenario),win_max=max(scenario)))
+                sensitivity=dict(assumption='Production/opportunity means ±10%; not a confidence interval',win_min=min(p['win'] for p in scenario),win_max=max(p['win'] for p in scenario)))
         else:
             k=g['game_id']
             if k not in cache:
                 f=state.team_features(g,now); means=models['team'].predict(f)
                 cache[k]=(means,models['team'].joint(*means),f)
             means,joint,f=cache[k]
+            row['model_inputs']=f
             args=(row['market'],row['line'],row['side']==row['home_team'],row['side'])
             probs=game_outcome(joint,*args)
-            scenario=[game_outcome(models['team'].joint(means[0]*h,means[1]*a),*args)['win'] for h,a in [(.9,.9),(1.1,1.1),(.9,1.1),(1.1,.9)]]
+            scenario=[game_outcome(models['team'].joint(means[0]*h,means[1]*a),*args) for h,a in [(.9,.9),(1.1,1.1),(.9,1.1),(1.1,.9)]]
             row.update(projected_home_reg_goals=float(means[0]),projected_away_reg_goals=float(means[1]),
-                key_drivers=[f"Regulation goal rates: home {means[0]:.2f}, away {means[1]:.2f}",f"Rest days: home {f[0]['rest']}, away {f[1]['rest']}"],
+                key_drivers=[f"Regulation goal rates: home {means[0]:.2f}, away {means[1]:.2f}",f"Lagged home attack {f[0]['attack']:.2f}; away defense {f[0]['defense']:.2f}"],
                 uncertainties=['Starting goalie and lineup unconfirmed','Empty-net effects represented only in aggregate','No shot-quality or travel-distance feature'],
-                sensitivity=dict(assumption='Team rates ±10%; not a confidence interval',win_min=min(scenario),win_max=max(scenario)))
-        row.update(price(probs,row['price'],lower_win=min(probs['win'],min(scenario))))
+                sensitivity=dict(assumption='Team rates ±10%; not a confidence interval',win_min=min(p['win'] for p in scenario),win_max=max(p['win'] for p in scenario)))
+        row.update(price(probs,row['price'],lower_win=min(probs['win'],min(p['win'] for p in scenario)),scenarios=scenario))
+        row['pricing_status']='standard_rules_mapped' if row.get('settlement_verified') else 'unverified_settlement'
+        if not row.get('settlement_verified'):
+            row.update(estimated_ev=None,minimum_acceptable_odds=None,minimum_acceptable_decimal=None)
+            row['uncertainties'].append('Settlement rules unverified; EV and minimum price withheld')
         row['model_status']='Experimental independent forecast; no validated betting edge'
         row['signal_type']=signal(row)
         if row.get('conditional_price_advantage') is not None:
@@ -148,16 +158,26 @@ def enrich(state,now,offline_inputs=None):
     try:
         models,manifest=bundle()
         games,players,checked=offline_inputs or live_history(now)
-        state['rows']=annotate(state['rows'],games,players,state['events'],models,manifest,now,checked)
+        # The prediction decision follows ingestion; a cached history check keeps its actual age.
+        decision_now=now if offline_inputs else datetime.now(timezone.utc)
+        ledger=ROOT/'artifacts/nhl/reviews.jsonl'
+        reviews=[json.loads(line) for line in ledger.read_text().splitlines()] if ledger.exists() else []
+        state['rows']=annotate(state['rows'],games,players,state['events'],models,manifest,decision_now,checked,reviews=reviews)
         state['model_status']='Experimental independent forecasts; market blend and recommendations disabled'
         state['model_manifest']=manifest
         state['model_data_checked_at']=checked
+        state['model_prediction_at']=iso(decision_now)
         state['model_error']=None
-    except (OSError,ValueError,KeyError,RuntimeError) as error:
+    except Exception as error:
         # No exception URL or credentials; no stale model fallback.
         state['model_error']=f'Independent model unavailable ({type(error).__name__})'
         state['model_status']=state['model_error']
         for row in state['rows']:
+            for field in ['forecast_id','estimated_ev','fair_odds','fair_decimal','minimum_acceptable_odds',
+                          'minimum_acceptable_decimal','push_probability','loss_probability','conditional_probability',
+                          'rank_score','analyst_probability','independent_market_difference','model_inputs']:
+                row[field]=None
             row.update(model_probability=None,independent_probability=None,final_probability=None,
-                       model_status=state['model_error'],validation_status='unavailable',recommendation=False)
+                       model_status=state['model_error'],validation_status='unavailable',recommendation=False,
+                       signal_type='market_only_observation')
     return state

@@ -236,8 +236,9 @@ def refresh(client, now, games, history):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--offline', action='store_true', help='Build saved pages without network calls')
+    parser.add_argument('--env-file', type=Path, default=ROOT / '.env', help='Authorized local environment file; never copied into archives')
     args = parser.parse_args()
-    load_dotenv(ROOT / '.env')
+    load_dotenv(args.env_file)
     now = datetime.now(UTC)
     public = ROOT / 'docs/nhl/data/latest.json'
     state = read_json(public, dict(status='not_checked', events=[], rows=[], last_success_at=None, season=season_for(now)))
@@ -253,10 +254,14 @@ def main():
             state['decision_session'] = 'morning' if now.astimezone(__import__('zoneinfo').ZoneInfo('America/New_York')).hour < 14 else 'afternoon'
             from nhl.v2.data import digest
             state['snapshot_id'] = digest(state)[:24]
+            from nhl.v2.archive import archive_run
+            archive_run(state)
             save_json(ROOT / 'data/nhl/snapshots' / (now.strftime('%Y%m%dT%H%M%SZ') + '.json'), state)
-        except FeedError as error:
-            state.update(status='feed_error', error=str(error), checked_at=iso(now))
-            print(str(error), file=sys.stderr)
+        except Exception as error:
+            # Even an unexpected schema/archive failure must not leave a healthy-looking feed.
+            message=str(error) if isinstance(error,FeedError) else f'NHL refresh failed ({type(error).__name__})'
+            state.update(status='feed_error', error=message, checked_at=iso(now))
+            print(message, file=sys.stderr)
             code = 1
         save_json(public, state)
     from nhl.site import build

@@ -92,9 +92,11 @@ def grade_snapshots(paths,games,players):
     seen=set();out=[]
     for path in paths:
         with (gzip.open(path,'rt') if str(path).endswith('.gz') else open(path)) as f: snapshot=json.load(f)
+        snapshot=snapshot.get('snapshot',snapshot)
         for r in snapshot.get('rows',[]):
-            if not r.get('offer_id') or r['offer_id'] in seen: continue
-            seen.add(r['offer_id']);game=by_game.get(r.get('nhl_game_id'))
+            identity=(r.get('offer_id'),r.get('forecast_id'),snapshot.get('snapshot_id'))
+            if not r.get('offer_id') or identity in seen: continue
+            seen.add(identity);game=by_game.get(r.get('nhl_game_id'))
             # Missing appearance is unresolved, unless an explicit participation record exists.
             player=by_player.get((r.get('nhl_game_id'),r.get('player_id')))
             result=settle(r,game,player)
@@ -103,9 +105,34 @@ def grade_snapshots(paths,games,players):
     return out
 
 
+def prospective_metrics(graded):
+    """Comparable conditional probability scores; no selection after observing outcomes."""
+    from .evaluate import binary_metrics
+    buckets=defaultdict(list)
+    for r in graded:
+        if r['result'] not in ['won','lost']: continue
+        buckets[(r['market'],r.get('decision_session','unknown'))].append(r)
+    out={}
+    for (market,session),rows in buckets.items():
+        metrics={}
+        for field in ['conditional_probability','market_probability','analyst_probability']:
+            comparable=[r for r in rows if r.get('conditional_probability') is not None and r.get('market_probability') is not None and r.get(field) is not None]
+            if not comparable: continue
+            # Multiple books on the same outcome are one forecast observation.
+            unique={(*key(r)[:4],r['side'],r.get('snapshot_id')):r for r in comparable}
+            values=list(unique.values())
+            p=[r[field]/(1-r.get('push_probability',0)) if field=='analyst_probability' else r[field] for r in values]
+            metrics[field]=binary_metrics(p,[r['result']=='won' for r in values])
+            if field=='analyst_probability':
+                metrics['original_on_analyst_cohort']=binary_metrics([r['conditional_probability'] for r in values],[r['result']=='won' for r in values])
+                metrics['market_on_analyst_cohort']=binary_metrics([r['market_probability'] for r in values],[r['result']=='won' for r in values])
+        out[market+':'+session]=metrics
+    return out
+
+
 if __name__=='__main__':
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--snapshots',type=Path,default=ROOT/'data/nhl/snapshots')
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--snapshots',type=Path,default=ROOT/'artifacts/nhl/runs')
     p.add_argument('--history',type=Path,default=ROOT/'data/nhl/v2/history');p.add_argument('--output',type=Path,default=ROOT/'data/nhl/v2/grading.json')
     a=p.parse_args();g,r,_=load(a.history);graded=grade_snapshots(sorted(a.snapshots.glob('*.json*')),g,r)
-    write_json(a.output,dict(rows=graded,offers=len(graded),recommendations_placed=0,
+    write_json(a.output,dict(rows=graded,offers=len(graded),recommendations_placed=0,metrics=prospective_metrics(graded),
         note='Forecast grading only. No bet was placed or inferred from an observation.'))

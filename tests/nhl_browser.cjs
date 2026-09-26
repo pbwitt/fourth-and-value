@@ -13,7 +13,7 @@ const server=http.createServer((req,res)=>{
 (async()=>{
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   const base=`http://127.0.0.1:${server.address().port}`;
-  const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
+  const browser=await chromium.launch({headless:true,...(process.env.NHL_BUNDLED_BROWSER?{}:{executablePath:process.env.CHROME_PATH||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'})});
   try{
     const errors=[];
     for(const width of [390,768,1280,1440,1920]){
@@ -46,8 +46,30 @@ const server=http.createServer((req,res)=>{
     await p.locator('#book').selectOption('a');assert((await p.locator('.prop-card').textContent()).includes('Book A'));
     await p.locator('#search').fill('missing');assert.equal(await p.locator('.prop-card').count(),0);
     await p.locator('#reset').click();assert.equal(await p.locator('.prop-card').count(),1);
+    // Additive model fields, with explicit units, uncertainty and missing/stale safeguards.
+    fixture.model_status='Experimental independent forecasts; recommendations disabled';
+    fixture.rows=fixture.rows.map(r=>({...r,model_data_checked_at:now.toISOString(),independent_probability:.56,final_probability:.56,
+      market_probability:.5,push_probability:0,fair_odds:-127.27,estimated_ev:.08,minimum_acceptable_odds:110,
+      model_status:'Experimental independent forecast; no validated betting edge',model_version:'nhl-v2.1',validation_status:'experimental',
+      analyst_status:'unreviewed',key_drivers:['Projected ice time 18.0 minutes'],uncertainties:['Goalie unconfirmed'],
+      sensitivity:{win_min:.50,win_max:.61,assumption:'Rate ±10%; not a confidence interval'},
+      invalidation_conditions:['Price changes'],signal_type:'combined_signal_unvalidated'}));
+    await p.reload();await p.waitForSelector('.nhl-forecast');await p.locator('.nhl-forecast summary').click();
+    assert((await p.locator('.nhl-forecast').textContent()).includes('Minimum acceptable price'));
+    assert((await p.locator('.nhl-forecast').textContent()).includes('56.0%'));
+    assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'Forecast panel mobile overflow');
+    await p.evaluate(()=>window.scrollTo(0,0));await p.screenshot({path:'/tmp/fv-nhl-model-mobile.png',fullPage:true});
+    await p.setViewportSize({width:1440,height:1000});await p.screenshot({path:'/tmp/fv-nhl-model-desktop.png',fullPage:true});
+    fixture.rows=fixture.rows.map(r=>({...r,model_data_checked_at:new Date(+now-37*3600e3).toISOString()}));
+    await p.reload();await p.waitForSelector('.prop-card');assert.equal(await p.locator('.nhl-forecast').count(),0);
+    assert((await p.locator('.prop-card').textContent()).includes('forecast hidden'));
+    fixture.rows=fixture.rows.map(r=>({...r,independent_probability:null,final_probability:null,model_status:'Independent model unavailable'}));
+    await p.reload();await p.waitForSelector('.prop-card');assert.equal(await p.locator('.nhl-forecast').count(),0);
+    assert((await p.locator('.prop-card').textContent()).includes('Independent model unavailable'));
     fixture={...fixture,status:'feed_error'};await p.reload();await p.waitForFunction(()=>document.getElementById('feed-status').textContent.includes('failed'));assert.equal(await p.locator('.prop-card').count(),0);
     fixture={...fixture,status:'ready',last_success_at:new Date(+now-25*3600e3).toISOString()};await p.reload();await p.waitForFunction(()=>document.getElementById('feed-status').textContent.includes('needs a refresh'));assert.equal(await p.locator('.prop-card').count(),0);
-    assert.deepEqual(errors,[]);console.log('PASS: NHL nav/layout at five widths, populated props filters, best-book selection, error/stale suppression.');
+    fixture={...fixture,status:'waiting_for_markets',last_success_at:now.toISOString(),rows:[]};await p.reload();
+    await p.waitForFunction(()=>document.getElementById('feed-status').textContent.includes('Waiting for NHL markets'));assert.equal(await p.locator('.prop-card').count(),0);
+    assert.deepEqual(errors,[]);console.log('PASS: NHL routes at five widths; filters and best book; valid, missing, stale-model, stale-feed, failure and empty states.');
   }finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);server.close();process.exitCode=1;});

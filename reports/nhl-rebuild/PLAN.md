@@ -51,3 +51,28 @@ evaluation is therefore a **reconstructed predictive test**, with a conservative
 not a certified replay of vintage data. Prospective snapshots provide actual ingestion times.
 No unrecorded injuries, starters, lines, trades or closing odds enter historical features.
 All recommendations remain disabled until timestamped executable-price evidence exists.
+
+## Implementation decisions and remaining limitations
+
+- Official game summaries are complete for all four requested seasons (1,312 games each).
+  NHL GF excludes shootout awards. Normalization reconstructs regulation and final settlement
+  scores explicitly, including the OT empty-net standings exception. Monthly partitions
+  avoid silent 10,000-row truncation.
+- Validation selected `poisson_core`, `opportunity_nb` shots and `opportunity_nb` scoring.
+  More team context and boosting were rejected for unstable validation gains; a hurdle
+  player challenger did not improve scoring. No final-test-driven algorithm change.
+- A post-evaluation correctness audit removed target-game position from rookie priors.
+  The unchanged protocol was rerun and selection stayed the same. The test was opened
+  before that correction; EVALUATION.md discloses this instead of claiming a pristine rerun.
+- No reliable timestamped historical odds or qualitative archive was found. Live consensus,
+  independent forecasts, future blend training utilities, sourced analyst reviews and
+  prospective grading are implemented; market blending and validated picks remain off.
+- MoneyPuck's free-use terms do not establish authorization for this commercial site.
+  No xG data were downloaded. Starter identity, line units, injuries, travel distance and
+  teammate effects remain unsupported model inputs, with explicit analyst uncertainty.
+- Settlement mapping is limited to primary sources in `config/nhl_settlement.json`.
+  Unmapped books retain their quotes but do not join other-book consensus or receive EV.
+- Current main was fetched and the isolated branch rebased before site integration,
+  preserving the newer responsible-use notices and other unrelated upstream changes.
+- Source/statistics and forecast snapshots are durably archived in Git with content hashes;
+  Actions retention alone was rejected because it expires after 90 days.

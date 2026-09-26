@@ -51,5 +51,5 @@ def append_review(path,record,asof):
 if __name__=='__main__':
     from datetime import datetime,timezone
     p=argparse.ArgumentParser(description=__doc__); p.add_argument('record',type=Path)
-    p.add_argument('--ledger',type=Path,default=ROOT/'data/nhl/v2/reviews.jsonl')
+    p.add_argument('--ledger',type=Path,default=ROOT/'artifacts/nhl/reviews.jsonl')
     args=p.parse_args(); print(append_review(args.ledger,json.loads(args.record.read_text()),datetime.now(timezone.utc))['review_id'])

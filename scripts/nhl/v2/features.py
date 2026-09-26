@@ -101,9 +101,13 @@ def build(games, players):
                 team_id=g[side+'_id'], opponent_id=g[('away' if side=='home' else 'home')+'_id'],
                 target=g[side+'_reg_goals'], final_score=g[side+'_score']))
         for r in by_game[g['game_id']]:
-            f = history.player_features(r['player_id'],r['position'],g['game_date'],asof)
+            # A target-game position is retrospective context too. Use last observed position;
+            # cold-start players receive the fixed unknown-position prior.
+            prior = history.players[r['player_id']]
+            position = prior[-1]['position'] if prior else 'U'
+            f = history.player_features(r['player_id'],position,g['game_date'],asof)
             player_rows.append(dict(**f,game_id=g['game_id'],season=g['season'], game_date=g['game_date'],
-                decision_at=iso(asof), player=r['player'],position=r['position'],
+                decision_at=iso(asof), player=r['player'],position=position,
                 targets=[r[s] for s in PLAYER_STATS],actual_toi=r['toi']))
     return team_rows,player_rows
 
