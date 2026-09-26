@@ -84,15 +84,19 @@ def collect(sport,now,seen_urls=(),terms=()):
     if terms:found=[s for s in found if any(term in (s['title']+' '+s['url'].replace('-', ' ').replace('_', ' ')).lower() for term in terms) and not re.search(r'promo code|bonus bets|sign.up offer',s['title'],re.I)]
     # Prefer new reporting; a materially updated story may still use an older source.
     found.sort(key=lambda s:(s['url'] in seen_urls,-ed.stamp(s['published_timestamp']).timestamp()))
-    selected=[];hosts=set()
+    selected=[];hosts=set();failures={}
     for source in found:
         host=urlsplit(source['url']).hostname
         if len(selected)>=2 and host in hosts:continue
         try:
             excerpt=text_content(fetch(source['url']))
-            if len(excerpt.split())<100:continue
+            if len(excerpt.split())<100:
+                failures[host]='No readable article body';continue
             selected.append(dict(source,id=f's{len(selected)+1}',excerpt=excerpt[:2300],retrieved_at=now.isoformat()))
             hosts.add(host)
             if len(selected)>=3 and len(hosts)>=2:break
-        except (requests.RequestException,ValueError):continue
+        except (requests.RequestException,ValueError) as exc:
+            failures[host]=type(exc).__name__+': '+str(exc)[:180]
+    if len(hosts)<2:
+        print('Source availability: '+json.dumps(dict(sport=sport,candidates=len(found),readable_hosts=sorted(hosts),failures=failures)),flush=True)
     return selected if len(hosts)>=2 else []
