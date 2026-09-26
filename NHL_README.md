@@ -7,6 +7,7 @@ pricing separate. All betting recommendations remain disabled: four-season predi
 testing does not establish an executable betting edge.
 
 - [Actual evaluation and limitations](reports/nhl-rebuild/EVALUATION.md)
+- [Historical market comparison](reports/nhl-rebuild/HISTORICAL_MARKETS.md)
 - [Model card](reports/nhl-rebuild/MODEL_CARD.md)
 - [Sources and blocked inputs](reports/nhl-rebuild/SOURCES.md)
 - [Public contract](reports/nhl-rebuild/CONTRACT.md)
@@ -22,8 +23,8 @@ make nhl_test PY=.venv/bin/python
 
 Install `requirements-nhl.txt` for the pinned model stack. Restore archived source data
 with `scripts/nhl/v2/restore.py`, run `make nhl_evaluate`, and render the report with
-`scripts/nhl/v2/report.py`. Training is separate from daily inference. No paid historical
-odds endpoint or restricted xG dataset is used.
+`scripts/nhl/v2/report.py`. Training is separate from daily inference. A bounded historical game-price sample uses the existing authorized odds plan; no
+upgrade or restricted xG dataset is used.
 
 Routes: `/nhl/`, `/nhl/props/`, `/nhl/totals/`, `/nhl/top.html`, `/nhl/methods.html`.
 Public feed: `docs/nhl/data/latest.json`. Production schedules target 10:30 and 16:30

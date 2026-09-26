@@ -92,16 +92,17 @@ def render(root=ROOT/'reports/nhl-rebuild'):
     for n,r in differences.items():
         lo,hi=r['game_cluster_bootstrap95'];lines.append(f"| {n} | {r['selected_minus_baseline']:.6f} | [{lo:.6f}, {hi:.6f}] |")
     lines += ['', '## Betting, markets and qualitative evaluation','',
-        'No executable historical betting simulation is claimed. The old local ledger contains five NHL bets; '
-        'old odds CSVs lack quote timestamps, and some ledger fields contain `undefined` or inconsistent market labels. '
-        'New snapshots are currently ungraded future games. Counts and turnover for a validated strategy are zero; '
-        'ROI, net units, drawdown, odds distribution, execution sensitivity and CLV are **unavailable**, not estimated '
-        'as zero returns. The grading module implements flat-unit accounting, game-cluster uncertainty, worse-price '
-        'sensitivity and exact-line CLV for future usable records.','',
-        'A timestamped market benchmark, blend calibration, early-vs-late comparison, and qualitative feature/override '
-        'ablations remain blocked by missing historical evidence. No closing quote, retrospective lineup or injury '
-        'record is substituted. Analyst adjustments begin as sourced, append-only prospective shadow records; '
-        'original model forecasts are preserved. Unknown participation is unresolved, not a zero or automatic loss.','',
+        'The existing odds plan was subsequently verified to include historical access. A fixed monthly game-price '
+        'sample now supports a separate [timestamped market comparison and shadow price simulation](HISTORICAL_MARKETS.md). '
+        'It covers 130 games across 21 morning dates, costs 630 existing credits, and leaves model and policy choices '
+        'unchanged. The independent-versus-market paired intervals all include zero. Three final-season shadow '
+        'selections lose 1.5238 units; this is too little evidence for profitability conclusions. It is not realized '
+        'execution or a full daily backtest. No validated production betting strategy is enabled.','',
+        'Historical player prices, full daily game-price coverage, closing/later snapshots and qualitative records '
+        'remain absent. Sparse development price coverage does not qualify a learned blend. Early-versus-later '
+        'and CLV diagnostics remain unavailable. The old ledger contains only five NHL bets with inconsistent '
+        'labels; it is not reused. Analyst adjustments begin as sourced, append-only prospective shadow records, '
+        'preserving original forecasts. Unknown participation remains unresolved, not a zero or automatic loss.','',
         '## Reproduction and audit notes','',
         'See [RUNBOOK.md](RUNBOOK.md), [MODEL_CARD.md](MODEL_CARD.md), [SOURCES.md](SOURCES.md), '
         '[CONTRACT.md](CONTRACT.md) and [PLAN.md](PLAN.md). `evaluation.json` contains exact fold metrics and '

@@ -113,6 +113,13 @@ class ProbabilityTests(unittest.TestCase):
 
 
 class QuoteTests(unittest.TestCase):
+    def test_historical_sample_is_fixed_monthly_and_never_uses_current_time(self):
+        from nhl.v2.market_evaluate import dates
+        sample=dates()
+        self.assertEqual(len(sample),21);self.assertEqual(len(set(sample)),21)
+        self.assertTrue(all(day.endswith('-15') for day in sample))
+        self.assertEqual(sample[0],'2023-10-15');self.assertEqual(sample[-1],'2026-04-15')
+
     def test_exact_pair_and_push_correction(self):
         rows=compare([quote(b,s) for b in 'abcd' for s in ['Over','Under']],NOW)
         self.assertTrue(all(r['fair_probability']==.5 and r['other_books']==3 for r in rows))

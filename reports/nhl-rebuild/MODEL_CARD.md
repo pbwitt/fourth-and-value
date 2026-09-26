@@ -62,7 +62,7 @@ unconditional win probabilities given action. EV = p(win) × (decimal odds − 1
 Fair decimal odds = (1 − p(push)) / p(win). Integer-line comparison EV additionally
 depends on the independent push estimate and is labeled accordingly. Market blend weight
 is zero: `fit_blend` is a prospective training utility and does not qualify an artifact
-for inference. No market consensus ever replaces a missing independent forecast.
+for inference. No market consensus ever replaces a missing independent forecast. A fixed monthly game-price diagnostic was added after the core forecast evaluation; it does not change model selection or enable blending. See HISTORICAL_MARKETS.md.
 
 Minimum price uses a 2% EV buffer and the worst required price across ±10% rate scenarios, including each scenario’s own push probability.
 These are transparent operational sensitivity assumptions, **not estimated confidence

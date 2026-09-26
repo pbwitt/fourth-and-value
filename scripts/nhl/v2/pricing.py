@@ -100,6 +100,7 @@ def price(probabilities,offered,minimum_ev=.02,lower_win=None,scenarios=None):
         checked=[probabilities,*scenarios]
         for p in checked:
             if min(p.values())<0 or abs(sum(p.values())-1)>1e-7: raise ValueError('Invalid scenario probabilities')
+        lower=min(p['win'] for p in checked)
         minimum=max((1-p['push']+minimum_ev)/p['win'] for p in checked) if all(p['win']>0 for p in checked) else None
         rank=min(p['win']*math.log1p(.0025*(dec-1))+p['loss']*math.log1p(-.0025) for p in checked)
     return dict(model_probability=win,independent_probability=win,final_probability=win,

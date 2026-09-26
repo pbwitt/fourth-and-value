@@ -120,7 +120,7 @@ def run(history_root,output,model_dir):
         limitations=['Reconstructed next-day availability; original publication/revision timestamps unavailable.',
           'Player evaluation is conditional on actual participation; no retrospective lineup features.',
           'Reference lines are fixed diagnostic thresholds, not claims of posted prices.',
-          'No timestamped settled quote sample: market benchmark, learned blend, ROI and CLV unavailable.',
+          'Core report excludes prices; see separate fixed-sample historical-market-evaluation.json for game-price diagnostics.',
           'No final-test-driven policy selection; all production candidates remain experimental.'])
     for season in [20232024,20242025]:
         train=[r for r in tr if r['season']<season]; valid=[r for r in tr if r['season']==season]
@@ -155,7 +155,7 @@ def run(history_root,output,model_dir):
             m=PlayerModel(name).fit(pt)
             report['final']['player'][name]=player_metrics(m,pv,save)
     report['selection']=selection
-    report['betting_evaluation']=dict(status='blocked_missing_timestamped_historical_odds',bets=0,turnover=0,
+    report['betting_evaluation']=dict(status='no_validated_production_strategy; see separate monthly shadow-price report',bets=0,turnover=0,
         net_units=None,roi=None,drawdown=None,odds_distribution=None,execution_sensitivity=None,clv=None)
     # Same selected algorithms; refit on all now-completed seasons for live use only.
     bundle=dict(team=TeamModel(selected_team).fit(tr,games),shots=PlayerModel(selected_shots).fit(pr),

@@ -118,3 +118,20 @@ prior market-only refresh after approval. Preserve `artifacts/nhl/` and previous
 manifests outside the rollback diff so every published decision remains reproducible.
 Never restore an old public snapshot as if it were fresh, and never re-enable the retired
 leaking training scripts as a rollback.
+
+## Fixed historical market-price diagnostic
+
+Historical access was verified on the existing plan. Twenty-one fixed morning dates
+(the 15th of October–April in three seasons) were downloaded for 630 existing credits,
+plus a 10-credit entitlement probe. No upgrade was requested. The archive is committed
+under `artifacts/nhl/historical-odds/`; rerunning the evaluation uses it without a key:
+
+```bash
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 .venv/bin/python scripts/nhl/v2/market_evaluate.py
+```
+
+Run `restore.py` and `evaluate.py` first to reconstruct the feature cache if absent.
+Only `--download` permits new API calls, and the script skips saved dates, caps one run
+at 630 credits and preserves a 2,000-credit live-operation reserve. It never buys access.
+`HISTORICAL_MARKETS.md` separates timestamped quote diagnostics and shadow simulations
+from realized execution and explains the small sample and historical-rule assumptions.

@@ -76,3 +76,9 @@ All recommendations remain disabled until timestamped executable-price evidence 
   preserving the newer responsible-use notices and other unrelated upstream changes.
 - Source/statistics and forecast snapshots are durably archived in Git with content hashes;
   Actions retention alone was rejected because it expires after 90 days.
+
+- Final entitlement check confirmed that the existing odds key includes historical access.
+  A fixed monthly sample (the 15th, October–April across 2023–24 through 2025–26) was
+  declared before download and acquired for 630 credits, leaving over 14,000. The
+  locked model and shadow policy are unchanged. The earlier missing-local-odds finding
+  is superseded by HISTORICAL_MARKETS.md; full daily and player-price coverage are still absent.
