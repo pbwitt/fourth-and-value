@@ -1,5 +1,8 @@
 # NHL Integration — Implementation Plan
 
+> Historical 2025 proposal, superseded by the [NHL v2 implementation and evaluation](../reports/nhl-rebuild/PLAN.md).
+> Checkmarks and targets below are not evidence of current model validation or betting performance.
+
 **Status:** Design Complete → Ready for Phase A Implementation
 **Author:** Claude (Lead Dev)
 **Date:** 2025-10-08

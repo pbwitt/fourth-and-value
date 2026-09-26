@@ -202,7 +202,17 @@ nhl_pages:
 	$(PY) scripts/nhl/refresh.py --offline
 
 nhl_test:
-	$(PY) -m unittest discover -s tests -p 'test_nhl_refresh.py'
+	$(PY) -m unittest discover -s tests -p 'test_nhl*.py'
+
+.PHONY: nhl_history nhl_evaluate nhl_grade
+nhl_history:
+	$(PY) scripts/nhl/v2/data.py
+
+nhl_evaluate:
+	OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 $(PY) scripts/nhl/v2/evaluate.py
+
+nhl_grade:
+	$(PY) scripts/nhl/v2/grading.py
 
 nhl_totals_daily: nhl_daily
 

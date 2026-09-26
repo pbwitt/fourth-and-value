@@ -5,6 +5,7 @@ import math
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 import os
+import json
 from pathlib import Path
 import sys
 
@@ -14,7 +15,8 @@ from scipy.stats import poisson
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
-from nba.pipeline import OddsClient, FeedError, compare, flatten, iso, normal_name, read_json, save_json, timestamp
+from nba.pipeline import OddsClient as BaseOddsClient, FeedError, flatten as base_flatten, iso, normal_name, read_json, save_json, timestamp
+from nhl.v2.pricing import compare
 
 UTC = timezone.utc
 SPORT = 'icehockey_nhl'
@@ -22,6 +24,31 @@ PROPS = {'player_shots_on_goal': 'Shots on goal', 'player_goals': 'Goals',
          'player_assists': 'Assists', 'player_points': 'Points'}
 MARKETS = {**PROPS, 'totals': 'Game total', 'spreads': 'Puck line', 'h2h': 'Moneyline'}
 STAT_KEYS = dict(zip(PROPS, ['shots', 'goals', 'assists', 'points']))
+
+
+class OddsClient(BaseOddsClient):
+    """Archive every successful authorized-feed response without request credentials."""
+    def get(self, suffix, **params):
+        payload = super().get(suffix, **params)
+        from nhl.v2.data import digest, write_json
+        captured = datetime.now(UTC)
+        record = dict(source='the_odds_api', resource=suffix, parameters=params,
+                      ingested_at=iso(captured), payload=payload)
+        write_json(ROOT/'data/nhl/v2/raw_odds'/f'{captured.strftime("%Y%m%dT%H%M%S%fZ")}-{digest(payload)[:12]}.json', record)
+        return payload
+
+
+def flatten(event, now, sport=SPORT, markets=MARKETS, prop_markets=list(PROPS)):
+    rules = read_json(ROOT/'config/nhl_settlement.json', {}).get('books', {})
+    rows = base_flatten(event, now, sport, markets, prop_markets)
+    for row in rows:
+        policy = rules.get(row['book'], {})
+        profile = policy.get('player' if row['market'] in PROPS else 'game')
+        row.update(nhl_game_id=event.get('nhl_game_id'), ingested_at=iso(now),
+                   settlement_profile=profile or f"unverified:{row['book']}:{row['market']}",
+                   settlement_verified=bool(profile),settlement_source=policy.get('source'),
+                   settlement_scope='Standard full-game only; verify local rules and market exceptions')
+    return rows
 
 
 def season_for(now):
@@ -59,7 +86,7 @@ def schedule(now):
                     continue
                 games[game['id']] = dict(nhl_game_id=game['id'], season=game['season'], game_type=2,
                     commence_time=iso(start), home_team=team_name(game['homeTeam']),
-                    away_team=team_name(game['awayTeam']))
+                    away_team=team_name(game['awayTeam']),home_id=game['homeTeam'].get('id'),away_id=game['awayTeam'].get('id'))
     return sorted(games.values(), key=lambda g:g['commence_time'])
 
 
@@ -193,8 +220,9 @@ def refresh(client, now, games, history):
         prop = client.get(f"events/{event['id']}/odds", regions='us', markets=','.join(PROPS), oddsFormat='american')
         if not isinstance(prop, dict) or prop.get('id') != event['id'] or not regular_events([prop], games):
             raise FeedError('NHL prop odds response did not match the regular-season event')
+        prop['nhl_game_id'] = event['nhl_game_id']
         rows.extend(flatten(prop, now, SPORT, MARKETS, list(PROPS)))
-    rows = baselines(compare(rows), history, now)
+    rows = baselines(compare(rows, now), history, now)
     return dict(sport=SPORT, season=season_for(now), status='ready' if rows else 'waiting_for_markets',
                 checked_at=iso(now), last_success_at=iso(now), events=games, rows=rows,
                 matched_events=len(accepted), excluded_events=len(events)-len(accepted),
@@ -208,8 +236,9 @@ def refresh(client, now, games, history):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--offline', action='store_true', help='Build saved pages without network calls')
+    parser.add_argument('--env-file', type=Path, default=ROOT / '.env', help='Authorized local environment file; never copied into archives')
     args = parser.parse_args()
-    load_dotenv(ROOT / '.env')
+    load_dotenv(args.env_file)
     now = datetime.now(UTC)
     public = ROOT / 'docs/nhl/data/latest.json'
     state = read_json(public, dict(status='not_checked', events=[], rows=[], last_success_at=None, season=season_for(now)))
@@ -220,10 +249,19 @@ def main():
             history = load_history(now)
             client = OddsClient(os.getenv('NHL_ODDS_API_KEY') or os.getenv('ODDS_API_KEY'), SPORT)
             state = refresh(client, now, games, history)
+            from nhl.v2.inference import enrich
+            state = enrich(state, now)
+            state['decision_session'] = 'morning' if now.astimezone(__import__('zoneinfo').ZoneInfo('America/New_York')).hour < 14 else 'afternoon'
+            from nhl.v2.data import digest
+            state['snapshot_id'] = digest(state)[:24]
+            from nhl.v2.archive import archive_run
+            archive_run(state)
             save_json(ROOT / 'data/nhl/snapshots' / (now.strftime('%Y%m%dT%H%M%SZ') + '.json'), state)
-        except FeedError as error:
-            state.update(status='feed_error', error=str(error), checked_at=iso(now))
-            print(str(error), file=sys.stderr)
+        except Exception as error:
+            # Even an unexpected schema/archive failure must not leave a healthy-looking feed.
+            message=str(error) if isinstance(error,FeedError) else f'NHL refresh failed ({type(error).__name__})'
+            state.update(status='feed_error', error=message, checked_at=iso(now))
+            print(message, file=sys.stderr)
             code = 1
         save_json(public, state)
     from nhl.site import build
