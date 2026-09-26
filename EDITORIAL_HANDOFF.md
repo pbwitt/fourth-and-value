@@ -1,3 +1,57 @@
+# Editorial desk — current handoff, September 26, 2026
+
+This current status supersedes the September 24 pause and retry instructions below.
+The owner resumed work and authorized a new private Write now test.
+
+## Completed live
+
+- Owner Save idea / Write now successfully reached the Edge Function and GitHub.
+- The first September 26 request stopped before any paid call: its full payload
+  exceeded the existing byte limit. Zero cost was verified in the ledger, and
+  its history was retained when resuming the same request.
+- Request size is now checked before spending reservation or claiming an idea.
+  Exact request fitting trims source excerpts while retaining required records.
+- Wild Card overviews now use official dated standings, home/away records and
+  completed-game head-to-head results. Pairings are explicitly provisional.
+  Historical-model checks cover retained editorial evidence only, not unindexed
+  workflow artifacts. Missing historical forecasts are never recreated.
+- The resumed request produced a private Review draft and passed factual review.
+  Live workflow: https://github.com/pbwitt/fourth-and-value/actions/runs/36246388949
+- Actual draft content was tested in isolated mobile and desktop previews.
+  Editing disables approval until saving. These browser test edits did not touch
+  the live draft. Production write_now_publish remains false; published_url is null.
+- Estimated writing plus review cost: $0.177988. Earlier zero-cost attempt remains
+  in prior_attempts. No model, output cap or weekly budget increase.
+- 102 editorial Python tests passed; dispatcher and PostgreSQL permission checks
+  passed during this session. Public daily article count remains two.
+
+## Next steps requiring the owner's real review/account
+
+1. Owner opens https://fourthandvalue.com/editorial/inbox.html, refreshes, selects
+   the Review draft and previews it. Publication has not been approved.
+2. After the owner approves the exact saved content, verify the hourly publisher
+   and actual public page. Do not equate draft generation with approved publication.
+3. Test a separate reader account: submission, owner acceptance, private draft,
+   approval, and isolation from other readers. Automated permission checks passed;
+   the real reader-account journey is still unverified.
+
+## Remaining infrastructure
+
+- Email recipient is configured; RESEND_API_KEY and EDITORIAL_NOTIFY_FROM remain
+  absent. No email or OS push delivery is claimed.
+- User blocking remains unimplemented; archive and submission limits exist.
+- Morning delivery target is 6:30 AM America/New_York, starting at 5:07 with
+  pre-deadline recovery checks. First unattended run at the new target is pending.
+- NBA/NHL require eligible model feeds before automatic articles can qualify.
+- Raw historical-model artifact indexing is still needed for broader historical
+  comparisons; the current overview explicitly discloses the archive's limits.
+- Worktree: /private/tmp/fv-editorial-repair. The original checkout has unrelated
+  user edits; do not overwrite it. Private drafts and reader details stay in Supabase.
+
+---
+
+## Historical September 24 handoff
+
 # Editorial desk handoff — September 24, 2026
 
 ## Product direction

@@ -56,11 +56,11 @@ The public homepage and morning briefing can run before the private database mig
 
 ## Automated original analysis — budget revision, September 22
 
-Enabled in `config/editorial.json`: **two published articles each morning, with an 8 AM Eastern delivery check**, exact model
+Enabled in `config/editorial.json`: **two published articles each morning, with a 6:30 AM Eastern delivery check**, exact model
 `gpt-6-astra`, low reasoning, standard service tier. No fallback model. Runs on GitHub
 Actions at **05:07 America/New_York**, without the owner's computer. GitHub may delay
 scheduled jobs; publication follows research, factual checking and the Pages build.
-Additional triggers at :27 and :47 from 5–9 AM recover delayed starts. Hourly runs also retry unfilled, eligible article slots; completed or uncertain paid attempts are not repeated. The independent Morning Article Delivery Watchdog checks at 6:53–9:53 AM and after MLB refreshes during the morning window. It dispatches recovery if no editorial run is active and reports an overdue edition as a failed check.
+Additional triggers at :27 and :47 from 5–9 AM recover delayed starts. Hourly runs also retry unfilled, eligible article slots; completed or uncertain paid attempts are not repeated. The independent Morning Article Delivery Watchdog checks at :23 and :53 from 5–9 AM, plus 6:33 AM and after MLB refreshes during the morning window. It dispatches recovery if no editorial run is active and reports an overdue edition as a failed check.
 
 The allocator prefers leagues covered least recently, breaking ties in favor of
 active boards and rotating ties daily. It tries other leagues if current sources
@@ -73,8 +73,8 @@ blocked states for recovery. Missing source evidence remains retryable.
 
 The delivery check counts unique catalog URLs with existing public article files,
 not writer invocations or drafts. It runs after publication so a partial edition and
-its diagnostics are preserved before the workflow fails. Before 8 AM, an incomplete
-edition is pending; from 8 AM it fails with the counts and blocking reasons in the
+its diagnostics are preserved before the workflow fails. Before 6:30 AM Eastern, an incomplete
+edition is pending; from 6:30 AM it fails with the counts and blocking reasons in the
 Actions summary. The workflow and watchdog also fetch the public article URLs and verify their
 page titles, retrying during deployment propagation. An accepted Pages build
 request alone does not count as successful public delivery.
@@ -278,7 +278,7 @@ forecast. The gate does not fabricate projections or force an offseason story.
 calling a paid API. Existing September 23 analysis remains dated; it is not silently
 rewritten with later quotes.
 
-The first morning sequence now starts at 05:07 Eastern, with a 06:37 catch-up.
+The first morning sequence now starts at 05:07 Eastern, with a 06:07 catch-up.
 Both refresh MLB before checking article readiness. The catch-up skips any slot
 that already incurred a paid attempt; it only fills unattempted or data-waiting
 slots within the same two-article daily maximum and budget. There is no guarantee
@@ -553,3 +553,25 @@ Email summaries are deferred: `RESEND_API_KEY` and `EDITORIAL_NOTIFY_FROM` are n
 currently configured. The existing recipient secret alone is insufficient to send.
 Source fallback is recorded separately from story selection. The system still does
 not repeat rejected/uncertain paid writing attempts or fabricate missing inputs.
+
+
+## September 26: requested draft verification
+
+The owner Write now journey has produced a private Review draft in a live run;
+mobile/desktop preview and editing controls were checked using that draft in an
+isolated browser. Approval and public delivery of this requested draft remain the
+next owner-controlled step. See EDITORIAL_HANDOFF.md for current completion status.
+
+Explicit NFL requests refresh their model feed even when daily slots are filled.
+A completed writer without a draft/article now fails the requested-result check.
+Full request size is checked before claiming a private idea or reserving money;
+source excerpts are reduced within the unchanged byte caps. Paid and uncertain
+attempts cannot automatically retry. A verified legacy pre-request zero-cost
+failure can be explicitly released, retaining its earlier attempt in the ledger.
+
+Requested MLB Wild Card overviews use a separate statistical format, with official
+standings, home/away records and completed-game matchup history. This applies to
+explicit requests only; daily matchup model requirements remain intact. No series
+prices or retrospective model forecasts are invented. The historical archive scan
+is limited to published editorial evidence, and this limitation accompanies the
+records. Broader raw model-artifact indexing remains outstanding.
