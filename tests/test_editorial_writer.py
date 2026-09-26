@@ -30,6 +30,19 @@ class WriterGuards(unittest.TestCase):
     def test_invented_market_rejected(self):
         self.article['market_ids']=['fake']
         with self.assertRaises(ValueError):w.validate(self.article,self.response,self.packet,self.now)
+    def test_numeric_team_id_is_an_exact_alias_only_for_team_statistics(self):
+        self.packet={'markets':[],'model_rows':[],'statistical_context':{'scope':'mlb_team_playoff_outlook',
+            'series':[{'id':'stats-team-134','team_id':134}]}}
+        for identifier in (134,'134','stats-team-134'):
+            self.article['market_ids']=[identifier]
+            self.assertEqual(w.validate(self.article,self.response,self.packet,self.now),600)
+            self.assertEqual(self.article['market_ids'],['stats-team-134'])
+        for identifiers in ([],[135],['stats-standings'],['stats-team-134',999]):
+            self.article['market_ids']=identifiers
+            with self.assertRaises(ValueError):w.validate(self.article,self.response,self.packet,self.now)
+        self.packet={'markets':[{'id':'q1'}],'model_rows':[]}
+        self.article['market_ids']=[134]
+        with self.assertRaises(ValueError):w.validate(self.article,self.response,self.packet,self.now)
     def test_unrelated_target_model_reference_rejected(self):
         self.packet={'markets':[{'id':'q1','event_id':'target','game':'Padres @ Dodgers'}],
             'model_rows':[{'id':'m1','event_id':'other','game':'Cardinals @ Pirates'}],
