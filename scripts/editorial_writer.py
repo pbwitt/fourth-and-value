@@ -362,6 +362,7 @@ def run(now,limit=2,idea_id=None,publish_own=False):
             except ValueError as exc:
                 state.setdefault('data_skips',{})[sport]=str(exc);continue
             sources=reporting.collect(sport,now)
+            state.setdefault('source_checks',{})[sport]=getattr(sources,'diagnostics',{})
             if sources:
                 collected[sport]=sources;allocation.append((sport,angle))
                 state.setdefault('data_skips',{}).pop(sport,None)
@@ -410,6 +411,8 @@ def run(now,limit=2,idea_id=None,publish_own=False):
                 packet['reporting']=targeted;packet['target_game']=target
             elif target.get('selection')!='model-pick':
                 packet['target_game']=target
+        source_check=getattr(packet['reporting'],'diagnostics',{})
+        state.setdefault('source_checks',{})[sport]=source_check
         packet=compact(packet)
         require_data(packet)
         recent=[a['title'] for a in ed.CFG['articles']+catalog if a.get('sport')==sport][-8:]
@@ -423,7 +426,7 @@ def run(now,limit=2,idea_id=None,publish_own=False):
             if idea:ideas.waiting(idea,'Writing is paused by the weekly spending guard or an existing reservation. No new paid request was made.')
             print('::warning::Rolling editorial budget reached; no paid request.');break
         usages=[];accounted=True;idea_claimed=False
-        state['slots'][key]={'status':'started','model':cfg['model'],'effort':cfg['reasoning_effort'],'at':story_now.isoformat()}
+        state['slots'][key]={'status':'started','model':cfg['model'],'effort':cfg['reasoning_effort'],'at':story_now.isoformat(),'source_check':source_check}
         ed.write_json(statepath,state)
         print(f'{sport} {angle}: researching',flush=True)
         try:

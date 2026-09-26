@@ -522,3 +522,34 @@ reservation or trigger a paid retry implicitly. All 62 editorial tests pass,
 including the Daniels/Reed topic regression and zero paid calls on missing sources.
 
 Current pause/resume checklist: see EDITORIAL_HANDOFF.md (September 24, 2026).
+
+## Private morning pipeline dashboard
+
+Open `/editorial/diagnostics.html` from the editorial desk. It uses the existing
+editor login; reports are protected by database row-level security, not merely an
+unlisted URL. Sign in through the existing desk so no new Auth redirect is needed.
+
+One-time setup: run `supabase/editorial_diagnostics.sql` in the existing Supabase
+SQL editor. It adds one read-only-for-editors table. Existing idea, article and bet
+tables are unchanged. Only server-side service credentials can write reports.
+There are no new secrets required for the dashboard.
+
+The editorial workflow records start and finish observations. The watchdog records
+its own delivery check, including missing editions. Reports include GitHub stage
+outcomes, per-sport odds/model freshness, selected and blocked articles, factual
+review results, source-fallback provenance and the next eligible trigger. No private
+idea text, draft bodies, publisher excerpts, model responses or secrets are stored.
+An unknown or stale observation must not be displayed as a passing current check.
+Earlier runs cannot retrospectively prove whether a fallback was used.
+
+Reports are append-only across run attempts and phases, with idempotent updates for
+the same observation. The date picker provides daily history; the snapshot picker
+shows up to 100 observations for that day. The latest view refreshes each minute;
+selecting an older snapshot pins it. If every workflow fails to start, the dashboard
+shows no report or an old observation, not a healthy pipeline. A report-storage
+failure appears as a failed diagnostics job; it does not block article publication.
+
+Email summaries are deferred: `RESEND_API_KEY` and `EDITORIAL_NOTIFY_FROM` are not
+currently configured. The existing recipient secret alone is insufficient to send.
+Source fallback is recorded separately from story selection. The system still does
+not repeat rejected/uncertain paid writing attempts or fabricate missing inputs.

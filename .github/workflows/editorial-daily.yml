@@ -40,6 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read
     outputs:
       mode: ${{ steps.plan.outputs.mode }}
       writer_eligible: ${{ steps.plan.outputs.writer_eligible }}
@@ -74,6 +75,13 @@ jobs:
           echo "refresh_briefing=${{ steps.plan.outputs.refresh_briefing }}"
           echo "refresh_mlb=${{ steps.plan.outputs.refresh_mlb }}"
           echo "reason=${{ steps.plan.outputs.writer_reason }}"
+      - name: Record morning pipeline start
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.UPABASE_SERVICE_ROLE_KEY }}
+        run: python scripts/editorial_diagnostics.py --phase start --store
 
   refresh-mlb:
     needs: plan
@@ -202,3 +210,26 @@ jobs:
           exit 1
       # Private ideas and drafts are never logged or uploaded as public artifacts.
       # The paid writer runs only for the morning edition or an explicit manual refresh.
+
+  diagnostics:
+    needs: [plan, refresh-mlb, publish]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Save private morning diagnostic report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.UPABASE_SERVICE_ROLE_KEY }}
+        run: python scripts/editorial_diagnostics.py --phase finish --store

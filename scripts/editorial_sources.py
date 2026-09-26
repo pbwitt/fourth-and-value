@@ -12,6 +12,12 @@ import editorial as ed
 HEADERS={'User-Agent':'FourthAndValue/1.0 (+https://fourthandvalue.com/)'}
 HOSTS=('espn.com','cbssports.com','mlb.com','nba.com','nhl.com','nhle.com','nfl.com','sports.yahoo.com')
 
+class Reporting(list):
+    """Evidence with non-content diagnostics for the private pipeline report."""
+    def __init__(self,rows,diagnostics):
+        super().__init__(rows)
+        self.diagnostics=diagnostics
+
 def trusted(url):
     host=(urlsplit(url).hostname or '').lower()
     return ed.safe_url(url) and any(host==h or host.endswith('.'+h) for h in HOSTS)
@@ -123,11 +129,14 @@ def collect(sport,now,seen_urls=(),terms=()):
             if len(selected)>=3 and len(hosts)>=2:break
         except (requests.RequestException,ValueError) as exc:
             failures[host]=type(exc).__name__+': '+str(exc)[:180]
-    if len(hosts)<2 and sport=='NFL':
+    fallback_attempted=len(hosts)<2 and sport=='NFL'
+    fallback_used=False
+    if fallback_attempted:
         for source in nfl_reporting(now,terms):
             host=urlsplit(source['url']).hostname
             if host not in hosts:
-                selected.append(dict(source,id=f's{len(selected)+1}'));hosts.add(host)
+                selected.append(dict(source,id=f's{len(selected)+1}'));hosts.add(host);fallback_used=True
     if len(hosts)<2:
         print('Source availability: '+json.dumps(dict(sport=sport,candidates=len(found),readable_hosts=sorted(hosts),failures=failures)),flush=True)
-    return selected if len(hosts)>=2 else []
+    return Reporting(selected if len(hosts)>=2 else [],dict(at=now.isoformat(),candidates=len(found),
+        hosts=sorted(hosts),fallback_attempted=fallback_attempted,fallback_used=fallback_used,ready=len(hosts)>=2))

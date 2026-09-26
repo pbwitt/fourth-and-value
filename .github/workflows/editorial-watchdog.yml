@@ -30,6 +30,7 @@ jobs:
         with:
           python-version: '3.11'
       - name: Recover a missing morning edition and report delivery
+        id: recovery
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -42,6 +43,8 @@ jobs:
           if not 5 <= now.astimezone(schedule.ET).hour < 10:
               print('Outside morning recovery window')
               raise SystemExit(0)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('in_window=true\n')
           needed, reason = schedule.writer_need(schedule.ROOT, now)
           if needed:
               raw = subprocess.check_output(['gh', 'run', 'list', '--workflow', 'editorial-daily.yml',
@@ -54,6 +57,17 @@ jobs:
                   print('Recovery dispatched: ' + reason)
               else:
                   print('Editorial run already active; no duplicate dispatch')
-          schedule.verify_delivery(now=now)
-          schedule.verify_live(now=now)
           PY
+      - name: Verify daily article delivery
+        if: steps.recovery.outputs.in_window == 'true'
+        run: python scripts/editorial_schedule.py --verify-delivery --verify-live
+      - name: Install report dependency
+        if: always() && steps.recovery.outputs.in_window == 'true'
+        run: pip install requests
+      - name: Save private watchdog report
+        if: always() && steps.recovery.outputs.in_window == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.UPABASE_SERVICE_ROLE_KEY }}
+        run: python scripts/editorial_diagnostics.py --phase watchdog --store
