@@ -56,6 +56,8 @@ def claim(row):
 def context(row,packet):
     """Only expose verified matched games; treat the owner's angle as a topic, not facts."""
     text=row['idea'].lower()
+    if row.get('sport')=='MLB' and re.search(r'\bwild\s*cards?\b',text):
+        return [],('wild card','wildcard','playoff','postseason')
     matched=[g for g in packet.get('markets',[]) if any(
         re.search(r'(?<![a-z])'+re.escape(team.strip().split()[-1].lower())+r'(?![a-z])',text)
         for team in g.get('game','').split('@') if team.strip())]
@@ -65,7 +67,7 @@ def context(row,packet):
         # Jayden Daniels cannot match a headline about Jayden Reed.
         topic=re.sub(r"^(?:please\s+)?(?:highlight|feature|investigate|cover|analyze|analyse|discuss|research)\s+",'',row['idea'],flags=re.I)
         names=re.findall(r"\b[A-Z][a-z]+(?:[ \t]+[A-Z][a-z]+)*",topic)
-        terms=tuple(name.lower() for name in names if name not in {'Use','Then','Does','How','What','Why','The','Is','Can','Look'})
+        terms=tuple(name.lower() for name in names if name not in {'Use','Then','Does','How','What','Why','The','Is','Can','Look','Talk','Do','Include','We','Please','Write','Give'})
     return matched,terms
 
 
@@ -90,9 +92,9 @@ def waiting(row,message):
     except (RuntimeError,requests.RequestException):pass
 
 
-def fail(row):
+def fail(row,detail=None):
     request('PATCH','/rest/v1/editorial_ideas',params={'id':'eq.'+row['id'],'status':'eq.researching'},
-        json={'status':'archived','research_error':'Research could not produce a verified article. Archived to prevent repeated charges. Submit a revised idea to try again.'})
+        json={'status':'archived','research_error':'Research could not produce a verified article. '+(str(detail)[:600]+' ' if detail else '')+'Archived to prevent repeated charges. Submit a revised idea to try again.'})
 
 
 def notify(now):

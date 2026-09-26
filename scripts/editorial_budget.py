@@ -34,10 +34,18 @@ def used(data,now):
 
 def reserve(key,now,cap):
     data=read()
-    if any(e['key']==key for e in data['entries']):return False
+    prior=next((e for e in data['entries'] if e['key']==key),None)
+    # An operator may verify a legacy pre-request failure. Preserve that record;
+    # a paid or uncertain attempt can never be released through this exception.
+    if prior and not (prior.get('verified_pre_request_failure') and prior.get('status')=='settled' and prior.get('charge_usd')==0):return False
     amount=maximum()
     if used(data,now)+amount>cap:return False
-    data['entries'].append(dict(key=key,at=now.isoformat(),status='reserved',charge_usd=amount))
+    if prior:
+        history=prior.setdefault('prior_attempts',[])
+        history.append({k:prior[k] for k in ('at','status','charge_usd','verified_pre_request_failure')})
+        prior.pop('verified_pre_request_failure')
+        prior.update(at=now.isoformat(),status='reserved',charge_usd=amount)
+    else:data['entries'].append(dict(key=key,at=now.isoformat(),status='reserved',charge_usd=amount))
     ed.write_json(PATH,data);return True
 
 def settle(key,usages,complete):

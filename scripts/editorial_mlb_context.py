@@ -1,0 +1,88 @@
+"""Official, dated statistical context for requested Wild Card overviews."""
+from datetime import timedelta
+import json
+from pathlib import Path
+import re
+import requests
+import editorial as ed
+
+API='https://statsapi.mlb.com/api/v1/'
+
+
+def applies(idea):
+    return idea.get('sport')=='MLB' and bool(re.search(r'\bwild\s*cards?\b',idea.get('idea',''),re.I))
+
+
+def get(path,params):
+    response=requests.get(API+path,params=params,timeout=30)
+    response.raise_for_status()
+    return response.json(),response.url
+
+
+def projected_pairs(standings):
+    pairs=[]
+    for league in (103,104):
+        rows=[r for group in standings.get('records',[]) if group.get('league',{}).get('id')==league for r in group.get('teamRecords',[])]
+        winners=sorted([r for r in rows if r.get('divisionRank')=='1'],key=lambda r:int(r['leagueRank']))
+        wild=sorted([r for r in rows if r.get('wildCardRank') in ('1','2','3')],key=lambda r:int(r['wildCardRank']))
+        if len(winners)!=3 or len(wild)!=3:raise ValueError('Complete MLB playoff standings are unavailable')
+        for home,away,seed in ((winners[2],wild[2],3),(wild[0],wild[1],4)):
+            pairs.append((league,seed,home,away))
+    return pairs
+
+
+def record(row):
+    splits={r['type']:r for r in row.get('records',{}).get('splitRecords',[])}
+    if not all(k in splits for k in ('home','away')):raise ValueError('MLB home/away records are unavailable')
+    return {'team_id':row['team']['id'],'team':row['team']['name'],'season_record':f"{row['wins']}-{row['losses']}",
+        **{k+'_record':f"{splits[k]['wins']}-{splits[k]['losses']}" for k in ('home','away')}}
+
+
+def matchup(league,seed,home,away,games,through):
+    h,a=record(home),record(away);seen=set();wins={h['team_id']:0,a['team_id']:0};runs=dict(wins)
+    for date in games.get('dates',[]):
+        for game in date.get('games',[]):
+            sides=game.get('teams',{})
+            ids={side.get('team',{}).get('id') for side in sides.values()}
+            if ids!=set(wins) or game.get('gameType')!='R' or game.get('status',{}).get('abstractGameState')!='Final':continue
+            if game.get('officialDate',date.get('date',''))>through or game['gamePk'] in seen:continue
+            scores={side['team']['id']:side.get('score') for side in sides.values()}
+            if any(not isinstance(v,int) for v in scores.values()) or len(set(scores.values()))!=2:continue
+            seen.add(game['gamePk']);winner=max(scores,key=scores.get);wins[winner]+=1
+            for team,value in scores.items():runs[team]+=value
+    return {'id':f'stats-{league}-{seed}','league':'AL' if league==103 else 'NL','higher_seed':seed,'lower_seed':9-seed,
+        'higher_seed_team':h,'lower_seed_team':a,'status':'Projected from dated standings, not a confirmed postseason matchup',
+        'head_to_head':{'games':len(seen),'higher_seed_wins':wins[h['team_id']],'lower_seed_wins':wins[a['team_id']],
+            'higher_seed_runs':runs[h['team_id']],'lower_seed_runs':runs[a['team_id']]}}
+
+
+def archive_context(root,series):
+    """Inspect only retained editorial evidence; never regenerate historical forecasts."""
+    names=[s['team'].lower() for s in (series['higher_seed_team'],series['lower_seed_team'])]
+    rows=[];files=0;seen=set()
+    for path in sorted((Path(root)/'docs/editorial/evidence').glob('*.json')):
+        packet=json.loads(path.read_text())
+        if packet.get('sport')!='MLB':continue
+        files+=1
+        for row in packet.get('model_rows',[])+packet.get('model_references',[]):
+            teams=[p.strip().lower() for p in row.get('game','').split('@')]
+            if len(teams)!=2 or not all(any(t.endswith(name) for t in teams) for name in names):continue
+            identity=(row.get('event_id'),row.get('player'),row.get('market'),row.get('model_version'))
+            if identity in seen or not row.get('model_version') or row.get('model_mean') is None:continue
+            seen.add(identity)
+            rows.append({k:row.get(k) for k in ('game','player','market','model_mean','model_version','model_input_through')})
+    return {'scope':'Retained published editorial evidence snapshots; raw workflow artifacts are not indexed here',
+        'snapshots_checked':files,'matched_forecasts':rows[:2],
+        'status':'Stored matchup estimates found; historical context only' if rows else 'No matching historical forecast in the inspected editorial archive'}
+
+
+def build(now,root):
+    through=(now.astimezone(ed.ETZ).date()-timedelta(days=1)).isoformat();season=int(through[:4])
+    standings,standings_url=get('standings',{'leagueId':'103,104','season':season,'standingsTypes':'regularSeason','date':through})
+    games,games_url=get('schedule',{'sportId':1,'gameType':'R','season':season,'startDate':f'{season}-03-01','endDate':through})
+    series=[matchup(*pair,games,through) for pair in projected_pairs(standings)]
+    for row in series:row['historical_models']=archive_context(root,row)
+    return {'scope':'mlb_wildcard_overview','through':through,'checked_at':now.isoformat(),'series':series,
+        'official_sources':[{'id':'stats-standings','title':'MLB official dated standings and home/away records','url':standings_url,'published_at':through},
+            {'id':'stats-games','title':'MLB completed regular-season game results','url':games_url,'published_at':through}],
+        'limitations':'Pairings are provisional. Head-to-head and venue records are descriptive samples, not calibrated forecasts. No postseason series prices are supplied. Do not substitute current regular-season odds or manufacture missing historical forecasts.'}
