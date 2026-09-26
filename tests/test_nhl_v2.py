@@ -16,7 +16,7 @@ from nhl.v2.models import TeamModel,PlayerModel,count_pmf,outcome,game_outcome
 from nhl.v2.pricing import compare,price,decimal,fit_blend
 from nhl.v2.grading import settle,select,closing_value,betting_metrics
 from nhl.v2.review import validate_review,apply_review
-from nhl.v2.inference import annotate,enrich
+from nhl.v2.inference import annotate,enrich,bundle
 from nhl.refresh import PROPS,MARKETS,flatten
 
 NOW=datetime(2026,9,26,14,30,tzinfo=timezone.utc)
@@ -76,6 +76,14 @@ class PointInTimeTests(unittest.TestCase):
 
 
 class ProbabilityTests(unittest.TestCase):
+    def test_frozen_artifact_loads_with_pinned_stack_and_matches_manifest(self):
+        models,manifest=bundle()
+        self.assertEqual(manifest['selection']['team'],'poisson_core')
+        self.assertFalse(manifest['selection']['recommendations_enabled'])
+        means=models['team'].predict([dict(home=1,attack=3.,defense=3.),dict(home=0,attack=3.,defense=3.)])
+        self.assertTrue(np.all(np.isfinite(means)))
+        self.assertAlmostEqual(models['team'].joint(*means).sum(),1)
+
     def test_joint_is_normalized_no_final_tie_and_markets_cohere(self):
         m=TeamModel('rate');m.ot_home=.5
         joint=m.joint(3,3)

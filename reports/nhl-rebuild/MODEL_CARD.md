@@ -82,6 +82,10 @@ one unit per game and four units/day, and currently returns an empty list.
   at grading remains unresolved unless a sourced DNP record supports a void.
 - Retrospective corrected statistics may differ from originally published values. Historical
   ingestion in 2026 is never passed off as original pregame availability.
+- Whole-season game reports contain event dates, not original puck-drop timestamps.
+  Quantity tests use morning date-level features and cannot certify execution eligibility
+  for early international games. The timestamped market diagnostic explicitly excludes
+  games already started at the morning decision, as does live inference.
 - The final test contains all skaters with positive TOI, not a historical prop-offer universe.
 - Daily forecasts are withheld beyond 48 hours; offseason shrinkage and rookies can be
   particularly uncertain. New injury/goalie/lineup information invalidates analyst preparation.
