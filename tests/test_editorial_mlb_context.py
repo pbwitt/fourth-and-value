@@ -2,6 +2,7 @@ from datetime import datetime,timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import json,sys,unittest
+from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 import editorial_mlb_context as context
 import editorial_ideas as ideas
@@ -57,6 +58,41 @@ class WildcardContextTests(unittest.TestCase):
         row={'sport':'MLB','idea':'Talk about MLB wildcard matchups. Use head to head records. Do a paragraph. We do not need predictions.'}
         self.assertTrue(context.applies(row));matched,terms=ideas.context(row,{})
         self.assertEqual(matched,[]);self.assertEqual(terms,('wild card','wildcard','playoff','postseason'))
+    def test_team_playoff_request_does_not_become_opponent_game_preview(self):
+        row={'sport':'MLB','idea':'Give me a rundown on the pirates playoff chances.'}
+        matched,terms=ideas.context(row,{'markets':[{'id':'today','game':'Pittsburgh Pirates @ Detroit Tigers'}]})
+        self.assertTrue(context.applies(row));self.assertEqual(matched,[])
+        self.assertIn('playoff picture',terms);self.assertNotIn('tigers',terms)
+        pirates=self.row(3);pirates['team']['name']='Pittsburgh Pirates'
+        group={'league':{'id':104},'teamRecords':[pirates]}
+        self.assertEqual(context.requested_team({'records':[group]},row),(group,pirates))
+        self.assertIsNone(context.requested_team({'records':[group]},{'idea':'Are the Tiger teams alive?'}))
+    def test_official_status_drives_playoff_outlook_without_inventing_probability(self):
+        now=datetime(2026,9,26,16,tzinfo=timezone.utc)
+        team=self.row(3,'3','8','5');team['team']['name']='Pirates'
+        team.update(gamesPlayed=160,divisionGamesBack='20.0',wildCardGamesBack='6.0',
+            eliminationNumber='E',wildCardEliminationNumber='E',clinched=False)
+        leader=self.row(1);third=self.row(2,'2','6','3')
+        group={'league':{'id':104},'teamRecords':[leader,third,team]};standings={'records':[group]}
+        def game(pk,day,state):
+            return {'gamePk':pk,'officialDate':day,'gameType':'R','status':{'abstractGameState':state},
+                'teams':{'home':{'team':{'id':3,'name':'Pirates'},'score':5},'away':{'team':{'id':4,'name':'Tigers'},'score':2}}}
+        history={'dates':[{'date':'2026-09-25','games':[game(1,'2026-09-25','Final')]}]}
+        remaining={'dates':[{'date':'2026-09-26','games':[game(2,'2026-09-26','Preview'),game(2,'2026-09-26','Preview')]}]}
+        with patch.object(context,'get',return_value=(remaining,'https://statsapi.mlb.com/schedule')):
+            result,_=context.playoff_outlook(group,team,standings,history,'2026-09-25',now)
+            self.assertEqual(result['postseason_status'],'eliminated')
+            self.assertEqual(result['last_10']['wins'],1)
+            self.assertEqual(len(result['remaining_scheduled_games']),1)
+            self.assertNotIn('playoff_probability',result)
+            team['wildCardEliminationNumber']='2'
+            result,_=context.playoff_outlook(group,team,standings,history,'2026-09-25',now)
+            self.assertEqual(result['postseason_status'],'not_clinched')
+            team['clinched']=True
+            result,_=context.playoff_outlook(group,team,standings,history,'2026-09-25',now)
+            self.assertEqual(result['postseason_status'],'clinched')
+            del team['wildCardEliminationNumber']
+            with self.assertRaisesRegex(ValueError,'Official playoff status'):context.playoff_outlook(group,team,standings,history,'2026-09-25',now)
     def test_exact_payload_fit_preserves_records_and_requested_angle(self):
         packet={'markets':[{'id':'game'}],'reporting':[{'excerpt':'x'*1500} for _ in range(5)],'required_records':'x'*7000}
         assignment={'requested_angle':'Specific request','evidence':packet}

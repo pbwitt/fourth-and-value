@@ -1,4 +1,4 @@
-"""Official, dated statistical context for requested Wild Card overviews."""
+"""Official, dated statistical context for requested MLB postseason stories."""
 from datetime import timedelta
 import json
 from pathlib import Path
@@ -10,7 +10,7 @@ API='https://statsapi.mlb.com/api/v1/'
 
 
 def applies(idea):
-    return idea.get('sport')=='MLB' and bool(re.search(r'\bwild\s*cards?\b',idea.get('idea',''),re.I))
+    return idea.get('sport')=='MLB' and bool(re.search(r'\b(?:wild\s*cards?|playoffs?|postseason)\b',idea.get('idea',''),re.I))
 
 
 def get(path,params):
@@ -106,10 +106,63 @@ def archive_context(root,series):
         'status':'Stored matchup estimates found; historical context only' if rows else 'No matching historical forecast in the inspected editorial archive'}
 
 
-def build(now,root):
+def requested_team(standings,idea):
+    text=idea.get('idea','').split('\n\nChanges for the next draft:\n')[0].lower()
+    found=[]
+    for group in standings.get('records',[]):
+        for row in group.get('teamRecords',[]):
+            name=row['team']['name'].lower()
+            short=' '.join(name.split()[-2:]) if name.endswith('sox') else name.split()[-1]
+            if any(re.search(r'(?<![a-z])'+re.escape(term)+r'(?![a-z])',text) for term in (name,short)):
+                found.append((group,row))
+    if len(found)>1:raise ValueError('A team playoff outlook needs one clearly named team')
+    return found[0] if found else None
+
+
+def playoff_outlook(group,row,standings,games,through,now):
+    required=('eliminationNumber','wildCardEliminationNumber','clinched')
+    if any(k not in row for k in required):raise ValueError('Official playoff status is unavailable')
+    team=record(row);identifier=team['team_id'];season=int(through[:4])
+    schedule,url=get('schedule',{'sportId':1,'gameType':'R','teamId':identifier,'season':season,
+        'startDate':(now.astimezone(ed.ETZ).date()).isoformat(),'endDate':f'{season}-12-31'})
+    remaining={}
+    for date in schedule.get('dates',[]):
+        for game in date.get('games',[]):
+            if game.get('gameType')!='R' or game.get('status',{}).get('abstractGameState')=='Final' or game.get('status',{}).get('detailedState')=='Cancelled':continue
+            sides=game['teams'];home=sides['home']['team']['id']==identifier
+            remaining[game['gamePk']]={'date':game.get('officialDate',date['date']),'venue':'home' if home else 'away',
+                'opponent':sides['away' if home else 'home']['team']['name']}
+    league=group['league']['id']
+    leaders=[t for t in group['teamRecords'] if t.get('divisionRank')=='1']
+    wild=[t for g in standings['records'] if g['league']['id']==league for t in g['teamRecords'] if t.get('wildCardRank')=='3']
+    if len(leaders)!=1 or len(wild)!=1:raise ValueError('Complete division and Wild Card standings are unavailable')
+    eliminated=row['eliminationNumber']=='E' and row['wildCardEliminationNumber']=='E'
+    team.update(id='stats-team-'+str(identifier),league='AL' if league==103 else 'NL',
+        wins=row['wins'],losses=row['losses'],games_played=row['gamesPlayed'],
+        division_rank=row['divisionRank'],division_games_back=row['divisionGamesBack'],
+        wild_card_rank=row.get('wildCardRank'),wild_card_games_back=row['wildCardGamesBack'],
+        postseason_status='eliminated' if eliminated else 'clinched' if row['clinched'] else 'not_clinched',
+        division_elimination_number=row['eliminationNumber'],wild_card_elimination_number=row['wildCardEliminationNumber'],
+        last_10=recent_form(identifier,completed_games(games,through)),
+        division_leader=record(leaders[0]),third_wild_card=record(wild[0]),
+        remaining_scheduled_games=list(remaining.values()))
+    return team,url
+
+
+def build(now,root,idea=None):
     through=(now.astimezone(ed.ETZ).date()-timedelta(days=1)).isoformat();season=int(through[:4])
     standings,standings_url=get('standings',{'leagueId':'103,104','season':season,'standingsTypes':'regularSeason','date':through})
     games,games_url=get('schedule',{'sportId':1,'gameType':'R','season':season,'startDate':f'{season}-03-01','endDate':through})
+    matched=requested_team(standings,idea) if idea else None
+    if matched:
+        team,schedule_url=playoff_outlook(*matched,standings,games,through,now)
+        return {'scope':'mlb_team_playoff_outlook','through':through,'checked_at':now.isoformat(),'series':[team],
+            'official_sources':[{'id':'stats-standings','title':'MLB official dated standings and playoff elimination status','url':standings_url,'published_at':through},
+                {'id':'stats-games','title':'MLB completed regular-season results','url':games_url,'published_at':through},
+                {'id':'stats-remaining','title':'MLB remaining regular-season schedule','url':schedule_url,'published_at':now.astimezone(ed.ETZ).date().isoformat()}],
+            'limitations':'Official elimination status answers whether a playoff path remains. E in both elimination fields means eliminated; never describe such a team as still chasing a berth. No simulated playoff probability, futures price, causal explanation or tiebreaker conclusion is supplied. Remaining scheduled games can change. Recent form and venue records are descriptive, not calibrated forecasts or run-line cover rates.'}
+    if idea and not re.search(r'\bwild\s*cards?\b|\b(?:playoff|postseason)\s+(?:picture|bracket|overview)\b',idea.get('idea',''),re.I):
+        raise ValueError('No unambiguous MLB team resolved for the requested playoff outlook')
     series=[matchup(*pair,games,through) for pair in projected_pairs(standings)]
     completed=completed_games(games,through)
     for row in series:

@@ -58,6 +58,10 @@ def context(row,packet):
     text=row['idea'].lower()
     if row.get('sport')=='MLB' and re.search(r'\bwild\s*cards?\b',text):
         return [],('wild card','wildcard','playoff','postseason')
+    if row.get('sport')=='MLB' and re.search(r'\b(?:playoffs?|postseason)\b',text):
+        # League-wide playoff reporting carries clinch/elimination context even
+        # when the requested team's name is absent from the headline.
+        return [],('playoff picture','playoff standings','postseason picture')
     matched=[g for g in packet.get('markets',[]) if any(
         re.search(r'(?<![a-z])'+re.escape(team.strip().split()[-1].lower())+r'(?![a-z])',text)
         for team in g.get('game','').split('@') if team.strip())]
@@ -71,9 +75,9 @@ def context(row,packet):
     return matched,terms
 
 
-def save_draft(row,article,as_of=None):
+def save_draft(row,article,as_of=None,market_snapshot=True):
     body='\n\n'.join(section['heading']+'\n'+section['text'] for section in article['sections'])
-    if as_of:body='Market snapshot: '+as_of.astimezone(ed.ETZ).strftime('%B %d, %Y at %I:%M %p ET')+'. Prices may have changed.\n\n'+body
+    if as_of:body=('Market snapshot: ' if market_snapshot else 'Research checked: ')+as_of.astimezone(ed.ETZ).strftime('%B %d, %Y at %I:%M %p ET')+('. Prices may have changed.' if market_snapshot else '.')+'\n\n'+body
     links='\n'.join(source['url'] for source in article['sources'])
     saved=request('PATCH','/rest/v1/editorial_ideas',params={'id':'eq.'+row['id'],'status':'eq.researching'},
         json={'title':article['title'],'body':body,'byline':'Fourth & Value','sources':links,'status':'review','draft_notification_sent_at':None})

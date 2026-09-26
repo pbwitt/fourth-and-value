@@ -60,6 +60,12 @@ class IdeaTests(unittest.TestCase):
             self.assertEqual(data['status'],'review')
             self.assertEqual(data['byline'],'Fourth & Value')
             self.assertNotIn('approved_by',data)
+    def test_statistics_only_draft_does_not_claim_market_quotes(self):
+        article={'title':'Title','sections':[{'heading':'Context','text':'Verified facts'}],'sources':[{'url':'https://example.com/source'}]}
+        with patch.object(ideas,'request',return_value=[{}]) as req:
+            ideas.save_draft(self.row(),article,self.now,market_snapshot=False)
+        body=req.call_args.kwargs['json']['body']
+        self.assertIn('Research checked:',body);self.assertNotIn('Prices may have changed',body)
     def test_email_does_not_expose_private_content_and_marks_delivery(self):
         row=dict(self.row(),requires_review=True,notification_sent_at=None)
         env={'RESEND_API_KEY':'test','EDITORIAL_NOTIFY_FROM':'desk@example.com','EDITORIAL_NOTIFY_EMAIL':'owner@example.com'}

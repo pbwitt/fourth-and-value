@@ -72,6 +72,20 @@ link, and a real reader idea completing paid generation. The existing successful
 real owner draft proves generation separately; do not describe the fixture test
 as a real generated reader article.
 
+The owner then submitted from a second real account and successfully signed in
+through email. Its Write now request reached workflow 36254490784 but stopped
+before any reservation or paid call: team-game headline filtering missed the
+requested playoff topic. The repair resolves explicit MLB playoff questions from
+official team standings, elimination/clinching status, recent form and remaining
+schedule, with league playoff-picture reporting. This applies to named teams,
+not only one team; unresolved/ambiguous teams remain blocked before spending.
+Source/data failures now show NEEDS ATTENTION in the inbox and retain their reason
+after refresh. Statistics-only drafts do not claim a market-price snapshot.
+113 Python tests and phone/desktop browser checks pass; live preflight finds two
+reporting publishers plus official stats and fits within the unchanged budget.
+The original unspent request is being resumed once; private reader review remains
+mandatory. Confirm its result before marking real reader generation complete.
+
 ## Next steps requiring the owner's real review/account
 
 1. Owner opens https://fourthandvalue.com/editorial/inbox.html, refreshes, selects
