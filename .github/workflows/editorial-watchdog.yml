@@ -2,7 +2,10 @@ name: Morning Article Delivery Watchdog
 
 on:
   schedule:
-    - cron: '53 6-9 * * *'
+    # Recover before the 6:30 AM target, then verify just after it.
+    - cron: '23,53 5-9 * * *'
+      timezone: America/New_York
+    - cron: '33 6 * * *'
       timezone: America/New_York
   # A completed sports refresh is another opportunity to recover a missed cron.
   workflow_run:

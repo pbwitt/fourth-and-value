@@ -114,6 +114,15 @@ class EditorialScheduleTests(unittest.TestCase):
             'at':'2026-09-24T12:59:00+00:00','status':'completed','counts':{'published':0,'waiting_for_data':1}}})
         sched.verify_writer(root,now,expected=True)
 
+    def test_delivery_target_is_630_eastern_in_summer_and_winter(self):
+        for month,utc_hour in ((9,10),(12,11)):
+            with self.subTest(month=month):
+                before=datetime(2026,month,26,utc_hour,29,59,tzinfo=timezone.utc)
+                target=datetime(2026,month,26,utc_hour,30,tzinfo=timezone.utc)
+                self.assertFalse(sched.delivery_due(before))
+                self.assertTrue(sched.delivery_due(target))
+                self.assertEqual(sched.delivery_target(target),target)
+
     def test_delivery_fails_after_deadline_even_if_writer_completed(self):
         td,root=self.make_root();self.addCleanup(td.cleanup)
         now=datetime(2026,9,26,12,0,tzinfo=timezone.utc)
@@ -136,7 +145,7 @@ class EditorialScheduleTests(unittest.TestCase):
 
     def test_before_deadline_missing_delivery_is_pending(self):
         td,root=self.make_root();self.addCleanup(td.cleanup)
-        now=datetime(2026,9,26,11,0,tzinfo=timezone.utc)
+        now=datetime(2026,9,26,10,0,tzinfo=timezone.utc)
         self.assertEqual(sched.verify_delivery(root,now)['status'],'pending')
 
     def test_live_delivery_retries_propagation_and_checks_article_title(self):

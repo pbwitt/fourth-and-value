@@ -14,7 +14,7 @@
  function render(row){
   const r=row.report||{},st=r.run?.stages||{};$('report').hidden=false;
   $('headline').textContent=`${r.saved??0} of ${r.expected??2} articles saved · ${r.status==='delivered'?'live delivery verified':r.status==='overdue'?'morning edition overdue':r.status==='saved_not_verified'?'live delivery not verified':'edition pending'}`;
-  $('observed').textContent=`Observed ${when(r.observed_at)} · ${text(r.phase)} snapshot`;
+  $('observed').textContent=`Observed ${when(r.observed_at)} · ${text(r.phase)} snapshot${r.delivery_target?' · Delivery target: '+when(r.delivery_target):''}`;
   const age=(Date.now()-new Date(r.observed_at).valueOf())/3600000;
   $('freshness').textContent=$('day').value!==today()?'Historical report. Checks describe that moment, not the site now.':age>1.5?'This report is over 90 minutes old. No newer observation has arrived; do not treat it as current health.':'Latest selected observation. A green check applies only to the recorded time.';
   const retry=r.recovery||{};$('recovery').textContent=retry.eligible?`Next scheduled recovery opportunity: ${when(retry.next_opportunity)}. Timing is best effort.`:`Automatic writing is not currently eligible: ${text(retry.reason)}.`;

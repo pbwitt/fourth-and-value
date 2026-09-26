@@ -186,6 +186,14 @@ def verify_writer(root=ROOT,now=None,expected=False,idea_id=None):
         published_today=len(today_catalog(root,now)))))
 
 
+def delivery_target(now):
+    return now.astimezone(ET).replace(hour=6,minute=30,second=0,microsecond=0)
+
+
+def delivery_due(now):
+    return now>=delivery_target(now)
+
+
 def verify_delivery(root=ROOT,now=None):
     """Check the product delivered, after publishing so a partial edition survives."""
     now=(now or datetime.now(timezone.utc)).astimezone(timezone.utc)
@@ -196,8 +204,8 @@ def verify_delivery(root=ROOT,now=None):
         if str(row.get('url','')).startswith('/editorial/articles/')
         and (Path(root)/'docs'/row['url'].lstrip('/')).is_file()}
     state=today_state(root,now)
-    due=now.astimezone(ET).hour>=8
-    result=dict(date=now.astimezone(ET).date().isoformat(),expected=limit,
+    due=delivery_due(now)
+    result=dict(date=now.astimezone(ET).date().isoformat(),expected=limit,delivery_target=delivery_target(now).isoformat(),
         published=len(delivered),status='complete' if len(delivered)>=limit else 'overdue' if due else 'pending',
         writer_reason=writer_need(root,now)[1],
         slots={key:value.get('status') for key,value in state.get('slots',{}).items()},

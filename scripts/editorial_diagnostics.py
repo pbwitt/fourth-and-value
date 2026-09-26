@@ -68,7 +68,7 @@ def next_opportunity(now):
     for minute in range(1,24*60+1):
         candidate=(local+timedelta(minutes=minute)).replace(second=0,microsecond=0)
         h,m=candidate.hour,candidate.minute
-        if h>=5 and (m==17 or (5<=h<=9 and m in (27,47)) or (h,m) in ((5,7),(6,37),(11,7),(16,7),(21,7))):
+        if h>=5 and ((5<=h<=9 and m in (23,53)) or (h,m)==(6,33) or m==17 or (5<=h<=9 and m in (27,47)) or (h,m) in ((5,7),(6,7),(11,7),(16,7),(21,7))):
             return candidate.isoformat()
 
 
@@ -113,9 +113,9 @@ def build_report(root=ROOT,now=None,run=None,phase='finish'):
     stages=run.get('stages',{})
     live=stages.get('live_delivery',{}).get('status','not_checked')
     complete=len(stored)>=expected
-    status='delivered' if complete and live=='success' else 'saved_not_verified' if complete else 'overdue' if now.astimezone(schedule.ET).hour>=8 else 'pending'
+    status='delivered' if complete and live=='success' else 'saved_not_verified' if complete else 'overdue' if schedule.delivery_due(now) else 'pending'
     return {'version':1,'day':day,'observed_at':now.isoformat(),'phase':phase,'status':status,
-        'expected':expected,'saved':len(stored),'live_check':live,'run':run,'data':data,'articles':articles,
+        'delivery_target':schedule.delivery_target(now).isoformat(),'expected':expected,'saved':len(stored),'live_check':live,'run':run,'data':data,'articles':articles,
         'selection_checks':state.get('selection_checks',[]),'sources':sources,'unselected':blocked,'selection_count':len(state.get('allocation',[])),
         'writer_checked_at':state.get('last_writer_check',{}).get('at'),
         'recovery':{'eligible':need,'reason':reason,'next_opportunity':next_opportunity(now) if need else None,
