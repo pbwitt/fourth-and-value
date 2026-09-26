@@ -38,6 +38,36 @@ def record(row):
         **{k+'_record':f"{splits[k]['wins']}-{splits[k]['losses']}" for k in ('home','away')}}
 
 
+def completed_games(games,through):
+    """One result per completed regular-season game, in chronological order."""
+    results={}
+    for date in games.get('dates',[]):
+        for game in date.get('games',[]):
+            day=game.get('officialDate',date.get('date',''))
+            sides=game.get('teams',{})
+            if not day or day>through or game.get('gameType')!='R' or game.get('status',{}).get('abstractGameState')!='Final':continue
+            if not all(sides.get(s,{}).get('team',{}).get('id') for s in ('home','away')):continue
+            scores=[sides[s].get('score') for s in ('home','away')]
+            if any(type(v) is not int or v<0 for v in scores) or scores[0]==scores[1]:continue
+            results[game['gamePk']]=dict(game,officialDate=day)
+    return sorted(results.values(),key=lambda g:(g['officialDate'],g.get('gameNumber',1),g.get('gameDate',''),g['gamePk']))
+
+
+def recent_form(team_id,games,venue=None,limit=10):
+    selected=[]
+    for game in games:
+        sides=game['teams']
+        side=next((s for s in ('home','away') if sides[s]['team']['id']==team_id),None)
+        if side and (venue is None or venue==side):
+            selected.append((game,sides[side]['score'],sides['away' if side=='home' else 'home']['score']))
+    selected=selected[-limit:]
+    if not selected:raise ValueError('Recent completed MLB results are unavailable')
+    wins=sum(scored>allowed for _,scored,allowed in selected)
+    scored=sum(s for _,s,_ in selected);allowed=sum(a for _,_,a in selected)
+    return {'games':len(selected),'from':selected[0][0]['officialDate'],'through':selected[-1][0]['officialDate'],
+        'wins':wins,'losses':len(selected)-wins,'runs_for':scored,'runs_against':allowed,'run_differential':scored-allowed}
+
+
 def matchup(league,seed,home,away,games,through):
     h,a=record(home),record(away);seen=set();wins={h['team_id']:0,a['team_id']:0};runs=dict(wins)
     for date in games.get('dates',[]):
@@ -81,8 +111,14 @@ def build(now,root):
     standings,standings_url=get('standings',{'leagueId':'103,104','season':season,'standingsTypes':'regularSeason','date':through})
     games,games_url=get('schedule',{'sportId':1,'gameType':'R','season':season,'startDate':f'{season}-03-01','endDate':through})
     series=[matchup(*pair,games,through) for pair in projected_pairs(standings)]
-    for row in series:row['historical_models']=archive_context(root,row)
+    completed=completed_games(games,through)
+    for row in series:
+        row['historical_models']=archive_context(root,row)
+        for key,venue in (('higher_seed_team','home'),('lower_seed_team','away')):
+            team=row[key]
+            team['last_10']=recent_form(team['team_id'],completed)
+            team['last_10_'+venue]=recent_form(team['team_id'],completed,venue=venue)
     return {'scope':'mlb_wildcard_overview','through':through,'checked_at':now.isoformat(),'series':series,
         'official_sources':[{'id':'stats-standings','title':'MLB official dated standings and home/away records','url':standings_url,'published_at':through},
             {'id':'stats-games','title':'MLB completed regular-season game results','url':games_url,'published_at':through}],
-        'limitations':'Pairings are provisional. Head-to-head and venue records are descriptive samples, not calibrated forecasts. No postseason series prices are supplied. Do not substitute current regular-season odds or manufacture missing historical forecasts.'}
+        'limitations':'Pairings are provisional. Recent form is the last up to 10 completed regular-season games overall and at the projected venue, with dates and sample sizes. These overlapping windows, head-to-head and season records are descriptive, not calibrated or opponent-adjusted forecasts. Scores do not establish historical run-line covers, ATS percentages or returns. No postseason series prices are supplied. Do not substitute current regular-season odds or manufacture missing historical forecasts.'}

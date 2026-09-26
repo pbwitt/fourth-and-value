@@ -595,4 +595,21 @@ inspection before another request. Request metadata never contains draft text.
 
 Verification: 108 editorial Python tests, PostgreSQL permission checks using the
 existing schema, and mobile/desktop rewrite-control tests passed without making
-live paid rewrite requests. The owner's next click will exercise live rewriting.
+live paid rewrite requests.
+
+September 26 first live rewrite: workflow 36252841989 failed factual review
+because the requested recent momentum statistics were absent and the overview
+prompt required commentary about missing forecasts. The existing draft remained
+private in Review. Estimated charge $0.194363 is retained; no automatic retry.
+The follow-up repair computes last-ten overall and relevant venue W/L and run
+differentials from dated completed official MLB games. Scores are not evidence
+of historical ATS/run-line covers. The writer omits missing-data commentary,
+keeps statistical caveats, and the request is size-checked with the full current
+draft before any paid call. Empty archive metadata and unrelated daily model
+methods are excluded to retain useful evidence within the existing cap.
+
+Queued requests disable the writing button for up to 15 minutes; researching
+requests remain locked until the writer finishes. An explicit dispatch failure
+allows retry immediately (the server still enforces its one-minute cooldown).
+After the queue timeout, manual recovery is available; no timeout triggers an
+automatic paid request. Queue updates show the completed draft or private error.

@@ -34,6 +34,23 @@ explicit request gets a distinct cost reservation; duplicate jobs remain blocked
 108 editorial Python tests, PostgreSQL permission checks, and browser rewrite
 controls passed. No live paid rewrite was initiated while implementing this UI.
 
+The owner's first live rewrite (36252841989) was rejected by factual review:
+the requested recent momentum analysis was not supplied, and the old prompt
+required missing-forecast commentary contrary to the owner's feedback. The old
+draft remains private in Review. That attempt cost an estimated $0.194363; do
+not reset its ledger or initiate an automatic paid retry.
+
+The repair adds dated last-ten overall and relevant venue results from completed
+official MLB games: W/L, runs for/against and differential. It omits missing-data
+commentary and forbids deriving ATS/cover rates from scores. Exact preflight of
+the current private rewrite with fresh reporting fits 17,644/18,000 input bytes;
+unrelated model metadata and empty archive results are omitted from the writing
+payload. No factual checks or spending limits were loosened. Pending rewrites
+show a disabled "Rewrite queued" button; errors preserve the draft and permit
+recovery. A successful live replacement remains unverified until a new owner
+request. 110 Python tests, PostgreSQL permissions, and mobile/desktop browser
+checks pass. No schema or Edge Function deployment is needed.
+
 ## Next steps requiring the owner's real review/account
 
 1. Owner opens https://fourthandvalue.com/editorial/inbox.html, refreshes, selects
@@ -53,7 +70,7 @@ controls passed. No live paid rewrite was initiated while implementing this UI.
   pre-deadline recovery checks. First unattended run at the new target is pending.
 - NBA/NHL require eligible model feeds before automatic articles can qualify.
 - Raw historical-model artifact indexing is still needed for broader historical
-  comparisons; the current overview explicitly discloses the archive's limits.
+  comparisons; missing archival results are now omitted from overview prose.
 - Worktree: /private/tmp/fv-editorial-repair. The original checkout has unrelated
   user edits; do not overwrite it. Private drafts and reader details stay in Supabase.
 

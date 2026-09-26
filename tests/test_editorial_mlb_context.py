@@ -30,6 +30,24 @@ class WildcardContextTests(unittest.TestCase):
         with self.assertRaises(ValueError):context.projected_pairs({})
         r=self.row(1);r['records']={}
         with self.assertRaises(ValueError):context.record(r)
+    def test_recent_form_uses_completed_results_and_distinct_venue_windows(self):
+        def game(pk,day,home,score,state='Final',kind='R',number=1):
+            return {'gamePk':pk,'officialDate':day,'gameNumber':number,'gameType':kind,'status':{'abstractGameState':state},
+                'teams':{'home':{'team':{'id':home},'score':score[0]},'away':{'team':{'id':2 if home==1 else 1},'score':score[1]}}}
+        rows=[game(i,f'2026-09-{i:02}',1 if i%2 else 2,(5,3)) for i in range(1,13)]
+        rows += [rows[0],game(13,'2026-09-13',1,(9,1),state='Live'),game(14,'2026-09-14',1,(9,1)),
+            game(15,'2026-09-13',1,(9,1),kind='S'),game(16,'2026-09-13',1,(3,3)),game(17,'2026-09-13',1,(None,3))]
+        completed=context.completed_games({'dates':[{'games':list(reversed(rows))}]},'2026-09-13')
+        self.assertEqual(len(completed),12)
+        result=context.recent_form(1,completed)
+        self.assertEqual(result,{'games':10,'from':'2026-09-03','through':'2026-09-12','wins':5,'losses':5,'runs_for':40,'runs_against':40,'run_differential':0})
+        away=context.recent_form(1,completed,venue='away')
+        self.assertEqual((away['games'],away['wins'],away['losses'],away['run_differential']),(6,0,6,-12))
+        self.assertNotIn('cover_rate',away)
+        with self.assertRaises(ValueError):context.recent_form(999,completed)
+        double=[game(22,'2026-09-13',1,(1,5),number=2),game(23,'2026-09-13',1,(5,1),number=1)]
+        result=context.recent_form(1,context.completed_games({'dates':[{'games':double}]},'2026-09-13'),limit=1)
+        self.assertEqual((result['wins'],result['losses']),(0,1))
     def test_missing_archive_is_reported_with_limited_search_scope(self):
         with TemporaryDirectory() as td:
             result=context.archive_context(td,{'higher_seed_team':{'team':'Cubs'},'lower_seed_team':{'team':'Padres'}})
@@ -48,6 +66,21 @@ class WildcardContextTests(unittest.TestCase):
         self.assertEqual(restored['evidence']['required_records'],packet['required_records'])
         self.assertEqual(restored['evidence']['markets'],[{'id':'game'}])
         self.assertLessEqual(len(request['input'].encode())+len(request['instructions'].encode()),18000)
+    def test_overview_compaction_preserves_statistics_and_real_forecasts(self):
+        recent={'games':10,'wins':7,'losses':3,'runs_for':50,'runs_against':30}
+        forecast={'matched_forecasts':[{'game':'Team A @ Team B','model_mean':4.5}], 'scope':'Retained editorial snapshots only'}
+        packet={'requested_topic':True,'methods':'Unrelated player-prop methods','model_status':'Daily model',
+            'model_validation':{'test_start':'2026-01-01'},'model_summary':{'history_through':'2026-09-25'},
+            'markets':[],'model_rows':[],'reporting':[],
+            'statistical_context':{'series':[
+                {'id':'s1','higher_seed_team':{'last_10':recent},'historical_models':{'matched_forecasts':[],'scope':'Checked archive'}},
+                {'id':'s2','historical_models':forecast}]}}
+        result=writer.compact(packet)
+        self.assertEqual(result['statistical_context']['series'][0]['higher_seed_team']['last_10'],recent)
+        self.assertEqual(result['statistical_context']['series'][1]['historical_models'],forecast)
+        self.assertNotIn('methods',result)
+        self.assertNotIn('historical_models',result['statistical_context']['series'][0])
+        self.assertIn('historical_models',packet['statistical_context']['series'][0])
 
 
 class VerifiedUnspentRecoveryTests(unittest.TestCase):
