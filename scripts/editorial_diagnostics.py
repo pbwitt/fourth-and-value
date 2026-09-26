@@ -87,12 +87,13 @@ def build_report(root=ROOT,now=None,run=None,phase='finish'):
         coverage=str(briefing.get('coverage',{}).get(sport,'Not checked'))
         market_status='ready' if fresh and usable else 'unavailable' if 'unavailable' in coverage.lower() or 'credential' in coverage.lower() else 'no_markets' if fresh else 'stale'
         checked=board.get('model_checked_at')
-        model_status='unknown'
+        model_status='unvalidated' if 'not validated' in str(board.get('model_status','')) or 'pending leakage correction and validation' in str(board.get('model_status','')) else 'unknown'
         if checked:
             model_status='current' if recent(checked,now,1.5) else 'stale'
             if sport=='MLB' and (board.get('model_summary',{}).get('history_through')!=(now.astimezone(schedule.ET).date()-timedelta(days=1)).isoformat() or board.get('history_error')):model_status='stale'
+        if checked and board.get('status')=='unavailable':model_status='unavailable'
         data.append({'sport':sport,'prices':market_status,'games':usable,'checked_at':briefing.get('generated_at'),
-            'model':model_status,'model_checked_at':checked,'detail':coverage[:180]})
+            'model':model_status,'model_checked_at':checked,'model_detail':str(board.get('model_status',''))[:200],'detail':coverage[:180]})
     articles=[]
     catalog={a.get('url'):a for a in schedule.today_catalog(root,now)}
     stored={url for url in catalog if str(url).startswith('/editorial/articles/') and (root/'docs'/url.lstrip('/')).is_file()}
@@ -103,7 +104,7 @@ def build_report(root=ROOT,now=None,run=None,phase='finish'):
             'title':public.get('title'),'url':url if url in stored else None,
             'reason':safe_reason(slot.get('reason')),
             'review':'passed' if slot.get('status') in ('published','review') else 'failed' if 'audit' in str(slot.get('reason','')).lower() else 'not_recorded',
-            'source_fallback':provenance.get('fallback_used'), 'source_hosts':provenance.get('hosts',[])})
+            'selection':slot.get('selection'),'source_fallback':provenance.get('fallback_used'), 'source_hosts':provenance.get('hosts',[])})
     sources=[]
     for sport,check in state.get('source_checks',{}).items():
         sources.append({'sport':sport,**{k:check.get(k) for k in ('at','candidates','hosts','fallback_attempted','fallback_used','ready')}})
@@ -115,11 +116,11 @@ def build_report(root=ROOT,now=None,run=None,phase='finish'):
     status='delivered' if complete and live=='success' else 'saved_not_verified' if complete else 'overdue' if now.astimezone(schedule.ET).hour>=8 else 'pending'
     return {'version':1,'day':day,'observed_at':now.isoformat(),'phase':phase,'status':status,
         'expected':expected,'saved':len(stored),'live_check':live,'run':run,'data':data,'articles':articles,
-        'sources':sources,'unselected':blocked,'selection_count':len(state.get('allocation',[])),
+        'selection_checks':state.get('selection_checks',[]),'sources':sources,'unselected':blocked,'selection_count':len(state.get('allocation',[])),
         'writer_checked_at':state.get('last_writer_check',{}).get('at'),
         'recovery':{'eligible':need,'reason':reason,'next_opportunity':next_opportunity(now) if need else None,
                     'note':'Scheduled opportunity; GitHub may delay or miss a trigger.'},
-        'fallback_policy':'Source fallback is enabled for NFL. Missing or stale data is never invented. A rejected paid attempt is not automatically repeated.'}
+        'fallback_policy':'All four sports are considered. Two qualifying sports take priority; otherwise a different matchup from the same qualifying sport may fill the second slot. Current model evidence is required. Rejected or uncertain paid attempts are not repeated.'}
 
 
 def store_report(report):

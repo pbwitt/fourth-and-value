@@ -13,6 +13,11 @@ on:
       timezone: America/New_York
     - cron: '55 15 * * 0'
       timezone: America/New_York
+  workflow_call:
+    inputs:
+      editorial_refresh:
+        type: boolean
+        default: true
   workflow_dispatch:
     inputs:
       week:
@@ -91,9 +96,10 @@ jobs:
           if [ "$APPROVE_INSIGHTS" = "true" ]; then skip_insights=0; fi
           make --always-make monday_all SEASON="$NFL_SEASON" WEEK="$NFL_WEEK" SKIP_AI_INSIGHTS="$skip_insights"
           make --always-make nfl_totals_daily SEASON="$NFL_SEASON" WEEK="$NFL_WEEK" SKIP_AI_INSIGHTS=1
+          python scripts/export_nfl_editorial.py --season "$NFL_SEASON" --week "$NFL_WEEK"
       - name: Freeze current-week pregame evidence
         id: weekly_snapshot
-        if: steps.refresh.outcome == 'success' && (github.event_name != 'schedule' || github.event.schedule == '0 10 * * 3')
+        if: inputs.editorial_refresh != true && steps.refresh.outcome == 'success' && (github.event_name != 'schedule' || github.event.schedule == '0 10 * * 3')
         env:
           NFL_SEASON: ${{ steps.week.outputs.season }}
           NFL_WEEK: ${{ steps.week.outputs.week }}

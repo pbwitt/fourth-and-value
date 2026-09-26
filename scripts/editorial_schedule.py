@@ -125,6 +125,12 @@ def plan(root=ROOT,now=None,event_name=None,event_schedule=None,manual_refresh=F
     board_fresh=bool(board.get("status")=="ready" and board_today and board_age is not None and board_age<1.25)
     refresh_mlb=manual or bool(writer_eligible and retry_mlb and not board_fresh)
 
+    nfl=load(Path(root)/'docs/nfl/data/latest.json',{})
+    nfl_at=nfl.get('model_checked_at')
+    nfl_age=age_hours(nfl_at,now)
+    nfl_fresh=bool(nfl.get('status')=='ready' and same_et_day(nfl_at,now) and nfl_age is not None and 0<=nfl_age<1.25)
+    refresh_nfl=bool(writer_eligible and not nfl_fresh)
+
     if manual:mode="manual"
     elif writer_eligible and 5<=local.hour<7:mode="morning"
     elif writer_eligible:mode="catch-up"
@@ -144,6 +150,7 @@ def plan(root=ROOT,now=None,event_name=None,event_schedule=None,manual_refresh=F
         briefing_at=briefing_at,
         briefing_age_hours=None if briefing_age is None else round(briefing_age,3),
         refresh_mlb=refresh_mlb,
+        refresh_nfl=refresh_nfl,
         mlb_retry_relevant=retry_mlb,
         mlb_retry_reason=retry_reason,
         mlb_board_at=board_at,
@@ -157,7 +164,7 @@ def plan(root=ROOT,now=None,event_name=None,event_schedule=None,manual_refresh=F
 def write_outputs(result,path):
     if not path:return
     with open(path,"a") as stream:
-        for key in ("mode","writer_eligible","refresh_briefing","refresh_mlb","writer_reason","eastern_time"):
+        for key in ("mode","writer_eligible","refresh_briefing","refresh_mlb","refresh_nfl","writer_reason","eastern_time"):
             value=result[key]
             if isinstance(value,bool):value=str(value).lower()
             stream.write(f"{key}={value}\n")

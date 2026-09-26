@@ -119,6 +119,7 @@ def parse_totals_spreads(events):
             if total_over_line or spread_home_line:
                 rows.append({
                     "game": game,
+                    "event_id": game_id,
                     "commence_time": commence_time,
                     "home_team": home_team,
                     "away_team": away_team,

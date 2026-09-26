@@ -46,6 +46,7 @@ jobs:
       writer_eligible: ${{ steps.plan.outputs.writer_eligible }}
       refresh_briefing: ${{ steps.plan.outputs.refresh_briefing }}
       refresh_mlb: ${{ steps.plan.outputs.refresh_mlb }}
+      refresh_nfl: ${{ steps.plan.outputs.refresh_nfl }}
       writer_reason: ${{ steps.plan.outputs.writer_reason }}
       eastern_time: ${{ steps.plan.outputs.eastern_time }}
     steps:
@@ -92,8 +93,19 @@ jobs:
     uses: ./.github/workflows/mlb-daily.yml
     secrets: inherit
 
+  refresh-nfl:
+    needs: plan
+    if: needs.plan.outputs.refresh_nfl == 'true'
+    permissions:
+      contents: write
+      pages: write
+    uses: ./.github/workflows/nfl-weekly.yml
+    with:
+      editorial_refresh: true
+    secrets: inherit
+
   publish:
-    needs: [plan, refresh-mlb]
+    needs: [plan, refresh-mlb, refresh-nfl]
     # Briefing/freshness still publishes after an upstream failure; writer checks data separately.
     if: always() && !cancelled() && needs.plan.result == 'success'
     runs-on: ubuntu-latest
@@ -212,7 +224,7 @@ jobs:
       # The paid writer runs only for the morning edition or an explicit manual refresh.
 
   diagnostics:
-    needs: [plan, refresh-mlb, publish]
+    needs: [plan, refresh-mlb, refresh-nfl, publish]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

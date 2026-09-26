@@ -75,7 +75,7 @@ class WriterGuards(unittest.TestCase):
         from tempfile import TemporaryDirectory
         from unittest.mock import patch
         with TemporaryDirectory() as directory:
-            with patch.object(w,'STATE',Path(directory)),patch.object(w,'call_api',side_effect=RuntimeError('OpenAI HTTP 429 credit_balance_exhausted')) as api,patch.object(w,'evidence',return_value={'data_readiness':{'ready':True},'markets':[{'id':'q1'}]}),patch.object(w.reporting,'collect',return_value=[{'url':'https://mlb.com/news/example','excerpt':'test'}]),patch.object(w.budget,'PATH',Path(directory)/'budget.json'),patch.object(w.budget,'checkpoint'),patch.object(w.ed,'render_home'),patch('builtins.print'):
+            with patch.object(w,'require_model'),patch.object(w,'discover_matchup',return_value={'event_id':'q1','angle':'matchup:q1','reporting':[{'url':'https://mlb.com/news/example','excerpt':'test'}]}),patch.object(w,'STATE',Path(directory)),patch.object(w,'call_api',side_effect=RuntimeError('OpenAI HTTP 429 credit_balance_exhausted')) as api,patch.object(w,'evidence',return_value={'data_readiness':{'ready':True},'markets':[{'id':'total-q1','event_id':'q1','game':'Away @ Home'}]}),patch.object(w.reporting,'collect',return_value=[{'url':'https://mlb.com/news/example','excerpt':'test'}]),patch.object(w.budget,'PATH',Path(directory)/'budget.json'),patch.object(w.budget,'checkpoint'),patch.object(w.ed,'render_home'),patch('builtins.print'):
                 w.run(self.now)
                 self.assertEqual(api.call_count,1)
                 state=w.load(Path(directory)/'2026-09-22.json',{})
