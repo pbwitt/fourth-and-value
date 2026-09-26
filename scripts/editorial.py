@@ -236,6 +236,7 @@ def publish_approved(now,receipt):
         prior=next((a for a in catalog if a['url']==url),{})
         date=row.get('publish_on') or prior.get('date') or now.astimezone(ETZ).date().isoformat()
         item=dict(title=row['title'],url=url,date=date,kind=row['kind'].title(),sport=row['sport'],featured=row['featured'],excerpt=row['body'].split('\n')[0][:220])
+        item['published_at']=prior.get('published_at') or now.isoformat()
         target=DOCS/url.lstrip('/');target.parent.mkdir(parents=True,exist_ok=True)
         target.write_text(ENV.get_template('article.html').render(**item,byline=row['byline'],paragraphs=re.split(r'\n\s*\n',row['body']),links=links)+'\n')
         catalog=[a for a in catalog if a['url']!=url]+[item]

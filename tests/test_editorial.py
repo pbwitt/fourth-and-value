@@ -1,6 +1,9 @@
 import importlib.util
 from datetime import datetime, timezone, timedelta
 import unittest
+import json
+import tempfile
+from unittest.mock import patch, Mock
 from pathlib import Path
 
 spec=importlib.util.spec_from_file_location('editorial',Path(__file__).resolve().parents[1]/'scripts/editorial.py')
@@ -12,6 +15,25 @@ def event():
             'bookmakers':[{'key':k,'last_update':NOW.isoformat(),'markets':[{'key':'totals','outcomes':[{'name':'Over','point':p,'price':-110},{'name':'Under','point':p,'price':-110}]}]} for k,p in [('one',40.5),('two',41.5)]]}
 
 class EditorialTests(unittest.TestCase):
+    def test_private_publication_has_stable_timestamp_for_homepage_order(self):
+        row=dict(id='45981557-219d-4866-b015-56c1aa2c1933',status='publishing',
+                 approved_hash='approved',approved_by='editor',user_id='reader',
+                 updated_at=NOW.isoformat(),publish_on=NOW.date().isoformat(),
+                 title='New featured story',body='Supported analysis. '*20,byline='Author',
+                 sources='https://www.mlb.com/',kind='analysis',sport='MLB',featured=True)
+        queue=Mock(ok=True,status_code=200);queue.json.return_value=[row]
+        user=Mock(ok=True);user.json.return_value={'app_metadata':{'fv_editor':True}}
+        with tempfile.TemporaryDirectory() as tmp, patch.object(m,'DOCS',Path(tmp)), patch.dict(m.os.environ,{'SUPABASE_URL':'https://example.test','SUPABASE_SERVICE_ROLE_KEY':'test'}), patch.object(m.requests,'get',side_effect=[queue,user,queue,user]):
+            receipt=Path(tmp)/'receipt.json'
+            m.publish_approved(NOW,receipt)
+            catalog_path=Path(tmp)/'editorial/published.json'
+            article=json.loads(catalog_path.read_text())[0]
+            self.assertEqual(article['published_at'],NOW.isoformat())
+            earlier=dict(article,title='Earlier automated story',published_at=(NOW-timedelta(hours=1)).isoformat())
+            self.assertEqual(sorted([earlier,article],key=lambda a:(a['date'],a.get('published_at','')),reverse=True)[0]['title'],row['title'])
+            m.publish_approved(NOW+timedelta(hours=1),receipt)
+            self.assertEqual(json.loads(catalog_path.read_text())[0]['published_at'],NOW.isoformat())
+
     def test_feature_expiry_and_opinion_separation(self):
         a={'kind':'Analysis','date':'2026-09-22','featured_until':NOW.isoformat()}
         self.assertFalse(m.featured_now(a,NOW))
