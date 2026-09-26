@@ -67,10 +67,10 @@ draft fixture exercised the handoff; it was dated 2099-12-31 to exclude it from
 publication. All three temporary accounts and their submissions were removed.
 No emails, paid generation or test articles were sent/published.
 
-Remaining contributor checks: an actual person receiving/opening the email sign-in
-link, and a real reader idea completing paid generation. The existing successful
-real owner draft proves generation separately; do not describe the fixture test
-as a real generated reader article.
+The subsequent real contributor test has now completed email sign-in, submission,
+writer dispatch, a real generated draft, factual review and private Review storage
+(see recovery details below). Actual owner approval and public delivery of that
+reader draft remain owner-controlled; the temporary fixture was not published.
 
 The owner then submitted from a second real account and successfully signed in
 through email. Its Write now request reached workflow 36254490784 but stopped
@@ -83,8 +83,17 @@ Source/data failures now show NEEDS ATTENTION in the inbox and retain their reas
 after refresh. Statistics-only drafts do not claim a market-price snapshot.
 113 Python tests and phone/desktop browser checks pass; live preflight finds two
 reporting publishers plus official stats and fits within the unchanged budget.
-The original unspent request is being resumed once; private reader review remains
-mandatory. Confirm its result before marking real reader generation complete.
+The original unspent request was resumed once in workflow 36255369488. It generated
+a real article but returned MLB's numeric team ID (134) where validation expected
+the exact prefixed statistical ID. Only that unambiguous alias is now normalized;
+unknown IDs and missing evidence still fail, and all factual checks remain intact.
+114 Python tests pass. The saved response and its original input were recovered
+through read-only API retrieval, then its first factual review passed. No second
+writing call was made. The same reader row is now private Review with no error,
+approval or published URL. Its actual content passed phone/desktop preview checks.
+Estimated total writing plus first review: $0.135237 ($0.091112 + $0.044125), retained
+in separate linked ledger entries. The run ledger records the recovery; the original
+GitHub run correctly remains failed. Do not rerun the paid writer for this request.
 
 ## Next steps requiring the owner's real review/account
 
@@ -92,9 +101,8 @@ mandatory. Confirm its result before marking real reader generation complete.
    the Review draft and previews it. Publication has not been approved.
 2. After the owner approves the exact saved content, verify the hourly publisher
    and actual public page. Do not equate draft generation with approved publication.
-3. A friend opens https://fourthandvalue.com/editorial/suggest.html, signs in using
-   their email link and sends an actual idea. Owner chooses whether to develop it;
-   verify real generation and final review without changing the simple workflow.
+3. The real reader draft is now in Review. Owner can preview and approve or archive
+   it. Only after owner approval should public delivery be checked.
 
 ## Remaining infrastructure
 

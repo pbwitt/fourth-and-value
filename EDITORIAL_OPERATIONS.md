@@ -628,3 +628,25 @@ paid generation for a real reader suggestion remain to be checked with a friend.
 The owner's preferred scope is simple: submit an idea → editor accepts it for
 development → editor reviews and approves or archives. Chat remains another
 direct publishing route; do not add workflow layers merely to expand this desk.
+
+### Real contributor completion and recovery — September 26
+
+The owner successfully submitted using another email account. Its first Write now
+run stopped before spending because ordinary team/opponent headline filtering did
+not find playoff reporting. Explicit MLB postseason questions now use dated team
+standings, official clinch/elimination fields, recent results, remaining schedule
+and playoff-picture reporting. Daily market/model publishing gates are unchanged.
+
+The resumed request generated a 433-word article. Its numeric MLB team ID caused
+a structural validation failure; the writer now normalizes only the exact known
+numeric ID to the corresponding statistical record ID. Unknown/missing IDs remain
+rejected. The existing response and original inputs were retrieved, the first
+factual audit passed, and the real reader draft was saved as private Review.
+No second writing call occurred. Estimated total cost $0.135237, preserved in the
+ledger with a separately reserved first-review entry and recovery metadata.
+114 Python tests and actual-draft mobile/desktop preview checks passed. Reader
+approval and public delivery remain owner-controlled. The failed GitHub run is
+historical; the recovered ledger and private queue record the completed draft.
+
+Stalled submitted items display NEEDS ATTENTION and count in the inbox notice;
+refreshing keeps their error visible. Completed drafts display DRAFT READY.
