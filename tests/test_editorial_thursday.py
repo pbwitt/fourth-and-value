@@ -61,4 +61,27 @@ class ThursdayPreview(unittest.TestCase):
         self.assertEqual(len(result),2)
         self.assertTrue(all(row['url'].endswith('usable') for row in result))
 
+class OfficialReporting(unittest.TestCase):
+    now=datetime(2026,9,26,12,tzinfo=timezone.utc)
+
+    def test_official_fallback_rejects_stale_and_undated_articles(self):
+        import json
+        index='<a href="https://www.nfl.com/news/old">old</a><a href="https://www.nfl.com/news/missing">missing</a><a href="https://www.nfl.com/news/current">current</a>'
+        def article(date):
+            return '<script type="application/ld+json">'+json.dumps({'@type':'NewsArticle','headline':'Current news','datePublished':date,'articleBody':'evidence '*110})+'</script>'
+        pages={'https://www.nfl.com/news':index,'https://www.nfl.com/news/old':article('2026-09-01T12:00:00Z'),
+            'https://www.nfl.com/news/missing':article(''),'https://www.nfl.com/news/current':article('2026-09-26T10:00:00Z')}
+        with patch.object(sources,'fetch',side_effect=pages.__getitem__):
+            result=sources.nfl_reporting(self.now)
+        self.assertEqual(len(result),1)
+        self.assertEqual(result[0]['url'],'https://www.nfl.com/news/current')
+
+    def test_official_fallback_restores_two_publishers(self):
+        row={'title':'News','url':'https://www.cbssports.com/news','published_timestamp':self.now.isoformat()}
+        official=dict(row,url='https://www.nfl.com/news/current',excerpt='evidence '*110)
+        with patch.object(sources,'candidates',return_value=[row]),patch.object(sources,'fetch',return_value='evidence '*110),patch.object(sources,'text_content',side_effect=lambda s:s),patch.object(sources,'nfl_reporting',return_value=[official]):
+            result=sources.collect('NFL',self.now)
+        self.assertEqual(len(result),2)
+        self.assertEqual([r['id'] for r in result],['s1','s2'])
+
 if __name__=='__main__':unittest.main()

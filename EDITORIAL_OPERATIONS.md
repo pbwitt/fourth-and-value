@@ -85,7 +85,9 @@ The collector reads public RSS from ESPN, CBS, Yahoo and (for MLB) MLB.com, then
 fetches bounded excerpts from approved publisher hosts. Reports must be no older
 than 72 hours; at least two publisher hosts are required. Blocked or unavailable
 pages are skipped. General research searches up to 12 headlines per publisher,
-and matchup research up to 30; missing readable reporting is recorded in the ledger. There is no paid web-search tool. Two publishers repeating the
+and matchup research up to 30. If NFL feeds cannot supply two publishers, the
+collector checks up to eight articles linked from the NFL's own news index,
+requiring a NewsArticle publication date within 72 hours and readable article text; missing readable reporting is recorded in the ledger. There is no paid web-search tool. Two publishers repeating the
 same report do not constitute independent corroboration.
 
 Astra writes 550–750 words using those excerpts and fresh local market/model evidence.

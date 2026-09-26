@@ -77,6 +77,32 @@ def candidates(sport,now,limit=3):
         except (requests.RequestException,ValueError,ET.ParseError):continue
     return found
 
+def nfl_reporting(now,terms=()):
+    """Read dated league reporting when syndicated feeds cannot supply diversity."""
+    try:index=fetch('https://www.nfl.com/news')
+    except (requests.RequestException,ValueError):return []
+    urls=list(dict.fromkeys(unescape(url) for url in re.findall(
+        r'href=[\"\'](https://www\.nfl\.com/news/[^\"\'?#]+)[\"\']',index)))
+    urls=[url for url in urls if '/news/series/' not in url
+        and (not terms or any(term in url.replace('-',' ').lower() for term in terms))]
+    for url in urls[:8]:
+        try:
+            html=fetch(url)
+            for script in re.findall(r'<script[^>]+type=[\"\']application/ld\+json[\"\'][^>]*>(.*?)</script>',html,re.S|re.I):
+                try:article=json.loads(script)
+                except ValueError:continue
+                if not isinstance(article,dict) or article.get('@type')!='NewsArticle':continue
+                date=ed.stamp(article.get('datePublished',''))
+                if not timedelta(0)<=now-date<=timedelta(hours=72):continue
+                title=str(article.get('headline','')).strip()
+                excerpt=text_content(html)
+                if not title or len(excerpt.split())<100:continue
+                return [dict(title=title[:200],url=url,published_at=date.date().isoformat(),
+                    published_timestamp=date.isoformat(),excerpt=excerpt[:2300],retrieved_at=now.isoformat())]
+        except (requests.RequestException,ValueError,TypeError):continue
+    return []
+
+
 def collect(sport,now,seen_urls=(),terms=()):
     # Three headlines per publisher can all be blocked or too short. Search a
     # bounded deeper pool before declaring an entire league unavailable.
@@ -97,6 +123,11 @@ def collect(sport,now,seen_urls=(),terms=()):
             if len(selected)>=3 and len(hosts)>=2:break
         except (requests.RequestException,ValueError) as exc:
             failures[host]=type(exc).__name__+': '+str(exc)[:180]
+    if len(hosts)<2 and sport=='NFL':
+        for source in nfl_reporting(now,terms):
+            host=urlsplit(source['url']).hostname
+            if host not in hosts:
+                selected.append(dict(source,id=f's{len(selected)+1}'));hosts.add(host)
     if len(hosts)<2:
         print('Source availability: '+json.dumps(dict(sport=sport,candidates=len(found),readable_hosts=sorted(hosts),failures=failures)),flush=True)
     return selected if len(hosts)>=2 else []
