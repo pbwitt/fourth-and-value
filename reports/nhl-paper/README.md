@@ -2,7 +2,8 @@
 
 The manuscript describes the NHL v2.1 system deployed under PR #6, using the numerical
 evidence retained at commit `e1f91609524f74a6b99cf86cdebb2328cd5e08d1`. It is a separate
-editorial review change. It makes no peer-review or validated-profitability claim.
+editorial change, approved by the owner for publication under Research. It makes no
+peer-review or validated-profitability claim.
 
 - Authored source: `scripts/research/nhl_paper.html`.
 - Web output: `docs/research/nhl-forecasting-and-market-pricing.html`.
