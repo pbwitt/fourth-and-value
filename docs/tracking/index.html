@@ -254,6 +254,7 @@
       </div>
       <input type="email" id="emailInput" placeholder="you@example.com" autocomplete="email" />
       <button id="sendLinkBtn" onclick="handleSendLink()">Send sign-in link</button>
+      <p class="signin-sub">The site can currently send only 2 sign-in emails per hour, shared by all users. Once signed in, you can keep using your account without requesting another email.</p>
       <div id="signInStatus" class="status-msg"></div>
       <p style="font-size:.75rem;color:#777;text-align:center;margin-top:1rem;">
         By creating an account you agree to our <a href="../terms.html" style="color:#4FC3F7;">Terms of Service &amp; Privacy Policy</a>.
@@ -387,7 +388,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="bet-tracking.js"></script>
+  <script src="bet-tracking.js?v=2"></script>
   <script>
     let betsData = [];
 
@@ -413,6 +414,7 @@
     });
 
     async function handleSendLink() {
+      if (document.getElementById('sendLinkBtn').disabled) return;
       const email = document.getElementById('emailInput').value.trim();
       const statusEl = document.getElementById('signInStatus');
       if (!email || !email.includes('@')) {
@@ -425,7 +427,9 @@
       btn.disabled = true;
       btn.textContent = 'Sending...';
 
-      const { ok, error } = await signInWithEmail(email);
+      let ok = false, error;
+      try { ({ ok, error } = await signInWithEmail(email)); }
+      catch (failure) { error = failure; }
 
       btn.disabled = false;
       btn.textContent = 'Send sign-in link';
@@ -434,7 +438,7 @@
         statusEl.textContent = 'Check your email for a sign-in link.';
         statusEl.className = 'status-msg ok';
       } else {
-        statusEl.textContent = error?.message || 'Something went wrong. Try again.';
+        statusEl.textContent = signInErrorMessage(error);
         statusEl.className = 'status-msg error';
       }
     }

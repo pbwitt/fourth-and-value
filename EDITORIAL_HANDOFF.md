@@ -104,6 +104,27 @@ GitHub run correctly remains failed. Do not rerun the paid writer for this reque
 3. The real reader draft is now in Review. Owner can preview and approve or archive
    it. Only after owner approval should public delivery be checked.
 
+## Sign-in limits and owner preference, September 26
+
+The owner chose to keep the current Supabase email sender and defer Resend setup.
+Dashboard screenshots show 2 authentication emails/hour for the entire project
+and empty custom SMTP fields. This is not a per-reader submission or review cap.
+Existing reader spam protection remains 3 suggestions in a rolling 24-hour window;
+reviewing, refreshing and submitting while signed in need no new email.
+
+Contributor, editor and tracker sign-in pages now explain the shared allowance.
+Email exhaustion, recent-link cooldown and general request throttling have distinct
+plain-language messages, with duplicate requests blocked while sending. The reader
+submission-cap error describes the real 3-in-24-hours rule and preserves entered
+text. No SMTP/account setting, SQL migration or actual limit was changed. These
+messages do not remove the sending restriction or establish public launch readiness.
+Supabase's default service may also reject non-team email addresses; that error is
+shown separately rather than promising a retry after an hour will resolve it.
+Phone/desktop checks passed for all three sign-in pages, duplicate-send guards,
+submission-error text preservation, and signed-in submission/desk refresh without
+new login emails. Existing rewrite/approval browser checks also passed. Checks
+used isolated responses and did not send live emails or create submissions.
+
 ## Remaining infrastructure
 
 - Email recipient is configured; RESEND_API_KEY and EDITORIAL_NOTIFY_FROM remain

@@ -33,6 +33,24 @@ async function signInWithEmail(email) {
   return { ok: !error, error };
 }
 
+// The email allowance belongs to the whole site, not to a reader's submissions.
+function signInErrorMessage(error) {
+  const detail = error?.message || '';
+  if (/for security purposes.*after.*seconds/i.test(detail)) {
+    return 'A sign-in email was requested recently. Please wait before requesting another link, and check your inbox for the previous email.';
+  }
+  if (error?.code === 'over_email_send_rate_limit' || /email rate limit exceeded/i.test(detail)) {
+    return 'We can’t send a sign-in email right now because the site’s hourly email limit has been reached. This allowance is shared by everyone using the site. Please try again in about an hour. If you’re already signed in, you can keep using your account.';
+  }
+  if (error?.code === 'over_request_rate_limit' || error?.status === 429) {
+    return 'Too many sign-in attempts were made recently. Please wait a few minutes before trying again.';
+  }
+  if (error?.code === 'email_address_not_authorized') {
+    return 'The site’s email service is not set up to send a sign-in link to this address.';
+  }
+  return detail || 'We couldn’t request a sign-in email. Please try again later.';
+}
+
 async function signOut() {
   await supabaseClient.auth.signOut();
 }
@@ -89,5 +107,6 @@ async function autoTrackBet(betData) {
 window.supabaseClient = supabaseClient;
 window.getCurrentUser = getCurrentUser;
 window.signInWithEmail = signInWithEmail;
+window.signInErrorMessage = signInErrorMessage;
 window.signOut = signOut;
 window.autoTrackBet = autoTrackBet;
