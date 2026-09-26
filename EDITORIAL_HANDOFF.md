@@ -25,6 +25,15 @@ The owner resumed work and authorized a new private Write now test.
 - 102 editorial Python tests passed; dispatcher and PostgreSQL permission checks
   passed during this session. Public daily article count remains two.
 
+## Rewrite preference and controls
+
+The owner does not need old draft versions. Request rewrite now accepts feedback,
+replaces the current draft only after a successful review, and requires approval
+again. The existing schema and deployed dispatch function support this. Each
+explicit request gets a distinct cost reservation; duplicate jobs remain blocked.
+108 editorial Python tests, PostgreSQL permission checks, and browser rewrite
+controls passed. No live paid rewrite was initiated while implementing this UI.
+
 ## Next steps requiring the owner's real review/account
 
 1. Owner opens https://fourthandvalue.com/editorial/inbox.html, refreshes, selects

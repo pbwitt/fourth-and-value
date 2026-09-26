@@ -51,6 +51,17 @@ const {PGlite}=require(mod),{pgcrypto}=require(mod+(path.isAbsolute(mod)?'/dist/
  const own=(await db.query("insert into public.editorial_ideas(idea) values ('Owner topic') returning *")).rows[0];
  assert.equal(own.requires_review,false);
  assert.equal((await db.query("update public.editorial_ideas set idea='Edited topic' where id=$1 returning status",[own.id])).rows[0].status,'submitted');
+ // Rewrites use existing columns: save feedback, queue the intact draft, then
+ // dispatch through the existing editor-only request guard.
+ await db.query("update public.editorial_ideas set title='Saved draft',body=$2,byline='Fourth & Value',sources='https://example.com/source' where id=$1",[own.id,'Draft to replace after successful writing. '.repeat(5)]);
+ let rewrite=(await db.query("update public.editorial_ideas set idea='Owner topic with rewrite feedback' where id=$1 returning *",[own.id])).rows[0];
+ assert.equal(rewrite.status,'review');
+ rewrite=(await db.query("update public.editorial_ideas set status='submitted' where id=$1 returning *",[own.id])).rows[0];
+ assert.ok(rewrite.body.startsWith('Draft to replace'));
+ rewrite=(await db.query("update public.editorial_ideas set research_requested_at=now(),write_now_requested_at=now(),write_now_publish=false where id=$1 returning *",[own.id])).rows[0];
+ assert.equal(rewrite.write_now_publish,false);assert.equal(rewrite.approved_hash,null);
+ await as('authenticated',other);
+ assert.equal((await db.query("update public.editorial_ideas set status='submitted' where id=$1 returning id",[own.id])).rows.length,0);
  await as('service_role',null);
  await db.query("update public.editorial_ideas set status='publishing' where id=$1",[row.id]);
  await db.query("update public.editorial_ideas set status='published',published_url='/article' where id=$1",[row.id]);

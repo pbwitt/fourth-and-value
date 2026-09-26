@@ -76,7 +76,7 @@ def save_draft(row,article,as_of=None):
     if as_of:body='Market snapshot: '+as_of.astimezone(ed.ETZ).strftime('%B %d, %Y at %I:%M %p ET')+'. Prices may have changed.\n\n'+body
     links='\n'.join(source['url'] for source in article['sources'])
     saved=request('PATCH','/rest/v1/editorial_ideas',params={'id':'eq.'+row['id'],'status':'eq.researching'},
-        json={'title':article['title'],'body':body,'byline':'Fourth & Value','sources':links,'status':'review'})
+        json={'title':article['title'],'body':body,'byline':'Fourth & Value','sources':links,'status':'review','draft_notification_sent_at':None})
     if not saved:raise RuntimeError('Private draft changed while research was running')
 
 
@@ -93,8 +93,12 @@ def waiting(row,message):
 
 
 def fail(row,detail=None):
+    retained=bool(row.get('body','').strip())
+    message=('The rewrite did not complete. Your current draft is still available. ' if retained else 'Research could not produce a verified article. ')
+    message+=(str(detail)[:600]+' ' if detail else '')
+    message+=('No automatic paid retry. You can edit the draft or request another rewrite.' if retained else 'Archived to prevent repeated charges. Submit a revised idea to try again.')
     request('PATCH','/rest/v1/editorial_ideas',params={'id':'eq.'+row['id'],'status':'eq.researching'},
-        json={'status':'archived','research_error':'Research could not produce a verified article. '+(str(detail)[:600]+' ' if detail else '')+'Archived to prevent repeated charges. Submit a revised idea to try again.'})
+        json={'status':'review' if retained else 'archived','research_error':message})
 
 
 def notify(now):

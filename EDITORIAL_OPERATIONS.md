@@ -575,3 +575,24 @@ explicit requests only; daily matchup model requirements remain intact. No serie
 prices or retrospective model forecasts are invented. The historical archive scan
 is limited to published editorial evidence, and this limitation accompanies the
 records. Broader raw model-artifact indexing remains outstanding.
+
+
+## Rewriting the current draft
+
+The owner prefers one current draft, without a version history. On a saved Review
+or Archived analysis draft, choose Request rewrite, describe the changes, and
+choose Rewrite draft. Feedback replaces the previous rewrite instructions. The
+existing draft stays available until its replacement passes the factual check;
+a failed rewrite returns it to Review with a private explanation. Successful
+rewrites replace the same database row and always require approval, including for
+owner-originated requests. No database migration or Edge Function redeployment is
+required. Opinion/general Sports drafts remain manually editable.
+
+Each explicit request timestamp identifies a separate budget reservation. Duplicate
+jobs for that same request cannot spend twice. Earlier charges remain in the cost
+ledger; only draft text is replaced. Uncertain started attempts still require
+inspection before another request. Request metadata never contains draft text.
+
+Verification: 108 editorial Python tests, PostgreSQL permission checks using the
+existing schema, and mobile/desktop rewrite-control tests passed without making
+live paid rewrite requests. The owner's next click will exercise live rewriting.
