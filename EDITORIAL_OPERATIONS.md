@@ -75,7 +75,9 @@ The delivery check counts unique catalog URLs with existing public article files
 not writer invocations or drafts. It runs after publication so a partial edition and
 its diagnostics are preserved before the workflow fails. Before 8 AM, an incomplete
 edition is pending; from 8 AM it fails with the counts and blocking reasons in the
-Actions summary. A Pages build request is still separate from completed deployment.
+Actions summary. The workflow and watchdog also fetch the public article URLs and verify their
+page titles, retrying during deployment propagation. An accepted Pages build
+request alone does not count as successful public delivery.
 GitHub cron is best effort; redundant triggers and a watchdog on the same platform
 cannot guarantee delivery through a GitHub-wide outage.
 

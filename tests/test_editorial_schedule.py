@@ -139,6 +139,22 @@ class EditorialScheduleTests(unittest.TestCase):
         now=datetime(2026,9,26,11,0,tzinfo=timezone.utc)
         self.assertEqual(sched.verify_delivery(root,now)['status'],'pending')
 
+    def test_live_delivery_retries_propagation_and_checks_article_title(self):
+        from io import BytesIO
+        from urllib.error import URLError
+        from unittest.mock import patch
+        td,root=self.make_root();self.addCleanup(td.cleanup)
+        now=datetime(2026,9,26,12,tzinfo=timezone.utc)
+        (root/'docs/editorial/published.json').write_text(json.dumps([
+            {'date':'2026-09-26','kind':'Analysis','title':'Actual story',
+             'url':'/editorial/articles/today.html'}]))
+        with patch.object(sched,'urlopen',side_effect=[URLError('not deployed'),BytesIO(b'<title>Actual story | Fourth &amp; Value</title>')]) as fetch,patch.object(sched.time,'sleep'):
+            sched.verify_live(root,now,attempts=2)
+        self.assertEqual(fetch.call_count,2)
+        with patch.object(sched,'urlopen',return_value=BytesIO(b'<title>Not found</title>')):
+            with self.assertRaisesRegex(SystemExit,'deployment not verified'):
+                sched.verify_live(root,now,attempts=1)
+
 
 if __name__=='__main__':
     unittest.main()

@@ -191,7 +191,7 @@ jobs:
         run: python scripts/editorial.py --ack --receipt /tmp/editorial-receipt.json
       - name: Verify daily article delivery
         if: always() && !cancelled() && inputs.idea_id == ''
-        run: python scripts/editorial_schedule.py --verify-delivery
+        run: python scripts/editorial_schedule.py --verify-delivery --verify-live
       - name: Report writer execution failure
         if: always() && steps.writer_check.outcome == 'failure'
         run: exit 1

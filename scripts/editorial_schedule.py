@@ -4,6 +4,10 @@ import argparse
 import json
 import os
 import re
+import time
+from html import unescape
+from urllib.error import URLError
+from urllib.request import Request, urlopen
 from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -202,11 +206,35 @@ def verify_delivery(root=ROOT,now=None):
     return result
 
 
+def verify_live(root=ROOT,now=None,attempts=12):
+    """Do not equate an accepted Pages build request with a reachable article."""
+    now=now or datetime.now(timezone.utc)
+    pending={row['url']:row for row in today_catalog(root,now)
+        if str(row.get('url','')).startswith('/editorial/articles/')}
+    for attempt in range(attempts):
+        for path,row in list(pending.items()):
+            try:
+                request=Request('https://fourthandvalue.com'+path,
+                    headers={'User-Agent':'FourthAndValue/1.0 delivery-check'})
+                with urlopen(request,timeout=10) as response:
+                    page=response.read(1000000).decode('utf-8')
+                title=re.search(r'<title>(.*?)</title>',page,re.S|re.I)
+                if title and row.get('title') and row['title'] in unescape(title.group(1)):
+                    del pending[path]
+            except (URLError,TimeoutError,OSError,UnicodeError):pass
+        if not pending:
+            print('Public article URLs verified')
+            return
+        if attempt+1<attempts:time.sleep(10)
+    raise SystemExit('Public article deployment not verified: '+', '.join(pending))
+
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--idea-id",default="")
     p.add_argument("--verify-writer",action="store_true")
     p.add_argument("--verify-delivery",action="store_true")
+    p.add_argument("--verify-live",action="store_true")
     p.add_argument("--expected-writer",choices=["true","false"],default="false")
     p.add_argument("--event-name",default=os.getenv("GITHUB_EVENT_NAME",""))
     p.add_argument("--event-schedule",default=os.getenv("GITHUB_EVENT_SCHEDULE",""))
@@ -214,6 +242,7 @@ def main():
     args=p.parse_args()
     if args.verify_delivery:
         verify_delivery()
+        if args.verify_live:verify_live()
         return
     if args.verify_writer:
         verify_writer(expected=args.expected_writer=="true",idea_id=args.idea_id or None)
