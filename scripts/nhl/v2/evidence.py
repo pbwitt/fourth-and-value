@@ -5,6 +5,7 @@ from html import unescape
 import hashlib
 import json
 import re
+import unicodedata
 from urllib.parse import urljoin, urlsplit
 import xml.etree.ElementTree as ET
 
@@ -80,6 +81,11 @@ def plain(html):
 
 
 def article_text(html):
+    # Injury reports often put all actual designations in HTML tables while
+    # articleBody contains only section names and the legend.
+    tables = injury_tables(html)
+    if tables:
+        return ' '.join(tables)
     bodies = [a['articleBody'] for a in structured(html) if isinstance(a.get('articleBody'), str)]
     if bodies:
         return plain(max(bodies, key=len))
@@ -91,16 +97,46 @@ def article_text(html):
         r'privacy policy|subscribe|sign up|terms of use|all rights reserved', p, re.I)))
 
 
+def injury_tables(html):
+    result = []
+    for table in re.finditer(r'<table\b[^>]*>(.*?)</table>', html, re.S | re.I):
+        rows = [[plain(c) for c in re.findall(r'<t[hd]\b[^>]*>(.*?)</t[hd]>', r, re.S | re.I)]
+                for r in re.findall(r'<tr\b[^>]*>(.*?)</tr>', table[1], re.S | re.I)]
+        if not rows:
+            continue
+        header = [c.upper() for c in rows[0]]
+        if not {'PLAYER', 'INJURY', 'GAME STATUS'}.issubset(header):
+            continue
+        headings = re.findall(r'<h[1-6]\b[^>]*>(.*?)</h[1-6]>', html[:table.start()], re.S | re.I)
+        team = plain(headings[-1]) if headings else 'Injury report'
+        # Keep complete table rows, ordered by relevance to offensive props.
+        if any(len(r) != len(header) for r in rows[1:]):
+            raise ValueError('Incomplete official injury row')
+        parsed = [dict(zip(header, r)) for r in rows[1:]]
+        parsed.sort(key=lambda r: r.get('POSITION', '') not in ('QB','WR','RB','FB','TE','T','G','C','OT','OG','OL'))
+        for r in parsed:
+            practice = next((f"; practice {day}: {r[day]}" for day in ('SAT','FRI','THURS','THU','WED') if r.get(day)), '')
+            result.append(f"{team}: {r.get('POSITION', '')} {r['PLAYER']}; injury: {r['INJURY']}; game status: {r['GAME STATUS'] or 'not listed'}{practice}.")
+    return result
+
+
+def matching_text(text):
+    text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode()
+    text = re.sub(r'[^a-z0-9]+', ' ', text.casefold()).strip()
+    # C.J., C-J and CJ are equivalent full-name forms, without surname-only matches.
+    return re.sub(r'\b([a-z]) ([a-z])\b', r'\1\2', text)
+
+
 def terms(row):
     names = [row.get('player', ''), row.get('home_team', ''), row.get('away_team', '')]
     # Full names and unambiguous team nicknames; never a city alone or player surname alone.
     names += [' '.join(team.split()[-2:]) if team.endswith(('Maple Leafs', 'Red Wings', 'Blue Jackets', 'Golden Knights', 'Red Sox', 'White Sox', 'Blue Jays'))
               else team.split()[-1] for team in names[1:] if team]
-    return [n.casefold() for n in names if len(n) >= 4]
+    return [matching_text(n) for n in names if len(n) >= 4]
 
 
 def matches(row, text):
-    text = text.casefold().replace('-', ' ')
+    text = matching_text(text)
     return any(re.search(r'(?<!\w)'+re.escape(t)+r'(?!\w)', text) for t in terms(row))
 
 
@@ -111,8 +147,12 @@ def reporting_priority(row, source):
     if re.search(r'best.bets|betting.picks|picks.odds|odds.best|promo.code|expert.picks', text):
         return -1
     priority = 5 if re.search(r'injur|lineup|practice|active|starter|weather|bullpen|scratch|pitcher', text) else 0
-    if row.get('player') and row['player'].casefold() in text.replace('-', ' '):
+    if row.get('player') and matching_text(row['player']) in matching_text(text):
         priority += 3
+    # A matchup-specific report beats an unrelated old team injury article.
+    teams = [row.get('home_team'), row.get('away_team')]
+    if all(teams) and all(matching_text(t.split()[-1]) in matching_text(text) for t in teams):
+        priority += 2
     if (urlsplit(source['url']).hostname or '').removeprefix('www.') in ('nfl.com','mlb.com','nhl.com', *NFL_TEAM_SITES.values()):
         priority += 1
     return priority
@@ -120,8 +160,16 @@ def reporting_priority(row, source):
 
 def usable(source, row, asof):
     try:
+        if source.get('source_kind') == 'live_injury_table':
+            return (source['url'] in ('https://www.cbssports.com/mlb/injuries/', 'https://www.cbssports.com/nhl/injuries/')
+                    and source.get('published_at') is None
+                    and asof-timedelta(minutes=90) <= stamp(source['retrieved_at']) <= asof
+                    and row['candidate_id'] in source['candidate_ids'] and bool(source.get('injury_rows'))
+                    and bool(source['excerpt']) and matches(row, source['title']+' '+source['excerpt']))
         published, retrieved = stamp(source['published_at']), stamp(source['retrieved_at'])
-        return (trusted(source['url']) and asof-timedelta(hours=72) <= published <= retrieved <= asof
+        updated = stamp(source['updated_at']) if source.get('updated_at') else published
+        return (trusted(source['url']) and asof-timedelta(days=7) <= published <= updated <= retrieved <= asof
+                and asof-timedelta(hours=72) <= updated
                 and row['candidate_id'] in source['candidate_ids'] and bool(source['excerpt'])
                 and matches(row, source['title']+' '+source['excerpt']))
     except (KeyError, TypeError, ValueError):
@@ -129,13 +177,17 @@ def usable(source, row, asof):
 
 
 def collect(rows, clock=lambda: datetime.now(timezone.utc), sport='NHL'):
-    """Three league indexes + at most eight NFL team indexes; eight articles total."""
+    """Direct MLB/NHL injury table, league/team indexes, at most 16 articles."""
     if not rows:
         return [], {'status': 'no_candidates', 'failures': []}
     pool, sources, failures = [], [], []
     now = clock()
     if sport not in ('NHL', 'MLB', 'NFL'):
         raise ValueError('Unsupported reporting sport')
+    injury_status = {'status': 'official_articles'}
+    if sport in ('MLB', 'NHL'):
+        from .injuries import collect as collect_injuries
+        sources, injury_status = collect_injuries(rows, clock, sport, fetch)
     feeds = FEEDS if sport == 'NHL' else (
         f'https://www.espn.com/espn/rss/{sport.lower()}/news',
         f'https://www.cbssports.com/rss/headlines/{sport.lower()}/')
@@ -148,7 +200,7 @@ def collect(rows, clock=lambda: datetime.now(timezone.utc), sport='NHL'):
                     if date.tzinfo is None:
                         continue
                     title, url = item.findtext('title') or '', item.findtext('link') or ''
-                    if trusted(url) and timedelta(0) <= now-date <= timedelta(hours=72):
+                    if trusted(url) and timedelta(0) <= now-date <= timedelta(days=7):
                         pool.append(dict(title=plain(title)[:200], url=url.strip(), published_at=iso(date)))
                 except (ValueError, TypeError):
                     continue
@@ -175,13 +227,14 @@ def collect(rows, clock=lambda: datetime.now(timezone.utc), sport='NHL'):
                         pool.append(dict(url=url, title='', published_at=None))
             except (requests.RequestException, ValueError):
                 failures.append({'host': team_domain, 'stage': 'team_index_unavailable'})
-    seen, attempts, counts = set(), 0, {r['candidate_id']: 0 for r in rows}
+    seen, attempts, counts = set(), 0, {r['candidate_id']: sum(r['candidate_id'] in s['candidate_ids'] for s in sources) for r in rows}
+    rejected = []
     # Round-robin by candidate avoids spending every fetch on the first matchup.
     queues = [sorted([s for s in pool if matches(r, s['title']+' '+s['url']) and reporting_priority(r, s) >= 0],
                      key=lambda s: (reporting_priority(r, s), s.get('published_at') or ''), reverse=True) for r in rows]
     for n in range(max((len(q) for q in queues), default=0)):
         for row, queue in zip(rows, queues):
-            if n >= len(queue) or counts[row['candidate_id']] >= 2 or attempts >= 8:
+            if n >= len(queue) or counts[row['candidate_id']] >= 2 or attempts >= 16:
                 continue
             source = queue[n]
             if source['url'] in seen:
@@ -190,20 +243,39 @@ def collect(rows, clock=lambda: datetime.now(timezone.utc), sport='NHL'):
             try:
                 html = fetch(source['url']); retrieved = clock()
                 articles = list(structured(html))
+                dated = next((a for a in articles if a.get('datePublished') and a.get('headline')), None)
                 if not source['published_at']:
-                    dated = next((a for a in articles if a.get('datePublished') and a.get('headline')), None)
                     if not dated:
+                        rejected.append(dict(url=source['url'], reason='publication_time_missing'))
                         continue
                     source = dict(source, title=plain(dated['headline'])[:200], published_at=iso(stamp(dated['datePublished'])))
+                if dated and dated.get('dateModified'):
+                    source = dict(source, updated_at=iso(stamp(dated['dateModified'])))
                 text = article_text(html)
-                if len(text.split()) < 60 or not retrieved-timedelta(hours=72) <= stamp(source['published_at']) <= retrieved:
+                published = stamp(source['published_at'])
+                effective = stamp(source.get('updated_at') or source['published_at'])
+                if len(text.split()) < 60 or not (retrieved-timedelta(days=7) <= published <= effective <= retrieved
+                        and retrieved-timedelta(hours=72) <= effective):
+                    rejected.append(dict(url=source['url'], reason='insufficient_text_or_stale_timestamp'))
                     continue
-                ids = [r['candidate_id'] for r in rows if counts[r['candidate_id']] < 2 and matches(r, source['title']+' '+text[:1400])]
+                table_rows = injury_tables(html)
+                excerpt = text[:1400]
+                if table_rows:
+                    player = matching_text(row.get('player') or '')
+                    ordered = sorted(table_rows, key=lambda t: not (player and player in matching_text(t)))
+                    excerpt = 'Injury table excerpt; additional players may be listed in the full report.'
+                    for line in ordered:
+                        if len(excerpt)+len(line)+1 <= 1400:
+                            excerpt += '\n'+line
+                ids = [r['candidate_id'] for r in rows if counts[r['candidate_id']] < 2 and matches(r, source['title']+' '+excerpt)]
                 if not ids:
                     continue
-                source = dict(source, excerpt=text[:1400], retrieved_at=iso(retrieved), candidate_ids=ids,
+                source = dict(source, excerpt=excerpt, retrieved_at=iso(retrieved), candidate_ids=ids,
                               content_sha256=hashlib.sha256(html.encode()).hexdigest(),
                               publication_basis='publisher_rss_or_article_metadata')
+                if table_rows:
+                    source['source_kind'] = 'official_injury_report'
+                    source['injury_table_rows'] = table_rows
                 source['source_id'] = digest(source)[:20]
                 sources.append(source)
                 for cid in ids:
@@ -211,4 +283,10 @@ def collect(rows, clock=lambda: datetime.now(timezone.utc), sport='NHL'):
             except (requests.RequestException, ValueError, TypeError):
                 failures.append({'host': urlsplit(source['url']).hostname, 'stage': 'article_unavailable'})
     return sources, dict(status='available' if sources else 'no_usable_reporting', attempts=attempts,
-                         failures=failures, coverage=counts)
+                         failures=failures, rejected=rejected, coverage=counts, injury_tables=injury_status)
+
+
+def attach_context(board, diagnostics):
+    for row in board['candidates']:
+        status = diagnostics.get('injury_tables', {})
+        row['injury_context'] = status.get('candidates', {}).get(row['candidate_id'], {'status': status.get('status', 'unavailable')})

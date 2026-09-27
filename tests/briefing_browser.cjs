@@ -64,6 +64,11 @@ const server=http.createServer((req,res)=>{
       ...selected,review_key:reviewKey(selected),review_bet_key:reviewBetKey(selected),offer_id:'o',forecast_id:'f',qualitative_review:{
         offer_id:'o',forecast_id:'f',status:'concern',reviewed_at:new Date(now).toISOString(),countercase:'A lineup change could reduce projected opportunity.',
         open_checks:['Verify the announced batting order before deciding.'],evidence:[{source_id:'s1',direction:'concern',interpretation:'Check whether the expected role still applies.',represented_in:'model_features'}]}}]}}};
+    const reviewedRow=feeds.Reviews.sports.MLB.candidates[0];
+    reviewedRow.candidate_id='injury-candidate';reviewedRow.qualitative_review.candidate_id='injury-candidate';
+    feeds.Reviews.sports.MLB.sources.push({source_id:'injury1',source_kind:'live_injury_table',candidate_ids:['injury-candidate'],
+      url:'https://www.cbssports.com/mlb/injuries/',title:'Synthetic MLB injury listing',published_at:null,retrieved_at:new Date(now).toISOString(),
+      missing_teams:['Missing team'],injury_rows:[{player:'<img src=x onerror=alert(1)>',team:'Boston Red Sox',position:'SP',injury:'Shoulder',status:'15-day injured list',reported_update:'Sat, Sep 26'}]});
     for(const width of [390,768,1440]) {
       await page.setViewportSize({width,height:1000});await page.reload();await page.waitForSelector('.pick-research');
       assert.match(await page.locator('#picks-analysis-text').textContent(),/Our review found a concern to resolve/);
@@ -71,12 +76,21 @@ const server=http.createServer((req,res)=>{
       await page.locator('.read-pick-review').click();
       assert(await page.locator('.pick-research').evaluate(el=>el.open));
       assert.match(await page.locator('.pick-research').textContent(),/Case against:/);
-      assert.match(await page.locator('.pick-research summary').textContent(),/Fourth & Value analysis/);
-      assert.equal(await page.locator('.pick-research-row td').getAttribute('colspan'),'6');
+      await page.locator('.pick-injuries summary').click();
+      assert.match(await page.locator('.pick-injuries').textContent(),/15-day injured list/);
+      assert.match(await page.locator('.pick-injuries').textContent(),/Publication time unknown/);
+      assert.match(await page.locator('.pick-injuries').textContent(),/Team coverage unavailable: Missing team/);
+      assert.equal(await page.locator('.pick-injuries img').count(),0);
+      assert.match(await page.locator('.pick-research > summary').textContent(),/Fourth & Value analysis/);
+      assert.equal(await page.locator('.pick-research-row > td').getAttribute('colspan'),'6');
       assert.match(await page.locator('#daily-picks-rows').textContent(),/Sourced concern/);
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
       await page.locator('#daily-picks').screenshot({path:`/tmp/fv-astra-review-${width}.png`});
     }
+    feeds.Reviews.sports.MLB.sources=feeds.Reviews.sports.MLB.sources.filter(s=>s.source_id!=='injury1');
+    reviewedRow.injury_context={status:'unavailable'};
+    await page.reload();await page.waitForSelector('.pick-research');
+    assert.match(await page.locator('.pick-research').textContent(),/Injury table: unavailable for this review/);
     // Diagnostics remain separate from the original prediction and escape source text.
     feeds.Reviews.sports.MLB.candidates[0].model_diagnostics={projection:{attempts:26,completion_rate:.6,yards_per_completion:9.6,
       current_sample:[{season:2026,week:1,attempts:5,completions:3,passing_yards:18}],recent_mean_weight:.2,yards_per_completion_recent_weight:.2},

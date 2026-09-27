@@ -40,9 +40,13 @@ The sport-specific screens are not equivalent. NFL takes fitted-calibration esti
 ## Evidence and analysis
 
 The shared NHL collector reads ESPN/CBS league RSS plus official MLB/NFL news
-indexes. NFL also checks at most eight candidate-team official news indexes. It retrieves at most eight articles per sport, at most two relevant
-sources per candidate, published within 72 hours and retrieved before the
-review. Publication and retrieval times are separate. Opportunity/injury reporting is ranked before generic team coverage; betting-pick/promotional headlines are excluded. Matching uses full player
+indexes. NFL also checks at most eight candidate-team official news indexes. It retrieves at most sixteen articles per sport, at most two relevant
+sources per candidate. Articles must have been first published within seven days
+and published or publisher-updated within 72 hours, with publication <= update <=
+retrieval <= review. Publication, publisher update and retrieval remain separate.
+This admits a Wednesday NFL injury report updated Friday without inventing a new
+publication date. NFL HTML injury rows override sparse JSON-LD legends; practice
+participation and game designation stay distinct. Rejected-source reasons are archived. Opportunity/injury reporting is ranked before generic team coverage; betting-pick/promotional headlines are excluded. Matching uses full player
 names or full team names/nicknames, never a city or player surname alone.
 Article text is untrusted input. Redirects are restricted to allowed HTTPS
 publishers; no subscriptions, credentials or access restrictions are bypassed.
@@ -55,7 +59,7 @@ news coverage is incomplete; verified lineup, injury or weather data may be
 missing. MLB hitter props require published batting orders under the existing
 model policy, so the morning list can omit them until a later update.
 
-Prompt `mlb-nfl-context-4` / `nhl-context-2` separates the **betting assessment**
+Prompt `mlb-nfl-context-5` / `nhl-context-3` separates the **betting assessment**
 from the reporting status. Each assessment supplies model, price and context
 cases, a reason and one of three verdicts:
 
@@ -94,6 +98,39 @@ the analyst must verify it. Astra cannot adjust probability, EV, fair price or
 stake and cannot approve a wager. No automatic support/concern betting rule is
 claimed to improve results.
 
+### MLB and NHL injury tables
+
+Before article discovery, both sports fetch their public CBS Sports injury table
+once per eligible research batch. Team matching uses full team identifiers in
+publisher URLs, never a city label; player full names and publisher player IDs
+are retained. Candidate, teammate and opposing-team listings are available in
+an expandable table in the briefing and NHL Top Picks. Original model forecasts,
+Market Watch, daily articles and Bet Tracker selection rules are unchanged.
+
+Each review archives matched full fact rows, URL, content hash and observed time.
+The publisher does not expose a reliable full publication timestamp for these
+live tables. `published_at` stays null; raw row update labels are not assigned an
+invented year. These are **live-only observations**, usable within 90 minutes of
+retrieval, not historical injury evidence or confirmed game-day clearance.
+Longstanding IL/IR rows may legitimately have old update dates. Estimated return
+dates are publisher estimates. Missing teams, malformed tables, failed requests
+and players absent from the listing never imply health. No stale cached table
+substitutes for a failed request. CBS is a secondary source; official team/league
+articles remain available for corroboration, returns, replacements and conflicts.
+The table is not guaranteed exhaustive and NHL does not list every team every day.
+
+At most two sources per candidate remain. A direct injury table reserves one;
+news can use the other. The request includes a bounded excerpt (candidate first,
+then goalies/pitchers), with an explicit subset warning. Complete rows remain
+archived and readable, but the model must not imply it reviewed omitted rows.
+Injury-table excerpts retain complete lines through compaction. The same shared
+assessment instructions apply to NFL, MLB and NHL: discuss effects on volume,
+efficiency, replacements and matchup in both directions; do not invent numerical
+injury adjustments or missing replacements. Waiting requires a specific material
+fact. Recent repeated workload may support an expected role without a new article
+restating it. Extreme probability validation/retraining is not a routine qualitative
+blocker; assess the remaining case, or pass if its assumptions cannot support it.
+
 ## Schedule, spending and failures
 
 `Morning Candidate Research` is explicitly called by the early editorial workflow after its MLB/NFL refresh jobs and before briefing publication. It also runs after standalone MLB/NFL refreshes and at
@@ -120,7 +157,7 @@ as tokens plus overhead at $12.50/M input and $50/M output, with 10% margin.
 Maximum reservation is under $0.62/call; actual usage is normally lower. A timeout
 retains its reservation. CI commits/pushes reservation and exact packet before
 calling the API. A failed checkpoint prevents payment. Each sport can require
-roughly four minutes of bounded NFL source retrieval (three league indexes, up to eight team indexes and eight articles) plus up to four minutes API time.
+roughly six minutes of bounded NFL source retrieval (three league indexes, up to eight team indexes and sixteen articles) plus up to four minutes API time.
 No new paid feed or hosting service is required.
 
 API details checked against official documentation on 2026-09-27:
@@ -137,6 +174,7 @@ For local authorized execution `--env-file` also requires python-dotenv.
 node tests/briefing_picks.cjs
 python -m unittest discover -s tests -p 'test_analyst_review.py'
 python -m unittest discover -s tests -p 'test_nhl_analyst.py'
+python -m unittest discover -s tests -p 'test_nhl_injuries.py'
 python scripts/analyst_review.py          # selection/status only, no paid call
 python scripts/analyst_review.py --astra  # bounded call only when eligible
 ```
@@ -247,3 +285,21 @@ validation remain unresolved; this explanatory release does not claim to fix the
 Rollback the release commit to remove traces, retain immutable reviews and both
 spending ledgers, and rebuild Pages. Existing NFL feeds remain compatible without
 the optional diagnostic sidecar.
+
+### 2026-09-27 injury-collection correction
+
+The inherited collector discarded recently updated reports by their original
+publication date, read legends instead of HTML injury rows, and missed punctuated
+initials in URLs. Its eight-article cap also exhausted searches on old reports.
+The corrected source audit found the official Houston Week 3 report and preserved
+its original Wednesday publication plus Friday update. Its receiver/line injuries
+now reach the review instead of a generic request to find them. Sixteen article
+attempts remain a hard free-source bound; no paid feed or budget increase.
+
+MLB/NHL now have direct injury tables independent of headline discovery. Synthetic
+fixtures cover both formats/identities, unavailable and malformed feeds, stale or
+future observations, publication/update ordering and sparse NFL article metadata.
+Live parser counts are recorded in `reports/analyst-source-audit/2026-09-27.json`;
+they demonstrate extraction, not exhaustive coverage or predictive improvement.
+Shared review revisions remain prospective; the fixed numerical model is not
+retrospectively revalidated by collecting better context. NBA remains deferred.
