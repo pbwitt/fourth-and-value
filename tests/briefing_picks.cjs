@@ -17,7 +17,7 @@ assert.equal(collect(f,now).selected.length,0);
 f=fixture();f.NFL.rows[0].model_status='Legacy estimate';f.MLB.rows[0].is_model_pick=false;f.NHLBoard.candidates=[];
 assert.equal(collect(f,now).selected.length,0);
 // Different expiry policies, no future quotes, and no page-build quote substitution.
-for(const [sport,limit] of [['NFL',48*3600e3],['MLB',90*60e3],['NHL',30*60e3]]) {
+for(const [sport,limit] of [['NFL',90*60e3],['MLB',90*60e3],['NHL',30*60e3]]) {
   for(const delta of [limit+1,-1]) {
     f=fixture();const r=sport==='NHL'?f.NHLBoard.candidates[0]:f[sport].rows[0];
     r[sport==='NFL'?'last_update':'quoted_at']=iso(now-delta);
@@ -39,11 +39,11 @@ f=fixture(Date.parse('2026-09-27T02:00:00Z'));assert.equal(collect(f,Date.parse(
 assert.equal(day('2026-11-01T05:30:00Z'),day('2026-11-01T06:30:00Z'));
 f=fixture();f.NFL.rows[0].commence_time='2026-09-28T12:00:00Z';assert.equal(collect(f,now).selected.length,2);
 assert.equal(collect(fixture(),now+3600e3).selected.length,0,'started games expire while open');
-// Max four per league, one per game, no cross-sport score ranking or payout ranking.
+// No candidate/game quota; identical offers use the best available price.
 f=fixture();const r=f.MLB.rows[0];f.MLB.rows=Array.from({length:7},(_,i)=>({...r,event_id:'m'+i,model_ev_pct:8+i}));
 f.MLB.rows.push({...f.MLB.rows[6],book:'better',price:120});
 const picks=collect(f,now).selected.filter(r=>r.sport==='MLB');
-assert.equal(picks.length,4);assert.equal(new Set(picks.map(r=>r.game_id)).size,4);assert.equal(picks[0].book,'better');
+assert.equal(picks.length,7);assert.equal(new Set(picks.map(r=>r.game_id)).size,7);assert.equal(picks[0].book,'better');
 f=fixture();const picked=collect(f,now).selected[0],html=rowHTML({...picked,player:'<img src=x onerror=alert(1)>'});
 assert(html.includes(iso(now-60e3)));assert(!html.includes('<img'));assert(html.includes('+110'));assert(html.includes('Book A'));
 // Track actual execution price, preserve exact market identity and handle pushes.
@@ -149,3 +149,31 @@ for(const verdict of ['consider','wait','pass']) {
  assert(!summaryHTML([assessed]).includes('full betting assessment is pending'));
  assert(!rowHTML({...assessed,qualitative_review:{...assessed.qualitative_review,assessment:{...assessed.qualitative_review.assessment,reason:'<img src=x>'}}}).includes('<img'));
 }
+
+// Additional markets in one game survive, and review verdicts order the whole pool.
+f=fixture();f.MLB.rows.push({...f.MLB.rows[0],market:'pitcher_strikeouts',market_label:'Strikeouts',line:5.5});
+assert.equal(collect(f,now).selected.filter(r=>r.sport==='MLB').length,2);
+assert.equal(collect(f,now).selected.find(r=>r.sport==='MLB').related_candidates,1);
+// Quarantine historical partial workloads and per-offer calibration extrapolation.
+f=fixture();let nf=f.NFL.rows[0];nf.player='Synthetic QB';nf.market_std='pass_yds';nf.model_prob=.98;
+const gkey=JSON.stringify([nf.game_id,nf.player,nf.market_std]);
+const okey=JSON.stringify([nf.bookmaker,nf.name,nf.point,nf.price,nf.last_update]);
+f.NFLContext={generated_at:f.NFL.generated_at,groups:{[gkey]:{offers:{[okey]:{raw_probability:.95}},calibration:{fitted_raw_range:[.1,.9]},projection:{current_sample:[{attempts:5}],career_baselines:{attempts:{mean:31}}}}}};
+let out=collect(f,now);assert(!out.selected.some(r=>r.sport==='NFL'));assert.equal(out.excluded[0].exclusion_reasons.length,2);
+f.NFLContext.groups[gkey].offers[okey].raw_probability=.7;
+f.NFLContext.groups[gkey].projection.current_sample=[{attempts:35}];
+assert(collect(f,now).selected.some(r=>r.sport==='NFL'));
+// A research lead must have a real, fresh offer and retains no fake model EV.
+f=fixture();const research={...mlb,sport:'MLB',game_id:'research-game',model_probability:null,model_ev_pct:null,
+ discovery_origin:'independent_research',model_withheld:'No eligible model',review:'Awaiting assessment',score:0};
+f.Discovery={schema_version:1,decision_date:day(now),generated_at:iso(now),candidates:[research]};
+let candidate=collect(f,now).selected.find(r=>r.game_id==='research-game');assert(candidate);
+assert.equal(ticketData(candidate,110,10).model_prob,null);assert.match(rowHTML(candidate),/Not established/);
+assert.match(rowHTML(candidate),/Origin: independent research/);
+f.Discovery.candidates[0].quoted_at=iso(now-91*60e3);assert(!collect(f,now).selected.some(r=>r.game_id==='research-game'));
+// Integer quote identity is numeric even when Python serializes a 5.0 threshold.
+f=fixture();nf=f.NFL.rows[0];nf.point=5;nf.push_prob=.1;
+const intkey=JSON.stringify([nf.game_id,nf.player,nf.market_std]);
+f.NFLContext={generated_at:f.NFL.generated_at,groups:{[intkey]:{offers:{'["a","Over",5.0,110,"2026-09-27T11:59:00.000Z"]':{raw_probability:.6}},calibration:{fitted_raw_range:[.1,.9]}}}};
+assert.equal(collect(f,now).selected[0].forecast_health.raw_probability,.6);
+f.NFL.rows[0].push_prob=null;assert(!collect(f,now).selected.some(r=>r.sport==='NFL'));

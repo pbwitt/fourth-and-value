@@ -70,8 +70,8 @@ def pick_reason(row, report, now):
         return 'Research forecast: fewer than two paired books at this line'
     if row.get('model_ev_pct', 0) > 30:
         return 'Research forecast: unusually large discrepancy needs manual review'
-    if row.get('model_ev_pct', 0) < 3 or row.get('model_edge_pp', 0) < 3:
-        return 'No pick: estimated edge is below the 3% EV / 3-point threshold'
+    if row.get('model_ev_pct', 0) < 3:
+        return 'No pick: estimated value is below the 3% EV threshold'
     if not row.get('best_price'):
         return 'No pick: a better price is available at the same line'
     return None

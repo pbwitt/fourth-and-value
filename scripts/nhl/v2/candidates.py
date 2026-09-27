@@ -62,14 +62,12 @@ def exclusion(row, now, config):
 
 
 def shortlist(state, now, config):
-    if not isinstance(config['max_candidates'], int) or not 1 <= config['max_candidates'] <= 4:
-        raise ValueError('The research policy supports one to four candidates')
     board = dict(schema_version=1, policy_version=config['policy_version'], generated_at=iso(now),
                  decision_date=now.astimezone(EASTERN).date().isoformat(),
                  session='morning' if now.astimezone(EASTERN).hour < 14 else 'afternoon',
                  source_snapshot_id=state.get('snapshot_id') or digest(state)[:24],
                  source_last_success_at=state.get('last_success_at'),
-                 policy={k: config[k] for k in ('max_candidates', 'minimum_ev', 'quote_max_minutes', 'model_max_hours')},
+                 policy={k: config[k] for k in ('minimum_ev', 'quote_max_minutes', 'model_max_hours')},
                  validation_status='experimental_prospective_shadow', recommendations=[],
                  candidates=[], eligible_count=0, exclusions={}, review_status='not_requested',
                  status='ready')
@@ -88,20 +86,19 @@ def shortlist(state, now, config):
                 counts[reason] += 1
             else:
                 eligible.append(row)
-        # Rank is the worst scenario's fixed-fraction log growth, not payout or nominal EV.
-        # One/game also prevents opposing, duplicate-book and related player exposures.
-        seen = set()
-        for row in sorted(eligible, key=lambda r: (-r['rank_score'], -decimal(r['price']), r['offer_id'])):
-            if row['nhl_game_id'] in seen:
-                counts['same_game_exposure'] += 1
-                continue
-            if len(board['candidates']) >= config['max_candidates']:
-                counts['shortlist_limit'] += 1
-                continue
-            seen.add(row['nhl_game_id'])
+        # Keep different bets in one game; select the best quote for the same
+        # outcome, threshold and settlement. Rank uses existing scenario support.
+        best = {}
+        for row in eligible:
+            key = (row['nhl_game_id'], row.get('player_id'), row['market'], row['side'], row.get('line'), row.get('settlement_profile'))
+            if key not in best or decimal(row['price']) > decimal(best[key]['price']):
+                best[key] = row
+        counts['duplicate_offer'] = len(eligible)-len(best)
+        for row in sorted(best.values(), key=lambda r: (-r['rank_score'], -decimal(r['price']), r['offer_id'])):
             candidate = deepcopy(row)
             candidate.update(candidate_id=digest([config['policy_version'], row['offer_id'], row['forecast_id']])[:24],
                              candidate_rank=len(board['candidates'])+1, recommendation=False,
+                             exposure_group='NHL:'+str(row['nhl_game_id']),
                              candidate_status='experimental_candidate', human_decision='unreviewed',
                              qualitative_review=None)
             board['candidates'].append(candidate)

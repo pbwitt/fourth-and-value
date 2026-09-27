@@ -9,10 +9,10 @@
   const time=v=>v?new Date(v).toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' ET':'Unavailable';
   const day=v=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(v);
   const safeUrl=v=>{try {const u=new URL(v);return u.protocol==='https:'&&!u.username&&!u.password?u.href:null;}catch{return null;}};
-  const statuses={completed:'Our analysis is complete. Interpretations need human verification.',no_candidates:'No candidates qualified; no analysis was requested.',
+  const statuses={shared_research_queue:'Sourced review is pending in the shared sports research queue.',partially_reviewed:'Some candidates have been reviewed; the rest remain queued.',completed:'Our analysis is complete. Interpretations need human verification.',no_candidates:'No candidates qualified; no analysis was requested.',
     no_usable_reporting:'Dated, relevant reporting was unavailable. Research requires a human check.',api_key_unavailable:'Our analysis is unavailable. The quantitative shortlist is still available for manual research.',
     disabled:'Automated research is disabled.',not_requested:'Automated research has not been requested.',already_attempted_today:'A morning research request was already attempted. These refreshed candidates need a new human review.',
-    afternoon_quantitative_update:'Afternoon quantitative update. No additional context review was requested.',budget_exhausted:'The weekly research budget is exhausted. Review these candidates manually.',
+    afternoon_quantitative_update:'Afternoon quantitative update. No additional context review was requested.',budget_exhausted:'The shared daily research budget is exhausted. Remaining candidates await review.',
     expired_during_research:'Quotes expired during source collection. Refresh and reprice before deciding.',review_unavailable:'Our analysis could not be verified. Review these candidates manually.',feed_unavailable:'The market or model feed is unavailable.'};
   let board,data;
   try {
@@ -32,7 +32,7 @@
   const current=!failed&&!mismatch&&today&&board.status!=='unavailable';
   const rows=current?board.candidates.filter(r=>Date.parse(r.commence_time)>now):[];
   $('feed-status').innerHTML=`<strong>${current?'Saved NHL analyst shortlist':'No current NHL shortlist'}</strong><p>Prepared ${esc(time(board.generated_at))}. ${esc(board.session)} session. ${mismatch?'The underlying market snapshot changed; the shortlist needs a refresh.':failed?'The market or model feed is unavailable.':!today?'This shortlist belongs to a previous day.':'Confirm price and context before deciding.'}</p>`;
-  $('history-status').textContent='Maximum four candidates, one per game. Scenario limits are assumptions, not confidence intervals.';
+  $('history-status').textContent='All qualifying bets remain eligible; related bets share game exposure. Scenario limits are assumptions, not confidence intervals.';
   $('model-status').textContent='Experimental model forecasts and prospective analyst research. No validated recommendations.';
   $('research-status').textContent=statuses[board.review_status]||'Research unavailable.';
   const sources=new Map((board.sources||[]).map(s=>[s.source_id,s]));
@@ -62,7 +62,7 @@
   function render(){
     const q=$('candidate-search').value.toLowerCase(),filter=$('candidate-status').value;
     const selected=rows.filter(r=>(r.game+' '+r.player).toLowerCase().includes(q)&&(!filter||(r.qualitative_review?.status||'unreviewed')===filter));
-    $('candidate-summary').textContent=`${selected.length} research candidates · ${board.eligible_count||0} offers passed the quantitative screen before exposure and shortlist limits.`;
+    $('candidate-summary').textContent=`${selected.length} research candidates · ${board.eligible_count||0} offers passed the quantitative screen before duplicate-offer removal.`;
     $('candidates').innerHTML=selected.map(card).join('')||'<p class="empty">No current candidates match this screen. An empty shortlist is a valid result; Market Watch may still contain price comparisons.</p>';
     document.querySelectorAll('form[data-review]').forEach(form=>form.addEventListener('submit',event=>{
       event.preventDefault();const r=rows.find(r=>r.candidate_id===form.dataset.review),values=new FormData(form);

@@ -2,10 +2,10 @@ name: Morning Candidate Research
 
 on:
   schedule:
-    - cron: '45 5,8,10,12,15 * * *'
+    - cron: '45 8,10,12,15,16,18 * * *'
       timezone: America/New_York
   workflow_run:
-    workflows: ['MLB Daily Update', 'NFL Weekly Update']
+    workflows: ['MLB Daily Update', 'NFL Weekly Update', 'NHL Daily Update']
     types: [completed]
     branches: [main]
   workflow_dispatch:
@@ -27,9 +27,9 @@ permissions:
 
 jobs:
   review:
-    if: github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || github.event.workflow_run.head_repository.full_name == github.repository)
+    if: github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || (github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.conclusion == 'success'))
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
         with:
@@ -45,8 +45,9 @@ jobs:
         run: |
           node tests/briefing_picks.cjs
           python -m unittest discover -s tests -p 'test_analyst_review.py'
+          python -m unittest discover -s tests -p 'test_research*.py'
           python -m unittest discover -s tests -p 'test_nhl_injuries.py'
-      - name: Research the current model shortlist
+      - name: Discover opportunities and research the current candidate pool
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ASSESSMENT_UPDATE: ${{ github.event_name == 'workflow_dispatch' && inputs.assessment_update || false }}
@@ -65,9 +66,9 @@ jobs:
         run: |
           git config user.name 'Fourth & Value Research'
           git config user.email 'actions@github.com'
-          git add docs/briefing/reviews.json artifacts/analyst/
+          git add docs/briefing/reviews.json docs/briefing/discovery.json docs/nhl/data/candidates.json artifacts/analyst/
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'Research: publish sourced MLB and NFL candidate reviews'
+          git commit -m 'Research: publish multi-sport discovery and candidate reviews'
           for attempt in 1 2 3; do
             if ! git pull --rebase origin main; then
               git rebase --abort || true

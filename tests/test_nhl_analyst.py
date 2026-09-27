@@ -92,13 +92,13 @@ class CandidateTests(unittest.TestCase):
         self.assertEqual(exclusion(row(minimum_acceptable_decimal=2.1), NOW, CONFIG), 'fails_sensitivity_price')
         self.assertEqual(exclusion(row(rank_score=-.0001), NOW, CONFIG), 'insufficient_model_value')
 
-    def test_one_per_game_four_max_deterministic_and_no_source_mutation(self):
-        rows = [row(i) for i in range(1, 8)] + [row(1, offer_id='other-book', rank_score=.05)]
+    def test_all_games_best_identical_offer_deterministic_and_no_source_mutation(self):
+        rows = [row(i) for i in range(1, 8)] + [row(1, offer_id='other-book', book='other', rank_score=.05)]
         before = deepcopy(rows)
         b = shortlist(state(rows), NOW, CONFIG)
-        self.assertEqual(len(b['candidates']), 4)
-        self.assertEqual(len({r['nhl_game_id'] for r in b['candidates']}), 4)
-        self.assertEqual(b['candidates'][0]['offer_id'], 'other-book')
+        self.assertEqual(len(b['candidates']), 7)
+        self.assertEqual(len({r['nhl_game_id'] for r in b['candidates']}), 7)
+        self.assertEqual(b['candidates'][0]['offer_id'], 'o1')
         self.assertTrue(all(r['recommendation'] is False for r in b['candidates']))
         self.assertEqual(rows, before)
         self.assertEqual(b, shortlist(state(rows), NOW, CONFIG))
@@ -162,44 +162,14 @@ class EvidenceAndAstraTests(unittest.TestCase):
             self.assertEqual(astra.reserve(path, 'later', NOW, .6, 1), 'budget_exhausted')
             self.assertEqual(astra.reserve(path, 'next-week', NOW+timedelta(days=8), .6, 1), 'reserved')
 
-    def test_empty_missing_key_afternoon_skip_paid_request(self):
-        with patch.object(astra, 'call_api') as call, patch.object(evidence, 'collect', return_value=([], {})), tempfile.TemporaryDirectory() as tmp:
-            with patch.dict('os.environ', {'OPENAI_API_KEY': ''}):
-                self.assertEqual(analyst.review(board(), CONFIG)['review_status'], 'api_key_unavailable')
-            with patch.dict('os.environ', {'OPENAI_API_KEY': 'synthetic-not-a-key'}):
-                self.assertEqual(analyst.review(shortlist(state([]), NOW, CONFIG), CONFIG)['review_status'], 'no_candidates')
-                self.assertEqual(analyst.review(dict(board(), session='afternoon'), CONFIG)['review_status'], 'afternoon_quantitative_update')
-            call.assert_not_called()
-
-    def test_no_reporting_permits_model_and_price_assessment(self):
-        raw=response(); value=json.loads(raw['output'][0]['content'][0]['text']); value['reviews'][0]['evidence']=[]
-        raw['output'][0]['content'][0]['text']=json.dumps(value)
-        with tempfile.TemporaryDirectory() as tmp, patch.dict('os.environ', {'OPENAI_API_KEY':'synthetic'}), \
-             patch.object(evidence,'collect',return_value=([],{})), patch.object(astra,'checkpoint'), \
-             patch.object(astra,'call_api',return_value=raw) as call:
-            result=analyst.review(board(), CONFIG, Path(tmp), clock=lambda:NOW)
-            self.assertEqual(result['review_status'],'completed'); call.assert_called_once()
-
-    def test_success_and_failure_preserve_quant_forecast_and_no_duplicate_api_call(self):
-        for fail in (False, True):
-            with tempfile.TemporaryDirectory() as tmp, patch.dict('os.environ', {'OPENAI_API_KEY': 'synthetic-not-a-key'}), \
-                 patch.object(evidence, 'collect', return_value=([source()], {})), patch.object(astra, 'checkpoint'), \
-                 patch.object(astra, 'call_api', side_effect=RuntimeError('timeout') if fail else None, return_value=response()) as call:
-                archive = Path(tmp); b = board(); before = deepcopy(b['candidates'][0])
-                result = analyst.review(b, CONFIG, archive, clock=lambda: NOW)
-                self.assertEqual(result['review_status'], 'review_unavailable' if fail else 'completed')
-                for key in before:
-                    if key != 'qualitative_review':
-                        self.assertEqual(result['candidates'][0][key], before[key])
-                self.assertEqual(analyst.review(board(), CONFIG, archive, clock=lambda: NOW)['review_status'], 'already_attempted_today')
-                self.assertEqual(call.call_count, 1)
-
-    def test_checkpoint_failure_prevents_api(self):
-        with tempfile.TemporaryDirectory() as tmp, patch.dict('os.environ', {'OPENAI_API_KEY': 'synthetic-not-a-key'}), \
-             patch.object(evidence, 'collect', return_value=([source()], {})), patch.object(astra, 'checkpoint', side_effect=RuntimeError('failed')), \
-             patch.object(astra, 'call_api') as call:
-            with self.assertRaises(RuntimeError):
-                analyst.review(board(), CONFIG, Path(tmp), clock=lambda: NOW)
+    def test_legacy_paid_entrypoint_routes_to_shared_queue(self):
+        # The shared workflow tests cover actual paid NHL review. The old NHL
+        # --astra flag can never create a second allowance or a duplicate call.
+        with patch.object(astra,'call_api') as call:
+            b=board(); before=deepcopy(b['candidates'])
+            result=analyst.review(b,CONFIG,clock=lambda:NOW)
+            self.assertEqual(result['review_status'],'shared_research_queue')
+            self.assertEqual(result['candidates'],before)
             call.assert_not_called()
 
 

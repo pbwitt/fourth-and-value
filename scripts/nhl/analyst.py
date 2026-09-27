@@ -30,65 +30,8 @@ def immutable(path, value):
 
 
 def review(board, config, archive=ARCHIVE, clock=lambda: datetime.now(timezone.utc)):
-    if not board['candidates']:
-        return board
-    if not config['astra_enabled']:
-        board['review_status'] = 'disabled'
-        return board
-    if board['session'] != 'morning':
-        board['review_status'] = 'afternoon_quantitative_update'
-        return board
-    if not os.getenv('OPENAI_API_KEY'):
-        board['review_status'] = 'api_key_unavailable'
-        return board
-    key = board['decision_date']+':morning'
-    budget = archive/'budget.json'
-    if budget.exists() and any(e['key'] == key for e in json.loads(budget.read_text())['entries']):
-        board['review_status'] = 'already_attempted_today'
-        return board
-    sources, diagnostics = evidence.collect(board['candidates'], clock)
-    asof = clock()
-    board['evidence_status'] = diagnostics
-    evidence.attach_context(board, diagnostics)
-    board['sources'] = [{k: v for k, v in s.items() if k != 'excerpt'} for s in sources]
-    # Collection can take time; never submit a critique of an already invalid candidate.
-    if any(exclusion(r, asof, config) for r in board['candidates']):
-        board['review_status'] = 'expired_during_research'
-        return board
-    request = astra.payload(board, sources, asof, config)
-    amount = astra.bounds(request, config)
-    request_id = digest(request)[:24]
-    packet_path = archive/'requests'/f'{request_id}.json'
-    immutable(packet_path, dict(board_id=board['board_id'], request_id=request_id,
-                               prepared_at=iso(asof), request=request, source_diagnostics=diagnostics,
-                               collected_sources=sources))
-    remaining = config['weekly_budget_usd'] - astra.recent_spend(ROOT/'artifacts/analyst/budget.json', asof)
-    result = astra.reserve(budget, key, asof, amount, remaining)
-    if result != 'reserved':
-        board['review_status'] = result
-        return board
-    board['review_request_id'] = request_id
-    # In CI this reservation and the exact packet reach origin before the paid request.
-    astra.checkpoint([budget, packet_path, archive/'boards'/f"{board['board_id']}.json"])
-    response = None
-    try:
-        response = astra.call_api(request)
-        finished = clock()
-        immutable(archive/'responses'/f'{request_id}.json', dict(request_id=request_id, received_at=iso(finished), response=response))
-        reviews = astra.parse_response(response, board, sources, asof)
-        for item in reviews:
-            item['evidence_asof'] = item['reviewed_at']
-            item['reviewed_at'] = iso(finished)
-            item['completed_at'] = iso(finished)
-        by_id = {r['candidate_id']: r for r in reviews}
-        for row in board['candidates']:
-            row['qualitative_review'] = by_id[row['candidate_id']]
-        board.update(review_status='completed', review_completed_at=iso(finished),
-                     review_requires_price_recheck=any(exclusion(r, finished, config) for r in board['candidates']))
-    except (requests.RequestException, ValueError, RuntimeError, TypeError, KeyError):
-        board['review_status'] = 'review_unavailable'
-    finally:
-        astra.settle_budget(budget, key, response.get('usage') if isinstance(response, dict) else None)
+    """Compatibility entry point; the shared sports queue owns all paid research."""
+    board['review_status'] = 'shared_research_queue'
     return board
 
 
@@ -108,7 +51,7 @@ def prepare(state, now, config, run_review=False, archive=ARCHIVE, public=PUBLIC
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--astra', action='store_true', help='One bounded, sourced morning review; no call on an empty slate')
+    parser.add_argument('--astra', action='store_true', help='Compatibility flag; paid analysis now runs through scripts/analyst_review.py')
     parser.add_argument('--env-file', type=Path)
     args = parser.parse_args()
     if args.env_file:

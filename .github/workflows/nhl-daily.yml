@@ -76,7 +76,7 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          python scripts/nhl/analyst.py --astra
+          python scripts/nhl/analyst.py
           python scripts/nhl/v2/decisions.py grade --cached-history --output artifacts/nhl/analyst/evaluation.json
       - name: Archive odds and model inputs for later review
         if: always()

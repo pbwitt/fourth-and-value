@@ -8,6 +8,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'scripts'))
 from nhl.v2 import astra
+import research_budget as daily_budget
 from nhl.v2.data import ROOT, digest, iso, write_json
 from test_nhl_analyst import CONFIG, NOW, board, source
 
@@ -33,9 +34,9 @@ def main():
     if not os.getenv('OPENAI_API_KEY'):
         raise SystemExit('API key unavailable')
     now = datetime.now(timezone.utc)
-    budget = ROOT/'artifacts/nhl/analyst/budget.json'
+    budget = daily_budget.PATH
     key = 'integration-test:'+now.date().isoformat()
-    if astra.reserve(budget, key, now, amount, CONFIG['weekly_budget_usd']) != 'reserved':
+    if daily_budget.reserve(key, now, amount, path=budget, cap=CONFIG['daily_budget_usd']) != 'reserved':
         raise SystemExit('No request: duplicate attempt or insufficient budget')
     path = ROOT/'reports/nhl-analyst-workflow/astra-smoke.json'
     response = None
@@ -49,7 +50,7 @@ def main():
         write_json(path, result)
         print(json.dumps({k: result[k] for k in ('synthetic_test', 'status', 'conservative_cost_usd')}))
     finally:
-        astra.settle_budget(budget, key, response.get('usage') if isinstance(response, dict) else None)
+        daily_budget.settle(key, response.get('usage') if isinstance(response, dict) else None, path=budget)
 
 
 if __name__ == '__main__':

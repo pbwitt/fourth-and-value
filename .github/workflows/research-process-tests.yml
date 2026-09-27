@@ -1,0 +1,28 @@
+name: Research Process Checks
+on:
+  pull_request:
+    paths:
+      - 'scripts/**'
+      - 'tests/**'
+      - 'config/**'
+      - 'docs/assets/briefing-picks.js'
+      - 'docs/research/daily-process.html'
+      - '.github/workflows/**'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: pip install requests==2.32.5
+      - run: python scripts/build_daily_process.py --check
+      - run: node tests/briefing_picks.cjs
+      - run: python -m unittest discover -s tests -p 'test_research*.py'
+      - run: python -m unittest discover -s tests -p 'test_analyst_review.py'

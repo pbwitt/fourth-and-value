@@ -17,7 +17,8 @@ import sys
 import json
 import urllib.parse
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone
+from pathlib import Path
 import pandas as pd
 
 
@@ -153,7 +154,7 @@ def main():
     # Build URL
     params = {
         "regions": args.regions,
-        "markets": "spreads,totals",
+        "markets": "h2h,spreads,totals",
         "oddsFormat": "american",
         "apiKey": api_key,
     }
@@ -163,6 +164,11 @@ def main():
     print(f"Fetching NFL totals and spreads from The Odds API...", file=sys.stderr)
     events = fetch_json(url)
     print(f"✓ Fetched {len(events)} events", file=sys.stderr)
+
+    # Preserve source quote timestamps and the complete response independently of
+    # quantity models. Research-only moneylines must not inherit a fake forecast.
+    from nfl_game_quotes import publish
+    publish(events, datetime.now(timezone.utc), Path(__file__).resolve().parents[1])
 
     # Parse into flat rows
     rows = parse_totals_spreads(events)

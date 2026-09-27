@@ -25,7 +25,7 @@ NFL_TEAM_SITES = dict(zip(
      'houstontexans.com','colts.com','jaguars.com','chiefs.com','raiders.com','chargers.com','therams.com',
      'miamidolphins.com','vikings.com','patriots.com','neworleanssaints.com','giants.com','newyorkjets.com',
      'philadelphiaeagles.com','steelers.com','49ers.com','seahawks.com','buccaneers.com','tennesseetitans.com','commanders.com']))
-HOSTS = ('nhl.com', 'mlb.com', 'nfl.com', 'espn.com', 'cbssports.com', *NFL_TEAM_SITES.values())
+HOSTS = ('nhl.com', 'mlb.com', 'nfl.com', 'espn.com', 'cbssports.com', 'actionnetwork.com', 'covers.com', 'vsin.com', *NFL_TEAM_SITES.values())
 FEEDS = ('https://www.espn.com/espn/rss/nhl/news',
          'https://www.cbssports.com/rss/headlines/nhl/')
 
@@ -290,3 +290,34 @@ def attach_context(board, diagnostics):
     for row in board['candidates']:
         status = diagnostics.get('injury_tables', {})
         row['injury_context'] = status.get('candidates', {}).get(row['candidate_id'], {'status': status.get('status', 'unavailable')})
+
+
+def targeted(rows, urls, clock=lambda: datetime.now(timezone.utc)):
+    """Retrieve bounded search leads; search snippets alone never support a bet."""
+    sources, failures = [], []
+    for url in list(dict.fromkeys(urls))[:24]:
+        if not trusted(url):
+            failures.append(dict(url=url, reason='publisher_not_allowed')); continue
+        try:
+            html=fetch(url); retrieved=clock()
+            article=next((a for a in structured(html) if a.get('datePublished') and a.get('headline')),None)
+            if not article: raise ValueError('Dated article unavailable')
+            text=article_text(html)
+            if len(text.split())<60: raise ValueError('Insufficient article text')
+            # Keep the part that actually concerns the researched subject/game.
+            parts=re.split(r'(?<=[.!?])\s+',text)
+            relevant=[p for p in parts if any(matches(r,p) for r in rows)]
+            excerpt=' '.join(relevant+parts)[:1400]
+            source=dict(url=url,title=plain(article['headline'])[:200],excerpt=excerpt,
+                published_at=iso(stamp(article['datePublished'])),
+                updated_at=iso(stamp(article.get('dateModified') or article['datePublished'])),
+                retrieved_at=iso(retrieved),publication_basis='publisher_article_metadata',
+                content_sha256=hashlib.sha256(html.encode()).hexdigest(),
+                source_kind='professional_opinion' if re.search(r'best bets|picks|predictions',article['headline'],re.I) else 'reporting',
+                candidate_ids=[r['candidate_id'] for r in rows if matches(r,article['headline']+' '+excerpt)])
+            source['source_id']=digest(source)[:20]
+            if any(usable(source,r,retrieved) for r in rows): sources.append(source)
+            else: raise ValueError('Stale or mismatched article')
+        except (requests.RequestException,ValueError,TypeError):
+            failures.append(dict(url=url,reason='unverified_or_unavailable'))
+    return sources,failures
