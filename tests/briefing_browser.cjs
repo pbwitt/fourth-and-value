@@ -27,9 +27,10 @@ const server=http.createServer((req,res)=>{
       await page.setViewportSize({width,height:1000});await page.goto(base+'/briefing/');
       await page.waitForFunction(()=>document.getElementById('picks-status').textContent.startsWith('3 candidates'));
       assert.equal(await page.locator('#daily-picks-rows tr').count(),3);
-      assert.deepEqual(await page.locator('.picks-table th').allTextContents(),['Bet / game','Model prediction','Market consensus','Price','Price time (ET)','Book']);
+      assert.deepEqual(await page.locator('.picks-table th').allTextContents(),['Bet / game','Model prediction','Market consensus','Book line / price','Price time (ET)','Book']);
       assert.equal(await page.locator('#daily-picks-rows tr').first().locator('td').count(),6);
       assert.match(await page.locator('#daily-picks-rows').textContent(),/53.0%/);
+      assert.equal(await page.locator('.book-offer-line').first().textContent(),'Over 2.5');
       assert.match(await page.locator('#daily-picks-rows').textContent(),/Projected Points: 3.4/i);
       assert(!(await page.locator('#daily-picks').textContent()).includes('Astra'));
       assert.deepEqual((await page.locator('main > h2, #daily-picks-heading').allTextContents()).slice(0,2),["Today's picks",'The price rundown']);
@@ -105,6 +106,11 @@ const server=http.createServer((req,res)=>{
         assert.match(await page.locator('#picks-analysis-text').textContent(),/Our assessment:/);
         await page.locator('.read-pick-review').click();
         assert.match(await page.locator('.pick-research').textContent(),/Model case:/);
+        if(verdict==='wait'){
+          const row=page.locator('#daily-picks-rows > tr').filter({has:page.locator('[data-track-pick="1"]')});
+          assert.match(await row.textContent(),/Experimental · Needs review/);
+          assert.match(await row.textContent(),/Why: The model case needs a defensible opportunity estimate/);
+        }
         assert.match(await page.locator('.pick-research').textContent(),/No relevant reporting was verified/);
         assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
         await page.locator('#daily-picks').screenshot({path:`/tmp/fv-assessment-${verdict}-${width}.png`});
