@@ -24,7 +24,7 @@ const server=http.createServer((req,res)=>{
     async function openReview(){const pool=page.locator('#picks-research-pool');if(await pool.locator('.pick-research').count())await pool.evaluate(e=>e.open=true);const d=page.locator('.pick-research').first();if(!await d.evaluate(e=>e.open))await d.locator(':scope > summary').click();}
     const urls={'/briefing/morning-card.json':'Card','/props/top-picks.json':'NFL','/mlb/data/latest.json':'MLB','/nhl/data/latest.json':'NHL','/nhl/data/candidates.json':'NHLBoard','/briefing/reviews.json':'Reviews'};
     for(const [url,key] of Object.entries(urls))await page.route('**'+url,r=>feeds[key]?r.fulfill({json:feeds[key]}):r.fulfill({status:503,body:'Unavailable'}));
-    for(const width of [390,768,1440]) {
+    for(const width of [320,390,768,1440]) {
       await page.setViewportSize({width,height:1000});await page.goto(base+'/briefing/');
       await page.waitForFunction(()=>document.getElementById('research-pool-label').textContent.includes('3 additional'));
       assert.match(await page.locator('#picks-status').textContent(),/0 reviewed picks/);
@@ -32,6 +32,13 @@ const server=http.createServer((req,res)=>{
       assert.equal(await page.locator('#research-picks-rows tr').count(),3);
       assert.deepEqual(await page.locator('.picks-table').first().locator('th').allTextContents(),['Bet / game','Model prediction','Market consensus','Book line / price','Price time (ET)','Book']);
       assert.equal(await page.locator('#research-picks-rows tr').first().locator('td').count(),6);
+      if(width<=820){
+        const row=page.locator('#research-picks-rows .pick-offer-row').first();
+        assert(await row.evaluate(el=>el.scrollWidth<=el.clientWidth+1),'mobile offer must fit without sideways scrolling');
+        const offer=await row.locator('.pick-offer').boundingBox(),model=await row.locator('.pick-model').boundingBox();
+        assert(offer.y<model.y,'show the offered line and price before forecast details on mobile');
+        assert((await row.locator('.track-pick').boundingBox()).height>=44,'tracker remains easy to tap');
+      }
       assert.match(await page.locator('#research-picks-rows').textContent(),/53.0%/);
       assert.equal(await page.locator('.book-offer-line').first().textContent(),'Over 2.5');
       assert.match(await page.locator('#research-picks-rows').textContent(),/Projected Points: 3.4/i);
@@ -40,7 +47,7 @@ const server=http.createServer((req,res)=>{
       assert.equal(await page.getByText('What changed and what’s next',{exact:true}).count(),0);
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
       assert.match(await page.locator('#research-picks-rows').textContent(),/7:59:00 AM ET/);
-      assert.match(await page.locator('#picks-analysis-text').textContent(),/morning edition has not published qualifying picks/);
+      assert.equal(await page.locator('#top-picks-analysis, #picks-analysis-text').count(),0);
       await page.locator('[data-track-pick="1"]').click();
       assert(await page.locator('#pick-tracker').isVisible());
       assert.equal(await page.locator('#track-odds').inputValue(),'110');
@@ -72,9 +79,9 @@ const server=http.createServer((req,res)=>{
     feeds.Reviews.sports.MLB.sources.push({source_id:'injury1',source_kind:'live_injury_table',candidate_ids:['injury-candidate'],
       url:'https://www.cbssports.com/mlb/injuries/',title:'Synthetic MLB injury listing',published_at:null,retrieved_at:new Date(now).toISOString(),
       missing_teams:['Missing team'],injury_rows:[{player:'<img src=x onerror=alert(1)>',team:'Boston Red Sox',position:'SP',injury:'Shoulder',status:'15-day injured list',reported_update:'Sat, Sep 26'}]});
-    for(const width of [390,768,1440]) {
+    for(const width of [320,390,768,1440]) {
       await page.setViewportSize({width,height:1000});await page.reload();await page.waitForSelector('.pick-research',{state:'attached'});
-      assert.match(await page.locator('#picks-analysis-text').textContent(),/morning edition has not published qualifying picks/);
+      assert.equal(await page.locator('#top-picks-analysis, #picks-analysis-text').count(),0);
       await openReview();
       assert.match(await page.locator('.pick-research').textContent(),/A lineup change could reduce projected opportunity/);
       await openReview();
@@ -101,7 +108,7 @@ const server=http.createServer((req,res)=>{
       calibration:{raw_probability:.914365,outside_fitted_range:true},other_books_at_exact_line:0,
       offered_book_nearby_quotes:[{name:'<img src=x onerror=alert(1)>',point:242.5,price:-240}],
       raw_distribution_stress:{market_centered_mean:211.5,probability:.6678}};
-    for(const width of [390,768,1440]) {
+    for(const width of [320,390,768,1440]) {
       await page.setViewportSize({width,height:1000});await page.reload();await page.waitForSelector('.pick-diagnostics',{state:'attached'});
       await openReview();await page.locator('.pick-diagnostics summary').click();
       assert.match(await page.locator('.pick-diagnostics').textContent(),/5 attempts, 3 completions, 18 yards/);
@@ -120,15 +127,15 @@ const server=http.createServer((req,res)=>{
         price_case:'The reviewed quote clears the numerical screen.',context_case:'No relevant reporting verified.',
         blocking_checks:verdict==='wait'?['Verify expected playing time.']:[]};
       feeds.Card={schema_version:1,kind:'morning',decision_date:'2026-09-27',published_at:new Date(now).toISOString(),rows:shortlist(collect(feeds,now).selected,now)};
-      for(const width of [390,768,1440]) {
+      for(const width of [320,390,768,1440]) {
         await page.setViewportSize({width,height:1000});await page.reload();await page.waitForSelector('.pick-research',{state:'attached'});
-        assert.match(await page.locator('#picks-analysis-text').textContent(),verdict==='consider'?/Our assessment:/:/morning edition has not published qualifying picks/);
+        assert.equal(await page.locator('#top-picks-analysis, #picks-analysis-text').count(),0);
         if(verdict==='consider'){
           assert.equal(await page.locator('#daily-picks-rows [data-track-pick]').count(),1);
           await page.locator('#daily-picks-rows [data-track-pick]').click();
           assert.match(await page.locator('#track-bet-description').textContent(),/MLB/);
           await page.locator('#track-cancel').click();
-          await page.locator('.read-pick-review').click();
+          await page.locator('#daily-picks-rows .pick-research > summary').click();
         }else{
           assert.equal(await page.locator('#daily-picks-rows [data-track-pick]').count(),0);
           await openReview();
@@ -148,7 +155,7 @@ const server=http.createServer((req,res)=>{
     assert(await page.locator('.pick-research').evaluate(el=>el.open),'reading a review must survive the expiry timer');
     feeds.MLB.rows[0].price=120;await page.reload();await page.waitForSelector('.pick-research',{state:'attached'});
     assert.match(await page.locator('#research-picks-rows').textContent(),/Price or forecast changed/);
-    assert.match(await page.locator('#picks-analysis-text').textContent(),/morning edition has not published qualifying picks/);
+    assert.equal(await page.locator('#top-picks-analysis, #picks-analysis-text').count(),0);
     feeds.MLB.rows[0].price=110;feeds.Reviews=null;await page.reload();
     await page.waitForFunction(()=>document.getElementById('research-pool-label').textContent.includes('3 additional'));
     assert.match(await page.locator('#picks-status').textContent(),/0 reviewed picks/);
@@ -180,7 +187,7 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.locator('#research-picks-rows tr').count(),1);
     feeds={};await page.reload();await page.waitForFunction(()=>document.getElementById('research-pool-label').textContent.includes('0 additional'));
     assert.match(await page.locator('#daily-picks-rows').textContent(),/No published morning picks/);
-    assert.match(await page.locator('#picks-analysis-text').textContent(),/morning edition has not published qualifying picks/);
+    assert.equal(await page.locator('#top-picks-analysis, #picks-analysis-text').count(),0);
     await page.screenshot({path:'/tmp/fv-briefing-empty.png',fullPage:true});
     feeds=fixture(now);
     const original=collect(feeds,now).selected.find(r=>r.sport==='MLB');
