@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-27T10:52:29.061982Z",
+  "generated_at": "2026-09-27T11:48:36.493477Z",
   "policy_version": "morning-context-1",
   "evaluation_status": "prospective_shadow_only",
   "sports": {
     "NFL": {
       "sport": "NFL",
       "decision_date": "2026-09-27",
-      "generated_at": "2026-09-27T10:52:29.061982Z",
+      "generated_at": "2026-09-27T11:48:36.493477Z",
       "session": "morning",
       "policy_version": "morning-context-1",
       "candidates": [
@@ -49,18 +49,33 @@
           "sport": "NFL",
           "review_key": "[\"[\\\"NFL\\\",\\\"17a730b7d399feeab6a78c30767c29d2\\\",\\\"C.J. Stroud\\\",\\\"pass_attempts\\\",\\\"over\\\",32.5,\\\"betmgm\\\",\\\"2026-09-27T17:00:00Z\\\"]\",-115,\"2026-09-27T10:45:23Z\",\"2026-09-27T10:45:59.372019+00:00\",0.98,0,0.5203045685,\"Calibration fitted; not prospectively validated\"]",
           "review_bet_key": "[\"NFL\",\"17a730b7d399feeab6a78c30767c29d2\",\"C.J. Stroud\",\"pass_attempts\",\"over\",32.5,\"betmgm\",\"2026-09-27T17:00:00Z\"]",
+          "review_context": {
+            "model": 0.98,
+            "market": 0.5203045685,
+            "books": 5,
+            "push": 0,
+            "breakEven": 0.5348837209302326,
+            "probability_basis": "conditional_on_nonpush",
+            "projected_quantity": 42.1712175429,
+            "quantity_label": "Passing attempts",
+            "market_median_line": 32.5,
+            "validation": "Experimental; no established executable betting edge",
+            "calibration": "Calibration fitted; not prospectively validated",
+            "calibration_sample_size": null,
+            "missing_model_detail": "Market-specific calibration sample size and sensitivity unavailable in this feed"
+          },
           "candidate_id": "3ee3dba2722a62fbb175c974",
           "offer_id": "08fc163779ebd4d93bc6b138",
           "forecast_id": "4db31dcaba7256c311feb941",
           "independent_probability": null,
           "final_probability": 0.98,
-          "probability_basis": "conditional_on_nonpush_market_calibrated",
+          "probability_basis": "conditional_on_nonpush_outcome_calibrated",
           "market_probability": 0.5203045685,
           "market_reference": "paired_consensus_includes_offer",
           "push_probability": 0,
           "estimated_ev": 0.8321739130429999,
           "key_drivers": null,
-          "model_limitations": "Market-calibrated legacy estimate; not independently or prospectively validated.",
+          "model_limitations": "Historical player model with outcome calibration; not prospectively validated against executable prices. The independent_probability adapter field is unpopulated for NFL; final_probability is conditional on no push.",
           "lineup_assumption": "Active status and role require current reporting",
           "invalidation_conditions": [
             "Price, line or forecast changes",
@@ -71,23 +86,33 @@
           "qualitative_review": {
             "candidate_id": "3ee3dba2722a62fbb175c974",
             "status": "needs_information",
-            "countercase": "The supplied report concerns Al-Shaair's uniform-policy issue, not Stroud's participation or passing volume. It cannot establish an attempts-over thesis. The experimental estimate is market-calibrated, not independent evidence of an edge.",
+            "assessment": {
+              "verdict": "wait",
+              "reason": "The projection favors the over, but the unusually large model/market disagreement needs explanation.",
+              "model_case": "Projected attempts are 42.17 versus 32.5. Historical-player outcome calibration is not market consensus; missing sample size and sensitivity leave the extreme probability unsupported.",
+              "price_case": "At -115, the supplied probability exceeds break-even and five-book consensus. The median line matches, but consensus includes the offer and does not validate estimated EV.",
+              "context_case": "Context is unverified; the linebacker article does not establish Stroud's participation or passing role.",
+              "blocking_checks": [
+                "Verify starting participation and expected workload; reduced availability would undermine the volume projection.",
+                "Inspect attempt-distribution sensitivity and calibration support to explain the extreme probability."
+              ]
+            },
+            "countercase": "A run-heavy or low-possession script could keep attempts below the line.",
             "open_checks": [
-              "Confirm Stroud's active status and expected starting role; a participation restriction or role change would invalidate the stated assumptions.",
-              "Obtain current Houston offensive-line and receiving-group availability plus opponent-specific passing-volume context; without these, leave the volume thesis unresolved.",
-              "Verify the current line, quote validity and passing-attempt settlement rules; changed terms or unresolved rules require waiting."
+              "Check offensive line, opponent, game script and weather.",
+              "Reconfirm the hour-old quote and participation settlement rules."
             ],
             "evidence": [],
-            "reviewed_at": "2026-09-27T10:47:12.105582Z",
+            "reviewed_at": "2026-09-27T11:49:09.827948Z",
             "offer_id": "08fc163779ebd4d93bc6b138",
             "forecast_id": "4db31dcaba7256c311feb941",
             "model": "gpt-6-astra",
-            "prompt_version": "mlb-nfl-context-1",
+            "prompt_version": "mlb-nfl-context-3",
             "evaluation_status": "prospective_shadow_only",
             "human_verified": false,
             "probability_adjustment": null,
-            "evidence_asof": "2026-09-27T10:46:49.204857Z",
-            "request_id": "909a0246dfd32c985ce9c147"
+            "evidence_asof": "2026-09-27T11:48:40.528066Z",
+            "request_id": "52a7e48f6388aa9151826b4c"
           }
         },
         {
@@ -128,18 +153,33 @@
           "sport": "NFL",
           "review_key": "[\"[\\\"NFL\\\",\\\"2a529c108305ffa049d8b6cfdbaa4d36\\\",\\\"Sam Darnold\\\",\\\"pass_yds\\\",\\\"under\\\",232.5,\\\"bovada\\\",\\\"2026-09-27T17:00:00Z\\\"]\",-145,\"2026-09-27T10:45:35Z\",\"2026-09-27T10:45:59.372019+00:00\",0.98,0,0.5541401274,\"Calibration fitted; not prospectively validated\"]",
           "review_bet_key": "[\"NFL\",\"2a529c108305ffa049d8b6cfdbaa4d36\",\"Sam Darnold\",\"pass_yds\",\"under\",232.5,\"bovada\",\"2026-09-27T17:00:00Z\"]",
+          "review_context": {
+            "model": 0.98,
+            "market": 0.5541401274,
+            "books": 1,
+            "push": 0,
+            "breakEven": 0.5918367346938775,
+            "probability_basis": "conditional_on_nonpush",
+            "projected_quantity": 125.9678506421,
+            "quantity_label": "Passing yards",
+            "market_median_line": 221.5,
+            "validation": "Experimental; no established executable betting edge",
+            "calibration": "Calibration fitted; not prospectively validated",
+            "calibration_sample_size": null,
+            "missing_model_detail": "Market-specific calibration sample size and sensitivity unavailable in this feed"
+          },
           "candidate_id": "3029a8fa79c2f119fff1db14",
           "offer_id": "732f2b50d2806439bd389728",
           "forecast_id": "8ede92a86a15bf7d59a92564",
           "independent_probability": null,
           "final_probability": 0.98,
-          "probability_basis": "conditional_on_nonpush_market_calibrated",
+          "probability_basis": "conditional_on_nonpush_outcome_calibrated",
           "market_probability": 0.5541401274,
           "market_reference": "paired_consensus_includes_offer",
           "push_probability": 0,
           "estimated_ev": 0.6558620689660001,
           "key_drivers": null,
-          "model_limitations": "Market-calibrated legacy estimate; not independently or prospectively validated.",
+          "model_limitations": "Historical player model with outcome calibration; not prospectively validated against executable prices. The independent_probability adapter field is unpopulated for NFL; final_probability is conditional on no push.",
           "lineup_assumption": "Active status and role require current reporting",
           "invalidation_conditions": [
             "Price, line or forecast changes",
@@ -149,42 +189,50 @@
           ],
           "qualitative_review": {
             "candidate_id": "3029a8fa79c2f119fff1db14",
-            "status": "needs_information",
-            "countercase": "Reporting supports Darnold's return as starter, but does not establish reduced workload or a passing-yards under. His recent injury alone is not evidence of an ongoing limitation, particularly given the reported full practice. Opponent-specific yardage and role evidence remain missing. The market-calibrated estimate is not an independent forecast.",
+            "status": "research_support",
+            "assessment": {
+              "verdict": "wait",
+              "reason": "Starting-role reporting helps, but injury-shortened history could distort the very low projection.",
+              "model_case": "125.97 projected yards versus 232.5 strongly favors under. Verify truncated-game handling; fitted historical calibration lacks prospective validation and sensitivity detail.",
+              "price_case": "At -145, supplied probability exceeds break-even. One-book coverage is not broad consensus; the 221.5 median is not an exact-line comparison.",
+              "context_case": "Reporting supports participation, not reduced workload or an under edge.",
+              "blocking_checks": [
+                "Determine whether injury-shortened observations depress the projection; full-game expectations could materially alter the case."
+              ]
+            },
+            "countercase": "A normal full-game workload could exceed the model's depressed yardage expectation.",
             "open_checks": [
-              "Confirm game-day active status and whether any explicit workload restriction exists; do not assume reduced passing volume from the prior injury.",
-              "Obtain Washington matchup, Seattle protection and receiver-availability reporting; evidence favoring sustained passing volume or efficiency would challenge the under.",
-              "Check game-time weather and any supported game-script assumptions before attributing yardage suppression to either.",
-              "Verify current market terms and nonparticipation or early-exit settlement rules; unresolved participation or settlement assumptions require waiting."
+              "Check workload, offensive line, opponent, script and weather.",
+              "Refresh price and verify settlement."
             ],
             "evidence": [
               {
-                "source_id": "18af633271d2b0419056",
-                "excerpt": "Darnold has no injury designation and will start for the Seattle Seahawks",
-                "interpretation": "This supports expected starting participation, not a restricted role or lower passing-yardage outcome.",
+                "source_id": "2a0e12ef0779cdafad85",
+                "excerpt": "Darnold has no injury designation and will start",
+                "interpretation": "Supports expected participation, without proving unrestricted workload.",
                 "kind": "deployment",
-                "direction": "context",
+                "direction": "supports",
                 "represented_in": "unknown"
               },
               {
-                "source_id": "18af633271d2b0419056",
-                "excerpt": "going from a limited participant on Wednesday to fully practicing Thursday",
-                "interpretation": "The reported practice progression cautions against treating the prior injury as proof of an ongoing limitation.",
+                "source_id": "2a0e12ef0779cdafad85",
+                "excerpt": "Darnold went 1 of 2 for 13 yards before being injured",
+                "interpretation": "If included without adjustment, this observation could bias a full-game forecast downward.",
                 "kind": "injury",
-                "direction": "context",
+                "direction": "concern",
                 "represented_in": "unknown"
               }
             ],
-            "reviewed_at": "2026-09-27T10:47:12.105582Z",
+            "reviewed_at": "2026-09-27T11:49:09.827948Z",
             "offer_id": "732f2b50d2806439bd389728",
             "forecast_id": "8ede92a86a15bf7d59a92564",
             "model": "gpt-6-astra",
-            "prompt_version": "mlb-nfl-context-1",
+            "prompt_version": "mlb-nfl-context-3",
             "evaluation_status": "prospective_shadow_only",
             "human_verified": false,
             "probability_adjustment": null,
-            "evidence_asof": "2026-09-27T10:46:49.204857Z",
-            "request_id": "909a0246dfd32c985ce9c147"
+            "evidence_asof": "2026-09-27T11:48:40.528066Z",
+            "request_id": "52a7e48f6388aa9151826b4c"
           }
         },
         {
@@ -225,18 +273,33 @@
           "sport": "NFL",
           "review_key": "[\"[\\\"NFL\\\",\\\"07f552badfa8a565d1be22123713e4da\\\",\\\"Jared Goff\\\",\\\"pass_attempts\\\",\\\"over\\\",32.5,\\\"betonlineag\\\",\\\"2026-09-27T17:00:00Z\\\"]\",-123,\"2026-09-27T10:44:27Z\",\"2026-09-27T10:45:59.372019+00:00\",0.9304884107,0,0.5185070944,\"Calibration fitted; not prospectively validated\"]",
           "review_bet_key": "[\"NFL\",\"07f552badfa8a565d1be22123713e4da\",\"Jared Goff\",\"pass_attempts\",\"over\",32.5,\"betonlineag\",\"2026-09-27T17:00:00Z\"]",
+          "review_context": {
+            "model": 0.9304884107,
+            "market": 0.5185070944,
+            "books": 1,
+            "push": 0,
+            "breakEven": 0.5515695067264574,
+            "probability_basis": "conditional_on_nonpush",
+            "projected_quantity": 39.5022322725,
+            "quantity_label": "Passing attempts",
+            "market_median_line": 33.5,
+            "validation": "Experimental; no established executable betting edge",
+            "calibration": "Calibration fitted; not prospectively validated",
+            "calibration_sample_size": null,
+            "missing_model_detail": "Market-specific calibration sample size and sensitivity unavailable in this feed"
+          },
           "candidate_id": "081560311b271c843d15b1a1",
           "offer_id": "0a44dafda1f40c1d9a112ade",
           "forecast_id": "c7ad3b1eef4a4b42624a5d6a",
           "independent_probability": null,
           "final_probability": 0.9304884107,
-          "probability_basis": "conditional_on_nonpush_market_calibrated",
+          "probability_basis": "conditional_on_nonpush_outcome_calibrated",
           "market_probability": 0.5185070944,
           "market_reference": "paired_consensus_includes_offer",
           "push_probability": 0,
           "estimated_ev": 0.686983053479,
           "key_drivers": null,
-          "model_limitations": "Market-calibrated legacy estimate; not independently or prospectively validated.",
+          "model_limitations": "Historical player model with outcome calibration; not prospectively validated against executable prices. The independent_probability adapter field is unpopulated for NFL; final_probability is conditional on no push.",
           "lineup_assumption": "Active status and role require current reporting",
           "invalidation_conditions": [
             "Price, line or forecast changes",
@@ -247,24 +310,33 @@
           "qualitative_review": {
             "candidate_id": "081560311b271c843d15b1a1",
             "status": "needs_information",
-            "countercase": "The supplied fantasy article excerpt gives no Goff-specific participation, passing-volume or Jets matchup evidence. General injury discussion cannot support this attempts over. The experimental, market-calibrated estimate supplies no independently validated edge.",
+            "assessment": {
+              "verdict": "wait",
+              "reason": "The quantity advantage is meaningful, but participation and the outsized probability advantage remain unresolved.",
+              "model_case": "39.50 projected attempts exceeds 32.5. Historical outcome calibration is separate from prices; unavailable sample size and sensitivity prevent assessing robustness.",
+              "price_case": "At -123, supplied probability exceeds break-even and the market reference. One book offers limited corroboration; the 33.5 median is not exact-line consensus.",
+              "context_case": "Context is unverified. The generic fantasy excerpt provides no Goff-specific role or matchup support.",
+              "blocking_checks": [
+                "Verify starting participation and expected workload; the projection requires a normal passing role.",
+                "Inspect distribution sensitivity to explain the large probability gap despite limited market coverage."
+              ]
+            },
+            "countercase": "A favorable score could shift Detroit toward carries and suppress attempts.",
             "open_checks": [
-              "Confirm Goff's game-day starting status and any participation restrictions; a role change would invalidate the assumptions.",
-              "Obtain Detroit offensive-line and receiver availability and Jets-specific matchup reporting before drawing a passing-volume conclusion.",
-              "Check supported pace and run/pass game-script expectations; evidence of limited possessions or reduced passing demand would challenge the over.",
-              "Verify the current line, quote validity and attempt-counting settlement rules; unresolved or changed terms require waiting."
+              "Check offensive line, opponent, script and weather.",
+              "Refresh the hour-old price and confirm settlement."
             ],
             "evidence": [],
-            "reviewed_at": "2026-09-27T10:47:12.105582Z",
+            "reviewed_at": "2026-09-27T11:49:09.827948Z",
             "offer_id": "0a44dafda1f40c1d9a112ade",
             "forecast_id": "c7ad3b1eef4a4b42624a5d6a",
             "model": "gpt-6-astra",
-            "prompt_version": "mlb-nfl-context-1",
+            "prompt_version": "mlb-nfl-context-3",
             "evaluation_status": "prospective_shadow_only",
             "human_verified": false,
             "probability_adjustment": null,
-            "evidence_asof": "2026-09-27T10:46:49.204857Z",
-            "request_id": "909a0246dfd32c985ce9c147"
+            "evidence_asof": "2026-09-27T11:48:40.528066Z",
+            "request_id": "52a7e48f6388aa9151826b4c"
           }
         },
         {
@@ -305,18 +377,33 @@
           "sport": "NFL",
           "review_key": "[\"[\\\"NFL\\\",\\\"f1724dead3eab61546033032fc782375\\\",\\\"Kyler Murray\\\",\\\"pass_yds\\\",\\\"under\\\",242.5,\\\"bovada\\\",\\\"2026-09-27T20:05:00Z\\\"]\",-240,\"2026-09-27T10:44:02Z\",\"2026-09-27T10:45:59.372019+00:00\",0.98,0,0.66,\"Calibration fitted; not prospectively validated\"]",
           "review_bet_key": "[\"NFL\",\"f1724dead3eab61546033032fc782375\",\"Kyler Murray\",\"pass_yds\",\"under\",242.5,\"bovada\",\"2026-09-27T20:05:00Z\"]",
+          "review_context": {
+            "model": 0.98,
+            "market": 0.66,
+            "books": 1,
+            "push": 0,
+            "breakEven": 0.7058823529411764,
+            "probability_basis": "conditional_on_nonpush",
+            "projected_quantity": 144.7512355469,
+            "quantity_label": "Passing yards",
+            "market_median_line": 211.5,
+            "validation": "Experimental; no established executable betting edge",
+            "calibration": "Calibration fitted; not prospectively validated",
+            "calibration_sample_size": null,
+            "missing_model_detail": "Market-specific calibration sample size and sensitivity unavailable in this feed"
+          },
           "candidate_id": "ab1c7cac75af070787ae8ef0",
           "offer_id": "ca4a01119b560224ed62552a",
           "forecast_id": "df5642883ae2fcb3fd3da007",
           "independent_probability": null,
           "final_probability": 0.98,
-          "probability_basis": "conditional_on_nonpush_market_calibrated",
+          "probability_basis": "conditional_on_nonpush_outcome_calibrated",
           "market_probability": 0.66,
           "market_reference": "paired_consensus_includes_offer",
           "push_probability": 0,
           "estimated_ev": 0.38833333333299996,
           "key_drivers": null,
-          "model_limitations": "Market-calibrated legacy estimate; not independently or prospectively validated.",
+          "model_limitations": "Historical player model with outcome calibration; not prospectively validated against executable prices. The independent_probability adapter field is unpopulated for NFL; final_probability is conditional on no push.",
           "lineup_assumption": "Active status and role require current reporting",
           "invalidation_conditions": [
             "Price, line or forecast changes",
@@ -327,24 +414,33 @@
           "qualitative_review": {
             "candidate_id": "ab1c7cac75af070787ae8ef0",
             "status": "needs_information",
-            "countercase": "The supplied article discusses Buffalo's offense and Minnesota's defense, not Murray's deployment or the relevant opposing pass defense. That team-level commentary cannot establish this passing-yards under. The forecast remains experimental and market-calibrated, without independently validated support.",
+            "assessment": {
+              "verdict": "wait",
+              "reason": "The large projected cushion does not resolve role uncertainty or justify confidence at this expensive price.",
+              "model_case": "144.75 projected yards is far below 242.5. Historical-player calibration lacks prospective validation, market-specific sample size and sensitivity; the extreme forecast needs reconciliation.",
+              "price_case": "At -240, supplied probability exceeds break-even, but errors are costly. One-book coverage includes the offer; the 211.5 median cannot establish exact-line value.",
+              "context_case": "Context is unverified; the defensive overview does not establish Murray's participation or passing workload.",
+              "blocking_checks": [
+                "Verify team assignment, starting role and full-game workload assumed by the forecast.",
+                "Check full-game sample construction and sensitivity to explain the unusually low yardage projection."
+              ]
+            },
+            "countercase": "A full passing workload or trailing script could erase the projected cushion.",
             "open_checks": [
-              "Confirm Murray's team assignment, starting role and active status for the listed matchup; a player-game mapping error or different role would invalidate the assumptions.",
-              "Obtain relevant opposing pass-defense, offensive-line and receiver-availability reporting; the supplied defensive commentary does not resolve Murray's matchup.",
-              "Check game-time weather and sourced passing-volume expectations; conditions or deployment favoring greater yardage would challenge the under.",
-              "Verify current market terms and participation settlement rules; unresolved mapping, role or settlement questions require waiting."
+              "Check offensive line, opponent and weather.",
+              "Refresh price and verify participation settlement."
             ],
             "evidence": [],
-            "reviewed_at": "2026-09-27T10:47:12.105582Z",
+            "reviewed_at": "2026-09-27T11:49:09.827948Z",
             "offer_id": "ca4a01119b560224ed62552a",
             "forecast_id": "df5642883ae2fcb3fd3da007",
             "model": "gpt-6-astra",
-            "prompt_version": "mlb-nfl-context-1",
+            "prompt_version": "mlb-nfl-context-3",
             "evaluation_status": "prospective_shadow_only",
             "human_verified": false,
             "probability_adjustment": null,
-            "evidence_asof": "2026-09-27T10:46:49.204857Z",
-            "request_id": "909a0246dfd32c985ce9c147"
+            "evidence_asof": "2026-09-27T11:48:40.528066Z",
+            "request_id": "52a7e48f6388aa9151826b4c"
           }
         }
       ],
@@ -414,15 +510,93 @@
           "content_sha256": "2ba127f013af0395f82dca81d18ccf66ec126f2d5544c5474494457d6b73a4dc",
           "publication_basis": "publisher_rss_or_article_metadata",
           "source_id": "18af633271d2b0419056"
+        },
+        {
+          "title": "NFL injury report for Week 3: Updates on Caleb Williams, Puka Nacua, Sam Darnold, Nick Bosa, and more",
+          "url": "https://www.cbssports.com/nfl/news/nfl-injury-report-for-week-3/",
+          "published_at": "2026-09-26T19:58:55Z",
+          "retrieved_at": "2026-09-27T11:48:38.923851Z",
+          "candidate_ids": [
+            "3029a8fa79c2f119fff1db14"
+          ],
+          "content_sha256": "90d3b69e04cd3456c844040f6f6fdc52676945f82f562c5a7d253bfe9c685df2",
+          "publication_basis": "publisher_rss_or_article_metadata",
+          "source_id": "136c66b26a8a53bdbc71"
+        },
+        {
+          "url": "https://www.nfl.com/news/week-3-fantasy-sleepers-jets-qb-geno-smith-eagles-wr-dontayvion-wicks-offer-upside",
+          "title": "Week 3 fantasy sleepers: Jets QB Geno Smith, Eagles WR Dontayvion Wicks offer upside",
+          "published_at": "2026-09-25T17:29:13.246000Z",
+          "retrieved_at": "2026-09-27T11:48:39.217228Z",
+          "candidate_ids": [
+            "081560311b271c843d15b1a1"
+          ],
+          "content_sha256": "44f843f0729846a4966bb600508db7b8a0e9e351020f1479e7912d6a91b576de",
+          "publication_basis": "publisher_rss_or_article_metadata",
+          "source_id": "5ca3d0374d075efaafca"
+        },
+        {
+          "url": "https://www.nfl.com/news/can-anyone-stop-the-bills-offense-block-the-vikings-defense-plus-three-disappointing-units",
+          "title": "Can anyone stop the Bills' offense? Block the Vikings' defense? Plus, three disappointing units",
+          "published_at": "2026-09-25T23:25:23.378000Z",
+          "retrieved_at": "2026-09-27T11:48:39.373154Z",
+          "candidate_ids": [
+            "ab1c7cac75af070787ae8ef0"
+          ],
+          "content_sha256": "1aa5516a689b027a7a5e544c6c6f624cb63781314c02cd32e901703c79b1e05f",
+          "publication_basis": "publisher_rss_or_article_metadata",
+          "source_id": "f30e0434da9ec25b0ba9"
+        },
+        {
+          "title": "NFL threatens Texans' Azeez Al-Shaair over messaging: Here's what the rulebook says",
+          "url": "https://www.cbssports.com/nfl/news/nfl-threatens-texans-azeez-al-shaair-over-messaging/",
+          "published_at": "2026-09-26T19:09:54Z",
+          "retrieved_at": "2026-09-27T11:48:39.500197Z",
+          "candidate_ids": [
+            "3ee3dba2722a62fbb175c974"
+          ],
+          "content_sha256": "84045a069c3e16e0296dd7e6487cd43de97ce6bf7908f7b6897d5f233155c8be",
+          "publication_basis": "publisher_rss_or_article_metadata",
+          "source_id": "565034c83bb63cff84c4"
+        },
+        {
+          "url": "https://www.nfl.com/news/sam-darnold-glute-seahawks-commanders",
+          "title": "Seahawks QB Sam Darnold (glute) off injury report, to start Sunday vs. Commanders",
+          "published_at": "2026-09-25T20:27:23.842000Z",
+          "retrieved_at": "2026-09-27T11:48:39.766847Z",
+          "candidate_ids": [
+            "3029a8fa79c2f119fff1db14"
+          ],
+          "content_sha256": "d56c22df087e61d34fa945eb9b063a15968d19aeb6f37421472dc32783336dee",
+          "publication_basis": "publisher_rss_or_article_metadata",
+          "source_id": "2a0e12ef0779cdafad85"
         }
       ],
-      "review_status": "already_attempted_this_session",
-      "board_id": "53dd1e6f0f87dc5ffe217117"
+      "review_status": "completed",
+      "board_id": "85b383787aeb68c7d19ccfd3",
+      "evidence_status": {
+        "status": "available",
+        "attempts": 8,
+        "failures": [
+          {
+            "host": "www.espn.com",
+            "stage": "feed_unavailable"
+          }
+        ],
+        "coverage": {
+          "3ee3dba2722a62fbb175c974": 1,
+          "3029a8fa79c2f119fff1db14": 2,
+          "081560311b271c843d15b1a1": 1,
+          "ab1c7cac75af070787ae8ef0": 1
+        }
+      },
+      "review_request_id": "52a7e48f6388aa9151826b4c",
+      "review_completed_at": "2026-09-27T11:49:09.827948Z"
     },
     "MLB": {
       "sport": "MLB",
       "decision_date": "2026-09-27",
-      "generated_at": "2026-09-27T10:52:29.061982Z",
+      "generated_at": "2026-09-27T11:48:36.493477Z",
       "session": "morning",
       "policy_version": "morning-context-1",
       "candidates": [
@@ -497,6 +671,19 @@
           "sport": "MLB",
           "review_key": "[\"[\\\"MLB\\\",\\\"823084\\\",\\\"\\\",\\\"h2h\\\",\\\"Los Angeles Angels\\\",null,\\\"fanduel\\\",\\\"2026-09-27T19:10:00Z\\\"]\",160,\"2026-09-27T10:51:18Z\",\"2026-09-27T10:51:48.923239Z\",0.4948767153217969,0,0.380529156381296,\"mlb-v1.0-ffe831160a077d5d-2026-09-26\"]",
           "review_bet_key": "[\"MLB\",\"823084\",\"\",\"h2h\",\"Los Angeles Angels\",null,\"fanduel\",\"2026-09-27T19:10:00Z\"]",
+          "review_context": {
+            "model": 0.4948767153217969,
+            "market": 0.380529156381296,
+            "books": 10,
+            "push": 0,
+            "breakEven": 0.3846153846153846,
+            "probability_basis": "conditional_on_nonpush",
+            "projected_quantity": 0.09266368020816773,
+            "quantity_label": "Projected home run margin",
+            "market_median_line": null,
+            "validation": "Experimental; no established executable betting edge",
+            "calibration_sample_size": null
+          },
           "candidate_id": "e0b01e34fd99d1ac5abce2c1",
           "offer_id": "7ce3fa0a551e4807b1f1d932",
           "forecast_id": "9d967539d505ff3d99ae2be8",
@@ -524,33 +711,31 @@
           "qualitative_review": {
             "candidate_id": "e0b01e34fd99d1ac5abce2c1",
             "status": "needs_information",
-            "countercase": "Seattle's season-level problems do not establish an Angels advantage in this matchup. The supplied model already includes recent offense and starter performance; the article does not verify today's starters, batting orders or available relievers.",
+            "assessment": {
+              "verdict": "consider",
+              "reason": "The near-even projection and +160 offer merit human consideration, without establishing an executable edge.",
+              "model_case": "Projected home margin is only 0.093 runs. The substantial model/market disagreement warrants sensitivity scrutiny; calibration sample size is unavailable.",
+              "price_case": "Supplied probability exceeds break-even and the paired ten-book reference. Coverage is meaningful, but the quote is nearly an hour old.",
+              "context_case": "Game-specific context remains unverified. Broad Seattle commentary does not establish today's deployment or add an independent uplift.",
+              "blocking_checks": []
+            },
+            "countercase": "The supplied scoring and starter-rate drivers favor Seattle; the Angels case depends on a near-even forecast surviving specification changes.",
             "open_checks": [
-              "Confirm Gilbert and Kikuchi remain the starters with workloads consistent with model assumptions; a change requires waiting for reconciliation.",
-              "Obtain published batting orders and verify participation and handedness matchups before completing the review.",
-              "Check individual bullpen usage and availability; the season-level bullpen assessment cannot establish today's relief disadvantage.",
-              "Verify current game conditions and moneyline settlement rules; unresolved conditions or rules require waiting."
+              "Confirm Gilbert/Kikuchi, handedness and published orders against model assumptions.",
+              "Check bullpen availability, park/weather and workload sensitivity.",
+              "Reconfirm +160 and pitcher-change settlement rules."
             ],
-            "evidence": [
-              {
-                "source_id": "7f3b6ee620353280ca4c",
-                "excerpt": "The bullpen was too often shaky.",
-                "interpretation": "This broad assessment could motivate a bullpen check, but does not establish which Seattle relievers are available or disadvantaged today.",
-                "kind": "other",
-                "direction": "context",
-                "represented_in": "unknown"
-              }
-            ],
-            "reviewed_at": "2026-09-27T10:53:01.458834Z",
+            "evidence": [],
+            "reviewed_at": "2026-09-27T11:49:38.076164Z",
             "offer_id": "7ce3fa0a551e4807b1f1d932",
             "forecast_id": "9d967539d505ff3d99ae2be8",
             "model": "gpt-6-astra",
-            "prompt_version": "mlb-nfl-context-1",
+            "prompt_version": "mlb-nfl-context-3",
             "evaluation_status": "prospective_shadow_only",
             "human_verified": false,
             "probability_adjustment": null,
-            "evidence_asof": "2026-09-27T10:52:31.233311Z",
-            "request_id": "baa4a8045261269e1454f36e"
+            "evidence_asof": "2026-09-27T11:49:11.253960Z",
+            "request_id": "ded1bd66f123bf038ed5927f"
           }
         },
         {
@@ -635,6 +820,19 @@
           "sport": "MLB",
           "review_key": "[\"[\\\"MLB\\\",\\\"822761\\\",\\\"Max Scherzer\\\",\\\"pitcher_outs\\\",\\\"Over\\\",14.5,\\\"draftkings\\\",\\\"2026-09-27T19:08:00Z\\\"]\",-132,\"2026-09-27T10:50:50Z\",\"2026-09-27T10:51:48.923239Z\",0.7309063272400073,0,0.5286532951289399,\"mlb-v1.0-ffe831160a077d5d-2026-09-26\"]",
           "review_bet_key": "[\"MLB\",\"822761\",\"Max Scherzer\",\"pitcher_outs\",\"Over\",14.5,\"draftkings\",\"2026-09-27T19:08:00Z\"]",
+          "review_context": {
+            "model": 0.7309063272400073,
+            "market": 0.5286532951289399,
+            "books": 1,
+            "push": 0,
+            "breakEven": 0.5689655172413793,
+            "probability_basis": "conditional_on_nonpush",
+            "projected_quantity": 16.387577517433332,
+            "quantity_label": "Projected pitcher outs",
+            "market_median_line": null,
+            "validation": "Experimental; no established executable betting edge",
+            "calibration_sample_size": null
+          },
           "candidate_id": "e850740649653156f74efa57",
           "offer_id": "384b273790acd8be6f196b0d",
           "forecast_id": "948c0cf29751140c116f6737",
@@ -661,42 +859,42 @@
           ],
           "qualitative_review": {
             "candidate_id": "e850740649653156f74efa57",
-            "status": "needs_information",
-            "countercase": "The report supports a planned Sunday start and includes Scherzer's positive self-assessment of health, but neither establishes sufficient workload to clear the outs threshold. Recent workload is already included in the model and should not receive an additional qualitative uplift.",
+            "status": "research_support",
+            "assessment": {
+              "verdict": "wait",
+              "reason": "The quantitative case is favorable, but unrestricted workload is not established.",
+              "model_case": "Projected 16.388 outs exceeds 14.5 and resembles the last-five 16.29 average. Fifteen outings do not validate the unusually large probability gap.",
+              "price_case": "At -132, supplied probability exceeds break-even and the exact-line reference; one other book is not broad consensus.",
+              "context_case": "Reporting supports an intended start, not a normal pitch allowance. Existing workload inputs should not receive a second qualitative uplift.",
+              "blocking_checks": [
+                "Establish the planned pitch/inning allowance; a shortened finale could invalidate the historical outs distribution."
+              ]
+            },
+            "countercase": "A projection above five innings still leaves meaningful early-exit sensitivity.",
             "open_checks": [
-              "Confirm Scherzer's starting assignment and any announced pitch or innings limit; a shortened outing plan would undermine the over thesis.",
-              "Verify recent pitch counts and any early-exit explanations against the model's workload assumptions.",
-              "Obtain Cincinnati's published batting order and assess whether its composition differs materially from the opponent inputs.",
-              "Confirm pitcher-outs settlement treatment for a non-start or interrupted outing; unresolved rules require waiting."
+              "Confirm opponent order, handedness and bullpen availability.",
+              "Check park/weather, current price and starter-prop settlement."
             ],
             "evidence": [
               {
-                "source_id": "5979c3edac84ca685f9a",
-                "excerpt": "one start left in Sunday\u2019s finale",
-                "interpretation": "This supports the scheduled participation assumption, but not the length of the outing.",
+                "source_id": "abd84b75001e3a59db53",
+                "excerpt": "with one start left in Sunday\u2019s finale",
+                "interpretation": "Supports intended participation, but does not establish workload.",
                 "kind": "deployment",
                 "direction": "supports",
                 "represented_in": "unknown"
-              },
-              {
-                "source_id": "5979c3edac84ca685f9a",
-                "excerpt": "I\u2019ve gotten to the point where I\u2019m pretty healthy.",
-                "interpretation": "Scherzer's self-report is relevant health context, not confirmation of unrestricted workload.",
-                "kind": "injury",
-                "direction": "context",
-                "represented_in": "unknown"
               }
             ],
-            "reviewed_at": "2026-09-27T10:53:01.458834Z",
+            "reviewed_at": "2026-09-27T11:49:38.076164Z",
             "offer_id": "384b273790acd8be6f196b0d",
             "forecast_id": "948c0cf29751140c116f6737",
             "model": "gpt-6-astra",
-            "prompt_version": "mlb-nfl-context-1",
+            "prompt_version": "mlb-nfl-context-3",
             "evaluation_status": "prospective_shadow_only",
             "human_verified": false,
             "probability_adjustment": null,
-            "evidence_asof": "2026-09-27T10:52:31.233311Z",
-            "request_id": "baa4a8045261269e1454f36e"
+            "evidence_asof": "2026-09-27T11:49:11.253960Z",
+            "request_id": "ded1bd66f123bf038ed5927f"
           }
         },
         {
@@ -770,6 +968,19 @@
           "sport": "MLB",
           "review_key": "[\"[\\\"MLB\\\",\\\"823731\\\",\\\"\\\",\\\"totals\\\",\\\"Over\\\",7,\\\"lowvig\\\",\\\"2026-09-27T19:10:00Z\\\"]\",103,\"2026-09-27T10:51:02Z\",\"2026-09-27T10:51:48.923239Z\",0.5716722855333262,0.10668385450678128,0.4891657638136511,\"mlb-v1.0-ffe831160a077d5d-2026-09-26\"]",
           "review_bet_key": "[\"MLB\",\"823731\",\"\",\"totals\",\"Over\",7,\"lowvig\",\"2026-09-27T19:10:00Z\"]",
+          "review_context": {
+            "model": 0.6399439755090218,
+            "market": 0.4891657638136511,
+            "books": 7,
+            "push": 0.10668385450678128,
+            "breakEven": 0.4926108374384236,
+            "probability_basis": "conditional_on_nonpush",
+            "projected_quantity": 8.8754264993212,
+            "quantity_label": "Projected total runs",
+            "market_median_line": null,
+            "validation": "Experimental; no established executable betting edge",
+            "calibration_sample_size": null
+          },
           "candidate_id": "c7115fee9266600eb69bd993",
           "offer_id": "9daef1b1a39e1620cbff176d",
           "forecast_id": "2dafc0a1590a9fa35b2e7af9",
@@ -797,34 +1008,41 @@
           "qualitative_review": {
             "candidate_id": "c7115fee9266600eb69bd993",
             "status": "needs_information",
-            "countercase": "Milwaukee's substantial relief workload creates an availability question, not proof of fatigue or extra scoring. Those relievers also held St. Louis scoreless, and the supplied report concerns May rather than today's assumed starters. The captaincy announcement does not establish offensive support for the over.",
+            "assessment": {
+              "verdict": "wait",
+              "reason": "The over has a substantial quantitative cushion, but relief deployment needs resolution.",
+              "model_case": "Projected 8.875 runs exceeds 7. The large market gap requires sensitivity testing; experimental forecasts have no established executable edge.",
+              "price_case": "+103 compares favorably with supplied nonpush probability and the seven-book reference. Use the conditional comparison while retaining the supplied push treatment.",
+              "context_case": "Reported relief usage makes availability relevant, but does not establish fatigue or an over advantage.",
+              "blocking_checks": [
+                "Identify available Milwaukee relievers and planned starter workload; different pitching allocations could materially alter the total."
+              ]
+            },
+            "countercase": "Recent scoring averages may overstate offense against these assumed starters.",
             "open_checks": [
-              "Confirm Misiorowski and Pallante start and verify any workload restrictions; changes require reassessing the model assumptions.",
-              "Identify which Milwaukee relievers supplied Saturday's six innings, their pitch counts and availability, and check St. Louis relief usage.",
-              "Obtain both published batting orders; material rest or participation changes require waiting for updated assumptions.",
-              "Verify roof status and relevant park/weather conditions rather than assuming a scoring effect.",
-              "Confirm settlement at exactly seven runs and shortened-game treatment; unresolved rules prevent completing the review."
+              "Confirm Misiorowski/Pallante, handedness and batting orders.",
+              "Check roof/weather, current price and seven-run push rules."
             ],
             "evidence": [
               {
-                "source_id": "f5e83b999c87b4500ab1",
+                "source_id": "6f047f99b9a0e3648b70",
                 "excerpt": "six innings of scoreless relief from the bullpen",
-                "interpretation": "The relief workload warrants an availability check, while its scoreless result prevents treating usage alone as evidence of bullpen weakness.",
-                "kind": "deployment",
+                "interpretation": "Relevant workload context; individual availability and model incorporation remain unknown.",
+                "kind": "pitcher",
                 "direction": "context",
                 "represented_in": "unknown"
               }
             ],
-            "reviewed_at": "2026-09-27T10:53:01.458834Z",
+            "reviewed_at": "2026-09-27T11:49:38.076164Z",
             "offer_id": "9daef1b1a39e1620cbff176d",
             "forecast_id": "2dafc0a1590a9fa35b2e7af9",
             "model": "gpt-6-astra",
-            "prompt_version": "mlb-nfl-context-1",
+            "prompt_version": "mlb-nfl-context-3",
             "evaluation_status": "prospective_shadow_only",
             "human_verified": false,
             "probability_adjustment": null,
-            "evidence_asof": "2026-09-27T10:52:31.233311Z",
-            "request_id": "baa4a8045261269e1454f36e"
+            "evidence_asof": "2026-09-27T11:49:11.253960Z",
+            "request_id": "ded1bd66f123bf038ed5927f"
           }
         },
         {
@@ -909,6 +1127,19 @@
           "sport": "MLB",
           "review_key": "[\"[\\\"MLB\\\",\\\"823408\\\",\\\"Nick Martinez\\\",\\\"pitcher_strikeouts\\\",\\\"Under\\\",3.5,\\\"draftkings\\\",\\\"2026-09-27T19:05:00Z\\\"]\",108,\"2026-09-27T10:51:09Z\",\"2026-09-27T10:51:48.923239Z\",0.5745977010001451,0,0.4560373264206913,\"mlb-v1.0-ffe831160a077d5d-2026-09-26\"]",
           "review_bet_key": "[\"MLB\",\"823408\",\"Nick Martinez\",\"pitcher_strikeouts\",\"Under\",3.5,\"draftkings\",\"2026-09-27T19:05:00Z\"]",
+          "review_context": {
+            "model": 0.5745977010001451,
+            "market": 0.4560373264206913,
+            "books": 2,
+            "push": 0,
+            "breakEven": 0.4807692307692307,
+            "probability_basis": "conditional_on_nonpush",
+            "projected_quantity": 3.3735764034991917,
+            "quantity_label": "Projected pitcher strikeouts",
+            "market_median_line": null,
+            "validation": "Experimental; no established executable betting edge",
+            "calibration_sample_size": null
+          },
           "candidate_id": "d61ec9efe32e0879e48dc5b0",
           "offer_id": "5a9dce4f12d0d09312e98a2a",
           "forecast_id": "35fa8c7ae8c0e44da0dfc84d",
@@ -936,41 +1167,32 @@
           "qualitative_review": {
             "candidate_id": "d61ec9efe32e0879e48dc5b0",
             "status": "needs_information",
-            "countercase": "Philadelphia's scoring slump is not evidence of a low-strikeout matchup. The reported Arraez injury leaves lineup composition unresolved, and the sources provide no replacement-specific strikeout evidence. Martinez's workload and strikeout rates are already model inputs, not independent confirmation of the under.",
+            "assessment": {
+              "verdict": "wait",
+              "reason": "The favorable price case needs lineup-sensitive review because the projected quantity barely clears the under.",
+              "model_case": "Projected 3.374 strikeouts sits just below 3.5. Fifteen outings and the supplied strikeout rates do not establish robustness of the probability gap.",
+              "price_case": "+108 is favorable against supplied break-even and the two-book exact-line reference, but coverage is limited and calibration sample size unavailable.",
+              "context_case": "Martinez's deployment and opposing order remain unverified. Team scoring-slump coverage does not specifically support a strikeout under.",
+              "blocking_checks": [
+                "Resolve Philadelphia's batting order and Martinez's expected workload; modest changes could reverse the narrow projected-quantity margin."
+              ]
+            },
+            "countercase": "The last-five workload of 17.14 outs creates opportunities to reach four strikeouts despite modest strikeout rates.",
             "open_checks": [
-              "Verify Arraez's current availability and Philadelphia's published batting order; compare any replacement's supported strikeout profile with the model assumptions.",
-              "Confirm Martinez starts and check his expected workload; greater exposure than assumed could undermine the under.",
-              "Check lineup-specific handedness and strikeout matchups using verified data; do not substitute recent run scoring for strikeout evidence.",
-              "Verify pitcher-strikeout settlement rules for non-starts and interrupted games; unresolved participation or rules require waiting."
+              "Confirm starter, handedness and bullpen availability.",
+              "Check park/weather, price freshness and participation settlement."
             ],
-            "evidence": [
-              {
-                "source_id": "c72f1d0dc4d0e472fec8",
-                "excerpt": "Luis Arraez is sidelined with a left ankle sprain.",
-                "interpretation": "If the absence persists, the published lineup must be reconciled with the opponent inputs; this excerpt does not establish the direction of the strikeout effect.",
-                "kind": "injury",
-                "direction": "context",
-                "represented_in": "unknown"
-              },
-              {
-                "source_id": "0493b414397c65154705",
-                "excerpt": "They have scored three runs during their four-game losing streak.",
-                "interpretation": "This establishes recent scoring difficulty, but cannot validate a Martinez strikeout under without evidence about strikeouts and expected exposure.",
-                "kind": "other",
-                "direction": "context",
-                "represented_in": "unknown"
-              }
-            ],
-            "reviewed_at": "2026-09-27T10:53:01.458834Z",
+            "evidence": [],
+            "reviewed_at": "2026-09-27T11:49:38.076164Z",
             "offer_id": "5a9dce4f12d0d09312e98a2a",
             "forecast_id": "35fa8c7ae8c0e44da0dfc84d",
             "model": "gpt-6-astra",
-            "prompt_version": "mlb-nfl-context-1",
+            "prompt_version": "mlb-nfl-context-3",
             "evaluation_status": "prospective_shadow_only",
             "human_verified": false,
             "probability_adjustment": null,
-            "evidence_asof": "2026-09-27T10:52:31.233311Z",
-            "request_id": "baa4a8045261269e1454f36e"
+            "evidence_asof": "2026-09-27T11:49:11.253960Z",
+            "request_id": "ded1bd66f123bf038ed5927f"
           }
         }
       ],
@@ -1053,10 +1275,83 @@
           "content_sha256": "fb05ada546ce72c632af25d6ad7e77795fb787e17ff47905928dac5bb829a300",
           "publication_basis": "publisher_rss_or_article_metadata",
           "source_id": "c72f1d0dc4d0e472fec8"
+        },
+        {
+          "title": "What's next for Mariners? After disappointing 2026 season, Seattle needs more -- and maybe new -- help",
+          "url": "https://www.cbssports.com/mlb/news/whats-next-for-mariners-disappointing-2026/",
+          "published_at": "2026-09-25T14:30:11Z",
+          "retrieved_at": "2026-09-27T11:49:10.345659Z",
+          "candidate_ids": [
+            "e0b01e34fd99d1ac5abce2c1",
+            "e850740649653156f74efa57"
+          ],
+          "content_sha256": "55a929acdb1a4b076c3be33823cc9f4ccb3c4bc1856e3aaccebde91315c1a312",
+          "publication_basis": "publisher_rss_or_article_metadata",
+          "source_id": "22b4062e0d7ddc2eaa34"
+        },
+        {
+          "url": "https://www.mlb.com/news/max-scherzer-to-make-retirement-decision-in-offseason",
+          "title": "Scherzer to wait on retirement decision, wants to 'see how things unfold'",
+          "published_at": "2026-09-26T18:18:28.133000Z",
+          "retrieved_at": "2026-09-27T11:49:10.535431Z",
+          "candidate_ids": [
+            "e850740649653156f74efa57"
+          ],
+          "content_sha256": "e6b9ebdf296a90688d535d9a7e5f88ea343157a883877bdb02ee89908f9f0d59",
+          "publication_basis": "publisher_rss_or_article_metadata",
+          "source_id": "abd84b75001e3a59db53"
+        },
+        {
+          "url": "https://www.mlb.com/news/dustin-may-strikes-out-5-as-brewers-earn-102nd-win",
+          "title": "May makes his rotation case as Brewers ponder postseason pitching plans",
+          "published_at": "2026-09-27T03:02:00Z",
+          "retrieved_at": "2026-09-27T11:49:10.722935Z",
+          "candidate_ids": [
+            "c7115fee9266600eb69bd993"
+          ],
+          "content_sha256": "e665a281754b4d9ea7eab537c64ed1c6710721d36cac54f016b7efe42e9397f3",
+          "publication_basis": "publisher_rss_or_article_metadata",
+          "source_id": "6f047f99b9a0e3648b70"
+        },
+        {
+          "url": "https://www.mlb.com/news/phillies-lose-to-rays-unable-to-clinch-playoff-spot-again",
+          "title": "Reeling Phillies have one more game to save their season",
+          "published_at": "2026-09-27T04:50:00Z",
+          "retrieved_at": "2026-09-27T11:49:10.911103Z",
+          "candidate_ids": [
+            "d61ec9efe32e0879e48dc5b0"
+          ],
+          "content_sha256": "3a555fc5327ef387df78ed548db195125a6996eec3e5630695f4d3b941c85843",
+          "publication_basis": "publisher_rss_or_article_metadata",
+          "source_id": "acb21c3b7c338ea42700"
+        },
+        {
+          "url": "https://www.mlb.com/news/christian-yelich-named-brewers-captain",
+          "title": "Cap Yeli! Yelich first to wear 'C' as captain in Brewers' history",
+          "published_at": "2026-09-27T03:42:00Z",
+          "retrieved_at": "2026-09-27T11:49:11.120928Z",
+          "candidate_ids": [
+            "c7115fee9266600eb69bd993"
+          ],
+          "content_sha256": "9900f52ef14e79f9b1d0d29d1f582e9bb2bbea0e8705c740ac4e7f5080eb857a",
+          "publication_basis": "publisher_rss_or_article_metadata",
+          "source_id": "c1dca5dcd7cf4242ebf3"
+        },
+        {
+          "title": "Could the Phillies blow their playoff berth? How recent slump, surging D-backs have made wild-card race messy",
+          "url": "https://www.cbssports.com/mlb/news/phillies-playoff-berth-diamondbacks-national-league-wild-card/",
+          "published_at": "2026-09-26T23:50:34Z",
+          "retrieved_at": "2026-09-27T11:49:11.246257Z",
+          "candidate_ids": [
+            "d61ec9efe32e0879e48dc5b0"
+          ],
+          "content_sha256": "fb05ada546ce72c632af25d6ad7e77795fb787e17ff47905928dac5bb829a300",
+          "publication_basis": "publisher_rss_or_article_metadata",
+          "source_id": "813f322ced508687d2e9"
         }
       ],
       "review_status": "completed",
-      "board_id": "75c400d4c097c0f4745c0282",
+      "board_id": "f6b77b5518ddd073e06d36d2",
       "evidence_status": {
         "status": "available",
         "attempts": 6,
@@ -1073,8 +1368,8 @@
           "d61ec9efe32e0879e48dc5b0": 2
         }
       },
-      "review_request_id": "baa4a8045261269e1454f36e",
-      "review_completed_at": "2026-09-27T10:53:01.458834Z"
+      "review_request_id": "ded1bd66f123bf038ed5927f",
+      "review_completed_at": "2026-09-27T11:49:38.076164Z"
     }
   }
 }
