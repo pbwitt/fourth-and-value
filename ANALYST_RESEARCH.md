@@ -72,8 +72,16 @@ fixed-fraction log growth; the fraction is not stake advice.
 
 A current consider assessment ranks before pending/wait/pass across all sports,
 so a reviewed MLB/NHL offer appears before unreviewed NFL rows in the initial table.
-No cross-sport probability or numerical value score is introduced.
-Reliability then precedes each sport's numerical score. Later review batches
+The research pool retains each sport's numerical order. The main ten-idea card
+sorts across sports by explicit analyst selection, forecast reliability, then
+expected log growth at the NHL ranker's fixed 0.0025 fraction. NFL uses the lower
+of raw/calibrated probability where available; MLB uses unconditional win/push
+mass; NHL retains its existing worst-scenario score. Refunds contribute zero.
+This common scale prevents feed order or incomparable source ranks from filling
+the card with one sport. It is an operational ordering heuristic, not a stake
+recommendation, confidence score or validated cross-sport performance claim.
+Missing independent forecasts receive no numerical score and rank after eligible
+models, unless explicitly selected by an analyst. There are no sport quotas. Later review batches
 prioritize previously reviewed offers needing new context/price assessment.
 Multiple bets in the same game remain possible and are not assumed independent.
 No new numerical model/market/qualitative blending weight is introduced.

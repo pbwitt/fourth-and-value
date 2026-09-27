@@ -210,3 +210,23 @@ assert.equal(shortlist([{...ready,human_decision:'pass'}],now).length,0);
 assert.equal(shortlist([{...ready,qualitative_review:null,human_decision:'select'}],now).length,1);
 assert.equal(shortlist([...large,{...ready,player:'Analyst choice',qualitative_review:null,human_decision:'select'}],now)[0].player,'Analyst choice');
 console.log('PASS: bounded reviewed card, independent research pool, equivalent bets, review age and no forced picks.');
+
+// Main-card ranks share units across sports; feed order/source scores cannot dominate.
+const pool=collect(fixture(),now).selected.map(readyRow);
+const nflCard={...pool.find(r=>r.sport==='NFL'),forecast_health:{tier:1,raw_probability:.58},score:99999};
+const mlbCard={...pool.find(r=>r.sport==='MLB'),forecast_health:{tier:1},model_probability:.64,score:-999};
+const nhlCard={...pool.find(r=>r.sport==='NHL'),rank_score:.01,score:-99999};
+assert.deepEqual(shortlist([nflCard,mlbCard,nhlCard],now).map(r=>r.sport),['NHL','MLB','NFL']);
+assert.deepEqual(shortlist([mlbCard,nhlCard,nflCard],now).map(r=>r.sport),['NHL','MLB','NFL']);
+assert(Math.abs(shortlist([nflCard,mlbCard,nhlCard],now)[2].card_rank_score-
+ (.58*Math.log1p(.0025*1.1)+.42*Math.log1p(-.0025)))<1e-12);
+const fairNormal={...mlbCard,player:'Normal',price:100,model_probability:.6};
+const fairLong={...mlbCard,player:'Longshot',price:300,model_probability:.3};
+assert.equal(shortlist([fairLong,fairNormal],now)[0].player,'Normal','equal EV does not promote longshot payout');
+const refunded={...mlbCard,model_probability:.55,model_push_probability:.1};
+assert(Math.abs(shortlist([refunded],now)[0].card_rank_score-(.55*Math.log1p(.0025*1.1)+.35*Math.log1p(-.0025)))<1e-12);
+const absent={...mlbCard,player:'Unknown',model_withheld:'No model',model_probability:null};
+assert.equal(shortlist([absent,mlbCard],now)[0].player,mlbCard.player);
+assert.equal(shortlist([absent],now)[0].card_rank_score,null);
+assert.equal(shortlist([{...absent,human_decision:'select'},mlbCard],now)[0].player,'Unknown');
+console.log('PASS: cross-sport card order, comparable units, conservative NFL probability, pushes and missing models.');
