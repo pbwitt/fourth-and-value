@@ -14,7 +14,7 @@ jobs:
   update-nhl:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: write
       pages: write
@@ -71,6 +71,13 @@ jobs:
         id: validate
         if: steps.refresh.outcome == 'success'
         run: python scripts/validate_nhl_freshness.py
+      - name: Prepare shortlist and bounded morning research
+        if: always() && steps.window.outputs.enabled == 'true' && (steps.refresh.outcome == 'success' || steps.refresh.outcome == 'failure')
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python scripts/nhl/analyst.py --astra
+          python scripts/nhl/v2/decisions.py grade --cached-history --output artifacts/nhl/analyst/evaluation.json
       - name: Archive odds and model inputs for later review
         if: always()
         uses: actions/upload-artifact@v4

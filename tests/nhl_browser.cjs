@@ -18,7 +18,7 @@ const server=http.createServer((req,res)=>{
     const errors=[];
     for(const width of [390,768,1280,1440,1920]){
       const p=await browser.newPage({viewport:{width,height:1000}});p.on('pageerror',e=>errors.push(e.message));
-      for(const route of ['/nhl/','/nhl/props/','/nhl/totals/','/nhl/top.html','/nhl/methods.html','/nba/','/']){
+      for(const route of ['/nhl/','/nhl/props/','/nhl/totals/','/nhl/picks.html','/nhl/top.html','/nhl/methods.html','/nba/','/']){
         await p.goto(base+route);if(route.startsWith('/nhl'))await p.waitForFunction(()=>!document.getElementById('feed-status').textContent.includes('Enable JavaScript'));
         assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,`Overflow ${width} ${route}`);
         assert.equal(await p.locator('.nhl-sport').count(),1);
@@ -70,6 +70,47 @@ const server=http.createServer((req,res)=>{
     fixture={...fixture,status:'ready',last_success_at:new Date(+now-25*3600e3).toISOString()};await p.reload();await p.waitForFunction(()=>document.getElementById('feed-status').textContent.includes('needs a refresh'));assert.equal(await p.locator('.prop-card').count(),0);
     fixture={...fixture,status:'waiting_for_markets',last_success_at:now.toISOString(),rows:[]};await p.reload();
     await p.waitForFunction(()=>document.getElementById('feed-status').textContent.includes('Waiting for NHL markets'));assert.equal(await p.locator('.prop-card').count(),0);
-    assert.deepEqual(errors,[]);console.log('PASS: NHL routes at five widths; filters and best book; valid, missing, stale-model, stale-feed, failure and empty states.');
+    // Pure Market Watch: integer lines need no independent model, and model rank cannot change ordering.
+    fixture={status:'ready',last_success_at:now.toISOString(),events:[],rows:[
+      {...row,event_id:'a',player:'Price leader',line:6,other_books:3,conditional_price_advantage:12,consensus_ev:null,rank_score:-99},
+      {...row,event_id:'b',player:'Model leader',line:6,other_books:3,conditional_price_advantage:5,consensus_ev:50,rank_score:99}]};
+    await p.goto(base+'/nhl/top.html');await p.waitForSelector('.prop-card');assert.equal(await p.locator('.prop-card').count(),2);
+    assert((await p.locator('.prop-card').first().textContent()).includes('Price leader'));
+    // Synthetic analyst candidate. No synthetic records are published to the real feed.
+    const candidate={...row,candidate_id:'candidate1',candidate_rank:1,offer_id:'offer1',forecast_id:'forecast1',decision_at:now.toISOString(),model_data_checked_at:now.toISOString(),
+      independent_probability:.6,final_probability:.6,market_probability:.53,push_probability:0,fair_odds:-150,estimated_ev:.145,minimum_acceptable_odds:-115,
+      model_version:'nhl-v2.1',validation_status:'experimental',other_books:3,human_decision:'unreviewed',
+      key_drivers:['Projected ice time 18 minutes'],uncertainties:['Power-play role unconfirmed'],invalidation_conditions:['Price or role changes'],
+      sensitivity:{win_min:.55,win_max:.65,assumption:'Rate ±10%; not a confidence interval'},
+      qualitative_review:{offer_id:'offer1',forecast_id:'forecast1',status:'needs_information',reviewed_at:now.toISOString(),countercase:'Role assumptions may change.',open_checks:['Verify participation.'],
+        evidence:[{source_id:'s1',excerpt:'The goalie will be announced later.',interpretation:'Wait for confirmation; do not adjust the probability.',kind:'goalie',direction:'context',represented_in:'unknown'}]}};
+    fixture={status:'ready',last_success_at:now.toISOString(),snapshot_id:'snapshot1',events:[],rows:[candidate]};
+    const decisionDate=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
+    let board={schema_version:1,board_id:'board1',decision_date:decisionDate,generated_at:now.toISOString(),session:'morning',source_snapshot_id:'snapshot1',status:'ready',review_status:'completed',eligible_count:1,candidates:[candidate],
+      sources:[{source_id:'s1',title:'Synthetic source fixture',url:'https://www.nhl.com/news/',published_at:now.toISOString(),retrieved_at:now.toISOString()}]};
+    await p.route('**/nhl/data/candidates.json',r=>r.fulfill({json:board}));
+    p.on('pageerror',e=>errors.push(e.message));
+    for(const width of [390,1440]){
+      await p.setViewportSize({width,height:1000});await p.goto(base+'/nhl/picks.html');await p.waitForSelector('[data-candidate]');
+      assert((await p.locator('[data-candidate]').textContent()).includes('60.0%'));
+      assert((await p.locator('[data-candidate]').textContent()).includes('Context review'));
+      assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'Candidate mobile/desktop overflow');
+      await p.screenshot({path:`/tmp/fv-nhl-candidates-${width}.png`,fullPage:true});
+    }
+    await p.locator('#candidate-search').fill('absent');assert.equal(await p.locator('[data-candidate]').count(),0);await p.locator('#candidate-search').fill('');
+    await p.getByText('Prepare an analyst review',{exact:true}).click();
+    await p.locator('[name="analyst"]').fill('Test Analyst');await p.locator('[name="reason"]').fill('Synthetic test; wait for goalie confirmation.');
+    await p.locator('[name="double_counting_check"]').fill('Unknown; no forecast adjustment.');
+    const download=p.waitForEvent('download');await p.getByRole('button',{name:'Download review note'}).click();
+    const file=await (await download).path();const note=JSON.parse(fs.readFileSync(file,'utf8'));assert.equal(note.offer_id,'offer1');assert.equal(note.decision,'watch');
+    assert((await p.locator('.review-feedback').textContent()).includes('still needs to be imported'));
+    board.candidates=[{...candidate,quoted_at:new Date(+now-31*60e3).toISOString()}];await p.reload();await p.waitForSelector('[data-candidate]');
+    assert((await p.locator('[data-candidate] .notice').textContent()).includes('expired'));assert(await p.locator('option[value="select"]').evaluate(e=>e.disabled), await p.locator('option[value="select"]').evaluate(e=>e.outerHTML));
+    board.candidates=[{...candidate,qualitative_review:null}];board.review_status='no_usable_reporting';await p.reload();await p.waitForSelector('[data-candidate]');
+    assert((await p.locator('#research-status').textContent()).includes('unavailable'));
+    fixture.status='feed_error';await p.reload();await p.waitForFunction(()=>document.getElementById('candidate-summary').textContent.includes('research candidates'));assert.equal(await p.locator('[data-candidate]').count(),0);
+    fixture.status='ready';board.source_snapshot_id='different';await p.reload();await p.waitForFunction(()=>document.getElementById('feed-status').textContent.includes('snapshot changed'));assert.equal(await p.locator('[data-candidate]').count(),0);
+    board.source_snapshot_id='snapshot1';board.candidates=[];board.status='no_candidates';board.review_status='no_candidates';await p.reload();await p.waitForFunction(()=>document.getElementById('research-status').textContent.includes('no Astra request'));assert.equal(await p.locator('[data-candidate]').count(),0);
+    assert.deepEqual(errors,[]);console.log('PASS: NHL routes at five widths; forecasts, price-only Market Watch, analyst shortlist, evidence, download, expired/missing/failure and empty states.');
   }finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);server.close();process.exitCode=1;});

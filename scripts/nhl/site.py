@@ -9,7 +9,7 @@ def build(state):
     season = str(state['season'])
     label = season[:4] + '–' + season[-2:]
     pages = [('index.html', 'NHL Overview', 'overview'), ('props/index.html', 'Player Props', 'props'),
-             ('totals/index.html', 'Game Lines', 'lines'), ('top.html', 'Market Watch', 'watch'),
+             ('totals/index.html', 'Game Lines', 'lines'), ('picks.html', 'Top Picks', 'candidates'), ('top.html', 'Market Watch', 'watch'),
              ('methods.html', 'NHL Methods', 'methods')]
     for filename, title, page in pages:
         path = ROOT / 'docs/nhl' / filename
@@ -26,6 +26,8 @@ def build(state):
 <section class="section"><h2>Upcoming regular-season games</h2><p class="muted">Official NHL schedule, next 45 days. Odds may appear closer to game day.</p><div id="schedule" class="grid"></div></section>'''
         elif page == 'methods':
             intro = (Path(__file__).parent / 'v2/methods.html').read_text()
+        elif page == 'candidates':
+            intro = (Path(__file__).parent / 'v2/candidates.html').read_text()
         else:
             lead = {'props':'Compare shots on goal, goals, assists and points. Props appear as books post them near puck drop.',
                     'lines':'Regular-season totals, puck lines and moneylines. Historical scoring references are labeled separately.',
@@ -36,9 +38,12 @@ def build(state):
 <section class="help section"><h2>Read the comparison</h2><p>Book probability is the break-even rate at that price. Paired fair probability removes the book’s margin. Consensus uses distinct books at the same line. Historical references are uncalibrated and do not qualify model picks.</p><a href="{nhl}/methods.html">NHL methods and limitations →</a></section>'''
         body = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} | Fourth &amp; Value</title>
 {metadata(path, title+' | Fourth & Value', 'NHL regular-season odds, player props, game lines and market consensus from Fourth & Value.')}
-<link rel="stylesheet" href="{rel}/assets/site.css"><link rel="icon" href="{rel}/assets/logo.svg"></head><body><a class="skip-link" href="#main">Skip to content</a><div id="nav-root"></div><script src="{rel}/nav.js?v=42"></script>
+<link rel="stylesheet" href="{rel}/assets/site.css"><link rel="icon" href="{rel}/assets/logo.svg"></head><body><a class="skip-link" href="#main">Skip to content</a><div id="nav-root"></div><script src="{rel}/nav.js?v=43"></script>
 <main class="wrap" id="main" data-nhl-page="{page}" data-feed="{nhl}/data/latest.json">{links}<p class="eyebrow">NHL · {label}</p><h1>{title}</h1>
 <div class="notice" id="feed-status" role="status"><strong>NHL regular-season market snapshot</strong><p>Last successful check: {escape(str(state.get('last_success_at') or 'Not yet checked'))}. Enable JavaScript to view current quote availability.</p></div>
-<p class="muted" id="history-status"></p><p class="muted" id="model-status"></p>{intro}<footer>Fourth &amp; Value · <a href="{rel}/terms.html">Terms &amp; privacy</a> · <a href="{rel}/videos/">Videos</a></footer></main><script src="{rel}/assets/nhl.js?v=2" defer></script></body></html>'''
+<p class="muted" id="history-status"></p><p class="muted" id="model-status"></p>{intro}<footer>Fourth &amp; Value · <a href="{rel}/terms.html">Terms &amp; privacy</a> · <a href="{rel}/videos/">Videos</a></footer></main><script src="{rel}/assets/nhl.js?v=3" defer></script></body></html>'''
         path.parent.mkdir(parents=True, exist_ok=True)
+        if page == 'candidates':
+            body = body.replace('assets/nhl.js?v=3', 'assets/nhl-candidates.js?v=1')
+            body = body.replace('</head>', f'<link rel="stylesheet" href="{rel}/assets/nhl-candidates.css"></head>')
         path.write_text(body)

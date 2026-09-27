@@ -25,7 +25,9 @@
     $('schedule').innerHTML=events.slice(0,12).map(e=>`<article class="panel"><h3>${esc(e.away_team)} at ${esc(e.home_team)}</h3><p>${esc(time(e.commence_time))}</p></article>`).join('')||'<p>No upcoming regular-season games in this schedule snapshot.</p>';
     return;
   }
-  const relevant=rows.filter(r=>page==='props'?r.market.startsWith('player_'):page==='lines'?!r.market.startsWith('player_'):r.other_books>=3&&r.consensus_ev>0);
+  // Market Watch entry/ranking uses paired prices alone, including at integer lines.
+  // The model's optional push estimate and rank cannot promote or exclude an offer here.
+  const relevant=rows.filter(r=>page==='props'?r.market.startsWith('player_'):page==='lines'?!r.market.startsWith('player_'):r.other_books>=3&&r.conditional_price_advantage>0);
   const params=new URLSearchParams(location.search);
   ['market','book','game'].forEach(id=>{
     const key=id==='game'?'event_id':id, labels=id==='market'?'market_label':id==='book'?'book_label':'game';
@@ -39,7 +41,7 @@
     const q=$('search').value.toLowerCase();
     let selected=relevant.filter(r=>(r.player+' '+r.game).toLowerCase().includes(q)&&(!$('market').value||r.market===$('market').value)&&(!$('book').value||r.book===$('book').value)&&(!$('game').value||r.event_id===$('game').value));
     if($('best').checked){const cheapest=new Map();for(const r of selected){const key=JSON.stringify([r.event_id,r.player,r.market,r.line,r.side,r.settlement_profile]);cheapest.set(key,Math.min(cheapest.get(key)??1,r.book_probability));}selected=selected.filter(r=>r.book_probability===cheapest.get(JSON.stringify([r.event_id,r.player,r.market,r.line,r.side,r.settlement_profile])));}
-    selected.sort((a,b)=>page==='watch'?(Number.isFinite(a.rank_score)&&Number.isFinite(b.rank_score)?b.rank_score-a.rank_score:b.consensus_ev-a.consensus_ev):a.commence_time.localeCompare(b.commence_time)||a.player.localeCompare(b.player));
+    selected.sort((a,b)=>page==='watch'?b.conditional_price_advantage-a.conditional_price_advantage:a.commence_time.localeCompare(b.commence_time)||a.player.localeCompare(b.player));
     $('result-count').textContent=`${selected.length} matching offers`;
     $('results').innerHTML=selected.slice(0,limit).map(r=>{
       const historyAge=now-Date.parse(data.history_checked_at);
