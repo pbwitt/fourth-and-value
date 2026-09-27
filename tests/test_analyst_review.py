@@ -140,6 +140,27 @@ class ResearchTests(unittest.TestCase):
                            evidence.reporting_priority(row,story('Giants week in review')))
         self.assertEqual(evidence.reporting_priority(row,story('Expert picks odds best bets')),-1)
 
+    def test_compacted_injury_rows_preserve_subject_and_teammates(self):
+        b=board('NFL'); s=source(b)
+        trace=json.loads((ROOT/'reports/nfl-model-diagnostics/2026-09-27-murray.json').read_text())['model_diagnostics']
+        b['candidates']=[dict(b['candidates'][0],candidate_id=str(i),model_diagnostics=deepcopy(trace)) for i in range(4)]
+        excerpt='Injury table excerpt; additional players may be listed in the full report.\n'
+        excerpt+='Giants: Synthetic Player; game status: QUESTIONABLE.\nGiants: Example Receiver; game status: OUT.\n'
+        excerpt+='\n'.join(f'Giants: Other Player {i}; injury: Hamstring; game status: OUT; practice FRI: DNP.' for i in range(15))
+        sources=[dict(s,source_id=str(i),candidate_ids=[str(i//2)],source_kind='official_injury_report',
+                      updated_at=iso(NOW),excerpt=excerpt[:1400]) for i in range(8)]
+        before=deepcopy(sources)
+        request=analyst.review_payload(b,sources,NOW,CONFIG)
+        packet=json.loads(request['input'])
+        self.assertEqual(sources,before)
+        self.assertLessEqual(len(json.dumps(request,ensure_ascii=False).encode()),26000)
+        self.assertEqual({cid for s in packet['sources'] for cid in s['candidate_ids']},{str(i) for i in range(4)})
+        for s in packet['sources']:
+            self.assertIn('Synthetic Player; game status: QUESTIONABLE.',s['excerpt'])
+            self.assertIn('Example Receiver; game status: OUT.',s['excerpt'])
+            self.assertTrue(s['excerpt'].endswith('.'))
+            self.assertEqual(s['updated_at'],iso(NOW))
+
     def test_sport_source_pairing_timestamps_and_schema(self):
         for sport in ('MLB','NFL'):
             b=board(sport); s=source(b)
@@ -161,7 +182,7 @@ class ResearchTests(unittest.TestCase):
         self.assertEqual(p['model'],'gpt-6-astra'); self.assertNotIn('tools',p)
         self.assertIn('NOT current market consensus',p['instructions'])
         self.assertIn('historical game outcomes',p['instructions'])
-        self.assertEqual(analyst.PROMPT_VERSION,'mlb-nfl-context-4')
+        self.assertEqual(analyst.PROMPT_VERSION,'mlb-nfl-context-5')
         self.assertLess(astra.bounds(p,CONFIG),1)
         self.assertIsNone(json.loads(p['input'])['candidates'][0].get('independent_probability'))
 

@@ -49,6 +49,7 @@ def review(board, config, archive=ARCHIVE, clock=lambda: datetime.now(timezone.u
     sources, diagnostics = evidence.collect(board['candidates'], clock)
     asof = clock()
     board['evidence_status'] = diagnostics
+    evidence.attach_context(board, diagnostics)
     board['sources'] = [{k: v for k, v in s.items() if k != 'excerpt'} for s in sources]
     # Collection can take time; never submit a critique of an already invalid candidate.
     if any(exclusion(r, asof, config) for r in board['candidates']):
@@ -59,7 +60,8 @@ def review(board, config, archive=ARCHIVE, clock=lambda: datetime.now(timezone.u
     request_id = digest(request)[:24]
     packet_path = archive/'requests'/f'{request_id}.json'
     immutable(packet_path, dict(board_id=board['board_id'], request_id=request_id,
-                               prepared_at=iso(asof), request=request, source_diagnostics=diagnostics))
+                               prepared_at=iso(asof), request=request, source_diagnostics=diagnostics,
+                               collected_sources=sources))
     remaining = config['weekly_budget_usd'] - astra.recent_spend(ROOT/'artifacts/analyst/budget.json', asof)
     result = astra.reserve(budget, key, asof, amount, remaining)
     if result != 'reserved':

@@ -21,7 +21,7 @@ ARCHIVE = ROOT/'artifacts/analyst'
 PUBLIC = ROOT/'docs/briefing/reviews.json'
 CONFIG = ROOT/'config/analyst_review.json'
 ET = ZoneInfo('America/New_York')
-PROMPT_VERSION = 'mlb-nfl-context-4'
+PROMPT_VERSION = 'mlb-nfl-context-5'
 SCHEMA = deepcopy(astra.SCHEMA)
 DETAILS = SCHEMA['properties']['reviews']['items']['properties']['evidence']['items']['properties']
 DETAILS['kind']['enum'] = ['deployment', 'injury', 'tactical', 'pitcher', 'weather', 'other']
@@ -60,8 +60,10 @@ Explain which assumptions would have to hold for the actual price to offer value
 for or against them. A verified partial appearance is not evidence of a normal starter's workload.
 Do not ask to confirm a starting role already established by dated relevant reporting; distinguish
 planned role from final active status. Model shortcomings can warrant a pass without adverse news.
-Lead model_case with the largest demonstrated cause; lead price_case with main versus alternate
-line and required break-even. Keep uncertainty specific. Do not treat multiple transformations of
+Lead model_case with the practical opportunity case and strongest weakness: recent volume versus
+the offered line, then whether an adjustment is doing too much work. Explain the mechanism, not
+a checklist to re-prove the model probability. Lead price_case with main versus alternate line
+and required break-even. Keep uncertainty specific. Do not treat multiple transformations of
 the same price/model as independent confirming signals.
 '''
 
@@ -127,6 +129,11 @@ def review_payload(board, sources, asof, config):
         prompt_version=PROMPT_VERSION, extra_fields=('sport', 'probability_basis', 'market_reference',
             'model_limitations', 'home_pitcher', 'away_pitcher', 'model_diagnostics'))
     packet = json.loads(request['input'])
+    limitations = [r.get('model_diagnostics', {}).get('projection', {}).get('limitations') for r in packet['candidates']]
+    if limitations and all(v == limitations[0] and v for v in limitations):
+        packet['shared_projection_limitations'] = limitations[0]
+        for r in packet['candidates']:
+            r['model_diagnostics']['projection'].pop('limitations')
     for r in packet['candidates']:
         d = r.get('model_diagnostics')
         if not d:
@@ -137,6 +144,14 @@ def review_payload(board, sources, asof, config):
                 c.pop(field, None)
         if d.get('projection'):
             d['projection'].pop('version', None)
+        context = r.get('review_context', {})
+        for field, top in [('model','final_probability'), ('market','market_probability'), ('push','push_probability')]:
+            if context.get(field) == r.get(top):
+                context.pop(field, None)
+        for field in ('validation','calibration','calibration_sample_size','missing_model_detail','probability_basis'):
+            context.pop(field, None)  # Same method/unknown sample details in instructions and diagnostics.
+        if r.get('lineup_assumption') == 'Active status and role require current reporting':
+            r.pop('lineup_assumption')  # Avoid turning a generic placeholder into a material blocker.
         # The timestamps and full book keys remain in the board. Every quote
         # below was tested against the same five-minute pairing window.
         d['quote_window_seconds'] = 300
@@ -147,6 +162,9 @@ def review_payload(board, sources, asof, config):
         for q in [d.get('offered_book_central_quote'), *d.get('offered_book_nearby_quotes', [])]:
             if q:
                 q.pop('bookmaker', None)  # Offered book is explicit on the row.
+        d['offered_book_nearby_quotes'] = [q for q in d.get('offered_book_nearby_quotes', []) if q != d.get('offered_book_central_quote')]
+        if d.get('raw_distribution_stress'):
+            d['raw_distribution_stress']['basis'] = 'Uncalibrated Normal; median as hypothetical mean, not a forecast.'
         # Shared method limitations already appear in instructions and trace.
         r.pop('model_limitations', None)
         r.pop('invalidation_conditions', None)  # Identical global checks in instructions.
@@ -158,7 +176,16 @@ def review_payload(board, sources, asof, config):
         if size() <= cap:
             break
         for s in packet['sources']:
-            s['excerpt'] = s['excerpt'][:length]
+            if s.get('source_kind') in ('live_injury_table', 'official_injury_report'):
+                # Keep complete rows, the coverage caveat and candidate-first ordering.
+                lines = s['excerpt'].splitlines()
+                kept = lines[:1]
+                for line in lines[1:]:
+                    if len('\n'.join(kept+[line])) <= max(length, 700):
+                        kept.append(line)
+                s['excerpt'] = '\n'.join(kept)
+            else:
+                s['excerpt'] = s['excerpt'][:length]
     if size() > cap:
         covered, retained = set(), []
         for s in packet['sources']:
@@ -193,6 +220,7 @@ def review(board, feeds, config, archive, clock, *, assessment_update=False):
     asof = clock()
     board['sources'] = [{k: v for k, v in s.items() if k != 'excerpt'} for s in sources]
     board['evidence_status'] = diagnostics
+    evidence.attach_context(board, diagnostics)
     current = {r['review_key'] for r in selected(feeds, asof)['selected']}
     if any(r['review_key'] not in current for r in board['candidates']):
         board['review_status'] = 'expired_during_research'

@@ -88,6 +88,9 @@ const server=http.createServer((req,res)=>{
     const decisionDate=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
     let board={schema_version:1,board_id:'board1',decision_date:decisionDate,generated_at:now.toISOString(),session:'morning',source_snapshot_id:'snapshot1',status:'ready',review_status:'completed',eligible_count:1,candidates:[candidate],
       sources:[{source_id:'s1',title:'Synthetic source fixture',url:'https://www.nhl.com/news/',published_at:now.toISOString(),retrieved_at:now.toISOString()}]};
+    board.sources.push({source_id:'injury1',source_kind:'live_injury_table',candidate_ids:['candidate1'],
+      url:'https://www.cbssports.com/nhl/injuries/',title:'Synthetic NHL injury listing',published_at:null,retrieved_at:now.toISOString(),
+      injury_rows:[{player:'Example Goalie',team:'Washington Capitals',position:'G',injury:'Lower body',status:'Day-to-day',reported_update:'Sat, Sep 26'}]});
     await p.route('**/nhl/data/candidates.json',r=>r.fulfill({json:board}));
     p.on('pageerror',e=>errors.push(e.message));
     for(const width of [390,1440]){
@@ -95,6 +98,9 @@ const server=http.createServer((req,res)=>{
       assert((await p.locator('[data-candidate]').textContent()).includes('60.0%'));
       assert((await p.locator('[data-candidate]').textContent()).includes('Our assessment'));
       assert((await p.locator('[data-candidate]').textContent()).includes('Model case:'));
+      await p.locator('.pick-injuries summary').click();
+      assert.match(await p.locator('.pick-injuries').textContent(),/Example Goalie/);
+      assert.match(await p.locator('.pick-injuries').textContent(),/Publication time unknown/);
       assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'Candidate mobile/desktop overflow');
       await p.screenshot({path:`/tmp/fv-nhl-candidates-${width}.png`,fullPage:true});
     }
