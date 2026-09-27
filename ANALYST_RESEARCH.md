@@ -129,6 +129,15 @@ sports; unused capacity does not roll over. Existing odds-feed and independent
 article-writer costs are outside it. The legacy NHL paid entry point now only
 marks the shared queue; it cannot spend a second allowance.
 
+Owner-authorized release testing on **September 27, 2026 only** uses a **$10
+shared ceiling**, configured by `test_budget_override` with an exact Eastern date
+and authorization reason. It includes every charge already recorded that day;
+it does not reset or create another ledger. Both discovery and review use the
+same override, and each reservation records the effective limit and reason.
+The exception expires automatically at Eastern midnight; September 28 resumes
+$2.75 without a deployment or manual reset. Increasing `daily_budget_usd` alone
+cannot bypass the normal cap. This is a testing allowance, not a spending target.
+
 Use gpt-6-astra, default tier, low reasoning. Reviews have no tools, at most
 26,000 serialized request bytes and 4,200 output tokens. Discovery uses an
 isolated web-search request with one built-in tool call, no response history,

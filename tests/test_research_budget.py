@@ -59,6 +59,32 @@ class BudgetTests(unittest.TestCase):
 if __name__=='__main__':unittest.main()
 
 class ReservePolicyTests(unittest.TestCase):
+    def test_authorized_test_day_expires_at_eastern_midnight(self):
+        cfg={'daily_budget_usd':2.75,'test_budget_override':{
+            'date':'2026-09-27','limit_usd':10,'reason':'Owner-approved release test'}}
+        last=datetime(2026,9,28,3,59,tzinfo=timezone.utc)
+        tomorrow=last+timedelta(minutes=1)
+        with tempfile.TemporaryDirectory() as td:
+            p=Path(td)/'daily.json'
+            budget.reserve('existing',NOW,2,path=p,legacy=())
+            self.assertEqual(budget.reserve('test',last,7,path=p,legacy=(),cap=10,config=cfg),'reserved')
+            self.assertEqual(budget.reserve('too-much',last,2,path=p,legacy=(),cap=10,config=cfg),'budget_exhausted')
+            self.assertEqual(budget.usage_summary(last,path=p,legacy=(),config=cfg)['remaining_usd'],1)
+            self.assertEqual(budget.read(p,())['entries'][-1]['limit_reason'],'Owner-approved release test')
+            self.assertEqual(budget.daily_limit(tomorrow,cfg),2.75)
+            with self.assertRaises(ValueError):
+                budget.reserve('expired',tomorrow,3,path=p,legacy=(),cap=10,config=cfg)
+            self.assertEqual(budget.reserve('normal',tomorrow,2.75,path=p,legacy=(),config=cfg),'reserved')
+            self.assertEqual(budget.usage_summary(tomorrow,path=p,legacy=(),config=cfg)['remaining_usd'],0)
+
+    def test_override_requires_explicit_dated_valid_configuration(self):
+        self.assertEqual(budget.daily_limit(NOW,{'daily_budget_usd':10}),2.75)
+        for amount in (None,True,-1,0,float('nan'),float('inf')):
+            with self.assertRaises(ValueError):
+                budget.daily_limit(NOW,{'test_budget_override':{'date':'2026-09-27','limit_usd':amount,'reason':'Test'}})
+        with self.assertRaises(ValueError):
+            budget.daily_limit(NOW,{'test_budget_override':{'date':'2026-09-27','limit_usd':10}})
+
     def test_later_allowance_is_part_of_same_day(self):
         cfg={'daily_budget_usd':2.75,'later_reserve_usd':.75}
         self.assertEqual(budget.run_cap(NOW,cfg),2)

@@ -15,6 +15,8 @@ from nhl.v2.data import ROOT, iso, write_json
 
 NOW = datetime(2026, 9, 27, 14, tzinfo=timezone.utc)
 CONFIG = json.loads(analyst.CONFIG.read_text())
+# Baseline fixtures must not inherit a live, date-specific operator exception.
+CONFIG.pop('test_budget_override', None)
 
 
 def feeds():
@@ -274,6 +276,20 @@ class ResearchTests(unittest.TestCase):
                     entry=[e for e in json.loads((archive/'daily-budget.json').read_text())['entries'] if not e.get('legacy')][0]
                     self.assertEqual(entry['status'],'uncertain_reservation_retained')
                     self.assertEqual(entry['charge_usd'],entry['reserved_usd'])
+
+    def test_authorized_test_allowance_reaches_review_without_erasing_spend(self):
+        b=board()
+        cfg=dict(CONFIG,test_budget_override=dict(date='2026-09-27',limit_usd=10,reason='Owner test'))
+        with tempfile.TemporaryDirectory() as td, patch.dict('os.environ',{'OPENAI_API_KEY':'synthetic'}), \
+             patch.object(evidence,'collect',return_value=([source(b)],{})), \
+             patch.object(astra,'checkpoint'), patch.object(astra,'call_api',return_value=response(b)) as call:
+            archive=Path(td)
+            write_json(archive/'daily-budget.json',dict(version=2,entries=[dict(key='spent',at=iso(NOW),day='2026-09-27',charge_usd=2.75)]))
+            self.assertEqual(analyst.review(b,feeds(),cfg,archive,lambda:NOW)['review_status'],'completed')
+            call.assert_called_once()
+            entries=json.loads((archive/'daily-budget.json').read_text())['entries']
+            self.assertEqual(entries[0]['charge_usd'],2.75)
+            self.assertEqual(entries[-1]['daily_limit_usd'],10)
 
     def test_preserve_same_day_context_without_relabelling_a_changed_offer(self):
         with tempfile.TemporaryDirectory() as td:

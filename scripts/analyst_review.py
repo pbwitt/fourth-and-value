@@ -252,7 +252,7 @@ def review(board, feeds, config, archive, clock, *, assessment_update=False):
     packet = archive/'requests'/f'{request_id}.json'
     immutable(packet, dict(board_id=board['board_id'], request_id=request_id,
         prepared_at=iso(asof), request=request, diagnostics=diagnostics, collected_sources=sources))
-    status = daily_budget.reserve(key, asof, amount, path=budget, cap=daily_budget.run_cap(asof,config))
+    status = daily_budget.reserve(key, asof, amount, path=budget, cap=daily_budget.run_cap(asof,config), config=config)
     if status != 'reserved':
         board['review_status'] = status
         return board
@@ -426,7 +426,7 @@ def prepare(feeds, now, config, *, run_review=False, archive=ARCHIVE, public=PUB
             board['candidates'] = reviewed + [r for r in board['candidates'] if r['review_bet_key'] not in {q['review_bet_key'] for q in reviewed}]
             board['sources'] = list({s['source_id']: s for s in old.get('sources', [])+board['sources']}.values())
         output['sports'][sport] = board
-    output['budget']=daily_budget.usage_summary(now,path=archive/'daily-budget.json')
+    output['budget']=daily_budget.usage_summary(now,path=archive/'daily-budget.json',config=config)
     output['discovery_status']=(feeds.get('Discovery') or {}).get('status','not_requested')
     output['selection_audit']={'excluded':selection.get('excluded',[]),'coverage':selection['coverage']}
     if public == PUBLIC and feeds.get('NHLBoard') and 'NHL' in output['sports']:

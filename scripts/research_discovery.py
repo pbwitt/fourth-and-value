@@ -171,7 +171,7 @@ def run(feeds, now, config, *, archive, clock, public=PUBLIC, execute=False, que
             # individual price ticks do not. Rotating batches cover large slates.
             pending=[g for g in games if [g['sport'],g['game_id']] not in result['submitted_games']]
             if not pending: pending=games
-            available=budget.usage_summary(now,path=archive/'daily-budget.json')
+            available=budget.usage_summary(now,path=archive/'daily-budget.json',config=config)
             allowance=budget.run_cap(now,config)-available['charged_or_reserved_usd']
             group=[]
             for g in pending:
@@ -192,7 +192,7 @@ def run(feeds, now, config, *, archive, clock, public=PUBLIC, execute=False, que
             key='discovery:'+budget.day(now)+':'+('morning' if now.astimezone(budget.ET).hour<12 else 'later')+':'+digest([group,list(questions)])[:16]
             packet=archive/'requests'/f'{request_id}.json'
             immutable(packet,dict(stage='independent_discovery',prepared_at=iso(now),request=request))
-            status=budget.reserve(key,now,bounds(request),path=archive/'daily-budget.json',cap=budget.run_cap(now,config))
+            status=budget.reserve(key,now,bounds(request),path=archive/'daily-budget.json',cap=budget.run_cap(now,config),config=config)
             result['status']=status
             if status=='reserved':
                 astra.checkpoint([archive/'daily-budget.json',packet])
@@ -209,7 +209,7 @@ def run(feeds, now, config, *, archive, clock, public=PUBLIC, execute=False, que
                 finally:
                     budget.settle(key,response.get('usage') if response else None,path=archive/'daily-budget.json',search_calls=1)
     result['candidates']=resolve(result['directions'],offers,iso(now))
-    result['budget']=budget.usage_summary(now,path=archive/'daily-budget.json')
+    result['budget']=budget.usage_summary(now,path=archive/'daily-budget.json',config=config)
     immutable(archive/'discovery'/f'{digest(result)[:24]}.json',result)
     write_json(public,result)
     return result
