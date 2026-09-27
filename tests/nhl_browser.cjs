@@ -110,7 +110,7 @@ const server=http.createServer((req,res)=>{
     assert((await p.locator('#research-status').textContent()).includes('unavailable'));
     fixture.status='feed_error';await p.reload();await p.waitForFunction(()=>document.getElementById('candidate-summary').textContent.includes('research candidates'));assert.equal(await p.locator('[data-candidate]').count(),0);
     fixture.status='ready';board.source_snapshot_id='different';await p.reload();await p.waitForFunction(()=>document.getElementById('feed-status').textContent.includes('snapshot changed'));assert.equal(await p.locator('[data-candidate]').count(),0);
-    board.source_snapshot_id='snapshot1';board.candidates=[];board.status='no_candidates';board.review_status='no_candidates';await p.reload();await p.waitForFunction(()=>document.getElementById('research-status').textContent.includes('no Astra request'));assert.equal(await p.locator('[data-candidate]').count(),0);
+    board.source_snapshot_id='snapshot1';board.candidates=[];board.status='no_candidates';board.review_status='no_candidates';await p.reload();await p.waitForFunction(()=>document.getElementById('research-status').textContent.includes('no analysis was requested'));assert.equal(await p.locator('[data-candidate]').count(),0);
     assert.deepEqual(errors,[]);console.log('PASS: NHL routes at five widths; forecasts, price-only Market Watch, analyst shortlist, evidence, download, expired/missing/failure and empty states.');
   }finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);server.close();process.exitCode=1;});
