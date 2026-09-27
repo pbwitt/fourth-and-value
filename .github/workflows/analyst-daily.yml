@@ -13,6 +13,9 @@ on:
         default: false
   workflow_call:
     inputs:
+      refresh_results:
+        type: string
+        default: '{}'
       test_edition:
         type: boolean
         default: false
@@ -33,7 +36,7 @@ jobs:
   review:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -49,16 +52,19 @@ jobs:
         run: |
           node tests/briefing_picks.cjs
           python -m unittest discover -s tests -p 'test_analyst_review.py'
-          python -m unittest discover -s tests -p 'test_morning_card.py'
+          python -m unittest discover -s tests -p 'test_morning*.py'
           python -m unittest discover -s tests -p 'test_research*.py'
           python -m unittest discover -s tests -p 'test_nhl_injuries.py'
       - name: Discover opportunities and research the current candidate pool
+        id: research
+        continue-on-error: true
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           TEST_EDITION: ${{ inputs.test_edition || false }}
           REPLACE_CARD: ${{ inputs.replace_card || false }}
+          REFRESH_RESULTS: ${{ inputs.refresh_results || '{}' }}
         run: |
-          args=(--astra --publish-card)
+          args=(--astra --publish-card --refresh-results "$REFRESH_RESULTS")
           if [ "$TEST_EDITION" = 'true' ]; then args+=(--test-edition); fi
           if [ "$REPLACE_CARD" = 'true' ]; then args+=(--replace-card); fi
           python scripts/analyst_review.py "${args[@]}"
@@ -87,7 +93,26 @@ jobs:
             sleep 5
           done
           exit 1
-      - name: Rebuild public site
+      - name: Rebuild public site only if this edition is not already live
+        if: steps.research.outputs.edition_id != ''
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh api --method POST "repos/$GITHUB_REPOSITORY/pages/builds" --jq .status
+          EXPECTED_EDITION: ${{ steps.research.outputs.edition_id }}
+        run: |
+          if python scripts/morning_operations.py --verify-live "$EXPECTED_EDITION" --attempts 1; then exit 0; fi
+          gh api --method POST "repos/$GITHUB_REPOSITORY/pages/builds" --jq .status
+      - name: Verify this exact edition is live
+        if: steps.research.outputs.edition_id != ''
+        env:
+          EXPECTED_EDITION: ${{ steps.research.outputs.edition_id }}
+        run: python scripts/morning_operations.py --verify-live "$EXPECTED_EDITION"
+      - name: Fail incomplete or unverified research runs
+        if: always() && !cancelled()
+        env:
+          RESEARCH_OUTCOME: ${{ steps.research.outcome }}
+          EXPECTED_EDITION: ${{ steps.research.outputs.edition_id }}
+        run: |
+          if [ "$RESEARCH_OUTCOME" != 'success' ] || [ -z "$EXPECTED_EDITION" ]; then
+            echo '::error::Morning research did not complete. See the archived diagnostics; recovery starts may retry within the same daily budget.'
+            exit 1
+          fi

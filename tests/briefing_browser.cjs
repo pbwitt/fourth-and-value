@@ -189,6 +189,19 @@ const server=http.createServer((req,res)=>{
     assert.match(await page.locator('#daily-picks-rows').textContent(),/No published morning picks/);
     assert.equal(await page.locator('#top-picks-analysis, #picks-analysis-text').count(),0);
     await page.screenshot({path:'/tmp/fv-briefing-empty.png',fullPage:true});
+    // An operational failure must never look like a completed no-pick day.
+    for(const status of ['research_incomplete','no_reviewed_candidates']) {
+      feeds={Card:{schema_version:1,kind:'morning',decision_date:'2026-09-27',published_at:new Date(now).toISOString(),rows:[],status,
+        research:{issues:['NFL: no completed assessments (api_key_unavailable)']}}};
+      for(const width of [320,390,1440]) {
+        await page.setViewportSize({width,height:1000});await page.reload();
+        await page.waitForFunction(()=>!document.getElementById('picks-status').textContent.includes('Loading'));
+        assert.match(await page.locator('#picks-status').textContent(),status==='research_incomplete'?/Research incomplete/:/Research completed; no qualifying picks/);
+        assert.match(await page.locator('#daily-picks-rows').textContent(),status==='research_incomplete'?/not a completed no-pick day/:/Research completed; no reviewed offers/);
+        assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+        await page.screenshot({path:`/tmp/fv-morning-${status}-${width}.png`,fullPage:true});
+      }
+    }
     feeds=fixture(now);
     const original=collect(feeds,now).selected.find(r=>r.sport==='MLB');
     const reviewed={...original,review_key:reviewKey(original),review_bet_key:reviewBetKey(original),offer_id:'o',forecast_id:'f',qualitative_review:{

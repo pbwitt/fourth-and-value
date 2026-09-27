@@ -8,7 +8,7 @@ const browser=await chromium.launch({headless:true,...(process.env.CHROME_PATH?{
 try{const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
 for(const width of [390,1440]){await page.setViewportSize({width,height:1000});await page.goto(base+'/research/daily-process.html');
 assert.match(await page.locator('h1').textContent(),/daily picks/);assert.match(await page.locator('main').textContent(),/\$2.75/);
-assert.match(await page.locator('main').textContent(),/7:00 a.m./);assert.match(await page.locator('main').textContent(),/4:30 p.m./);
+assert.match(await page.locator('main').textContent(),/7:05 a.m./);assert.match(await page.locator('main').textContent(),/4:30 p.m./);
 assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
 await page.screenshot({path:`/tmp/fv-daily-process-${width}.png`});}
 const now=Date.parse('2026-09-27T12:00:00Z');await page.clock.install({time:now});let feeds=fixture(now);

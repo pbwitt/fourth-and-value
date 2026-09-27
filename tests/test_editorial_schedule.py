@@ -146,7 +146,7 @@ class EditorialScheduleTests(unittest.TestCase):
         self.assertIn('scheduled_recovery=true',watchdog)
         self.assertNotIn('refresh_briefing=true',watchdog)
         morning=(sched.ROOT/'.github/workflows/morning-picks.yml').read_text()
-        self.assertIn('needs: [nfl, mlb, nhl]',morning)
+        self.assertIn('needs: [gate, nfl, mlb, nhl]',morning)
         self.assertIn('uses: ./.github/workflows/analyst-daily.yml',morning)
         self.assertIn('  workflow_call:',(sched.ROOT/'.github/workflows/analyst-daily.yml').read_text())
 

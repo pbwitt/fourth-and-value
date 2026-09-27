@@ -117,13 +117,17 @@ in an archived table was read. Search coverage counts games submitted, not games
 exhaustively researched. Missing, blocked, stale and mismatched sources remain
 explicit. Positive/adverse source statuses require verified excerpts. Numeric
 confidence, unsupported fields and fabricated excerpts are rejected locally.
-Interpretations still require human review. Missing news alone is not a veto.
+All bets should be reviewed before deciding. Missing news alone is not a veto.
 
 ## Schedule, budget and failures
 
-`Morning Picks Edition` starts at **07:00 America/New_York** every day. It calls
-NFL, MLB and NHL reusable workflows, waits for all three, then calls research.
-A failed sport is reported unavailable; healthy fresh boards may still qualify.
+`Morning Picks Edition` is scheduled for **07:05 America/New_York**, with recovery
+starts at **07:35, 08:05 and 08:35**. A gate reads current main before any sport
+pull: a completed same-day edition skips all three feeds and paid research, then
+verifies delivery. A missing or incomplete edition calls NFL, MLB and NHL reusable
+workflows, waits for all three, then calls research.
+Parent job results travel with the card. A failed sport or expired feed marks
+the run incomplete; completed assessments from healthy boards remain visible.
 NHL/MLB standalone schedules are **16:30 Eastern**. Existing NFL game-day updates
 remain. Neither later updates nor editorial publication trigger paid research.
 There is no hourly MLB refresh. The article watchdog uses scheduled recovery
@@ -148,11 +152,33 @@ are explicitly labeled previous. The separate research pool still expires rows.
 A temporary card-fetch failure retains the last dated card in an open browser.
 
 `--publish-card` skips before any paid call if this Eastern date already has an
-edition (including a valid empty edition). `--replace-card` is an explicit
+completed edition (including a valid empty edition). Incomplete editions do not
+block recovery. Missing/malformed/future-dated editions cannot suppress a run. `--replace-card` is an explicit
 operator override; archives and spending remain intact. `--test-edition` permits
 an outside-window run and labels it Test edition. Both flags are workflow inputs.
-The scheduled parent defaults both to false. A blank card is allowed when no
-completed consider review qualifies; wait/pass/unreviewed entries never fill it.
+The scheduled parent defaults both to false. A blank card is allowed after
+completed research finds no qualifying offers; wait/pass/unreviewed entries never
+fill it. Each card stores per-sport candidate/reviewed/pending counts, batch and
+refresh statuses, plus publication-time availability. `research_incomplete` is
+separate from `no_reviewed_candidates`. Missing credentials, rejected responses,
+failed discovery, refresh failures and expired research are not a normal no-pick
+day. The workflow publishes available diagnostics, then exits nonzero. A run that
+arrives outside 07:00–12:00 without a completed edition also fails before pulling
+feeds or spending. Normal bounded coverage (some completed reviews plus the
+batch/budget limit) stays explicit and does not imply every candidate was assessed.
+
+Publication uses the same frozen feed/discovery snapshot that was researched;
+budget-checkpoint rebases cannot swap in newer offers. Freshness is still checked
+at publication. The final workflow polls the public card for the exact edition ID,
+date, kind and status, using unique query strings and no-cache requests. It tries
+24 times, 20 seconds apart, with a 15-second request timeout, and fails if delivery
+cannot be proven. The next recovery start verifies/rebuilds a completed edition
+without paid research. Browser/CDN caches can still delay visibility for readers.
+
+All four recovery starts depend on GitHub Actions. They reduce scheduler risk but
+cannot recover if GitHub drops all of them; no independent scheduling service is
+configured. GitHub documents both timezone support and delayed/dropped cron events:
+https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule
 
 Owner-authorized release testing on **September 27, 2026 only** uses a **$20
 shared ceiling**, configured by `test_budget_override` with an exact Eastern date
@@ -222,11 +248,12 @@ gh workflow run morning-picks.yml --ref main -f test_edition=true -f replace_car
 
 Inspect all three feed jobs, the research result, charged/reserved usage, the
 card's edition/date/coverage, original timestamps and live desktop/mobile table.
-A rerun with default inputs must not replace a same-day edition or spend again.
-A normal scheduled run starts at 7 a.m.; its publication time depends on feeds
-and research. Alerts remain GitHub Actions failures; zero selections are a valid
-result, distinct from a failed workflow. The research pool shows feed coverage.
-Run `python -m unittest discover -s tests -p 'test_morning_card.py'` for archival
+A rerun with default inputs must not replace a completed same-day edition or spend
+again. Scheduled starts are 7:05, 7:35, 8:05 and 8:35 a.m.; publication depends on
+feeds and research. Incomplete editions recover within the same daily ledger.
+Alerts remain GitHub Actions failures; a completed no-pick day stays distinct
+from incomplete research. No external alert subscription or recipient was added. The research pool shows feed coverage.
+Run `python -m unittest discover -s tests -p 'test_morning*.py'` for archival
 and idempotency tests. Browser tests check missing feeds, expired quotes and
 retention through later updates. No tests call paid research APIs.
 
