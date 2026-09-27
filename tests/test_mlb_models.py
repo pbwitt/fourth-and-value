@@ -94,7 +94,7 @@ class ModelTests(unittest.TestCase):
         report={'regular':{'pitcher_strikeouts':{'passed':True}}}
         self.assertIsNone(pick_reason(row,report,NOW))
         self.assertIsNotNone(pick_reason(row,{},NOW))
-        for change in [dict(line=20.5),dict(paired_books=1),dict(fair_probability=None),dict(best_price=False),dict(model_ev_pct=31),dict(model_edge_pp=2),dict(quoted_at=(NOW-timedelta(hours=2)).isoformat())]:
+        for change in [dict(line=20.5),dict(paired_books=1),dict(fair_probability=None),dict(best_price=False),dict(model_ev_pct=31),dict(model_ev_pct=2),dict(quoted_at=(NOW-timedelta(hours=2)).isoformat())]:
             self.assertIsNotNone(pick_reason({**row,**change},report,NOW))
         self.assertIsNotNone(pick_reason({**row,'game_type':'W'},report,NOW))
 

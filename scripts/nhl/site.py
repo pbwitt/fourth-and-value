@@ -44,7 +44,7 @@ def build(state):
 <p class="muted" id="history-status"></p><p class="muted" id="model-status"></p>{intro}<footer>Fourth &amp; Value · <a href="{rel}/terms.html">Terms &amp; privacy</a> · <a href="{rel}/videos/">Videos</a></footer></main><script src="{rel}/assets/nhl.js?v=3" defer></script></body></html>'''
         path.parent.mkdir(parents=True, exist_ok=True)
         if page == 'candidates':
-            body = body.replace('assets/nhl.js?v=3', 'assets/nhl-candidates.js?v=5')
+            body = body.replace('assets/nhl.js?v=3', 'assets/nhl-candidates.js?v=6')
             body = body.replace('<script src="../assets/nhl-candidates', '<script src="../assets/injury-context.js?v=1" defer></script><script src="../assets/nhl-candidates')
             body = body.replace('</head>', f'<link rel="stylesheet" href="{rel}/assets/nhl-candidates.css"></head>')
         path.write_text(body)

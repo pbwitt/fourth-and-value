@@ -123,7 +123,8 @@ def plan(root=ROOT,now=None,event_name=None,event_schedule=None,manual_refresh=F
     board_age=age_hours(board_at,now)
     board_today=same_et_day(board_at,now)
     board_fresh=bool(board.get("status")=="ready" and board_today and board_age is not None and board_age<1.25)
-    refresh_mlb=manual or bool(writer_eligible and retry_mlb and not board_fresh)
+    morning_models=event_name=="schedule" and 5<=local.hour<10
+    refresh_mlb=manual or bool(((writer_eligible and retry_mlb) or morning_models) and not board_fresh)
 
     nfl=load(Path(root)/'docs/nfl/data/latest.json',{})
     nfl_at=nfl.get('model_checked_at')

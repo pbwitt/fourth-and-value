@@ -95,7 +95,7 @@ class ScreeningTests(unittest.TestCase):
     def test_eastern_sessions_and_dst(self):
         self.assertEqual(analyst.session_at(NOW, CONFIG), 'morning')
         self.assertEqual(analyst.session_at(NOW+timedelta(hours=3), CONFIG), 'later')
-        self.assertIsNone(analyst.session_at(NOW+timedelta(hours=10), CONFIG))
+        self.assertIsNone(analyst.session_at(NOW+timedelta(hours=12), CONFIG))
         self.assertEqual(analyst.session_at(datetime(2026,11,1,15,tzinfo=timezone.utc),CONFIG),'morning')
 
 
@@ -182,7 +182,7 @@ class ResearchTests(unittest.TestCase):
         self.assertEqual(p['model'],'gpt-6-astra'); self.assertNotIn('tools',p)
         self.assertIn('NOT current market consensus',p['instructions'])
         self.assertIn('historical game outcomes',p['instructions'])
-        self.assertEqual(analyst.PROMPT_VERSION,'mlb-nfl-context-5')
+        self.assertEqual(analyst.PROMPT_VERSION,'sports-research-6')
         self.assertLess(astra.bounds(p,CONFIG),1)
         self.assertIsNone(json.loads(p['input'])['candidates'][0].get('independent_probability'))
 
@@ -196,10 +196,10 @@ class ResearchTests(unittest.TestCase):
             self.assertEqual(result['review_status'],'completed')
             for k,v in before.items(): self.assertEqual(result['candidates'][0][k],v)
             checkpoint.assert_called_once(); call.assert_called_once()
-            ledger=json.loads((archive/'budget.json').read_text())
-            self.assertEqual(ledger['entries'][0]['status'],'settled')
+            ledger=json.loads((archive/'daily-budget.json').read_text())
+            self.assertEqual([e for e in ledger['entries'] if not e.get('legacy')][0]['status'],'settled')
             self.assertTrue(list((archive/'responses').glob('*.json')))
-            self.assertEqual(analyst.review(board(),feeds(),CONFIG,archive,lambda:NOW)['review_status'],'already_attempted_this_session')
+            self.assertEqual(analyst.review(board(),feeds(),CONFIG,archive,lambda:NOW)['review_status'],'already_attempted')
             call.assert_called_once()
 
     def test_missing_key_window_and_empty_slate_never_call(self):
@@ -224,9 +224,9 @@ class ResearchTests(unittest.TestCase):
                 result=analyst.review(board(),feeds(),CONFIG,archive,lambda:NOW,assessment_update=revised)
                 self.assertEqual(result['review_status'],'completed')
                 self.assertEqual(result['candidates'][0]['qualitative_review']['assessment']['verdict'],'consider')
-                self.assertEqual(analyst.review(board(),feeds(),CONFIG,archive,lambda:NOW,assessment_update=revised)['review_status'],'already_attempted_this_session')
+                self.assertEqual(analyst.review(board(),feeds(),CONFIG,archive,lambda:NOW,assessment_update=revised)['review_status'],'already_attempted')
             self.assertEqual(call.call_count,2)
-            self.assertEqual(len(json.loads((archive/'budget.json').read_text())['entries']),2)
+            self.assertEqual(len([e for e in json.loads((archive/'daily-budget.json').read_text())['entries'] if not e.get('legacy')]),2)
 
     def test_assessment_consistency_and_no_invented_numeric_confidence(self):
         b=board()
@@ -264,13 +264,14 @@ class ResearchTests(unittest.TestCase):
         for spent,expected in [(5,'budget_exhausted'),(0,'review_unavailable')]:
             b=board()
             with tempfile.TemporaryDirectory() as td, patch.dict('os.environ',{'OPENAI_API_KEY':'synthetic'}), \
-                 patch.object(evidence,'collect',return_value=([source(b)],{})), patch.object(astra,'recent_spend',return_value=spent), \
+                 patch.object(evidence,'collect',return_value=([source(b)],{})), patch.object(analyst.daily_budget,'CAP',2.75), \
                  patch.object(astra,'checkpoint'), patch.object(astra,'call_api',side_effect=RuntimeError('timeout')) as call:
                 archive=Path(td)
+                if spent: write_json(archive/'daily-budget.json',dict(version=2,entries=[dict(key='spent',at=iso(NOW),day='2026-09-27',charge_usd=2.75)]))
                 self.assertEqual(analyst.review(b,feeds(),CONFIG,archive,lambda:NOW)['review_status'],expected)
                 if spent: call.assert_not_called()
                 else:
-                    entry=json.loads((archive/'budget.json').read_text())['entries'][0]
+                    entry=[e for e in json.loads((archive/'daily-budget.json').read_text())['entries'] if not e.get('legacy')][0]
                     self.assertEqual(entry['status'],'uncertain_reservation_retained')
                     self.assertEqual(entry['charge_usd'],entry['reserved_usd'])
 

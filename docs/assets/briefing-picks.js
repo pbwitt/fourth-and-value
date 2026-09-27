@@ -28,7 +28,7 @@
   const completeReview=q=>q&&['research_support','concern','needs_information'].includes(q.status)&&
     typeof q.countercase==='string'&&Array.isArray(q.open_checks)&&q.open_checks.every(x=>typeof x==='string')&&
     Array.isArray(q.evidence)&&q.evidence.every(e=>e&&['source_id','direction','interpretation','represented_in'].every(k=>typeof e[k]==='string'));
-  const safeSourceURL=url=>{try{const u=new URL(url);return u.protocol==='https:'&&!u.username&&!u.password&&["espn.com","cbssports.com","nhl.com","nfl.com","mlb.com","azcardinals.com","atlantafalcons.com","baltimoreravens.com","buffalobills.com","panthers.com","chicagobears.com","bengals.com","clevelandbrowns.com","dallascowboys.com","denverbroncos.com","detroitlions.com","packers.com","houstontexans.com","colts.com","jaguars.com","chiefs.com","raiders.com","chargers.com","therams.com","miamidolphins.com","vikings.com","patriots.com","neworleanssaints.com","giants.com","newyorkjets.com","philadelphiaeagles.com","steelers.com","49ers.com","seahawks.com","buccaneers.com","tennesseetitans.com","commanders.com"].some(h=>u.hostname===h||u.hostname.endsWith('.'+h));}catch{return false;}};
+  const safeSourceURL=url=>{try{const u=new URL(url);return u.protocol==='https:'&&!u.username&&!u.password&&["espn.com","cbssports.com","actionnetwork.com","covers.com","vsin.com","nhl.com","nfl.com","mlb.com","azcardinals.com","atlantafalcons.com","baltimoreravens.com","buffalobills.com","panthers.com","chicagobears.com","bengals.com","clevelandbrowns.com","dallascowboys.com","denverbroncos.com","detroitlions.com","packers.com","houstontexans.com","colts.com","jaguars.com","chiefs.com","raiders.com","chargers.com","therams.com","miamidolphins.com","vikings.com","patriots.com","neworleanssaints.com","giants.com","newyorkjets.com","philadelphiaeagles.com","steelers.com","49ers.com","seahawks.com","buccaneers.com","tennesseetitans.com","commanders.com"].some(h=>u.hostname===h||u.hostname.endsWith('.'+h));}catch{return false;}};
   const hasReview=r=>completeReview(r.qualitative_review)&&(r.sport==='NHL'?
     r.qualitative_review.offer_id===r.offer_id&&r.qualitative_review.forecast_id===r.forecast_id:
     !!r.reviewed_candidate);
@@ -52,6 +52,7 @@
   }
   function modelHTML(r) {
     const c=comparison(r);
+    if(r.model_withheld||c.model===null)return `<strong>Not established</strong><span class="estimate-detail">${r.model_withheld?'Forecast withheld: '+esc(r.model_withheld):'Independent research candidate; no eligible probability model'}</span><span class="meta">Prospective research only</span>`;
     const mean=r.sport==='NFL'?r.mu:r.sport==='MLB'?r.model_mean:r.projected_mean;
     let projection='';
     if(finite(mean)&&r.market!=='h2h') {
@@ -69,7 +70,7 @@
   }
   function screenReason(r) {
     const c=comparison(r);
-    if(c.model===null)return 'This offer passed its sport’s numerical screen; a comparable probability is unavailable.';
+    if(c.model===null||r.model_withheld)return 'Independent research surfaced this offer. A reliable model win probability and numerical edge are not established.';
     const market=c.market===null?'':`, versus ${pct(c.market)} from ${c.books===1?(r.sport==='NFL'?'one paired book':'one other book'):(r.sport==='NFL'?'the market':'other books')}`;
     return `The experimental model estimates a ${pct(c.model)} win chance${market}. The offered ${odds(r.price)} needs ${pct(c.breakEven)} to break even, excluding pushes.`;
   }
@@ -79,7 +80,7 @@
     if(!rows.length)return `${sport}: no current candidates`;
     const board=feed?.sports?.[sport];
     const status=board?.decision_date===day(now)?board.review_status:null;
-    const label={no_usable_reporting:'relevant reporting unavailable',review_unavailable:'analysis unavailable',api_key_unavailable:'analysis unavailable',budget_exhausted:'analysis unavailable',outside_review_window:'review pending'}[status]||'review pending';
+    const label={no_usable_reporting:'relevant reporting unavailable',review_unavailable:'analysis unavailable',api_key_unavailable:'analysis unavailable',budget_exhausted:'daily research budget reached · review queued',outside_review_window:'review pending'}[status]||'review pending';
     return `${sport}: ${label}`;
   }
 
@@ -109,10 +110,10 @@
       const push=r.sport==='MLB'?r.model_push_probability:r.push_probability;
       if(finite(win)&&finite(push)&&push>=0&&push<1&&win>=0&&win+push<=1)probability=win/(1-push);
     }
-    if(!finite(probability)||probability<0||probability>1)probability=null;
+    if(r.model_withheld||!finite(probability)||probability<0||probability>1)probability=null;
     const nhlMarkets={player_goals:'goals',player_assists:'assists',player_points:'points',player_shots_on_goal:'sog',totals:'team_total'};
     return {league:r.sport,game_date:day(r.commence_time),team_home:home,team_away:away,
-      player:r.player||null,market_type:r.sport==='NFL'?r.market_std:r.sport==='NHL'?(nhlMarkets[r.market]||r.market):r.market,
+      player:r.player||null,market_type:r.sport==='NFL'?(r.market_std||r.market):r.sport==='NHL'?(nhlMarkets[r.market]||r.market):r.market,
       side:['over','under'].includes(r.side.toLowerCase())?r.side.toLowerCase():r.side,
       line:r.line,book:r.book,odds:price,stake_dollars:stake,model_prob:probability,
       edge_bps:probability===null?null:(probability-1/decimal(price))*10000};
@@ -126,14 +127,55 @@
     return reviewLabel(q);
   }
 
+  // Diagnostics are bound to the same forecast and exact offer, never a player's
+  // first row or another threshold's raw probability.
+  function forecastHealth(r, context) {
+    if(r.sport!=='NFL')return {eligible:true,tier:1,reasons:[]};
+    const group=context?.generated_at===r.forecast_at?context.groups?.[JSON.stringify([String(r.game_id),r.player,r.market_std])]:null;
+    const offerEntry=Object.entries(group?.offers||{}).find(([key])=>{try{const [book,side,line,price,at]=JSON.parse(key);return book===r.book&&side===r.side&&line===r.line&&price===r.price&&at===r.quoted_at;}catch{return false;}});
+    const raw=offerEntry?.[1]?.raw_probability;
+    const range=group?.calibration?.fitted_raw_range,reasons=[];
+    if(finite(raw)&&Array.isArray(range)&&range.length===2&&(raw<range[0]||raw>range[1]))reasons.push('Calibration input outside fitted range');
+    const projection=group?.projection;
+    if(projection?.current_sample?.some(g=>finite(g.attempts)&&g.attempts<10)&&projection?.career_baselines?.attempts?.mean>=20)
+      reasons.push('Possible partial appearance in passing workload history');
+    if(!finite(raw)&&r.model_prob>=.9)reasons.push('Extreme estimate lacks matching calibration diagnostics');
+    return {eligible:!reasons.length,tier:finite(raw)?1:2,reasons,raw_probability:finite(raw)?raw:null};
+  }
+  const outcomeKey=r=>JSON.stringify([r.sport,String(r.game_id),r.player||'',r.market_std||r.market,String(r.side).toLowerCase(),r.line,r.settlement_profile||'']);
+  const SHORTLIST_LIMIT=10;
+  function ideaKey(r) {
+    return JSON.stringify([r.sport,String(r.game_id),r.player||'',r.market_std||r.market,String(r.side).toLowerCase(),r.settlement_profile||'']);
+  }
+  function shortlist(selected,now=Date.now()) {
+    const seen=new Set(),card=[];
+    const ordered=[...selected].sort((a,b)=>Number(b.human_decision==='select')-Number(a.human_decision==='select'));
+    for(const r of ordered) {
+      const a=hasReview(r)&&r.review_matches_current!==false&&recent(r.qualitative_review.reviewed_at,now,3*HOUR)?assessment(r.qualitative_review):null;
+      if(r.human_decision==='pass'||!(r.human_decision==='select'||a?.verdict==='consider'&&!a.blocking_checks.length))continue;
+      const ideas=[ideaKey(r)];
+      // One hit and one total base are the same binary event at 0.5.
+      // Display consolidation never overwrites either original forecast.
+      if(r.sport==='MLB'&&r.line===.5&&['batter_hits','batter_total_bases'].includes(r.market))
+        ideas.push(ideaKey({...r,market:'batter_any_hit',market_std:'batter_any_hit'}));
+      if(ideas.some(v=>seen.has(v)))continue;ideas.forEach(v=>seen.add(v));
+      card.push(r);if(card.length>=SHORTLIST_LIMIT)break;
+    }
+    return card.map(r=>({...r,card_related_candidates:card.filter(q=>q.sport===r.sport&&q.game_id===r.game_id).length-1}));
+  }
+  function rankTier(r) {
+    const a=hasReview(r)&&r.review_matches_current!==false?assessment(r.qualitative_review):null;
+    return a?.verdict==='pass'?9:a?.verdict==='consider'?0:a?.verdict==='wait'?3:r.discovery_origin==='independent_research'?2:1;
+  }
+
   function collect(feeds,now=Date.now()) {
-    const selected=[],coverage=[];
+    const selected=[],coverage=[],excluded=[];
     for(const sport of ['NFL','MLB','NHL']) {
       const data=feeds[sport],board=feeds.NHLBoard;
       let available=false,candidates=[];
       if(sport==='NFL') {
         available=data?.schema_version===1&&data.status==='ready'&&recent(data.generated_at,now,48*HOUR);
-        if(available)candidates=rows(data).filter(r=>today(r,now)&&recent(r.last_update,now,48*HOUR)&&
+        if(available)candidates=rows(data).filter(r=>today(r,now)&&recent(r.last_update,now,90*MINUTE)&&
           r.model_status?.startsWith('Calibration fitted')&&finite(r.model_prob)&&r.model_prob>0&&r.model_prob<1&&finite(r.edge_bps)&&r.edge_bps>0)
           .map(r=>({...r,book:r.bookmaker,side:r.name,line:r.point,quoted_at:r.last_update,forecast_at:data.generated_at,
             game_id:r.game_id||r.game+'|'+r.commence_time,score:r.edge_bps,
@@ -154,19 +196,58 @@
           finite(r.final_probability)&&r.final_probability>0&&r.final_probability<1&&finite(r.candidate_rank)&&r.candidate_rank>0)
           .map(r=>({...r,game_id:r.nhl_game_id,score:-r.candidate_rank,review:nhlReview(r),url:'/nhl/picks.html'}));
       }
-      // The source boards own model eligibility. This view only limits exposure
-      // and today's review size; it does not compare scores between sports.
-      candidates=candidates.filter(r=>priced(r)&&r.game_id&&(r.line===null||finite(r.line)));
-      candidates.sort((a,b)=>b.score-a.score||decimal(b.price)-decimal(a.price)||stamp(b.quoted_at)-stamp(a.quoted_at)||String(a.book).localeCompare(String(b.book)));
-      const seen=new Set();let count=0;
-      for(const r of candidates) {
-        if(count>=4||seen.has(r.game_id))continue;
-        seen.add(r.game_id);count++;
-        selected.push(sport==='NHL'?{...r,sport,review_sources:records(board.sources)}:attachReview({...r,sport},feeds.Reviews,now));
+      // Independent discovery must resolve to current quotes in a separate feed.
+      // It can add research candidates, but never invent a model probability.
+      const discovered=feeds.Discovery;
+      if(discovered?.schema_version===1&&discovered.decision_date===day(now)&&recent(discovered.generated_at,now,12*HOUR)) {
+        const expiry=(sport==='NHL'?30:90)*MINUTE;
+        candidates.push(...records(discovered.candidates).filter(r=>r.sport===sport&&today(r,now)&&recent(r.quoted_at,now,expiry)));
       }
-      coverage.push({sport,count,available,message:!available?'Current model list unavailable or expired':count?`${count} review candidate${count===1?'':'s'}`:'No qualifying games remaining today'});
+      candidates=candidates.filter(r=>priced(r)&&r.game_id&&(r.line===null||finite(r.line))).map(r=>({...r,sport}));
+      const discoveryByOutcome=new Map(candidates.filter(r=>r.discovery_origin==='independent_research').map(r=>[outcomeKey(r),r.discovery]));
+      for(const r of candidates)if(!r.discovery_origin&&discoveryByOutcome.has(outcomeKey(r))){r.discovery_origin='model_and_independent_research';r.discovery=discoveryByOutcome.get(outcomeKey(r));}
+      const healthy=[];
+      for(const r of candidates) {
+        r.forecast_health=forecastHealth(r,feeds.NFLContext);
+        if(!r.forecast_health.eligible&&r.discovery_origin!=='independent_research') {
+          excluded.push({...r,exclusion_reasons:r.forecast_health.reasons});continue;
+        }
+        // Lower of raw and calibrated EV is a screening sensitivity heuristic,
+        // not a calibrated confidence bound. Do not rank NFL by probability gap.
+        if(sport==='NFL'&&r.discovery_origin!=='independent_research') {
+          if(!probability(r.push_prob)||r.push_prob>=1){excluded.push({...r,exclusion_reasons:['Push probability unavailable or invalid']});continue;}
+          const p=finite(r.forecast_health.raw_probability)?Math.min(r.model_prob,r.forecast_health.raw_probability):r.model_prob;
+          r.screening_ev=(1-r.push_prob)*(p*decimal(r.price)-1);
+          if(r.screening_ev<.03){excluded.push({...r,exclusion_reasons:['Price case below 3% raw-versus-calibrated EV screen']});continue;}
+          if(r.screening_ev>.30){r.forecast_health.tier=3;r.forecast_health.reasons.push('Unusually large return estimate requires research');r.review='Unusually large estimate · research needed';}
+          r.score=100*r.screening_ev;
+        }
+        healthy.push(attachReview(sport==='NHL'?{...r,review_sources:records(board?.sources)}:r,feeds.Reviews,now));
+      }
+      // Best available book for the identical outcome/line. Different bets in
+      // one game remain eligible; exposure is descriptive, never a picks quota.
+      healthy.sort((a,b)=>decimal(b.price)-decimal(a.price)||stamp(b.quoted_at)-stamp(a.quoted_at)||String(a.book).localeCompare(String(b.book)));
+      const seen=new Set(),unique=[];
+      for(const r of healthy) {
+        const identity=outcomeKey(r);if(seen.has(identity))continue;seen.add(identity);unique.push(r);
+      }
+      unique.sort((a,b)=>rankTier(a)-rankTier(b)||(a.forecast_health.tier-b.forecast_health.tier)||
+        (b.score||0)-(a.score||0)||stamp(a.commence_time)-stamp(b.commence_time)||outcomeKey(a).localeCompare(outcomeKey(b)));
+      for(const r of unique) {
+        r.exposure_group=sport+':'+r.game_id;
+        r.related_candidates=unique.filter(q=>q.game_id===r.game_id).length-1;
+        selected.push(r);
+      }
+      const count=unique.length,held=excluded.filter(r=>r.sport===sport).length;
+      coverage.push({sport,count,available,held,observed_markets:[...new Set(rows(data).map(r=>r.market_std||r.market))],
+        message:(!available?'Current model list unavailable or expired. ':'')+(count?`${count} review candidate${count===1?'':'s'}`:'No qualifying offers currently available')+
+          (held?` · ${held} unreliable or sensitivity-failing forecasts withheld`:'')+(sport==='NHL'?' · unposted markets can enter on the next refresh':'')});
     }
-    return {selected,coverage};
+    // A reviewed MLB/NHL opportunity must not disappear below the initial
+    // twenty unreviewed NFL rows. Compare assessment status across sports;
+    // retain each sport's existing numerical order within that status.
+    selected.sort((a,b)=>rankTier(a)-rankTier(b));
+    return {selected,coverage,excluded};
   }
 
   function diagnosticHTML(r) {
@@ -220,7 +301,9 @@
       const countercase=!a&&q.status==='concern'&&!oldNFLReview(r)?` ${esc(q.countercase)}`:'';
       return `<p class="pick-summary-paragraph"><strong class="summary-bet">${esc(betLabel(r).replaceAll(' · ',' '))}</strong><span class="meta summary-game">${esc(r.sport)} · ${esc(r.game)}</span>${esc(screenReason(r))} ${status}${changed}${original}${source}${countercase}${check} <a class="read-pick-review" href="#pick-review-${selected.indexOf(r)}">Read our full analysis</a>.</p>`;
     }).join('');
-    return paragraphs+`<p class="meta">${reviewed.length} of ${selected.length} current candidates reviewed; ${featured.length} summarized here. Full findings and remaining checks appear under each bet. A completed review is not bet approval.</p>`;
+    const currentReviews=reviewed.filter(r=>r.review_matches_current!==false).length;
+    const earlier=reviewed.length-currentReviews;
+    return paragraphs+`<p class="meta">${currentReviews} of ${selected.length} current candidates reviewed${earlier?`; ${earlier} with earlier analysis requiring a recheck`:''}; ${featured.length} summarized here. Full findings and remaining checks appear under each bet. A completed review is not bet approval.</p>`;
   }
 
   function rowHTML(r,index=0,saved=false) {
@@ -229,30 +312,40 @@
     const reason=a?.verdict==='wait'&&r.human_decision!=='select'?`<span class="estimate-detail"><strong>Why:</strong> ${esc(a.reason)}</span>`:'';
     const line=r.line===null?`${r.side} · ${r.market_label}`:`${r.side} ${r.market==='spreads'&&r.line>0?'+':''}${r.line}`;
     const offer=`<strong class="book-offer-line">${esc(line)}</strong><span class="estimate-detail">${esc(odds(r.price))}</span>`;
-    return `<tr><td><a href="${esc(r.url)}"><strong>${esc(betLabel(r))}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${esc(r.review)}${reason}</span></td><td class="pick-estimate">${modelHTML(r)}</td><td class="pick-estimate">${marketHTML(r)}</td><td>${offer}<span class="meta estimate-detail">${pct(comparison(r).breakEven)} break-even*</span></td><td><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td>${esc(r.book_label||r.book)}<br><button type="button" class="track-pick secondary" data-track-pick="${index}" ${saved?'disabled':''} aria-label="${esc((saved?'Tracked: ':'Track bet: ')+betLabel(r))}">${saved?'Tracked':'Track bet'}</button></td></tr>${research?`<tr class="pick-research-row" id="pick-review-${index}"><td colspan="6">${research}</td></tr>`:''}`;
+    const related=r.card_related_candidates??r.related_candidates;
+    const exposure=related?'<br>Shared game: '+related+' other '+(r.card_related_candidates!==undefined?'shortlisted bet(s)':'research candidate(s)'):'';
+    return `<tr><td><a href="${esc(r.url)}"><strong>${esc(betLabel(r))}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${esc(r.review)}${reason}${exposure}${r.discovery_origin?'<br>Origin: '+(r.discovery_origin==='independent_research'?'independent research':'model and independent research'):''}</span></td><td class="pick-estimate">${modelHTML(r)}</td><td class="pick-estimate">${marketHTML(r)}</td><td>${offer}<span class="meta estimate-detail">${pct(comparison(r).breakEven)} break-even*</span></td><td><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td>${esc(r.book_label||r.book)}<br><button type="button" class="track-pick secondary" data-track-pick="${index}" ${saved?'disabled':''} aria-label="${esc((saved?'Tracked: ':'Track bet: ')+betLabel(r))}">${saved?'Tracked':'Track bet'}</button></td></tr>${research?`<tr class="pick-research-row" id="pick-review-${index}"><td colspan="6">${research}</td></tr>`:''}`;
   }
 
   async function mount() {
     const root=document.getElementById('daily-picks');if(!root)return;
-    const urls={NFL:'/props/top-picks.json',MLB:'/mlb/data/latest.json',NHL:'/nhl/data/latest.json',NHLBoard:'/nhl/data/candidates.json',Reviews:'/briefing/reviews.json'};
-    let feeds={},checked=null,loading=false,current=[],draft=null,trackingReady=null,saving=false;
+    const urls={NFL:'/props/top-picks.json',MLB:'/mlb/data/latest.json',NHL:'/nhl/data/latest.json',NHLBoard:'/nhl/data/candidates.json',NFLContext:'/props/model-context.json',Discovery:'/briefing/discovery.json',Reviews:'/briefing/reviews.json'};
+    let feeds={},checked=null,loading=false,current=[],visibleLimit=20,draft=null,trackingReady=null,saving=false;
     const tickets=new Map(),dialog=document.getElementById('pick-tracker'),form=document.getElementById('track-bet-form');
     const $=id=>document.getElementById(id);
     function render() {
       const now=Date.now(),result=collect(feeds,now);
-      current=result.selected;
+      const card=shortlist(result.selected,now),cardKeys=new Set(card.map(key)),pool=result.selected.filter(r=>!cardKeys.has(key(r)));
+      current=[...card,...pool];
       const openReviews=new Set(Array.from(root.querySelectorAll('.pick-research[open]')).map(el=>el.closest('tr').dataset.reviewKey));
-      document.getElementById('daily-picks-rows').innerHTML=current.map((r,i)=>rowHTML(r,i,tickets.get(key(r))?.saved)).join('')||'<tr><td colspan="6">No current bets qualify for today’s review list. See the feed status below; an empty list is a valid result.</td></tr>';
+      document.getElementById('daily-picks-rows').innerHTML=card.map((r,i)=>rowHTML(r,i,tickets.get(key(r))?.saved)).join('')||'<tr><td colspan="6">No reviewed picks are ready. Pending, wait and pass assessments remain in the separate research pool.</td></tr>';
+      const poolRows=$('research-picks-rows');if(poolRows)poolRows.innerHTML=pool.slice(0,visibleLimit).map((r,i)=>rowHTML(r,i+card.length,tickets.get(key(r))?.saved)).join('')||'<tr><td colspan="6">No additional research candidates.</td></tr>';
+      const poolLabel=$('research-pool-label');if(poolLabel)poolLabel.textContent=`Research pool · ${pool.length} additional offers · not the daily card`;
+      const more=$('picks-show-more');if(more){more.hidden=pool.length<=visibleLimit;more.textContent=`Show all ${pool.length} research offers (${Math.min(visibleLimit,pool.length)} shown)`;}
       current.forEach((r,i)=>{const row=$('pick-review-'+i);if(row){row.dataset.reviewKey=key(r);row.querySelector('details').open=openReviews.has(key(r));}});
-      const summary=$('picks-analysis-text');if(summary)summary.innerHTML=summaryHTML(current);
-      document.getElementById('picks-status').textContent=`${result.selected.length} candidates for ${new Date(now).toLocaleDateString('en-US',{timeZone:'America/New_York',month:'long',day:'numeric'})} · ${checked?'Source boards checked '+time(checked):'Checking source boards'}.`;
+      const summary=$('picks-analysis-text');if(summary)summary.innerHTML=card.length?summaryHTML(card):'<p>No completed current assessment qualifies for the daily card yet. We will leave it empty until a case is ready; the separate research pool shows work in progress.</p>';
+      document.getElementById('picks-status').textContent=`${card.length} reviewed picks for ${new Date(now).toLocaleDateString('en-US',{timeZone:'America/New_York',month:'long',day:'numeric'})} · Up to ${SHORTLIST_LIMIT}, with no daily minimum · ${checked?'Source boards checked '+time(checked):'Checking source boards'}.`;
+      const exposure=$('picks-exposure');if(exposure){const games=new Set(card.map(r=>r.exposure_group||r.sport+':'+r.game_id));exposure.textContent=card.length>1&&games.size===1?'All shortlisted offers are from one game and share exposure. They are not independent signals.':'';}
       document.getElementById('picks-coverage').textContent=result.coverage.map(c=>`${c.sport}: ${c.message}`).join(' · ');
+      const budgetStatus=document.getElementById('picks-budget-status'), budget=feeds.Reviews?.budget;
+      if(budgetStatus)budgetStatus.textContent=budget&&budget.day===day(now)?`Today’s research: $${budget.charged_or_reserved_usd.toFixed(2)} charged or reserved of $${budget.limit_usd.toFixed(2)} across sports. Unfinished reviews remain queued.`:'Research is limited to $2.75 per Eastern calendar day across sports; current spending status is pending.';
       const research=document.getElementById('picks-research-status');
-      if(research)research.textContent=['NFL','MLB','NHL'].map(s=>researchStatus(s,feeds.Reviews,current,now)).join(' · ');
+      if(research){const d=feeds.Discovery;const extra=d?.decision_date===day(now)?` · Independent discovery: ${d.status.replaceAll('_',' ')}; ${d.submitted_games?.length||0}/${d.slate_games||0} games submitted (not exhaustive research)`:'';research.textContent=['NFL','MLB','NHL'].map(s=>researchStatus(s,feeds.Reviews,result.selected,now)).join(' · ')+extra;}
       if(draft&&dialog.open&&!saving&&!draft.saved&&!collect(feeds,now).selected.some(r=>key(r)===key(draft.row))) {
         $('track-quote').textContent=`Saved quote: ${odds(draft.row.price)} at ${time(draft.row.quoted_at)}. This offer has expired or changed. Enter the price of the bet you actually placed.`;
       }
     }
+    $('picks-show-more')?.addEventListener('click',()=>{visibleLimit=Infinity;render();});
     root.addEventListener('click',event=>{
       const link=event.target.closest('.read-pick-review');if(!link)return;
       const row=document.getElementById(link.hash.slice(1)),detail=row?.querySelector('details');
@@ -266,7 +359,7 @@
       })().catch(error=>{trackingReady=null;throw error;});
       await trackingReady;
     }
-    $('daily-picks-rows').addEventListener('click',event=>{
+    root.addEventListener('click',event=>{
       const button=event.target.closest('[data-track-pick]');if(!button)return;
       const row=current[Number(button.dataset.trackPick)];if(!row)return;
       const itemKey=key(row);
@@ -276,7 +369,7 @@
       $('track-bet-description').textContent=`${row.sport} · ${row.game} · ${betLabel(row)} · ${row.book_label||row.book}`;
       $('track-quote').textContent=`Saved quote: ${odds(row.price)} at ${time(row.quoted_at)}. Confirm the actual price below.`;
       $('track-review').textContent=`Review status: ${row.review}.`;
-      $('track-grading').textContent=row.sport==='MLB'||(row.sport==='NHL'&&['h2h','spreads'].includes(row.market))?'This market can be logged, but automatic result grading is not connected yet. The bet will be saved as pending.':'';
+      $('track-grading').textContent=row.sport==='MLB'||(row.sport==='NFL'&&['h2h','spreads','totals'].includes(row.market))||(row.sport==='NHL'&&['h2h','spreads'].includes(row.market))?'This market can be logged, but automatic result grading is not connected yet. The bet will be saved as pending.':'';
       $('track-odds').value=row.price;dialog.showModal();$('track-stake').focus();
     });
     $('track-cancel').addEventListener('click',()=>{if(!saving)dialog.close();});
@@ -312,6 +405,6 @@
     await load();setInterval(render,30000);setInterval(load,300000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
   }
-  if(typeof module==='object'&&module.exports)module.exports={collect,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus};
+  if(typeof module==='object'&&module.exports)module.exports={collect,shortlist,ideaKey,SHORTLIST_LIMIT,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus};
   else mount();
 })(typeof window==='undefined'?globalThis:window);

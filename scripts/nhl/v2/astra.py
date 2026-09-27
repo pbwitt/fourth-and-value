@@ -255,7 +255,11 @@ def parse_response(response, board, sources, asof, *, schema=SCHEMA, prompt_vers
         # No probability/EV field can pass the schema. Also reject numeric confidence in prose.
         prose = json.dumps({k: review[k] for k in ('countercase', 'open_checks', 'assessment')})
         prose += ' '.join(e['interpretation'] for e in review['evidence'])
-        if re.search(r'\d\s*%|\b(?:guaranteed|lock|sure bet)\b', prose, re.I):
+        # An explicit caution such as "not guaranteed volume" is not a
+        # certainty claim. Remove only that exact negation; any affirmative
+        # guarantee elsewhere and every numeric percentage still fail closed.
+        certainty_prose = re.sub(r'\bnot guaranteed\b', '', prose, flags=re.I)
+        if re.search(r'\d\s*%', prose) or re.search(r'\b(?:guaranteed|lock|sure bet)\b', certainty_prose, re.I):
             raise ValueError('Unsupported numeric confidence or certainty')
         review.update(reviewed_at=iso(asof), offer_id=row['offer_id'], forecast_id=row['forecast_id'],
                       model=MODEL, prompt_version=prompt_version, evaluation_status='prospective_shadow_only',
