@@ -7,6 +7,10 @@ on:
       - 'scripts/editorial_templates/**'
       - 'scripts/build_props_site.py'
       - 'docs/assets/briefing-picks.js'
+      - 'docs/assets/briefing-tracker.css'
+      - 'docs/tracking/bet-tracking.js'
+      - 'docs/tracking/index.html'
+      - 'tests/tracker_saves.cjs'
       - 'tests/briefing_picks.cjs'
       - 'tests/briefing_browser.cjs'
       - 'tests/test_editorial*.py'
@@ -39,6 +43,7 @@ jobs:
           node-version: '22'
       - run: node tests/editorial_dispatch.cjs
       - run: node tests/briefing_picks.cjs
+      - run: node tests/tracker_saves.cjs
       - run: npm install --no-save --package-lock=false playwright@1.55.1
       - run: npx playwright install --with-deps chromium
       - run: node tests/briefing_browser.cjs

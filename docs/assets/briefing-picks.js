@@ -14,6 +14,31 @@
   const time=s=>new Date(s).toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',second:'2-digit'})+' ET';
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const decimal=p=>p>0?1+p/100:1-100/p;
+  const key=r=>JSON.stringify([r.sport,r.game_id,r.player,r.market_std||r.market,r.side,r.line,r.book,r.quoted_at]);
+  const betLabel=r=>[r.player,r.side,r.line===null?'':r.market==='spreads'&&r.line>0?'+'+r.line:String(r.line),r.market_label].filter(Boolean).join(' · ');
+
+  function ticketData(r,price,stake) {
+    price=Number(price);stake=Number(stake);
+    if(!Number.isInteger(price)||Math.abs(price)<100)throw Error('Enter valid American odds, such as -110 or +150.');
+    if(!Number.isFinite(stake)||stake<=0||Math.abs(stake*100-Math.round(stake*100))>1e-6)throw Error('Enter a positive stake in dollars and cents.');
+    const teams=r.game.split(' @ '),home=r.home_team||teams[1],away=r.away_team||teams[0];
+    if(!home||!away||!r.book)throw Error('This bet is missing its teams or sportsbook. Open Bet Tracker to enter it manually.');
+    // The existing ledger's model_prob is conditional on non-push settlement.
+    // NFL already provides that quantity; MLB/NHL provide an unconditional win.
+    let probability=r.sport==='NFL'?r.model_prob:null;
+    if(r.sport!=='NFL') {
+      const win=r.sport==='MLB'?r.model_probability:r.final_probability;
+      const push=r.sport==='MLB'?r.model_push_probability:r.push_probability;
+      if(finite(win)&&finite(push)&&push>=0&&push<1&&win>=0&&win+push<=1)probability=win/(1-push);
+    }
+    if(!finite(probability)||probability<0||probability>1)probability=null;
+    const nhlMarkets={player_goals:'goals',player_assists:'assists',player_points:'points',player_shots_on_goal:'sog',totals:'team_total'};
+    return {league:r.sport,game_date:day(r.commence_time),team_home:home,team_away:away,
+      player:r.player||null,market_type:r.sport==='NFL'?r.market_std:r.sport==='NHL'?(nhlMarkets[r.market]||r.market):r.market,
+      side:['over','under'].includes(r.side.toLowerCase())?r.side.toLowerCase():r.side,
+      line:r.line,book:r.book,odds:price,stake_dollars:stake,model_prob:probability,
+      edge_bps:probability===null?null:(probability-1/decimal(price))*10000};
+  }
 
   function nhlReview(r) {
     if(r.human_decision==='select')return 'Analyst selected for shadow tracking';
@@ -66,22 +91,67 @@
     return {selected,coverage};
   }
 
-  function rowHTML(r) {
-    const line=r.line===null?'':r.market==='spreads'&&r.line>0?'+'+r.line:String(r.line);
-    const bet=[r.player,r.side,line,r.market_label].filter(Boolean).join(' · ');
-    return `<tr><td><a href="${esc(r.url)}"><strong>${esc(bet)}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${esc(r.review)}</span></td><td>${esc(odds(r.price))}</td><td><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td>${esc(r.book_label||r.book)}</td></tr>`;
+  function rowHTML(r,index=0,saved=false) {
+    return `<tr><td><a href="${esc(r.url)}"><strong>${esc(betLabel(r))}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${esc(r.review)}</span></td><td>${esc(odds(r.price))}</td><td><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td>${esc(r.book_label||r.book)}<br><button type="button" class="track-pick secondary" data-track-pick="${index}" ${saved?'disabled':''} aria-label="${esc((saved?'Tracked: ':'Track bet: ')+betLabel(r))}">${saved?'Tracked':'Track bet'}</button></td></tr>`;
   }
 
   async function mount() {
     const root=document.getElementById('daily-picks');if(!root)return;
     const urls={NFL:'/props/top-picks.json',MLB:'/mlb/data/latest.json',NHL:'/nhl/data/latest.json',NHLBoard:'/nhl/data/candidates.json'};
-    let feeds={},checked=null,loading=false;
+    let feeds={},checked=null,loading=false,current=[],draft=null,trackingReady=null,saving=false;
+    const tickets=new Map(),dialog=document.getElementById('pick-tracker'),form=document.getElementById('track-bet-form');
+    const $=id=>document.getElementById(id);
     function render() {
       const now=Date.now(),result=collect(feeds,now);
-      document.getElementById('daily-picks-rows').innerHTML=result.selected.map(rowHTML).join('')||'<tr><td colspan="4">No current bets qualify for today’s review list. See the feed status below; an empty list is a valid result.</td></tr>';
+      current=result.selected;
+      document.getElementById('daily-picks-rows').innerHTML=current.map((r,i)=>rowHTML(r,i,tickets.get(key(r))?.saved)).join('')||'<tr><td colspan="4">No current bets qualify for today’s review list. See the feed status below; an empty list is a valid result.</td></tr>';
       document.getElementById('picks-status').textContent=`${result.selected.length} candidates for ${new Date(now).toLocaleDateString('en-US',{timeZone:'America/New_York',month:'long',day:'numeric'})} · ${checked?'Source boards checked '+time(checked):'Checking source boards'}.`;
       document.getElementById('picks-coverage').textContent=result.coverage.map(c=>`${c.sport}: ${c.message}`).join(' · ');
+      if(draft&&dialog.open&&!saving&&!draft.saved&&!collect(feeds,now).selected.some(r=>key(r)===key(draft.row))) {
+        $('track-quote').textContent=`Saved quote: ${odds(draft.row.price)} at ${time(draft.row.quoted_at)}. This offer has expired or changed. Enter the price of the bet you actually placed.`;
+      }
     }
+    const script=src=>new Promise((resolve,reject)=>{const el=document.createElement('script');el.src=src;const fail=()=>{clearTimeout(timer);el.remove();reject(Error('Bet Tracker could not load. Please try again.'));};const timer=setTimeout(fail,15000);el.onload=()=>{clearTimeout(timer);resolve();};el.onerror=fail;document.head.append(el);});
+    async function tracker() {
+      if(!trackingReady)trackingReady=(async()=>{
+        if(!window.supabase?.createClient)await script('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2');
+        if(!window.saveTrackedBet)await script('/tracking/bet-tracking.js?v=3');
+      })().catch(error=>{trackingReady=null;throw error;});
+      await trackingReady;
+    }
+    $('daily-picks-rows').addEventListener('click',event=>{
+      const button=event.target.closest('[data-track-pick]');if(!button)return;
+      const row=current[Number(button.dataset.trackPick)];if(!row)return;
+      const itemKey=key(row);
+      if(!collect(feeds,Date.now()).selected.some(r=>key(r)===itemKey)){render();return;}
+      draft=tickets.get(itemKey)||{id:crypto.randomUUID(),row:{...row},saved:false};tickets.set(itemKey,draft);
+      form.reset();$('track-save').disabled=!!draft.saved;$('track-feedback').textContent='';$('track-signin').hidden=true;
+      $('track-bet-description').textContent=`${row.sport} · ${row.game} · ${betLabel(row)} · ${row.book_label||row.book}`;
+      $('track-quote').textContent=`Saved quote: ${odds(row.price)} at ${time(row.quoted_at)}. Confirm the actual price below.`;
+      $('track-review').textContent=`Review status: ${row.review}.`;
+      $('track-grading').textContent=row.sport==='MLB'||(row.sport==='NHL'&&['h2h','spreads'].includes(row.market))?'This market can be logged, but automatic result grading is not connected yet. The bet will be saved as pending.':'';
+      $('track-odds').value=row.price;dialog.showModal();$('track-stake').focus();
+    });
+    $('track-cancel').addEventListener('click',()=>{if(!saving)dialog.close();});
+    dialog.addEventListener('cancel',event=>{if(saving)event.preventDefault();});
+    form.addEventListener('submit',async event=>{
+      event.preventDefault();if(saving||!draft||draft.saved||!form.reportValidity())return;
+      let ticket;
+      try {ticket={...ticketData(draft.row,$('track-odds').value,$('track-stake').value),id:draft.id};}
+      catch(error){$('track-feedback').textContent=error.message;return;}
+      saving=true;$('track-feedback').textContent='Saving…';$('track-signin').hidden=true;
+      for(const id of ['track-save','track-cancel','track-odds','track-stake','track-confirm'])$(id).disabled=true;
+      try {
+        await tracker();const result=await window.saveTrackedBet(ticket);
+        if(result.ok){draft.saved=true;$('track-feedback').textContent='Saved to your Bet Tracker. Qualitative review status is unchanged.';render();}
+        else {$('track-feedback').textContent=result.error;$('track-signin').hidden=!result.needsSignIn;}
+      } catch(error){$('track-feedback').textContent='The save could not be confirmed. Check Bet Tracker before retrying; this form retains the same ticket reference.';}
+      finally {
+        saving=false;
+        for(const id of ['track-cancel','track-odds','track-stake','track-confirm'])$(id).disabled=false;
+        $('track-save').disabled=!!draft.saved;
+      }
+    });
     async function load() {
       if(loading)return;loading=true;
       try {
@@ -95,6 +165,6 @@
     await load();setInterval(render,30000);setInterval(load,300000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
   }
-  if(typeof module==='object'&&module.exports)module.exports={collect,rowHTML,day};
+  if(typeof module==='object'&&module.exports)module.exports={collect,rowHTML,day,ticketData};
   else mount();
 })(typeof window==='undefined'?globalThis:window);

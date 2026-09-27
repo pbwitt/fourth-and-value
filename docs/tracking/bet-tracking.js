@@ -55,25 +55,13 @@ async function signOut() {
   await supabaseClient.auth.signOut();
 }
 
-/**
- * One-click "track this bet" call used from the props/totals pages
- * (docs/nfl/totals, docs/nhl/props, docs/nhl/totals). Same function name
- * and shape as before (window.autoTrackBet(betData)) so those pages needed
- * no changes beyond loading this file instead of the old one.
- */
-async function autoTrackBet(betData) {
+// Structured result for the briefing dialog; the legacy alert-based wrapper
+// below retains the existing props/totals call contract.
+async function saveTrackedBet(betData) {
   const user = await getCurrentUser();
-
   if (!user) {
-    const goSignIn = confirm(
-      'In order to track your bets, you need to create a free account - it only takes an email, no password required.\n\n' +
-      'We will never sell or share your email or personal information with any third party.\n\n' +
-      'Click OK to create your free account now.'
-    );
-    if (goSignIn) window.location.href = '/tracking/';
-    return false;
+    return {ok:false, needsSignIn:true, error:'Sign in to Bet Tracker, then return here to save this bet.'};
   }
-
   const row = {
     user_id: user.id,
     league: betData.league,
@@ -88,15 +76,49 @@ async function autoTrackBet(betData) {
     odds: betData.odds !== '' && betData.odds != null ? Number(betData.odds) : null,
     stake_dollars: Number(betData.stake_dollars),
     status: 'pending',
-    model_prob: betData.model_prob || null,
-    edge_bps: betData.edge_bps || null,
+    model_prob: betData.model_prob ?? null,
+    edge_bps: betData.edge_bps ?? null,
   };
+  if (!row.league || !Number.isFinite(row.stake_dollars) || row.stake_dollars <= 0 ||
+      !Number.isInteger(row.odds) || Math.abs(row.odds) < 100 ||
+      (row.line !== null && !Number.isFinite(row.line))) {
+    return {ok:false, error:'Enter a positive stake, valid American odds and a valid line.'};
+  }
+  // A caller may retain this ID across an uncertain network response. Retrying
+  // cannot insert a second ticket or overwrite one already saved.
+  if (betData.id !== undefined) {
+    if (!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(betData.id)) {
+      return {ok:false, error:'Invalid tracking reference. Reopen the bet to try again.'};
+    }
+    row.id=betData.id;
+  }
 
   const { error } = await supabaseClient.from('bets').insert(row);
+  if (error?.code === '23505' && row.id) {
+    const existing=await supabaseClient.from('bets').select('*').eq('id',row.id).eq('user_id',user.id).maybeSingle();
+    const numeric=new Set(['line','odds','stake_dollars','model_prob','edge_bps']);
+    const same=!existing.error && existing.data && Object.keys(row).filter(k=>k!=='status').every(k=>
+      numeric.has(k) && row[k]!==null ? existing.data[k]!=null&&Number(existing.data[k])===row[k] : (existing.data[k]??null)===row[k]);
+    if (same) return {ok:true,id:row.id};
+    return {ok:false,error:'This ticket may already be saved with different details. Check Bet Tracker before logging it again.'};
+  }
+  if (error) return {ok:false,error:'The bet could not be saved. Check Bet Tracker before retrying if the connection was interrupted.'};
+  return {ok:true,id:row.id};
+}
 
-  if (error) {
-    console.error('Error tracking bet:', error);
-    alert(`Error tracking bet: ${error.message}`);
+async function autoTrackBet(betData) {
+  const result=await saveTrackedBet(betData);
+  if (result.needsSignIn) {
+    const goSignIn = confirm(
+      'In order to track your bets, you need to create a free account - it only takes an email, no password required.\n\n' +
+      'We will never sell or share your email or personal information with any third party.\n\n' +
+      'Click OK to create your free account now.'
+    );
+    if (goSignIn) window.location.href = '/tracking/';
+    return false;
+  }
+  if (!result.ok) {
+    alert(result.error);
     return false;
   }
 
@@ -110,3 +132,14 @@ window.signInWithEmail = signInWithEmail;
 window.signInErrorMessage = signInErrorMessage;
 window.signOut = signOut;
 window.autoTrackBet = autoTrackBet;
+window.saveTrackedBet = saveTrackedBet;
+
+function betTrackerSummary(bets) {
+  const settled=bets.filter(b=>['won','lost','push'].includes(b.status));
+  const staked=settled.reduce((sum,b)=>sum+Number(b.stake_dollars||0),0);
+  const returned=settled.reduce((sum,b)=>sum+Number(b.payout||0),0);
+  return {totalBets:bets.length,totalStaked:bets.reduce((sum,b)=>sum+Number(b.stake_dollars||0),0),
+    totalReturned:returned,profitLoss:returned-staked,roi:staked>0?(returned-staked)/staked*100:0,
+    winRate:settled.length?100*settled.filter(b=>b.status==='won').length/settled.length:0};
+}
+window.betTrackerSummary=betTrackerSummary;

@@ -13,6 +13,13 @@ const server=http.createServer((req,res)=>{
   try {
     const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
     const now=Date.parse('2026-09-27T12:00:00Z');await page.clock.install({time:now});let feeds=fixture(now);
+    await page.addInitScript(()=>{
+      window.trackerTest={user:{id:'test-user'},writes:[],error:null,rows:[{id:'b7c9ba55-1234-4234-8234-123456789abc',league:'MLB',player:'<img src=x onerror=alert(1)>',status:'pending',stake_dollars:25,odds:110}]};
+      window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:window.trackerTest.user?{user:window.trackerTest.user}:null}}),onAuthStateChange:()=>{}},
+        from:()=>({insert:async row=>{window.trackerTest.writes.push(row);return {error:window.trackerTest.error};},select:()=>({order:async()=>({data:window.trackerTest.rows,error:null})})})})};
+    });
+    await page.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',r=>r.fulfill({contentType:'text/javascript',body:'/* fake auth client installed by this test */'}));
+    await page.route('**/*.supabase.co/**',r=>{throw Error('Test must never call a real tracker database');});
     const urls={'/props/top-picks.json':'NFL','/mlb/data/latest.json':'MLB','/nhl/data/latest.json':'NHL','/nhl/data/candidates.json':'NHLBoard'};
     for(const [url,key] of Object.entries(urls))await page.route('**'+url,r=>feeds[key]?r.fulfill({json:feeds[key]}):r.fulfill({status:503,body:'Unavailable'}));
     for(const width of [390,768,1440]) {
@@ -23,6 +30,16 @@ const server=http.createServer((req,res)=>{
       assert.equal(await page.getByText('What changed and what’s next',{exact:true}).count(),0);
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
       assert.match(await page.locator('#daily-picks-rows').textContent(),/7:59:00 AM ET/);
+      await page.locator('[data-track-pick="1"]').click();
+      assert(await page.locator('#pick-tracker').isVisible());
+      assert.equal(await page.locator('#track-odds').inputValue(),'110');
+      assert.match(await page.locator('#track-quote').textContent(),/7:59:00 AM ET/);
+      assert.match(await page.locator('#track-review').textContent(),/Qualitative review needed/);
+      assert.match(await page.locator('#track-grading').textContent(),/automatic result grading is not connected/);
+      assert.equal(await page.evaluate(()=>window.trackerTest.writes.length),0);
+      await page.locator('#pick-tracker').screenshot({path:`/tmp/fv-briefing-tracker-${width}.png`});
+      assert.equal(await page.locator('#pick-tracker').evaluate(e=>e.scrollWidth>e.clientWidth+1),false);
+      await page.locator('#track-cancel').click();
       if(await page.locator('.fv-burger').isVisible())await page.locator('.fv-burger').click();
       await page.locator('.nhl-sport button').click();
       assert(await page.locator('.nhl-sport').getByRole('link',{name:'Top Picks',exact:true}).isVisible());
@@ -32,8 +49,29 @@ const server=http.createServer((req,res)=>{
       await page.locator('#daily-picks').scrollIntoViewIfNeeded();
       await page.screenshot({path:`/tmp/fv-briefing-picks-${width}.png`,fullPage:true});
     }
+    // Real shared helper against a local fake client: no auth emails or real bets.
+    await page.locator('[data-track-pick="1"]').click();
+    await page.locator('#track-odds').fill('-120');await page.locator('#track-stake').fill('25');await page.locator('#track-confirm').check();
+    await page.evaluate(()=>window.trackerTest.user=null);await page.locator('#track-save').click();
+    await page.waitForSelector('#track-signin:not([hidden])');assert.equal(await page.evaluate(()=>window.trackerTest.writes.length),0);
+    await page.evaluate(()=>{window.trackerTest.user={id:'test-user'};window.trackerTest.error={code:'XX000'};});
+    await page.locator('#track-save').click();await page.waitForFunction(()=>document.getElementById('track-feedback').textContent.includes('could not be saved'));
+    assert.equal(await page.locator('[data-track-pick="1"]').textContent(),'Track bet');
+    await page.evaluate(()=>window.trackerTest.error=null);await page.locator('#track-save').dblclick();
+    await page.waitForFunction(()=>document.getElementById('track-feedback').textContent.startsWith('Saved to your'));
+    const saved=await page.evaluate(()=>window.trackerTest.writes);
+    assert.equal(saved.length,2,'one failed write and one confirmed write; double click cannot duplicate');
+    assert.equal(saved[0].id,saved[1].id);assert.equal(saved[1].odds,-120);assert.equal(saved[1].stake_dollars,25);
+    assert.equal(saved[1].league,'MLB');assert.equal(saved[1].user_id,'test-user');
+    assert.equal(await page.locator('[data-track-pick="1"]').textContent(),'Tracked');
+    assert.match(await page.locator('#daily-picks-rows').textContent(),/Qualitative review needed/);
+    await page.locator('#track-cancel').click();
+    // Background refresh/expiry must not replace a draft with a different offer.
+    await page.locator('[data-track-pick="2"]').click();await page.locator('#track-stake').fill('12');
     // An open page withdraws expired quotes without a manual reload.
     await page.clock.fastForward(31*60e3);await page.waitForFunction(()=>document.getElementById('picks-status').textContent.startsWith('2 candidates'));
+    assert.equal(await page.locator('#track-stake').inputValue(),'12');assert.match(await page.locator('#track-quote').textContent(),/expired or changed/);
+    await page.locator('#track-cancel').click();
     feeds.MLB=null;await page.reload();await page.waitForFunction(()=>document.getElementById('picks-coverage').textContent.includes('MLB: Current model list unavailable'));
     assert.equal(await page.locator('#daily-picks-rows tr').count(),1);
     feeds={};await page.reload();await page.waitForFunction(()=>document.getElementById('picks-status').textContent.startsWith('0 candidates'));
@@ -41,6 +79,10 @@ const server=http.createServer((req,res)=>{
     await page.screenshot({path:'/tmp/fv-briefing-empty.png',fullPage:true});
     await page.goto(base+'/props/insights.html');await page.waitForURL(base+'/nfl/');
     await page.goto(base+'/briefing/2026-09-26.html');assert.equal(await page.locator('#daily-picks').count(),0,'dated archive must never show current picks');
+    await page.goto(base+'/tracking/');await page.waitForSelector('#betTracker:visible');
+    await page.waitForFunction(()=>document.getElementById('betsTableBody').textContent.includes('<img'));
+    assert.equal(await page.locator('#betsTableBody img').count(),0,'saved source text is rendered safely');
+    assert.equal(await page.locator('#profitLoss').textContent(),'+$0.00','pending bets must not appear as losses');
     assert.deepEqual(errors,[]);console.log('PASS: briefing tables, navigation, desktop/mobile, quote expiry, failures and archive redirect.');
   }finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);server.close();process.exitCode=1;});

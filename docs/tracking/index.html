@@ -266,7 +266,7 @@
   <div id="betTracker" style="display:none;">
     <div class="container">
       <h1>📊 Bet Tracker</h1><!-- fv-notices:notice:start --><aside id="fv-betting-notice" class="fv-use-notice" aria-label="Betting information disclaimer"><strong>Analysis, not a guarantee.</strong> Picks and projections are uncertain; odds and player information can change. No outcome or profit is guaranteed. Any wager is your decision and responsibility. <a href="/terms.html#responsible-play">Read our limitations and responsible-play guidance</a>.</aside><!-- fv-notices:notice:end -->
-      <p class="subtitle">Track performance • Measure edge • Grade bets automatically</p>
+      <p class="subtitle">Track performance • Measure edge • Review results</p>
       <div class="account-bar">
         <span id="accountEmail"></span>
         <button onclick="handleSignOut()">Sign out</button>
@@ -309,6 +309,7 @@
             <select id="league">
               <option value="NHL">NHL</option>
               <option value="NFL">NFL</option>
+              <option value="MLB">MLB</option>
             </select>
           </div>
           <div class="form-group">
@@ -388,7 +389,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="bet-tracking.js?v=2"></script>
+  <script src="bet-tracking.js?v=3"></script>
   <script>
     let betsData = [];
 
@@ -473,6 +474,7 @@
 
     function renderBets() {
       const tbody = document.getElementById('betsTableBody');
+      const text=value=>String(value??'-').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
       if (betsData.length === 0) {
         tbody.innerHTML = '<tr><td colspan="14" style="text-align:center; color:#999;">No bets logged yet</td></tr>';
@@ -481,34 +483,27 @@
 
       tbody.innerHTML = betsData.map((bet) => `
         <tr>
-          <td>${bet.game_date || '-'}</td>
-          <td>${bet.league || '-'}</td>
-          <td>${bet.team_away || '-'} @ ${bet.team_home || '-'}</td>
-          <td>${bet.player || 'Team Total'}</td>
-          <td>${bet.market_type || '-'}</td>
-          <td>${bet.side || '-'}</td>
-          <td>${bet.line ?? '-'}</td>
-          <td>${bet.odds ?? '-'}</td>
-          <td>${bet.book || '-'}</td>
-          <td>$${bet.stake_dollars ?? '0'}</td>
-          <td><span class="status-badge status-${bet.status || 'pending'}">${bet.status || 'pending'}</span></td>
-          <td>${bet.actual_result ?? '-'}</td>
-          <td>${bet.payout != null ? '$' + bet.payout : '-'}</td>
+          <td>${text(bet.game_date)}</td>
+          <td>${text(bet.league)}</td>
+          <td>${text(bet.team_away)} @ ${text(bet.team_home)}</td>
+          <td>${text(bet.player || 'Game market')}</td>
+          <td>${text(bet.market_type)}</td>
+          <td>${text(bet.side)}</td>
+          <td>${text(bet.line)}</td>
+          <td>${text(bet.odds)}</td>
+          <td>${text(bet.book)}</td>
+          <td>$${text(bet.stake_dollars ?? 0)}</td>
+          <td><span class="status-badge status-${text(bet.status || 'pending')}">${text(bet.status || 'pending')}</span></td>
+          <td>${text(bet.actual_result)}</td>
+          <td>${bet.payout != null ? '$' + text(bet.payout) : '-'}</td>
           <td><button onclick="deleteBet('${bet.id}')" style="background:#d32f2f;color:white;border:none;padding:0.3rem 0.6rem;border-radius:3px;cursor:pointer;font-size:0.8rem;">Delete</button></td>
         </tr>
       `).join('');
     }
 
     function updateStats() {
-      const totalBets = betsData.length;
-      const totalStaked = betsData.reduce((sum, bet) => sum + Number(bet.stake_dollars || 0), 0);
-      const totalReturned = betsData.reduce((sum, bet) => sum + Number(bet.payout || 0), 0);
-      const profitLoss = totalReturned - totalStaked;
-      const roi = totalStaked > 0 ? ((profitLoss / totalStaked) * 100) : 0;
-
-      const gradedBets = betsData.filter(b => ['won', 'lost', 'push'].includes(b.status));
-      const wonBets = betsData.filter(b => b.status === 'won').length;
-      const winRate = gradedBets.length > 0 ? (wonBets / gradedBets.length * 100) : 0;
+      // Pending tickets are exposure, not realized losses.
+      const {totalBets,totalStaked,totalReturned,profitLoss,roi,winRate}=betTrackerSummary(betsData);
 
       document.getElementById('totalBets').textContent = totalBets;
       document.getElementById('totalStaked').textContent = '$' + totalStaked.toFixed(2);
