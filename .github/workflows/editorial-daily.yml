@@ -15,6 +15,10 @@ on:
       timezone: America/New_York
   workflow_dispatch:
     inputs:
+      scheduled_recovery:
+        description: Internal watchdog recovery using normal schedule eligibility
+        type: boolean
+        default: false
       idea_id:
         description: 'Private idea UUID for an editor-authorized Write now request'
         type: string
@@ -69,7 +73,9 @@ jobs:
         run: |
           manual=false
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.refresh_briefing }}" = "true" ]; then manual=true; fi
-          python scripts/editorial_schedule.py --manual-refresh "$manual" --idea-id "$REQUESTED_ID"
+          event_name="${{ github.event_name }}"
+          if [ "${{ inputs.scheduled_recovery }}" = "true" ]; then event_name=schedule; manual=false; fi
+          python scripts/editorial_schedule.py --event-name "$event_name" --manual-refresh "$manual" --idea-id "$REQUESTED_ID"
       - name: Show planner decision
         run: |
           echo "mode=${{ steps.plan.outputs.mode }}"

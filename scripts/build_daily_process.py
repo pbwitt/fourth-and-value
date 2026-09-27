@@ -50,6 +50,7 @@ def render():
         if name=='analyst-daily.yml':schedule='After the 7 a.m. data jobs finish; explicit manual tests only otherwise'
         rows.append(f'<tr><td>{escape(label)}</td><td>{schedule}</td><td>{escape(description)}</td></tr>')
     paths=[ROOT/'.github/workflows'/n for n in WORKFLOWS]
+    paths += [ROOT/'.github/workflows/editorial-watchdog.yml']
     paths += [ROOT/p for p in ['config/analyst_review.json','config/nhl_analyst.json',
         'scripts/editorial_schedule.py','scripts/analyst_review.py','scripts/research_discovery.py',
         'scripts/research_budget.py','scripts/morning_card.py','scripts/mlb/predict.py','scripts/nhl/v2/candidates.py','docs/assets/briefing-picks.js']]

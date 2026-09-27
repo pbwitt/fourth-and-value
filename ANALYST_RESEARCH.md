@@ -126,7 +126,8 @@ NFL, MLB and NHL reusable workflows, waits for all three, then calls research.
 A failed sport is reported unavailable; healthy fresh boards may still qualify.
 NHL/MLB standalone schedules are **16:30 Eastern**. Existing NFL game-day updates
 remain. Neither later updates nor editorial publication trigger paid research.
-There is no hourly MLB refresh. NBA integration remains future work.
+There is no hourly MLB refresh. The article watchdog uses scheduled recovery
+eligibility, not the manual full-refresh path. NBA integration remains future work.
 
 Normal research runs 07:00–12:00 ET, after the feeds complete. Publication has no
 promised minute. The whole **$2.75 daily** allowance is available to this morning
