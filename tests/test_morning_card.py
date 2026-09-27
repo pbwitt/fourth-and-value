@@ -115,6 +115,17 @@ class MorningCardTests(unittest.TestCase):
             self.assertEqual(value['research']['reviewed_count'],2)
             self.assertTrue(card.existing_today(root,asof))
 
+    def test_exhausted_discovery_retry_cannot_become_completed_empty_day(self):
+        for status in ('budget_exhausted','already_attempted'):
+            with self.subTest(status=status),TemporaryDirectory() as td:
+                reviews=empty_reviews()
+                reviews.update(discovery_status=status,discovery_coverage={'slate_games':12,'submitted_games':[]})
+                value=card.publish_card(empty_feeds(),reviews,NOW,root=Path(td))
+                self.assertEqual(value['status'],'research_incomplete')
+                reviews['discovery_coverage']['submitted_games']=[['MLB','1']]
+                prior_completed=card.publish_card(empty_feeds(),reviews,NOW,root=Path(td))
+                self.assertEqual(prior_completed['status'],'no_reviewed_candidates')
+
     def test_invalid_future_or_incomplete_cards_do_not_block_recovery(self):
         with TemporaryDirectory() as td:
             root=Path(td);original=card.publish_card(empty_feeds(),empty_reviews(),NOW,root=root)

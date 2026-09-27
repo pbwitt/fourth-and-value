@@ -57,7 +57,9 @@ def research_health(feeds, reviews, selected, now, refresh_results):
             issues.append(sport+': no completed assessments ('+reason+')')
         elif failed_batches.intersection(board.get('batch_statuses', [])+[state]):
             issues.append(sport+': some assessments failed')
-    if reviews.get('discovery_status') in ('api_key_unavailable', 'discovery_unavailable', 'budget_halted'):
+    discovery=reviews.get('discovery_coverage') or {}
+    discovery_without_completion=(discovery.get('slate_games',0) or 0)>0 and not discovery.get('submitted_games') and reviews.get('discovery_status')!='completed'
+    if reviews.get('discovery_status') in ('api_key_unavailable', 'discovery_unavailable', 'budget_halted') or (discovery_without_completion and not any(s['reviewed_count'] for s in sports.values())):
         issues.append('Independent discovery did not complete')
     return dict(completed=not issues, issues=issues, sports=sports,
         candidate_count=sum(s['candidate_count'] for s in sports.values()),
@@ -77,6 +79,7 @@ def publish_card(feeds,reviews,now,*,root=ROOT,kind='morning',refresh_results=No
         published_at=iso(now),policy_version='morning-edition-1',rows=rows,
         coverage=selected['coverage'],budget=reviews.get('budget'),
         discovery_status=reviews.get('discovery_status'),
+        discovery_coverage=reviews.get('discovery_coverage'),
         research=health,
         status=('published' if rows else 'no_reviewed_candidates') if health['completed'] else 'research_incomplete',
         basis='Original reviewed forecasts and quotes at publication; no automatic intraday reassessment.')

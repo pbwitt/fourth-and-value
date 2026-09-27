@@ -441,6 +441,7 @@ def prepare(feeds, now, config, *, run_review=False, archive=ARCHIVE, public=PUB
         output['sports'][sport] = board
     output['budget']=daily_budget.usage_summary(now,path=archive/'daily-budget.json',config=config)
     output['discovery_status']=(feeds.get('Discovery') or {}).get('status','not_requested')
+    output['discovery_coverage']={k:(feeds.get('Discovery') or {}).get(k) for k in ('slate_games','submitted_games','coverage_basis')}
     output['selection_audit']={'excluded':selection.get('excluded',[]),'coverage':selection['coverage']}
     if public == PUBLIC and feeds.get('NHLBoard') and 'NHL' in output['sports']:
         nhl=deepcopy(feeds['NHLBoard']); reviewed=output['sports']['NHL']
