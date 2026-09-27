@@ -82,7 +82,7 @@ const server=http.createServer((req,res)=>{
       model_version:'nhl-v2.1',validation_status:'experimental',other_books:3,human_decision:'unreviewed',
       key_drivers:['Projected ice time 18 minutes'],uncertainties:['Power-play role unconfirmed'],invalidation_conditions:['Price or role changes'],
       sensitivity:{win_min:.55,win_max:.65,assumption:'Rate ±10%; not a confidence interval'},
-      qualitative_review:{offer_id:'offer1',forecast_id:'forecast1',status:'needs_information',reviewed_at:now.toISOString(),countercase:'Role assumptions may change.',open_checks:['Verify participation.'],
+      qualitative_review:{assessment:{verdict:'wait',reason:'Resolve the role assumption.',model_case:'Opportunity drives the estimate.',price_case:'Quote passes sensitivity screen.',context_case:'Role needs checking.',blocking_checks:['Verify role.']},offer_id:'offer1',forecast_id:'forecast1',status:'needs_information',reviewed_at:now.toISOString(),countercase:'Role assumptions may change.',open_checks:['Verify participation.'],
         evidence:[{source_id:'s1',excerpt:'The goalie will be announced later.',interpretation:'Wait for confirmation; do not adjust the probability.',kind:'goalie',direction:'context',represented_in:'unknown'}]}};
     fixture={status:'ready',last_success_at:now.toISOString(),snapshot_id:'snapshot1',events:[],rows:[candidate]};
     const decisionDate=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
@@ -93,7 +93,8 @@ const server=http.createServer((req,res)=>{
     for(const width of [390,1440]){
       await p.setViewportSize({width,height:1000});await p.goto(base+'/nhl/picks.html');await p.waitForSelector('[data-candidate]');
       assert((await p.locator('[data-candidate]').textContent()).includes('60.0%'));
-      assert((await p.locator('[data-candidate]').textContent()).includes('Context review'));
+      assert((await p.locator('[data-candidate]').textContent()).includes('Our assessment'));
+      assert((await p.locator('[data-candidate]').textContent()).includes('Model case:'));
       assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'Candidate mobile/desktop overflow');
       await p.screenshot({path:`/tmp/fv-nhl-candidates-${width}.png`,fullPage:true});
     }

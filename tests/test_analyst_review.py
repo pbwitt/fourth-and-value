@@ -48,6 +48,9 @@ def source(b):
 
 def response(b):
     value = dict(candidate_id=b['candidates'][0]['candidate_id'], status='needs_information',
+        assessment=dict(verdict='wait', reason='The expected role needs verification.',
+            model_case='Opportunity drives this estimate.', price_case='The quote passed the price screen.',
+            context_case='Participation remains unverified.', blocking_checks=['Confirm the expected role.']),
         countercase='A lineup change could invalidate the projected opportunity.',
         open_checks=['Verify participation and role before deciding.'], evidence=[dict(source_id='s1',
         excerpt='The starting lineup has not been announced yet', interpretation='Verify the current role.',
@@ -125,9 +128,9 @@ class ResearchTests(unittest.TestCase):
         self.assertEqual(p['model'],'gpt-6-astra'); self.assertNotIn('tools',p)
         self.assertIn('NOT current market consensus',p['instructions'])
         self.assertIn('historical game outcomes',p['instructions'])
-        self.assertEqual(analyst.PROMPT_VERSION,'mlb-nfl-context-2')
+        self.assertEqual(analyst.PROMPT_VERSION,'mlb-nfl-context-3')
         self.assertLess(astra.bounds(p,CONFIG),1)
-        self.assertIsNone(json.loads(p['input'])['candidates'][0]['independent_probability'])
+        self.assertIsNone(json.loads(p['input'])['candidates'][0].get('independent_probability'))
 
     def test_success_preserves_forecast_archives_usage_and_deduplicates(self):
         b=board(); before=deepcopy(b['candidates'][0])
@@ -145,14 +148,51 @@ class ResearchTests(unittest.TestCase):
             self.assertEqual(analyst.review(board(),feeds(),CONFIG,archive,lambda:NOW)['review_status'],'already_attempted_this_session')
             call.assert_called_once()
 
-    def test_missing_reporting_key_window_and_empty_slate_never_call(self):
+    def test_missing_key_window_and_empty_slate_never_call(self):
         with tempfile.TemporaryDirectory() as td, patch.object(astra,'call_api') as call, patch.object(evidence,'collect',return_value=([],{})):
             with patch.dict('os.environ',{'OPENAI_API_KEY':''}):
                 self.assertEqual(analyst.review(board(),feeds(),CONFIG,Path(td),lambda:NOW)['review_status'],'api_key_unavailable')
             with patch.dict('os.environ',{'OPENAI_API_KEY':'synthetic'}):
-                for changes,status in [(dict(candidates=[]),'no_candidates'),(dict(session=None),'outside_review_window'),({},'no_usable_reporting')]:
+                for changes,status in [(dict(candidates=[]),'no_candidates'),(dict(session=None),'outside_review_window')]:
                     self.assertEqual(analyst.review(dict(board(),**changes),feeds(),CONFIG,Path(td),lambda:NOW)['review_status'],status)
             call.assert_not_called()
+
+    def test_no_reporting_still_assesses_quantitative_case_and_revision_is_bounded(self):
+        b=board(); raw=response(b); value=json.loads(raw['output'][0]['content'][0]['text'])
+        q=value['reviews'][0]; q['evidence']=[]
+        q['assessment'].update(verdict='consider', blocking_checks=[])
+        raw['output'][0]['content'][0]['text']=json.dumps(value)
+        with tempfile.TemporaryDirectory() as td, patch.dict('os.environ',{'OPENAI_API_KEY':'synthetic'}), \
+             patch.object(evidence,'collect',return_value=([],{'status':'no_usable_reporting'})), \
+             patch.object(astra,'checkpoint'), patch.object(astra,'call_api',return_value=raw) as call:
+            archive=Path(td)
+            for revised in (False,True):
+                result=analyst.review(board(),feeds(),CONFIG,archive,lambda:NOW,assessment_update=revised)
+                self.assertEqual(result['review_status'],'completed')
+                self.assertEqual(result['candidates'][0]['qualitative_review']['assessment']['verdict'],'consider')
+                self.assertEqual(analyst.review(board(),feeds(),CONFIG,archive,lambda:NOW,assessment_update=revised)['review_status'],'already_attempted_this_session')
+            self.assertEqual(call.call_count,2)
+            self.assertEqual(len(json.loads((archive/'budget.json').read_text())['entries']),2)
+
+    def test_assessment_consistency_and_no_invented_numeric_confidence(self):
+        b=board()
+        for update in [dict(verdict='consider'),dict(blocking_checks=[]),dict(reason='Confidence is 80%.'),dict(adjusted_probability=.8)]:
+            raw=response(b); value=json.loads(raw['output'][0]['content'][0]['text'])
+            value['reviews'][0]['assessment'].update(update)
+            raw['output'][0]['content'][0]['text']=json.dumps(value)
+            with self.assertRaises(ValueError): astra.parse_response(raw,b,[source(b)],NOW,schema=analyst.SCHEMA)
+
+    def test_packet_includes_model_projection_and_exact_market_comparison(self):
+        f=feeds(); f['NFL']['rows'][0].update(mu=4.2,consensus_line=2.5,consensus_prob=.52,book_count=3)
+        row=analyst.normalized(next(r for r in analyst.selected(f,NOW)['selected'] if r['sport']=='NFL'))
+        p=astra.payload(dict(board('NFL'),candidates=[row]),[],NOW,CONFIG)
+        context=json.loads(p['input'])['candidates'][0]['review_context']
+        self.assertEqual(context['projected_quantity'],4.2)
+        self.assertEqual(context['market_median_line'],2.5)
+        self.assertEqual(context['market'],.52)
+        self.assertEqual(context['books'],3)
+        self.assertAlmostEqual(context['breakEven'],1/2.1)
+        self.assertIsNone(context['calibration_sample_size'])
 
     def test_expiry_during_collection_and_checkpoint_failure_prevent_payment(self):
         for elapsed, checkpoint_error in [(timedelta(hours=2),None),(timedelta(),RuntimeError('checkpoint'))]:

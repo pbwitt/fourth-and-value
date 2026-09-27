@@ -13,7 +13,9 @@ that policy. NFL and MLB feeds and routes retain their existing contracts.
 `/briefing/reviews.json` is an additive schema-version-1 feed. Expand **Fourth & Value
 analysis** beneath a candidate to read sourced evidence, the countercase and
 checks that could invalidate the thesis. Bet Tracker remains beside each row.
-The independent price rundown is unaffected.
+The independent price rundown is unaffected. This process applies only to Top
+Picks and their accompanying analysis (including NHL's picks page). Daily article
+selection, writing prompts and article budgets are unchanged.
 
 **Our analysis**, above the table, presents up to three short summaries, taking the leading reviewed candidate per sport before filling in model order. Each explains the numerical probability/price screen and the first unresolved check. Relevant support or concern can include a sourced interpretation; full countercases, all checks, quote times and publication times remain available in the expanded review. No additional AI request or score change is made for presentation. Missing or expired reviews stay explicit; changed-offer warnings and open review panels survive refreshes.
 
@@ -51,6 +53,35 @@ news coverage is incomplete; verified lineup, injury or weather data may be
 missing. MLB hitter props require published batting orders under the existing
 model policy, so the morning list can omit them until a later update.
 
+Prompt `mlb-nfl-context-3` / `nhl-context-2` separates the **betting assessment**
+from the reporting status. Each assessment supplies model, price and context
+cases, a reason and one of three verdicts:
+
+- **Consider:** the supplied case merits human consideration; no identified
+  material blocker. This is neither wager approval nor validation of the model.
+- **Wait:** at least one specific unresolved fact could materially alter the
+  decision. The validator requires a nonempty list of blocking checks.
+- **Pass:** the current case is not defensible, including a model-reliability or
+  price concern even without an adverse news story.
+
+The quantitative shortlist remains visible, including passes, to preserve an
+auditable record. Rankings and tracker behavior do not change. Reporting status
+is independent: `needs_information` can coexist with any assessment verdict.
+Missing news alone is not a veto and a favorable headline is not required.
+Routine final price confirmation is separate from a material participation/role
+uncertainty. All original forecasts remain unchanged; the AI cannot fill a
+missing input, validate an extreme probability, or invent a numerical adjustment.
+
+MLB/NFL packets now include projected quantity and its units, exact-line model
+and market probabilities on the same non-push basis, offered break-even, paired
+book coverage, NFL median line and calibration limitations. Market-specific NFL
+calibration sample size and sensitivity are explicitly unavailable in this feed.
+NHL includes existing sensitivity, settlement, model version and validation fields.
+Null fields are omitted from the compact request; absence means unknown. Full
+source excerpts and their times remain archived in the exact request packet.
+Earlier reporting-only reviews retain their original content and are labeled as
+awaiting a full assessment; they are not retrospectively assigned a verdict.
+
 The strict response schema requires a countercase and explicit checks. Positive
 or adverse research status requires supporting source evidence. Source IDs,
 candidate IDs and exact short excerpts are checked locally; unsupported fields,
@@ -66,8 +97,13 @@ claimed to improve results.
 `Morning Candidate Research` is explicitly called by the early editorial workflow after its MLB/NFL refresh jobs and before briefing publication. It also runs after standalone MLB/NFL refreshes and at
 05:45, 08:45, 10:45, 12:45 and 15:45 America/New_York. GitHub execution can be
 delayed. At most one paid attempt per sport in 05:00–12:00 and a distinct later
-12:00–18:00 window. Empty slates, missing sources/keys, or expired candidates
-make no API call. Outside those windows only current status is published.
+12:00–18:00 window. Empty slates, missing keys, or expired candidates make no API
+call. Missing reporting permits a model/price assessment with explicit context
+limitations and no unsupported evidence. Outside those windows only current
+status is published. An explicit operator `--assessment-update` (workflow input
+`assessment_update=true`) permits one revision per prompt version/sport/session,
+charged to the same shared rolling cap. Original reservations remain intact;
+neither normal nor revision slots retry a failed or uncertain request.
 
 NHL and MLB/NFL share **$5 per rolling seven days**, counted across the existing
 NHL ledger and `artifacts/analyst/budget.json`. The existing editorial article
@@ -146,9 +182,25 @@ changing concurrency or retention. No database migration is required.
 - Keep the existing combined research cap, rather than adding $5 per league.
 - Published batting-order requirements remain in force; no fabricated morning
   opportunity estimate substitutes for a missing lineup.
+- September 27: expand Top Picks from a reporting check to a structured betting
+  assessment. Keep source validation separate from model/price reasoning and
+  preserve the numerical shortlist, historical reviews and human decisions.
+  No qualitative performance improvement is claimed; verdicts begin a new
+  prospective cohort identified by prompt version. Daily articles are unchanged.
 
 ## Release validation (2026-09-27 UTC)
 
 The real Astra API accepted the two-sport synthetic integration packet and returned two schema-valid reviews without probability changes: 1,534 input tokens, 575 output tokens, conservatively charged $0.047925 against the research ledger. This was an integration check, not analysis of actual bets. A separate read-only source connectivity check retrieved two timestamp-verified articles for each sport; that checks transport and parsing, not comprehensive injury/lineup coverage. The production-input run found no eligible current candidates and made no paid call.
 
 Automated checks cover NHL regression behavior, the shared browser screen, MLB/NFL research identity and timestamps, source validation, spending limits, API failures and duplicate attempts. Browser fixtures cover sourced concern, changed price, unavailable research, stale feeds, expired quotes and tracker saves at 390/768/1440px. No real bets or sign-in emails were created.
+
+### Betting assessment revision validation (2026-09-27)
+
+Local checks passed: 121 editorial tests, 49 NHL tests and 16 MLB/NFL review tests;
+Node shortlist and tracker checks; briefing browser fixtures at 390/768/1440px;
+NHL routes at five widths with populated, missing, expired and failed-feed states.
+The new fixtures cover consider/wait/pass without reporting, explicit material
+blockers, unchanged forecasts, duplicate revision prevention and invented numeric
+confidence rejection. Existing four-candidate production packets were checked
+against the unchanged request budget; this is an integration check, not evidence
+of forecasting or qualitative performance. No real bets were written by tests.
