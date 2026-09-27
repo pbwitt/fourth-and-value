@@ -730,3 +730,11 @@ All save tests use a fake client; no real bets or sign-in emails are created.
 ## Sourced shortlist review
 
 MLB and NFL now share the NHL Astra review infrastructure after the quantitative screen. See [ANALYST_RESEARCH.md](ANALYST_RESEARCH.md) for schedules, unchanged model semantics, exact offer matching, archives, the combined $5 rolling-week research budget, operational limits and rollback. Reviews appear beneath each reviewed bet in the briefing; changed prices/forecasts require a recheck. This does not establish qualitative uplift or mark a bet as analyst-approved.
+
+## Early morning NFL refresh and research order
+
+The 05:07 America/New_York editorial run can call NFL Weekly Update directly with `editorial_refresh: true`; it does not wait for the standalone Sunday 08:00 run. A stale or missing NFL board triggers refresh during scheduled 05:00–10:00 morning recovery even if article slots are already filled or paid writing is unavailable. A current-day NFL board less than 75 minutes old avoids a duplicate refresh.
+
+After the called MLB/NFL refreshes finish, the workflow calls Morning Candidate Research, preserving its existing spend and retry limits. Publication waits for that call and then reads main again. A failed upstream job still produces explicit missing/stale status instead of reviving yesterday's information. The standalone 08:00/11:00 NFL runs provide later updates. GitHub schedules are execution opportunities, not guaranteed delivery times; the watchdog and manual recovery remain available.
+
+The publish job must install `requirements.txt` before running editorial contract checks. A regression test checks this job specifically: installing NumPy only in the separate planning job does not satisfy the publisher's dependencies.
