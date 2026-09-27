@@ -143,6 +143,26 @@
     return {eligible:!reasons.length,tier:finite(raw)?1:2,reasons,raw_probability:finite(raw)?raw:null};
   }
   const outcomeKey=r=>JSON.stringify([r.sport,String(r.game_id),r.player||'',r.market_std||r.market,String(r.side).toLowerCase(),r.line,r.settlement_profile||'']);
+  const SHORTLIST_LIMIT=10;
+  function ideaKey(r) {
+    return JSON.stringify([r.sport,String(r.game_id),r.player||'',r.market_std||r.market,String(r.side).toLowerCase(),r.settlement_profile||'']);
+  }
+  function shortlist(selected,now=Date.now()) {
+    const seen=new Set(),card=[];
+    const ordered=[...selected].sort((a,b)=>Number(b.human_decision==='select')-Number(a.human_decision==='select'));
+    for(const r of ordered) {
+      const a=hasReview(r)&&r.review_matches_current!==false&&recent(r.qualitative_review.reviewed_at,now,3*HOUR)?assessment(r.qualitative_review):null;
+      if(r.human_decision==='pass'||!(r.human_decision==='select'||a?.verdict==='consider'&&!a.blocking_checks.length))continue;
+      const ideas=[ideaKey(r)];
+      // One hit and one total base are the same binary event at 0.5.
+      // Display consolidation never overwrites either original forecast.
+      if(r.sport==='MLB'&&r.line===.5&&['batter_hits','batter_total_bases'].includes(r.market))
+        ideas.push(ideaKey({...r,market:'batter_any_hit',market_std:'batter_any_hit'}));
+      if(ideas.some(v=>seen.has(v)))continue;ideas.forEach(v=>seen.add(v));
+      card.push(r);if(card.length>=SHORTLIST_LIMIT)break;
+    }
+    return card.map(r=>({...r,card_related_candidates:card.filter(q=>q.sport===r.sport&&q.game_id===r.game_id).length-1}));
+  }
   function rankTier(r) {
     const a=hasReview(r)&&r.review_matches_current!==false?assessment(r.qualitative_review):null;
     return a?.verdict==='pass'?9:a?.verdict==='consider'?0:a?.verdict==='wait'?3:r.discovery_origin==='independent_research'?2:1;
@@ -292,7 +312,9 @@
     const reason=a?.verdict==='wait'&&r.human_decision!=='select'?`<span class="estimate-detail"><strong>Why:</strong> ${esc(a.reason)}</span>`:'';
     const line=r.line===null?`${r.side} · ${r.market_label}`:`${r.side} ${r.market==='spreads'&&r.line>0?'+':''}${r.line}`;
     const offer=`<strong class="book-offer-line">${esc(line)}</strong><span class="estimate-detail">${esc(odds(r.price))}</span>`;
-    return `<tr><td><a href="${esc(r.url)}"><strong>${esc(betLabel(r))}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${esc(r.review)}${reason}${r.related_candidates?'<br>Related exposure: '+r.related_candidates+' other candidate(s) in this game':''}${r.discovery_origin?'<br>Origin: '+(r.discovery_origin==='independent_research'?'independent research':'model and independent research'):''}</span></td><td class="pick-estimate">${modelHTML(r)}</td><td class="pick-estimate">${marketHTML(r)}</td><td>${offer}<span class="meta estimate-detail">${pct(comparison(r).breakEven)} break-even*</span></td><td><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td>${esc(r.book_label||r.book)}<br><button type="button" class="track-pick secondary" data-track-pick="${index}" ${saved?'disabled':''} aria-label="${esc((saved?'Tracked: ':'Track bet: ')+betLabel(r))}">${saved?'Tracked':'Track bet'}</button></td></tr>${research?`<tr class="pick-research-row" id="pick-review-${index}"><td colspan="6">${research}</td></tr>`:''}`;
+    const related=r.card_related_candidates??r.related_candidates;
+    const exposure=related?'<br>Shared game: '+related+' other '+(r.card_related_candidates!==undefined?'shortlisted bet(s)':'research candidate(s)'):'';
+    return `<tr><td><a href="${esc(r.url)}"><strong>${esc(betLabel(r))}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${esc(r.review)}${reason}${exposure}${r.discovery_origin?'<br>Origin: '+(r.discovery_origin==='independent_research'?'independent research':'model and independent research'):''}</span></td><td class="pick-estimate">${modelHTML(r)}</td><td class="pick-estimate">${marketHTML(r)}</td><td>${offer}<span class="meta estimate-detail">${pct(comparison(r).breakEven)} break-even*</span></td><td><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td>${esc(r.book_label||r.book)}<br><button type="button" class="track-pick secondary" data-track-pick="${index}" ${saved?'disabled':''} aria-label="${esc((saved?'Tracked: ':'Track bet: ')+betLabel(r))}">${saved?'Tracked':'Track bet'}</button></td></tr>${research?`<tr class="pick-research-row" id="pick-review-${index}"><td colspan="6">${research}</td></tr>`:''}`;
   }
 
   async function mount() {
@@ -303,18 +325,22 @@
     const $=id=>document.getElementById(id);
     function render() {
       const now=Date.now(),result=collect(feeds,now);
-      current=result.selected;
+      const card=shortlist(result.selected,now),cardKeys=new Set(card.map(key)),pool=result.selected.filter(r=>!cardKeys.has(key(r)));
+      current=[...card,...pool];
       const openReviews=new Set(Array.from(root.querySelectorAll('.pick-research[open]')).map(el=>el.closest('tr').dataset.reviewKey));
-      document.getElementById('daily-picks-rows').innerHTML=current.slice(0,visibleLimit).map((r,i)=>rowHTML(r,i,tickets.get(key(r))?.saved)).join('')||'<tr><td colspan="6">No current bets qualify for today’s review list. See the feed status below; an empty list is a valid result.</td></tr>';
-      const more=$('picks-show-more');if(more){more.hidden=current.length<=visibleLimit;more.textContent=`Show all ${current.length} candidates (${Math.min(visibleLimit,current.length)} shown)`;}
+      document.getElementById('daily-picks-rows').innerHTML=card.map((r,i)=>rowHTML(r,i,tickets.get(key(r))?.saved)).join('')||'<tr><td colspan="6">No reviewed picks are ready. Pending, wait and pass assessments remain in the separate research pool.</td></tr>';
+      const poolRows=$('research-picks-rows');if(poolRows)poolRows.innerHTML=pool.slice(0,visibleLimit).map((r,i)=>rowHTML(r,i+card.length,tickets.get(key(r))?.saved)).join('')||'<tr><td colspan="6">No additional research candidates.</td></tr>';
+      const poolLabel=$('research-pool-label');if(poolLabel)poolLabel.textContent=`Research pool · ${pool.length} additional offers · not the daily card`;
+      const more=$('picks-show-more');if(more){more.hidden=pool.length<=visibleLimit;more.textContent=`Show all ${pool.length} research offers (${Math.min(visibleLimit,pool.length)} shown)`;}
       current.forEach((r,i)=>{const row=$('pick-review-'+i);if(row){row.dataset.reviewKey=key(r);row.querySelector('details').open=openReviews.has(key(r));}});
-      const summary=$('picks-analysis-text');if(summary)summary.innerHTML=summaryHTML(current);
-      document.getElementById('picks-status').textContent=`${result.selected.length} candidates for ${new Date(now).toLocaleDateString('en-US',{timeZone:'America/New_York',month:'long',day:'numeric'})} · ${checked?'Source boards checked '+time(checked):'Checking source boards'}.`;
+      const summary=$('picks-analysis-text');if(summary)summary.innerHTML=card.length?summaryHTML(card):'<p>No completed current assessment qualifies for the daily card yet. We will leave it empty until a case is ready; the separate research pool shows work in progress.</p>';
+      document.getElementById('picks-status').textContent=`${card.length} reviewed picks for ${new Date(now).toLocaleDateString('en-US',{timeZone:'America/New_York',month:'long',day:'numeric'})} · Up to ${SHORTLIST_LIMIT}, with no daily minimum · ${checked?'Source boards checked '+time(checked):'Checking source boards'}.`;
+      const exposure=$('picks-exposure');if(exposure){const games=new Set(card.map(r=>r.exposure_group||r.sport+':'+r.game_id));exposure.textContent=card.length>1&&games.size===1?'All shortlisted offers are from one game and share exposure. They are not independent signals.':'';}
       document.getElementById('picks-coverage').textContent=result.coverage.map(c=>`${c.sport}: ${c.message}`).join(' · ');
       const budgetStatus=document.getElementById('picks-budget-status'), budget=feeds.Reviews?.budget;
       if(budgetStatus)budgetStatus.textContent=budget&&budget.day===day(now)?`Today’s research: $${budget.charged_or_reserved_usd.toFixed(2)} charged or reserved of $${budget.limit_usd.toFixed(2)} across sports. Unfinished reviews remain queued.`:'Research is limited to $2.75 per Eastern calendar day across sports; current spending status is pending.';
       const research=document.getElementById('picks-research-status');
-      if(research){const d=feeds.Discovery;const extra=d?.decision_date===day(now)?` · Independent discovery: ${d.status.replaceAll('_',' ')}; ${d.submitted_games?.length||0}/${d.slate_games||0} games submitted (not exhaustive research)`:'';research.textContent=['NFL','MLB','NHL'].map(s=>researchStatus(s,feeds.Reviews,current,now)).join(' · ')+extra;}
+      if(research){const d=feeds.Discovery;const extra=d?.decision_date===day(now)?` · Independent discovery: ${d.status.replaceAll('_',' ')}; ${d.submitted_games?.length||0}/${d.slate_games||0} games submitted (not exhaustive research)`:'';research.textContent=['NFL','MLB','NHL'].map(s=>researchStatus(s,feeds.Reviews,result.selected,now)).join(' · ')+extra;}
       if(draft&&dialog.open&&!saving&&!draft.saved&&!collect(feeds,now).selected.some(r=>key(r)===key(draft.row))) {
         $('track-quote').textContent=`Saved quote: ${odds(draft.row.price)} at ${time(draft.row.quoted_at)}. This offer has expired or changed. Enter the price of the bet you actually placed.`;
       }
@@ -333,7 +359,7 @@
       })().catch(error=>{trackingReady=null;throw error;});
       await trackingReady;
     }
-    $('daily-picks-rows').addEventListener('click',event=>{
+    root.addEventListener('click',event=>{
       const button=event.target.closest('[data-track-pick]');if(!button)return;
       const row=current[Number(button.dataset.trackPick)];if(!row)return;
       const itemKey=key(row);
@@ -379,6 +405,6 @@
     await load();setInterval(render,30000);setInterval(load,300000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
   }
-  if(typeof module==='object'&&module.exports)module.exports={collect,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus};
+  if(typeof module==='object'&&module.exports)module.exports={collect,shortlist,ideaKey,SHORTLIST_LIMIT,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus};
   else mount();
 })(typeof window==='undefined'?globalThis:window);

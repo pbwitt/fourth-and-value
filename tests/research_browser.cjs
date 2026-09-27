@@ -17,11 +17,11 @@ feeds.Discovery={schema_version:1,decision_date:'2026-09-27',generated_at:new Da
 feeds.Reviews={schema_version:1,sports:{},budget:{day:'2026-09-27',charged_or_reserved_usd:2,limit_usd:2.75}};
 const urls={'/props/top-picks.json':'NFL','/mlb/data/latest.json':'MLB','/nhl/data/latest.json':'NHL','/nhl/data/candidates.json':'NHLBoard','/props/model-context.json':'NFLContext','/briefing/reviews.json':'Reviews','/briefing/discovery.json':'Discovery'};
 for(const [url,key] of Object.entries(urls))await page.route('**'+url,r=>feeds[key]?r.fulfill({json:feeds[key]}):r.fulfill({status:503,body:'Unavailable'}));
-await page.goto(base+'/briefing/');await page.waitForFunction(()=>document.querySelectorAll('#daily-picks-rows > tr').length===20);
-assert.match(await page.locator('#picks-status').textContent(),/35 candidates/);
+await page.goto(base+'/briefing/');await page.waitForFunction(()=>document.querySelectorAll('#research-picks-rows > tr').length===20);
+assert.match(await page.locator('#picks-status').textContent(),/0 reviewed picks/);
 assert.match(await page.locator('#picks-budget-status').textContent(),/\$2.00/);
-await page.locator('#picks-show-more').click();assert.equal(await page.locator('#daily-picks-rows > tr').count(),35);
-assert.match(await page.locator('#daily-picks-rows').textContent(),/Not established/);
+await page.locator('#picks-research-pool').evaluate(e=>e.open=true);await page.locator('#picks-show-more').click();assert.equal(await page.locator('#research-picks-rows > tr').count(),35);
+assert.match(await page.locator('#research-picks-rows').textContent(),/Not established/);
 assert.match(await page.locator('#picks-research-status').textContent(),/not exhaustive research/);
 assert.equal(await page.locator('a[href="/research/daily-process.html"]').count(),1);
 await page.screenshot({path:'/tmp/fv-research-candidates-1440.png'});

@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict');
-const {collect,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus}=require('../docs/assets/briefing-picks.js');
+const {collect,shortlist,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus}=require('../docs/assets/briefing-picks.js');
 const now=Date.parse('2026-09-27T12:00:00Z'), iso=t=>new Date(t).toISOString();
 function fixture(t=now) {
   const base={game:'Away @ Home',commence_time:iso(t+3600e3),player:'Example player',side:'Over',line:2.5,price:110,book:'a',book_label:'Book A',market:'player_points',market_label:'Points',quoted_at:iso(t-60e3)};
@@ -187,3 +187,26 @@ const intkey=JSON.stringify([nf.game_id,nf.player,nf.market_std]);
 f.NFLContext={generated_at:f.NFL.generated_at,groups:{[intkey]:{offers:{'["a","Over",5.0,110,"2026-09-27T11:59:00.000Z"]':{raw_probability:.6}},calibration:{fitted_raw_range:[.1,.9]}}}};
 assert.equal(collect(f,now).selected[0].forecast_health.raw_probability,.6);
 f.NFL.rows[0].push_prob=null;assert(!collect(f,now).selected.some(r=>r.sport==='NFL'));
+
+// A manageable card never fills slots with pending, stale, wait or pass reviews.
+const readyRow=r=>({...r,reviewed_candidate:r,review_matches_current:true,qualitative_review:{
+ offer_id:r.offer_id,forecast_id:r.forecast_id,status:'needs_information',reviewed_at:iso(now),
+ countercase:'Experimental.',open_checks:[],evidence:[],assessment:{verdict:'consider',reason:'Case reviewed.',
+ model_case:'Model examined.',price_case:'Exact quote examined.',context_case:'Context examined.',blocking_checks:[]}}});
+const ready=collect(fixture(),now).selected.filter(r=>r.sport==='MLB').map(readyRow)[0];
+assert.equal(shortlist(collect(fixture(),now).selected,now).length,0);
+const large=Array.from({length:25},(_,i)=>({...ready,player:'Player '+i}));
+assert.equal(shortlist(large,now).length,10);
+assert.equal(shortlist(large,now)[0].card_related_candidates,9);
+assert.equal(large[0].card_related_candidates,undefined);
+for(const verdict of ['wait','pass'])assert.equal(shortlist([{...ready,qualitative_review:{...ready.qualitative_review,assessment:{...ready.qualitative_review.assessment,verdict}}}],now).length,0);
+assert.equal(shortlist([{...ready,review_matches_current:false}],now).length,0);
+assert.equal(shortlist([{...ready,qualitative_review:{...ready.qualitative_review,reviewed_at:iso(now-3*3600e3-1)}}],now).length,0);
+const equivalent=[{...ready,market:'batter_hits',line:.5},{...ready,market:'batter_total_bases',line:.5},{...ready,market:'batter_hits',line:1.5}];
+assert.equal(shortlist(equivalent,now).length,1);
+assert.equal(equivalent.length,3,'research records remain intact');
+assert.equal(shortlist([ready],now).length,1,'no daily minimum');
+assert.equal(shortlist([{...ready,human_decision:'pass'}],now).length,0);
+assert.equal(shortlist([{...ready,qualitative_review:null,human_decision:'select'}],now).length,1);
+assert.equal(shortlist([...large,{...ready,player:'Analyst choice',qualitative_review:null,human_decision:'select'}],now)[0].player,'Analyst choice');
+console.log('PASS: bounded reviewed card, independent research pool, equivalent bets, review age and no forced picks.');

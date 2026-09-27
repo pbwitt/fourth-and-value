@@ -23,9 +23,17 @@ review `scripts/research/daily_process.html`, regenerate the page, and run
    Consider/wait/pass assessments precede reliability and numerical ordering.
    Changed evidence gets rechecked; unchanged price, forecast and evidence can
    reuse a review for three hours with the original timestamp preserved.
-6. Publish candidates, exclusions, research coverage, sources and spending.
-   Unreviewed candidates remain visible. Related bets share an exposure label.
-   The first 20 rows are displayed initially; Show all reveals the entire pool.
+6. Publish a focused daily card of **up to 10 reviewed ideas**, aiming for a
+   manageable five to ten when supported, with no required minimum. Only exact
+   current consider assessments no older than three hours, or explicit analyst
+   selections, qualify. Explicit analyst selections take priority. Wait/pass/unreviewed and changed-price reviews never fill
+   empty slots. Consolidate alternate thresholds for the same subject/market/side
+   and equivalent MLB 0.5-hit/0.5-total-base outcomes, preserving original forecasts.
+   The research pool remains separate in a collapsed section, initially showing
+   20 additional offers with a Show all control. It retains every eligible offer,
+   including additional consider decisions beyond the card limit, for audit.
+   There is no per-game or per-sport quota. Shared game exposure is labeled on
+   the card; the limit is a reader workflow choice, not a validated betting policy.
 
 Existing sport routes and JSON contracts remain supported. Additive feeds are
 `/briefing/discovery.json` and `/nfl/data/quotes.json`; `/briefing/reviews.json`

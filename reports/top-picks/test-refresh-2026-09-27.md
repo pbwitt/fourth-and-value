@@ -89,3 +89,15 @@ case worth human assessment, not approval or proof it is among the day's best be
 The selection/review changes remain in draft PR #20. No live feed was replaced
 with test outputs. Forecast quality, the unexecuted discovery stage and broad
 slate research coverage cannot be validated by this refresh alone.
+
+## Follow-up: manageable daily card
+
+After the user clarified a five-to-ten daily target, the preview was changed to
+show **at most 10** current reviewed ideas, with no minimum. Wait, pass and pending
+research remain in a separate collapsed pool. Alternate versions are consolidated.
+At 1:23 p.m. ET the same frozen inputs produced **6 distinct card entries** and
+**314 additional research offers**. All six card entries share Rays–Phillies
+exposure; the header and individual rows disclose that concentration. No new
+research calls, probability changes or wagers were made. Desktop/mobile rendering,
+empty cards, changed/expired reviews, tracker identity and the complete pool were
+checked. The process page includes the simple flow and this presentation policy.

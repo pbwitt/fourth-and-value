@@ -35,7 +35,7 @@ A larger candidate pool and independent research cannot be credited with improve
 
 ## Completed implementation and final operating decisions
 
-- Shared discovery/review orchestration now includes NFL, MLB and NHL. NHL's old paid runner is a compatibility no-op, preventing a second allowance. Review batches rotate across sports. All eligible candidates remain in the pool; the table initially displays 20 with Show all.
+- Shared discovery/review orchestration now includes NFL, MLB and NHL. NHL's old paid runner is a compatibility no-op, preventing a second allowance. Review batches rotate across sports. All eligible candidates remain in the pool; the main card shows up to 10 reviewed ideas, while the separate collapsed research pool initially displays 20 additional offers with Show all.
 - Fixed NFL 3% minimum sensitivity EV and a lower-priority research tier above 30% EV. These are declared operating heuristics, not fitted selection thresholds. Matched partial-workload and calibration extrapolation failures are withheld. Integer quote keys compare numeric values, avoiding Python 5.0 versus JavaScript 5 serialization mismatches. Unknown pushes fail closed.
 - MLB retains 3% EV but drops the redundant 3-percentage-point gap hurdle. No model weights, validation results or predicted quantities were changed by this policy update.
 - $2.00 maximum morning spend preserves $0.75 for noon-and-later research. Both use the same $2.75 day ledger; no rollover. A conservative search reservation may prevent full slate submission despite a lower expected bill. Submitted-game counts are not claims of exhaustive research.
@@ -43,3 +43,25 @@ A larger candidate pool and independent research cannot be credited with improve
 - Early MLB refresh no longer depends on available editorial-writing slots. NFL's existing early refresh remains. Article selection/writing/budget and Market Watch are unchanged.
 - Public operating description: `/research/daily-process.html`, linked from Research and Today's Picks. Schedule text comes from workflow configuration, numerical policy values from config, and a source fingerprint makes stale generated documentation fail PR checks. The HTML paper links to the current operating policy without changing its empirical results.
 - No billable API calls or site deployments were performed on this branch. The new hosted-search integration is tested through request/response fixtures and needs a monitored production smoke run after approval. Existing Astra review transport remains the production client.
+
+## Reader clarification after the live-data test
+
+The user wants a manageable five-to-ten-bet decision list, not hundreds of research
+candidates. The daily card therefore admits at most ten distinct current consider
+assessments (no older than three hours) or explicit analyst selections. It has no
+minimum. Wait, pass, unreviewed, changed-price and extra reviewed offers remain
+available in a collapsed research pool. Research eligibility and coverage remain
+uncapped; no one-per-game or one-per-sport rule was introduced.
+
+Alternate thresholds for one subject/market/direction and equivalent MLB 0.5-hit
+and 0.5-total-base offers are consolidated for the card, preserving all original
+forecasts in the pool. This is an operational reading limit, not a backtested
+portfolio optimizer or evidence that the first ten have established betting value.
+The same-sport probability/price rankings remain experimental. Related games are
+labeled and never treated as independent confirmations.
+
+The current test has six distinct consider offers after consolidation; all are
+Rays–Phillies exposures. The page flags that concentration. The broad research
+pool retains 314 additional offers, rather than presenting them as a daily card.
+No additional paid calls were needed for this change. The public process document
+now starts with a simple flow and retains the precise workflow schedule below it.
