@@ -31,6 +31,7 @@ const server=http.createServer((req,res)=>{
       assert.equal(await page.getByText('What changed and what’s next',{exact:true}).count(),0);
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
       assert.match(await page.locator('#daily-picks-rows').textContent(),/7:59:00 AM ET/);
+      assert.match(await page.locator('#picks-analysis-text').textContent(),/awaiting a completed Astra review/);
       await page.locator('[data-track-pick="1"]').click();
       assert(await page.locator('#pick-tracker').isVisible());
       assert.equal(await page.locator('#track-odds').inputValue(),'110');
@@ -59,14 +60,20 @@ const server=http.createServer((req,res)=>{
         open_checks:['Verify the announced batting order before deciding.'],evidence:[{source_id:'s1',direction:'concern',interpretation:'Check whether the expected role still applies.',represented_in:'model_features'}]}}]}}};
     for(const width of [390,768,1440]) {
       await page.setViewportSize({width,height:1000});await page.reload();await page.waitForSelector('.pick-research');
-      await page.locator('.pick-research summary').click();
+      assert.match(await page.locator('#picks-analysis-text').textContent(),/Astra flagged a sourced concern/);
+      assert.match(await page.locator('#picks-analysis-text').textContent(),/A lineup change could reduce projected opportunity/);
+      await page.locator('.read-pick-review').click();
+      assert(await page.locator('.pick-research').evaluate(el=>el.open));
       assert.match(await page.locator('.pick-research').textContent(),/Case against:/);
       assert.match(await page.locator('#daily-picks-rows').textContent(),/Sourced concern/);
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
       await page.locator('#daily-picks').screenshot({path:`/tmp/fv-astra-review-${width}.png`});
     }
+    await page.clock.fastForward(31000);
+    assert(await page.locator('.pick-research').evaluate(el=>el.open),'reading a review must survive the expiry timer');
     feeds.MLB.rows[0].price=120;await page.reload();await page.waitForSelector('.pick-research');
     assert.match(await page.locator('#daily-picks-rows').textContent(),/Price or forecast changed/);
+    assert.match(await page.locator('#picks-analysis-text').textContent(),/price or forecast has changed/);
     feeds.MLB.rows[0].price=110;feeds.Reviews=null;await page.reload();
     await page.waitForFunction(()=>document.getElementById('picks-status').textContent.startsWith('3 candidates'));
     // Real shared helper against a local fake client: no auth emails or real bets.
@@ -96,6 +103,7 @@ const server=http.createServer((req,res)=>{
     assert.equal(await page.locator('#daily-picks-rows tr').count(),1);
     feeds={};await page.reload();await page.waitForFunction(()=>document.getElementById('picks-status').textContent.startsWith('0 candidates'));
     assert.match(await page.locator('#daily-picks-rows').textContent(),/No current bets qualify/);
+    assert.match(await page.locator('#picks-analysis-text').textContent(),/No current candidates are available/);
     await page.screenshot({path:'/tmp/fv-briefing-empty.png',fullPage:true});
     await page.goto(base+'/props/insights.html');await page.waitForURL(base+'/nfl/');
     await page.goto(base+'/briefing/2026-09-26.html');assert.equal(await page.locator('#daily-picks').count(),0,'dated archive must never show current picks');

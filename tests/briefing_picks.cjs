@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict');
-const {collect,rowHTML,day,ticketData,reviewKey,reviewBetKey}=require('../docs/assets/briefing-picks.js');
+const {collect,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML}=require('../docs/assets/briefing-picks.js');
 const now=Date.parse('2026-09-27T12:00:00Z'), iso=t=>new Date(t).toISOString();
 function fixture(t=now) {
   const base={game:'Away @ Home',commence_time:iso(t+3600e3),player:'Example player',side:'Over',line:2.5,price:110,book:'a',book_label:'Book A',market:'player_points',market_label:'Points',quoted_at:iso(t-60e3)};
@@ -82,5 +82,25 @@ f.Reviews.sports.MLB.candidates[0].qualitative_review.reviewed_at=iso(now);
 f.Reviews.sports.MLB.sources[0].url='javascript:alert(1)';f.Reviews.sports.MLB.candidates[0].qualitative_review.countercase='<img src=x onerror=alert(1)>';
 const safe=rowHTML(collect(f,now).selected.find(r=>r.sport==='MLB'));
 assert(!safe.includes('javascript:'));assert(!safe.includes('<img'));
+assert.match(summaryHTML([]),/No current candidates/);
+assert.match(summaryHTML(collect(fixture(),now).selected),/awaiting a completed Astra review/);
+f.MLB.rows[0].price=110;f.Reviews.sports.MLB.sources[0].url='https://www.espn.com/mlb/story/test';
+let summarized=summaryHTML(collect(f,now).selected);
+assert.match(summarized,/Astra flagged a sourced concern/);assert.match(summarized,/The case against:/);
+assert.match(summarized,/Verify the lineup/);assert.match(summarized,/href="#pick-review-1"/);
+assert(!summarized.includes('<img'));assert.match(summarized,/1 of 3 current candidates/);
+f.MLB.rows[0].price=120;summarized=summaryHTML(collect(f,now).selected);
+assert.match(summarized,/price or forecast has changed/);assert.match(summarized,/assessed \+110/);
+f.Reviews.sports.MLB.candidates[0].qualitative_review.offer_id='wrong';
+assert.match(summaryHTML(collect(f,now).selected),/awaiting a completed Astra review/);
+// Keep it a few paragraphs, cover sports, and do not invent a new ranking.
+const sample={...reviewed,reviewed_candidate:reviewed,review_sources:[],review:'Sourced concern'};
+const many=[{...sample,sport:'NFL',game:'NFL first'},{...sample,sport:'NFL',game:'NFL second'},
+  {...sample,sport:'MLB',game:'MLB first'}, {...sample,sport:'MLB',game:'MLB second'}];
+summarized=summaryHTML(many);
+assert.equal((summarized.match(/class="pick-summary-paragraph"/g)||[]).length,3);
+assert(summarized.indexOf('NFL first')<summarized.indexOf('MLB first'));
+assert(summarized.indexOf('MLB first')<summarized.indexOf('NFL second'));
+assert(!summarized.includes('MLB second'));
 console.log('PASS: morning shortlist model gates, exact quotes, ET days, freshness, failures, exposure and review identity.');
 module.exports={fixture};
