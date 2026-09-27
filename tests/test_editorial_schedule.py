@@ -140,7 +140,7 @@ class EditorialScheduleTests(unittest.TestCase):
         self.assertIn('pip install -r requirements.txt',publish)
         self.assertLess(publish.index('pip install -r requirements.txt'),publish.index("test_editorial*.py"))
         self.assertIn('needs: [plan, refresh-mlb, refresh-nfl]',publish)
-        self.assertNotIn('review-candidates:',workflow)
+        self.assertNotIn('review-candidates',workflow)
         self.assertIn('event_name=schedule; manual=false',workflow)
         watchdog=(sched.ROOT/'.github/workflows/editorial-watchdog.yml').read_text()
         self.assertIn('scheduled_recovery=true',watchdog)
