@@ -39,6 +39,20 @@ class MorningOperationsTests(unittest.TestCase):
             write_json(root/'docs/briefing/morning-card.json',self.value())
             self.assertFalse(ops.gate(root,NOW+timedelta(hours=5))['refresh'])
 
+    def test_premorning_test_card_does_not_block_the_real_morning_run(self):
+        with TemporaryDirectory() as td:
+            root=Path(td)
+            value=dict(self.value(),kind='test',published_at=(NOW-timedelta(hours=1)).isoformat())
+            path=root/'docs/briefing/morning-card.json';write_json(path,value)
+            original=path.read_bytes()
+            self.assertTrue(ops.gate(root,NOW)['refresh'])
+            # Repeated explicit tests still require replacement to do more work.
+            self.assertFalse(ops.gate(root,NOW,test_edition=True)['refresh'])
+            self.assertTrue(ops.gate(root,NOW,test_edition=True,replace_card=True)['refresh'])
+            # A late production start cannot report a test as morning completion.
+            with self.assertRaises(RuntimeError):ops.gate(root,NOW+timedelta(hours=5))
+            self.assertEqual(path.read_bytes(),original)
+
     def test_eastern_winter_window_and_previous_day(self):
         with TemporaryDirectory() as td:
             root=Path(td)

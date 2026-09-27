@@ -8,10 +8,12 @@ from nhl.analyst import immutable
 
 ET=ZoneInfo('America/New_York')
 
-def existing_today(root,now):
+def existing_today(root,now,*,include_test=False):
+    """Only a morning edition completes a normal run; tests may reuse either kind."""
     try:
         card=json.loads((root/'docs/briefing/morning-card.json').read_text())
-        return (card.get('schema_version') == 1 and card.get('kind') in ('morning', 'test')
+        kinds=('morning','test') if include_test else ('morning',)
+        return (card.get('schema_version') == 1 and card.get('kind') in kinds
             and card.get('status') in ('published', 'no_reviewed_candidates')
             and isinstance(card.get('edition_id'), str) and bool(card['edition_id'])
             and isinstance(card.get('rows'), list) and len(card['rows']) <= 10

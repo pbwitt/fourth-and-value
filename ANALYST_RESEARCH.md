@@ -124,7 +124,7 @@ All bets should be reviewed before deciding. Missing news alone is not a veto.
 
 `Morning Picks Edition` is scheduled for **07:05 America/New_York**, with recovery
 starts at **07:35, 08:05 and 08:35**. A gate reads current main before any sport
-pull: a completed same-day edition skips all three feeds and paid research, then
+pull: a completed same-day morning edition skips all three feeds and paid research, then
 verifies delivery. A missing or incomplete edition calls NFL, MLB and NHL reusable
 workflows, waits for all three, then calls research. A separate short handoff
 dispatches editorial with scheduled recovery semantics; writing does not block
@@ -159,8 +159,12 @@ mutate the edition. Started games are labeled historical; previous-day editions
 are explicitly labeled previous. The separate research pool still expires rows.
 A temporary card-fetch failure retains the last dated card in an open browser.
 
-`--publish-card` skips before any paid call if this Eastern date already has an
-completed edition (including a valid empty edition). Incomplete editions do not
+`--publish-card` skips before any paid call if this Eastern date already has a
+completed morning edition (including a valid empty edition). A completed test
+edition does not satisfy a normal morning run: both the pre-feed gate and research
+step proceed without needing `--replace-card`, retaining the test archive and
+same-day spending. Explicit `--test-edition` requests still skip if either kind
+is already complete, unless `--replace-card` is supplied. Incomplete editions do not
 block recovery. Missing/malformed/future-dated editions cannot suppress a run. `--replace-card` is an explicit
 operator override; archives and spending remain intact. `--test-edition` permits
 an outside-window run and labels it Test edition. Both flags are workflow inputs.

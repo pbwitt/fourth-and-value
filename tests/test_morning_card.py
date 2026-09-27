@@ -145,6 +145,50 @@ class MorningCardTests(unittest.TestCase):
                 with patch('sys.argv',['review','--astra','--publish-card','--replace-card']):self.assertEqual(review.main(),1)
                 feeds.assert_not_called();paid.assert_not_called()
 
+    def test_normal_run_replaces_test_then_skips_repeats_preserving_archive_and_budget(self):
+        with TemporaryDirectory() as td:
+            root=Path(td);cfg=root/'config.json'
+            config={'sessions':{'morning':[7,12]},'daily_budget_usd':2.75}
+            cfg.write_text(json.dumps(config))
+            previous=NOW-timedelta(hours=2)  # Test completed at 6 AM Eastern.
+            test=card.publish_card(empty_feeds(previous),empty_reviews(),previous,root=root,kind='test')
+            self.assertFalse(card.existing_today(root,NOW))
+            self.assertTrue(card.existing_today(root,NOW,include_test=True))
+            archive=root/'docs'/test['archive_url'].lstrip('/');archived=archive.read_bytes()
+            ledger=root/'artifacts/analyst/daily-budget.json'
+            write_json(ledger,{'version':2,'entries':[{'key':'earlier-test','at':iso(previous),
+                'day':'2026-09-27','status':'settled','charge_usd':.75,'reserved_usd':1.0}]})
+            spent=ledger.read_bytes()
+            def prepare(feeds,now,config,**kwargs):
+                kwargs['publication_feeds'].update(feeds)
+                return dict(empty_reviews(),budget={'limit_usd':2.75,'charged_or_reserved_usd':.75})
+            with patch.object(review,'ROOT',root),patch.object(review,'CONFIG',cfg),patch.object(review,'load_feeds',return_value=empty_feeds()) as feeds,patch.object(review,'prepare',side_effect=prepare) as paid,patch.object(review,'datetime') as clock:
+                clock.now.return_value=NOW
+                with patch('sys.argv',['review','--astra','--publish-card']):self.assertEqual(review.main(),0)
+                published=json.loads((root/'docs/briefing/morning-card.json').read_text())
+                self.assertEqual(published['kind'],'morning')
+                self.assertEqual(published['status'],'no_reviewed_candidates')
+                self.assertNotEqual(published['edition_id'],test['edition_id'])
+                self.assertEqual(paid.call_args.args[2],config)
+                self.assertEqual(archive.read_bytes(),archived)
+                self.assertEqual(ledger.read_bytes(),spent)
+                self.assertTrue(card.existing_today(root,NOW))
+                with patch('sys.argv',['review','--astra','--publish-card']):self.assertIsNone(review.main())
+                feeds.assert_called_once();paid.assert_called_once()
+
+    def test_repeated_operator_tests_preserve_completed_test_or_morning_editions(self):
+        for kind in ('morning','test'):
+            with self.subTest(kind=kind),TemporaryDirectory() as td:
+                root=Path(td);cfg=root/'config.json'
+                cfg.write_text(json.dumps({'sessions':{'morning':[7,12]}}))
+                card.publish_card(empty_feeds(),empty_reviews(),NOW,root=root,kind=kind)
+                path=root/'docs/briefing/morning-card.json';original=path.read_bytes()
+                with patch.object(review,'ROOT',root),patch.object(review,'CONFIG',cfg),patch.object(review,'load_feeds') as feeds,patch.object(review,'prepare') as paid,patch.object(review,'datetime') as clock:
+                    clock.now.return_value=NOW
+                    with patch('sys.argv',['review','--astra','--publish-card','--test-edition']):self.assertIsNone(review.main())
+                    feeds.assert_not_called();paid.assert_not_called()
+                self.assertEqual(path.read_bytes(),original)
+
     def test_test_edition_preserves_budget_and_incomplete_run_exits_nonzero(self):
         with TemporaryDirectory() as td:
             root=Path(td);cfg=root/'config.json'

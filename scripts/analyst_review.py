@@ -481,7 +481,7 @@ def main():
             config['sessions']={'test':[0,24]}
         if args.publish_card:
             from morning_card import existing_today, publish_card
-            if existing_today(ROOT,now) and not args.replace_card:
+            if existing_today(ROOT,now,include_test=args.test_edition) and not args.replace_card:
                 report_edition(json.loads((ROOT/'docs/briefing/morning-card.json').read_text()))
                 print(json.dumps({'status':'edition_already_published','paid_requests':0}));return
             if not session_at(now,config):

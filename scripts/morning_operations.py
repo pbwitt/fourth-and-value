@@ -12,7 +12,7 @@ from morning_card import ET, ROOT, existing_today
 
 
 def gate(root, now, *, test_edition=False, replace_card=False):
-    if existing_today(root, now) and not replace_card:
+    if existing_today(root, now, include_test=test_edition) and not replace_card:
         return dict(refresh=False, reason='edition_already_published')
     if not test_edition and not 7 <= now.astimezone(ET).hour < 12:
         raise RuntimeError('No completed edition and outside the 07:00–12:00 Eastern recovery window')
