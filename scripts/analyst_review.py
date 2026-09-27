@@ -373,6 +373,7 @@ def run_queue(boards, feeds, config, archive, clock, assessment_update=False):
         done=sum(bool(r.get('qualitative_review')) for r in board['candidates'])
         statuses=queue['statuses']
         board.update(reviewed_count=done,pending_count=len(board['candidates'])-done,
+            batch_statuses=statuses,
             review_status='completed' if done==len(board['candidates']) else
             stop_reason if stopped else 'partially_reviewed' if done else
             (statuses[-1] if statuses else 'not_requested'))
@@ -380,7 +381,7 @@ def run_queue(boards, feeds, config, archive, clock, assessment_update=False):
 
 
 def prepare(feeds, now, config, *, run_review=False, archive=ARCHIVE, public=PUBLIC,
-            clock=lambda: datetime.now(timezone.utc), assessment_update=False):
+            clock=lambda: datetime.now(timezone.utc), assessment_update=False, publication_feeds=None):
     decision_date = now.astimezone(ET).date().isoformat()
     feeds=deepcopy(feeds)
     discovery_public=public.with_name('discovery.json')
@@ -396,6 +397,8 @@ def prepare(feeds, now, config, *, run_review=False, archive=ARCHIVE, public=PUB
         except Exception as error:
             feeds['Discovery']={'status':'discovery_unavailable','error':type(error).__name__}
     selection = selected(feeds, clock() if run_review else now)
+    if publication_feeds is not None:
+        publication_feeds.update(deepcopy(feeds))
     try:
         prior = json.loads(public.read_text())
     except (OSError, ValueError):
@@ -421,6 +424,10 @@ def prepare(feeds, now, config, *, run_review=False, archive=ARCHIVE, public=PUB
     if run_review:
         run_queue(list(output['sports'].values()),feeds,config,archive,clock,assessment_update)
     for sport,board in output['sports'].items():
+        # Count this run's candidates before adding older reviews for context.
+        board['candidate_count']=len(board['candidates'])
+        board['reviewed_count']=sum(bool(r.get('qualitative_review')) for r in board['candidates'])
+        board['pending_count']=board['candidate_count']-board['reviewed_count']
         immutable(archive/'published'/f'{digest(board)[:24]}.json', board)
         old = prior.get('sports', {}).get(sport, {})
         if old.get('decision_date') == decision_date:
@@ -458,6 +465,7 @@ def main():
     parser.add_argument('--publish-card', action='store_true')
     parser.add_argument('--test-edition', action='store_true', help='Explicit operator test, visibly labeled; same daily budget')
     parser.add_argument('--replace-card', action='store_true', help='Replace the public edition; immutable copies are retained')
+    parser.add_argument('--refresh-results', default='{}', help='Parent workflow sport job results (JSON)')
     args = parser.parse_args()
     if args.env_file:
         from dotenv import load_dotenv
@@ -472,18 +480,30 @@ def main():
             config['sessions']={'test':[0,24]}
         if args.publish_card:
             from morning_card import existing_today, publish_card
-            if not session_at(now,config):
-                print(json.dumps({'status':'outside_morning_window','published_card_preserved':True}));return
             if existing_today(ROOT,now) and not args.replace_card:
+                report_edition(json.loads((ROOT/'docs/briefing/morning-card.json').read_text()))
                 print(json.dumps({'status':'edition_already_published','paid_requests':0}));return
+            if not session_at(now,config):
+                print(json.dumps({'status':'outside_morning_window','published_card_preserved':True}));return 1
         feeds=load_feeds()
+        publication_feeds={}
         result = prepare(feeds, now, config,
-            run_review=args.astra, assessment_update=args.assessment_update)
+            run_review=args.astra, assessment_update=args.assessment_update, publication_feeds=publication_feeds)
         if args.publish_card:
-            publish_card(load_feeds(),result,datetime.now(timezone.utc),root=ROOT,
-                kind='test' if args.test_edition else 'morning')
+            card=publish_card(publication_feeds,result,datetime.now(timezone.utc),root=ROOT,
+                kind='test' if args.test_edition else 'morning',refresh_results=json.loads(args.refresh_results))
+            report_edition(card)
     print(json.dumps({s: {'status': b['review_status'], 'candidates': len(b['candidates'])} for s, b in result['sports'].items()}))
+    return int(args.publish_card and card['status']=='research_incomplete')
+
+
+def report_edition(card):
+    """Pin delivery verification to the exact edition produced or reused here."""
+    print(json.dumps({'edition_id':card['edition_id'],'status':card['status']}))
+    if os.getenv('GITHUB_OUTPUT'):
+        with open(os.environ['GITHUB_OUTPUT'],'a') as output:
+            output.write('edition_id='+card['edition_id']+'\n')
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

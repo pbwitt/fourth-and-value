@@ -92,3 +92,27 @@ Validation: immutable snapshot/versioning, paid-run idempotency, morning-window
 checks, budget preservation, unavailable feeds, rollover, quote expiry, mobile
 and desktop rendering, actual-price tracker entry, and existing research/tests.
 This is an operational reliability change, not new evidence of betting edge.
+
+## Morning reliability audit response — 2026-09-27
+
+The audit against PR #25 correctly identified a single cron start, successful
+exit codes for failed research/late starts, and no proof that a completed edition
+was publicly deployed. PR #26 changed presentation only and did not fix these.
+
+- Start at 07:05 ET; recovery attempts at 07:35, 08:05 and 08:35 read current main
+  before feed jobs. Completed editions skip new feed/research costs and verify
+  delivery. Incomplete editions can recover without a manual replace flag.
+- Preserve per-sport current-run counts/statuses before older context is merged.
+  Archive incomplete results and fail the run; do not call missing research a
+  legitimate no-pick day. Completed bounded coverage remains explicit.
+- Freeze the researched feed snapshot through publication, retaining the original
+  freshness rules. Check the exact public edition after requesting the build.
+- Normal $2.75 cap and September 27-only exception are unchanged. No paid testing
+  is needed for these operational fixes. No ranking, betting thresholds or models
+  change. The single-discovery-request limitation is now accurately described.
+
+Remaining limitations: all backup starts depend on GitHub scheduling; no external
+scheduler is configured. Reservation commits still trigger Pages builds. Delivery
+verification detects failure and later starts can recover delivery without paid
+research; it does not remove build churn. Bounded research can leave candidates
+unassessed. No new profitability or completeness claim follows from these fixes.

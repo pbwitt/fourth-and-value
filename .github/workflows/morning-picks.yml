@@ -1,7 +1,7 @@
 name: Morning Picks Edition
 on:
   schedule:
-    - cron: '0 7 * * *'
+    - cron: '5,35 7,8 * * *'
       timezone: America/New_York
   workflow_dispatch:
     inputs:
@@ -20,22 +20,51 @@ permissions:
   contents: write
   pages: write
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      refresh: ${{ steps.gate.outputs.refresh }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests==2.32.5
+      - id: gate
+        name: Skip data pulls and research when today's edition is complete
+        env:
+          TEST_EDITION: ${{ inputs.test_edition || false }}
+          REPLACE_CARD: ${{ inputs.replace_card || false }}
+        run: |
+          args=(--gate)
+          if [ "$TEST_EDITION" = 'true' ]; then args+=(--test-edition); fi
+          if [ "$REPLACE_CARD" = 'true' ]; then args+=(--replace-card); fi
+          python scripts/morning_operations.py "${args[@]}"
   nfl:
+    needs: gate
+    if: needs.gate.outputs.refresh == 'true'
     uses: ./.github/workflows/nfl-weekly.yml
     with:
       editorial_refresh: true
     secrets: inherit
   mlb:
+    needs: gate
+    if: needs.gate.outputs.refresh == 'true'
     uses: ./.github/workflows/mlb-daily.yml
     secrets: inherit
   nhl:
+    needs: gate
+    if: needs.gate.outputs.refresh == 'true'
     uses: ./.github/workflows/nhl-daily.yml
     secrets: inherit
   research:
-    needs: [nfl, mlb, nhl]
-    if: always() && !cancelled()
+    needs: [gate, nfl, mlb, nhl]
+    if: always() && !cancelled() && needs.gate.result == 'success'
     uses: ./.github/workflows/analyst-daily.yml
     with:
       test_edition: ${{ inputs.test_edition || false }}
       replace_card: ${{ inputs.replace_card || false }}
+      refresh_results: '{"NFL":"${{ needs.nfl.result }}","MLB":"${{ needs.mlb.result }}","NHL":"${{ needs.nhl.result }}"}'
     secrets: inherit
