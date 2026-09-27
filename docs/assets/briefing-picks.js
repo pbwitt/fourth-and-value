@@ -24,6 +24,12 @@
   const completeReview=q=>q&&['research_support','concern','needs_information'].includes(q.status)&&
     typeof q.countercase==='string'&&Array.isArray(q.open_checks)&&q.open_checks.every(x=>typeof x==='string')&&
     Array.isArray(q.evidence)&&q.evidence.every(e=>e&&['source_id','direction','interpretation','represented_in'].every(k=>typeof e[k]==='string'));
+  const safeSourceURL=url=>{try{const u=new URL(url);return u.protocol==='https:'&&!u.username&&!u.password&&['espn.com','cbssports.com','nhl.com','nfl.com','mlb.com'].some(h=>u.hostname===h||u.hostname.endsWith('.'+h));}catch{return false;}};
+  const hasReview=r=>completeReview(r.qualitative_review)&&(r.sport==='NHL'?
+    r.qualitative_review.offer_id===r.offer_id&&r.qualitative_review.forecast_id===r.forecast_id:
+    !!r.reviewed_candidate);
+  const citedEvidence=r=>r.qualitative_review.evidence.map(e=>({e,s:r.review_sources?.find(s=>s.source_id===e.source_id)}))
+    .filter(({s})=>s&&safeSourceURL(s.url));
 
   function attachReview(r,feed,now) {
     const board=feed?.sports?.[r.sport];
@@ -113,12 +119,8 @@
 
   function researchHTML(r) {
     const q=r.qualitative_review;
-    if(!completeReview(q))return '';
-    if(r.sport==='NHL'&&(q.offer_id!==r.offer_id||q.forecast_id!==r.forecast_id))return '';
-    const safeURL=url=>{try{const u=new URL(url);return u.protocol==='https:'&&!u.username&&!u.password&&['espn.com','cbssports.com','nhl.com','nfl.com','mlb.com'].some(h=>u.hostname===h||u.hostname.endsWith('.'+h));}catch{return false;}};
-    const items=q.evidence.map(e=>{
-      const s=r.review_sources?.find(s=>s.source_id===e.source_id);
-      if(!s||!safeURL(s.url))return '';
+    if(!hasReview(r))return '';
+    const items=citedEvidence(r).map(({e,s})=>{
       return `<li><strong>${esc(e.direction)}:</strong> ${esc(e.interpretation)} <a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a> <span class="meta">Published ${esc(time(s.published_at))} · may already be reflected in ${esc(e.represented_in.replaceAll('_',' '))}.</span></li>`;
     }).join('');
     const prev=r.reviewed_candidate;
@@ -126,9 +128,33 @@
     return `<details class="pick-research"><summary>Astra analysis · ${esc(time(q.reviewed_at))}</summary>${original}${items?`<ul>${items}</ul>`:'<p>No supporting source evidence verified.</p>'}<p><strong>Case against:</strong> ${esc(q.countercase)}</p><p><strong>Check before deciding:</strong></p><ul>${q.open_checks.map(s=>`<li>${esc(s)}</li>`).join('')}</ul><p class="meta">Sourced AI critique; human verification still required. Model probability is unchanged. Reviews are archived for prospective evaluation.</p></details>`;
   }
 
+  function summaryHTML(selected) {
+    if(!selected.length)return '<p>No current candidates are available to summarize. The feed status below shows whether games have started, prices have expired, or a model list is unavailable.</p>';
+    const reviewed=selected.filter(hasReview);
+    if(!reviewed.length)return `<p>${selected.length} current candidate${selected.length===1?' is':'s are'} awaiting a completed Astra review. There is no sourced qualitative analysis to summarize yet.</p>`;
+    // Cover the leading reviewed candidate in each sport, then fill up to three
+    // paragraphs in existing model order. No new score or cross-sport ranking.
+    const featured=[];
+    for(const sport of ['NFL','MLB','NHL']) {
+      const row=reviewed.find(r=>r.sport===sport);if(row)featured.push(row);
+    }
+    for(const row of reviewed)if(featured.length<3&&!featured.includes(row))featured.push(row);
+    const paragraphs=featured.map(r=>{
+      const q=r.qualitative_review,prior=r.reviewed_candidate||r;
+      const status={research_support:'Astra found sourced support that still needs your verification.',concern:'Astra flagged a sourced concern.',needs_information:'Astra needs more information before the case can be assessed.'}[q.status];
+      const evidence=citedEvidence(r)[0];
+      const source=evidence?` ${esc(evidence.e.interpretation)} (<a href="${esc(evidence.s.url)}" target="_blank" rel="noopener noreferrer">${esc(evidence.s.title)}</a>; published ${esc(time(evidence.s.published_at))}).`:'';
+      const changed=r.review_matches_current===false?' <strong>The price or forecast has changed since this review; reassess the current offer.</strong>':'';
+      const original=changed?` This review assessed ${esc(odds(prior.price))} quoted ${esc(time(prior.quoted_at))}.`:'';
+      const check=q.open_checks[0]?` <strong>Before deciding:</strong> ${esc(q.open_checks[0])}`:'';
+      return `<p class="pick-summary-paragraph"><strong>${esc(r.sport)} · ${esc(r.game)} — ${esc(betLabel(r))}.</strong> The listed price is ${esc(odds(r.price))} at ${esc(r.book_label||r.book)}, quoted ${esc(time(r.quoted_at))}. ${status}${changed}${original}${source} <strong>The case against:</strong> ${esc(q.countercase)}${check} <a class="read-pick-review" href="#pick-review-${selected.indexOf(r)}">Read the full Astra review</a>. <span class="meta">Reviewed ${esc(time(q.reviewed_at))}.</span></p>`;
+    }).join('');
+    return paragraphs+`<p class="meta">${reviewed.length} of ${selected.length} current candidates have a completed review; ${featured.length} summarized here. Other reviews and remaining checks are under each bet below. Model estimates remain unchanged.</p>`;
+  }
+
   function rowHTML(r,index=0,saved=false) {
     const research=researchHTML(r);
-    return `<tr><td><a href="${esc(r.url)}"><strong>${esc(betLabel(r))}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${esc(r.review)}</span></td><td>${esc(odds(r.price))}</td><td><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td>${esc(r.book_label||r.book)}<br><button type="button" class="track-pick secondary" data-track-pick="${index}" ${saved?'disabled':''} aria-label="${esc((saved?'Tracked: ':'Track bet: ')+betLabel(r))}">${saved?'Tracked':'Track bet'}</button></td></tr>${research?`<tr class="pick-research-row"><td colspan="4">${research}</td></tr>`:''}`;
+    return `<tr><td><a href="${esc(r.url)}"><strong>${esc(betLabel(r))}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${esc(r.review)}</span></td><td>${esc(odds(r.price))}</td><td><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td>${esc(r.book_label||r.book)}<br><button type="button" class="track-pick secondary" data-track-pick="${index}" ${saved?'disabled':''} aria-label="${esc((saved?'Tracked: ':'Track bet: ')+betLabel(r))}">${saved?'Tracked':'Track bet'}</button></td></tr>${research?`<tr class="pick-research-row" id="pick-review-${index}"><td colspan="4">${research}</td></tr>`:''}`;
   }
 
   async function mount() {
@@ -140,7 +166,10 @@
     function render() {
       const now=Date.now(),result=collect(feeds,now);
       current=result.selected;
+      const openReviews=new Set(Array.from(root.querySelectorAll('.pick-research[open]')).map(el=>el.closest('tr').dataset.reviewKey));
       document.getElementById('daily-picks-rows').innerHTML=current.map((r,i)=>rowHTML(r,i,tickets.get(key(r))?.saved)).join('')||'<tr><td colspan="4">No current bets qualify for today’s review list. See the feed status below; an empty list is a valid result.</td></tr>';
+      current.forEach((r,i)=>{const row=$('pick-review-'+i);if(row){row.dataset.reviewKey=key(r);row.querySelector('details').open=openReviews.has(key(r));}});
+      const summary=$('picks-analysis-text');if(summary)summary.innerHTML=summaryHTML(current);
       document.getElementById('picks-status').textContent=`${result.selected.length} candidates for ${new Date(now).toLocaleDateString('en-US',{timeZone:'America/New_York',month:'long',day:'numeric'})} · ${checked?'Source boards checked '+time(checked):'Checking source boards'}.`;
       document.getElementById('picks-coverage').textContent=result.coverage.map(c=>`${c.sport}: ${c.message}`).join(' · ');
       const research=document.getElementById('picks-research-status');
@@ -149,6 +178,11 @@
         $('track-quote').textContent=`Saved quote: ${odds(draft.row.price)} at ${time(draft.row.quoted_at)}. This offer has expired or changed. Enter the price of the bet you actually placed.`;
       }
     }
+    root.addEventListener('click',event=>{
+      const link=event.target.closest('.read-pick-review');if(!link)return;
+      const row=document.getElementById(link.hash.slice(1)),detail=row?.querySelector('details');
+      if(detail){detail.open=true;detail.querySelector('summary').focus();}
+    });
     const script=src=>new Promise((resolve,reject)=>{const el=document.createElement('script');el.src=src;const fail=()=>{clearTimeout(timer);el.remove();reject(Error('Bet Tracker could not load. Please try again.'));};const timer=setTimeout(fail,15000);el.onload=()=>{clearTimeout(timer);resolve();};el.onerror=fail;document.head.append(el);});
     async function tracker() {
       if(!trackingReady)trackingReady=(async()=>{
@@ -203,6 +237,6 @@
     await load();setInterval(render,30000);setInterval(load,300000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
   }
-  if(typeof module==='object'&&module.exports)module.exports={collect,rowHTML,day,ticketData,reviewKey,reviewBetKey};
+  if(typeof module==='object'&&module.exports)module.exports={collect,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML};
   else mount();
 })(typeof window==='undefined'?globalThis:window);

@@ -15,6 +15,8 @@ analysis** beneath a candidate to read sourced evidence, the countercase and
 checks that could invalidate the thesis. Bet Tracker remains beside each row.
 The independent price rundown is unaffected.
 
+**Top picks analysis**, above the table, presents up to three short prose summaries of completed reviews. It starts with the leading reviewed candidate per sport, then fills any remaining space in existing model order. It repeats the stored interpretation, countercase and first open check without another AI request, changing model scores or inventing claims. Source links, quote/review times and changed-offer warnings remain visible. Each paragraph opens the full review, which contains every evidence item and open check. Missing or expired reviews produce an explicit waiting/empty state. Open reviews stay open during the 30-second freshness refresh when their offer remains on the list.
+
 Each review retains the game, player, market, side, line, book, actual odds,
 quote timestamp, forecast timestamp and probability values it assessed. The
 browser binds review status to this exact identity. A refreshed price/forecast
