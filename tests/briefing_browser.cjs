@@ -121,7 +121,7 @@ const server=http.createServer((req,res)=>{
         await page.locator('.read-pick-review').click();
         assert.match(await page.locator('.pick-research').textContent(),/Model case:/);
         if(verdict==='wait'){
-          const row=page.locator('#daily-picks-rows > tr').filter({has:page.locator('[data-track-pick="1"]')});
+          const row=page.locator('#daily-picks-rows > tr').filter({has:page.locator('a[href^="/mlb/picks.html"]')});
           assert.match(await row.textContent(),/Experimental · Needs review/);
           assert.match(await row.textContent(),/Why: The model case needs a defensible opportunity estimate/);
         }
