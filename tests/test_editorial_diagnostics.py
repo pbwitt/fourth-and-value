@@ -10,28 +10,28 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 import editorial_diagnostics as diag
 
 class DiagnosticTests(unittest.TestCase):
-    now=datetime(2026,9,26,12,tzinfo=timezone.utc)
+    now=datetime(2026,9,26,13,tzinfo=timezone.utc)
     def setUp(self):
         self.tmp=TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name)
         self.write('config/editorial.json',{'writing_enabled':True,'writer':{'daily_story_limit':2}})
     def write(self,path,data):
         p=self.root/path;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(json.dumps(data));return p
-    def test_report_uses_630_deadline_and_predeadline_recovery(self):
-        before=datetime(2026,9,26,10,29,tzinfo=timezone.utc)
-        target=datetime(2026,9,26,10,30,tzinfo=timezone.utc)
+    def test_report_uses_830_deadline_and_predeadline_recovery(self):
+        before=datetime(2026,9,26,12,29,tzinfo=timezone.utc)
+        target=datetime(2026,9,26,12,30,tzinfo=timezone.utc)
         self.assertEqual(diag.build_report(self.root,before)['status'],'pending')
         report=diag.build_report(self.root,target)
         self.assertEqual(report['status'],'overdue')
-        self.assertEqual(report['delivery_target'],'2026-09-26T06:30:00-04:00')
-        self.assertEqual(diag.next_opportunity(datetime(2026,9,26,10,18,tzinfo=timezone.utc)),
-            '2026-09-26T06:23:00-04:00')
+        self.assertEqual(report['delivery_target'],'2026-09-26T08:30:00-04:00')
+        self.assertEqual(diag.next_opportunity(datetime(2026,9,26,12,18,tzinfo=timezone.utc)),
+            '2026-09-26T08:23:00-04:00')
 
     def test_no_run_or_data_is_overdue_not_green(self):
         r=diag.build_report(self.root,self.now)
         self.assertEqual(r['status'],'overdue');self.assertEqual(r['saved'],0)
         self.assertEqual(r['live_check'],'not_checked')
         self.assertTrue(all(d['prices']=='stale' for d in r['data']))
-        self.assertTrue(r['recovery']['eligible'])
+        self.assertFalse(r['recovery']['eligible']);self.assertEqual(r['recovery']['reason'],'waiting_for_morning_models')
     def test_two_files_without_live_verification_are_not_delivered(self):
         rows=[{'date':'2026-09-26','kind':'Analysis','url':f'/editorial/articles/{n}.html'} for n in ('a','b')]
         self.write('docs/editorial/published.json',rows)

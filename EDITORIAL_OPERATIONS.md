@@ -4,7 +4,26 @@ The homepage combines a curated lead, an automated market rundown, recent report
 
 ## Schedule and costs
 
-`.github/workflows/editorial-daily.yml` collects a morning edition at **5:07 AM America/New_York**, adjusting for daylight saving time. GitHub schedules can be delayed; this is a target, not an exact-time promise. At **17 minutes past each hour**, it checks the private queue for approved articles and refreshes homepage freshness labels.
+The coordinated **07:05 America/New_York** sports refresh starts the day. After
+NFL, MLB and NHL jobs finish, `morning-picks.yml` dispatches
+`editorial-daily.yml` with scheduled-recovery semantics. This short handoff runs
+separately from Top Picks research, so writing does not block picks or recovery.
+The article delivery target is **08:30 Eastern**. Automatic writing runs only
+07:05–12:00 and requires successful model checks after today's 07:05 start and
+within 90 minutes. Per-story history, prices, matchup and reporting checks still
+apply; unavailable sports cannot borrow another sport's readiness.
+
+Recovery runs at **:47 from 7–10 a.m.** and during **hourly :17** maintenance; the
+watchdog checks at **:23/:53 from 7–10 a.m.**, **8:33 a.m.**, and after the scheduled
+morning workflow completes. It dispatches only when current models and retryable slots
+exist. Neither scheduler automatically pulls NFL/MLB statistics again. Explicit
+manual refresh and Write now preserve their existing behavior. Test editions of
+Top Picks do not automatically launch articles.
+
+Hourly maintenance still handles approved private-queue posts and homepage
+freshness. Later price checks at 11:07, 16:07 and 21:07 can update the rundown
+when due; they do not start automatic afternoon research/writing. GitHub may
+delay/drop triggers, so the target is not an exact-time guarantee.
 
 Each price edition makes one full-game totals request per sport (NFL, MLB, NBA, NHL) with existing Odds API credentials and reads four public ESPN RSS feeds. It does **not** train models or generate new prop forecasts. Existing sports/model refreshes continue separately. The authorized Astra writer then researches and directly publishes original features, using the server-side `OPENAI_API_KEY` secret. See the original-analysis operating details below.
 
@@ -56,11 +75,11 @@ The public homepage and morning briefing can run before the private database mig
 
 ## Automated original analysis — budget revision, September 22
 
-Enabled in `config/editorial.json`: **two published articles each morning, with a 6:30 AM Eastern delivery check**, exact model
+Enabled in `config/editorial.json`: **two published articles each morning, with an 8:30 AM Eastern delivery check**, exact model
 `gpt-6-astra`, low reasoning, standard service tier. No fallback model. Runs on GitHub
-Actions at **05:07 America/New_York**, without the owner's computer. GitHub may delay
+Actions after the **07:05 America/New_York sports refreshes finish**, without the owner's computer. GitHub may delay
 scheduled jobs; publication follows research, factual checking and the Pages build.
-Additional triggers at :27 and :47 from 5–9 AM recover delayed starts. Hourly runs also retry unfilled, eligible article slots; completed or uncertain paid attempts are not repeated. The independent Morning Article Delivery Watchdog checks at :23 and :53 from 5–9 AM, plus 6:33 AM and after MLB refreshes during the morning window. It dispatches recovery if no editorial run is active and reports an overdue edition as a failed check.
+Recovery triggers and the watchdog follow the current schedule above. They require fresh morning models and retryable slots. Completed or uncertain paid attempts are not repeated, and an overdue edition remains a failed check.
 
 The allocator prefers leagues covered least recently, breaking ties in favor of
 active boards and rotating ties daily. It tries other leagues if current sources
@@ -73,8 +92,8 @@ blocked states for recovery. Missing source evidence remains retryable.
 
 The delivery check counts unique catalog URLs with existing public article files,
 not writer invocations or drafts. It runs after publication so a partial edition and
-its diagnostics are preserved before the workflow fails. Before 6:30 AM Eastern, an incomplete
-edition is pending; from 6:30 AM it fails with the counts and blocking reasons in the
+its diagnostics are preserved before the workflow fails. Before 8:30 AM Eastern, an incomplete
+edition is pending; from 8:30 AM it fails with the counts and blocking reasons in the
 Actions summary. The workflow and watchdog also fetch the public article URLs and verify their
 page titles, retrying during deployment propagation. An accepted Pages build
 request alone does not count as successful public delivery.
@@ -206,11 +225,12 @@ publication, rather than appearing as an overall success. See the latest public
 
 ## Market rundown refresh
 
-Five price editions: 05:07, 06:37, 11:07, 16:07 and 21:07 America/New_York. Only the
-two morning runs can generate articles; later editions use existing Odds API credentials
-and public feeds, with no OpenAI calls. This adds up to twelve odds requests daily
-above the previous single edition (provider quota still applies). Hourly renders
-remove stale/started games from the latest briefing while retaining dated archives.
+Price checks follow the morning sports refresh and later scheduled starts at
+11:07, 16:07 and 21:07 Eastern. Freshness and writer need determine whether a
+check retrieves prices; hourly maintenance can refresh a rundown at least 4.5
+hours old. Automatic article writing is limited to the morning window. Existing
+Odds API credentials and provider quotas apply; no new subscription is enabled.
+Hourly renders remove stale/started games while retaining dated archives.
 
 Cards select a mover, a book disagreement and the next distinct game, skipping
 categories without evidence. Movement and disagreement rank proportionally to the
@@ -247,6 +267,9 @@ privacy disclosures and applicable consent controls must be implemented before
 activation. These changes are not a legal opinion or certification of enforceability.
 
 ## September 23: data before editorial publication
+
+The following records the September 23 implementation. Its hourly MLB pulls and
+early editorial start times are superseded by **Schedule and costs** above.
 
 The earlier schedules let morning writing precede the MLB daily model update. An
 input-size reducer could also remove every market row. Both are corrected. The
@@ -299,7 +322,8 @@ availability, matchup context, named book prices, model limitations, a counterca
 and a supported lean or pass. Do not manufacture a wager or injury-driven move.
 Targeted collection checks up to 30 recent items per feed, matching team names in
 headlines/URLs and excluding promotional offers. All usual source and data gates
-remain in force. Unspent slots missing data/reporting can retry at 06:37; paid
+remain in force. Unspent slots missing data/reporting can retry during the current
+morning recovery window; paid
 attempts never automatically repeat. This replaces a daily slot, not an extra
 paid article, and retains the rolling spending cap.
 
@@ -324,17 +348,17 @@ the run from current state:
 - briefing freshness
 - MLB board/model freshness
 
-Scheduled runs after 5:00 AM Eastern may fill an unattempted or
-`waiting_for_data` slot. This includes the ordinary hourly maintenance schedule, so
-a missed 5:07 or 6:37 event can be rescued later without changing the daily two-story
-limit.
+Scheduled runs during 07:05–12:00 Eastern may fill an unattempted or
+`waiting_for_data` slot when fresh post-start models exist. Hourly maintenance
+can recover a lost handoff without changing the daily two-story limit.
 
 The planner does **not** automatically retry a slot that reached `started`, because
 a paid request may already have occurred. It also does not bypass the global
 `writing_enabled` switch, the daily publication limit, or a funding-required state.
 
-MLB refreshes are state-aware. A retryable MLB slot or recoverable MLB data skip can
-request a fresh MLB update when the current board is not already fresh. Briefing
+NFL/MLB refreshes now belong to the coordinated sports schedule. Automatic
+editorial recovery consumes their output; only explicit manual editorial requests
+can request another sports refresh. Briefing
 refreshes are similarly based on freshness and writer need rather than one exact cron
 expression.
 
@@ -729,12 +753,20 @@ All save tests use a fake client; no real bets or sign-in emails are created.
 
 ## Sourced shortlist review
 
-MLB and NFL now share the NHL Astra review infrastructure after the quantitative screen. See [ANALYST_RESEARCH.md](ANALYST_RESEARCH.md) for schedules, unchanged model semantics, exact offer matching, archives, the combined $5 rolling-week research budget, operational limits and rollback. Reviews appear beneath each reviewed bet in the briefing; changed prices/forecasts require a recheck. This does not establish qualitative uplift or mark a bet as analyst-approved.
+MLB and NFL now share the NHL Astra review infrastructure after the quantitative screen. See [ANALYST_RESEARCH.md](ANALYST_RESEARCH.md) for schedules, unchanged model semantics, exact offer matching, archives, the combined $2.75 daily Top Picks research budget, operational limits and rollback. Reviews appear beneath each reviewed bet in the briefing; changed prices/forecasts require a recheck. This does not establish qualitative uplift or mark a bet as analyst-approved.
 
-## Early morning NFL refresh and research order
+## Coordinated morning data and editorial order — September 27
 
-The 05:07 America/New_York editorial run can call NFL Weekly Update directly with `editorial_refresh: true`; it does not wait for the standalone Sunday 08:00 run. A stale or missing NFL board triggers refresh during scheduled 05:00–10:00 morning recovery even if article slots are already filled or paid writing is unavailable. A current-day NFL board less than 75 minutes old avoids a duplicate refresh.
+The earlier 05:07/06:30 editorial schedule is superseded by the current schedule
+at the top of this document. The morning sports jobs finish before the primary
+editorial dispatch. Top Picks research and editorial writing then run separately;
+a failure in one does not suppress the other's healthy inputs. Automatic recovery
+uses existing post-07:05 models and does not launch repeated sports refreshes.
+Independent NFL game-day updates remain. The two-story daily limit, $9 rolling
+weekly writing budget and $2.75 daily Top Picks budget are unchanged.
 
-After the called MLB/NFL refreshes finish, the workflow calls Morning Candidate Research, preserving its existing spend and retry limits. Publication waits for that call and then reads main again. A failed upstream job still produces explicit missing/stale status instead of reviving yesterday's information. The standalone 08:00/11:00 NFL runs provide later updates. GitHub schedules are execution opportunities, not guaranteed delivery times; the watchdog and manual recovery remain available.
-
-The publish job must install `requirements.txt` before running editorial contract checks. A regression test checks this job specifically: installing NumPy only in the separate planning job does not satisfy the publisher's dependencies.
+The publish job installs `requirements.txt` before editorial contract checks.
+Tests cover morning/winter timing, delayed or failed models, current history,
+manual requests, no-paid-call freshness failures and the 08:30 delivery target.
+Rollback the scheduling/handoff change as one unit if needed; preserve article
+ledgers, published articles, research archives and both spending ledgers.

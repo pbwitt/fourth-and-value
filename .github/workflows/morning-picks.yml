@@ -68,3 +68,16 @@ jobs:
       replace_card: ${{ inputs.replace_card || false }}
       refresh_results: '{"NFL":"${{ needs.nfl.result }}","MLB":"${{ needs.mlb.result }}","NHL":"${{ needs.nhl.result }}"}'
     secrets: inherit
+  editorial:
+    needs: [gate, nfl, mlb, nhl]
+    if: always() && !cancelled() && needs.gate.result == 'success' && needs.gate.outputs.refresh == 'true' && !inputs.test_edition
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Start editorial after the sports refreshes finish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run editorial-daily.yml --ref main -f scheduled_recovery=true -f refresh_briefing=false

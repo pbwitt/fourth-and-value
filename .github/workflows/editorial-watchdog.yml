@@ -2,14 +2,14 @@ name: Morning Article Delivery Watchdog
 
 on:
   schedule:
-    # Recover before the 6:30 AM target, then verify just after it.
-    - cron: '23,53 5-9 * * *'
+    # Recovery follows morning data; check just after the 8:30 AM target too.
+    - cron: '23,53 7-10 * * *'
       timezone: America/New_York
-    - cron: '33 6 * * *'
+    - cron: '33 8 * * *'
       timezone: America/New_York
-  # A completed sports refresh is another opportunity to recover a missed cron.
+  # A completed coordinated run is another opportunity to recover a lost handoff.
   workflow_run:
-    workflows: ['MLB Daily Update']
+    workflows: ['Morning Picks Edition']
     types: [completed]
   workflow_dispatch:
 
@@ -23,6 +23,7 @@ permissions:
 
 jobs:
   verify:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.event == 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -43,13 +44,13 @@ jobs:
           sys.path.insert(0, 'scripts')
           import editorial_schedule as schedule
           now = datetime.now(timezone.utc)
-          if not 5 <= now.astimezone(schedule.ET).hour < 10:
+          if not schedule.morning_window(now):
               print('Outside morning recovery window')
               raise SystemExit(0)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write('in_window=true\n')
-          needed, reason = schedule.writer_need(schedule.ROOT, now)
-          if needed:
+          plan = schedule.plan(schedule.ROOT, now, event_name='schedule')
+          if plan['writer_eligible']:
               raw = subprocess.check_output(['gh', 'run', 'list', '--workflow', 'editorial-daily.yml',
                   '--limit', '30', '--json', 'status'], text=True)
               active = any(run['status'] in ('queued', 'in_progress', 'waiting', 'pending', 'requested')
@@ -57,7 +58,7 @@ jobs:
               if not active:
                   subprocess.run(['gh', 'workflow', 'run', 'editorial-daily.yml', '--ref', 'main',
                       '-f', 'refresh_briefing=false', '-f', 'scheduled_recovery=true'], check=True)
-                  print('Recovery dispatched: ' + reason)
+                  print('Recovery dispatched: ' + plan['writer_reason'])
               else:
                   print('Editorial run already active; no duplicate dispatch')
           PY

@@ -68,7 +68,7 @@ def next_opportunity(now):
     for minute in range(1,24*60+1):
         candidate=(local+timedelta(minutes=minute)).replace(second=0,microsecond=0)
         h,m=candidate.hour,candidate.minute
-        if h>=5 and ((5<=h<=9 and m in (23,53)) or (h,m)==(6,33) or m==17 or (5<=h<=9 and m in (27,47)) or (h,m) in ((5,7),(6,7),(11,7),(16,7),(21,7))):
+        if schedule.morning_window(candidate) and ((7<=h<=10 and m in (23,47,53)) or (h,m)==(8,33) or m==17 or (h,m)==(11,7)):
             return candidate.isoformat()
 
 
@@ -110,6 +110,7 @@ def build_report(root=ROOT,now=None,run=None,phase='finish'):
         sources.append({'sport':sport,**{k:check.get(k) for k in ('at','candidates','hosts','fallback_attempted','fallback_used','ready')}})
     blocked=[{'sport':sport,'reason':safe_reason(reason)} for sport,reason in state.get('data_skips',{}).items()]
     need,reason=schedule.writer_need(root,now)
+    planner=schedule.plan(root,now,event_name='schedule')
     stages=run.get('stages',{})
     live=stages.get('live_delivery',{}).get('status','not_checked')
     complete=len(stored)>=expected
@@ -118,7 +119,7 @@ def build_report(root=ROOT,now=None,run=None,phase='finish'):
         'delivery_target':schedule.delivery_target(now).isoformat(),'expected':expected,'saved':len(stored),'live_check':live,'run':run,'data':data,'articles':articles,
         'selection_checks':state.get('selection_checks',[]),'sources':sources,'unselected':blocked,'selection_count':len(state.get('allocation',[])),
         'writer_checked_at':state.get('last_writer_check',{}).get('at'),
-        'recovery':{'eligible':need,'reason':reason,'next_opportunity':next_opportunity(now) if need else None,
+        'recovery':{'eligible':planner['writer_eligible'],'reason':planner['writer_reason'],'next_opportunity':next_opportunity(now) if need else None,
                     'note':'Scheduled opportunity; GitHub may delay or miss a trigger.'},
         'fallback_policy':'All four sports are considered. Two qualifying sports take priority; otherwise a different matchup from the same qualifying sport may fill the second slot. Current model evidence is required. Rejected or uncertain paid attempts are not repeated.'}
 
