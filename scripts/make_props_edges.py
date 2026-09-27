@@ -283,6 +283,7 @@ def main():
     if "player_key" not in join_keys:
         join_keys = [k for k in ("name_std","market_std") if k in props.columns and k in params.columns]
     no_data_col = ["no_real_data"] if "no_real_data" in params.columns else []
+    no_data_col += ["projection_diagnostics"] if "projection_diagnostics" in params.columns else []
     merged = props.merge(
         params[join_keys + ["mu", "sigma", "lam"] + no_data_col].drop_duplicates(),
         on=join_keys,
@@ -331,6 +332,9 @@ def main():
     merged["model_prob"] = apply_calibration(
         merged.assign(model_prob=merged["model_prob_raw"]), calibration
     )
+    from nfl_prop_diagnostics import calibration_trace
+    merged['calibration_diagnostics'] = merged.apply(lambda r: json.dumps(
+        calibration_trace(r['market_std'], r['model_prob_raw'], calibration), separators=(',', ':'), allow_nan=False), axis=1)
 
     # Missing player evidence is unknown, not the book's vig-inclusive probability.
     no_data_mask = merged["no_real_data"].astype(str).str.lower().isin(["true", "1"])

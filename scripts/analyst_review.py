@@ -21,7 +21,7 @@ ARCHIVE = ROOT/'artifacts/analyst'
 PUBLIC = ROOT/'docs/briefing/reviews.json'
 CONFIG = ROOT/'config/analyst_review.json'
 ET = ZoneInfo('America/New_York')
-PROMPT_VERSION = 'mlb-nfl-context-3'
+PROMPT_VERSION = 'mlb-nfl-context-4'
 SCHEMA = deepcopy(astra.SCHEMA)
 DETAILS = SCHEMA['properties']['reviews']['items']['properties']['evidence']['items']['properties']
 DETAILS['kind']['enum'] = ['deployment', 'injury', 'tactical', 'pitcher', 'weather', 'other']
@@ -48,11 +48,28 @@ feature/news/market timing cannot establish whether information is already refle
 Return every candidate exactly once. No wagering or stake advice.
 '''
 INSTRUCTIONS += astra.ASSESSMENT_INSTRUCTIONS
+INSTRUCTIONS += '''
+When model_diagnostics is supplied, explain the actual disagreement using it: input sample,
+opportunity/efficiency, mean adjustment stages and raw-to-calibrated probability. Do not merely
+repeat the gap or ask a human to investigate facts already supplied. Separate why the model differs
+from why a book's line differs. A book offering multiple thresholds is selling alternate lines;
+compare its central quote and price ladder before claiming it expects a different player outcome.
+An under can be likely while its price is unattractive. Market median line is not a mean forecast.
+Use raw_distribution_stress only as a labeled hypothetical, never a replacement probability or edge.
+Explain which assumptions would have to hold for the actual price to offer value and the evidence
+for or against them. A verified partial appearance is not evidence of a normal starter's workload.
+Do not ask to confirm a starting role already established by dated relevant reporting; distinguish
+planned role from final active status. Model shortcomings can warrant a pass without adverse news.
+Lead model_case with the largest demonstrated cause; lead price_case with main versus alternate
+line and required break-even. Keep uncertainty specific. Do not treat multiple transformations of
+the same price/model as independent confirming signals.
+'''
 
 
 def load_feeds():
     feeds = {}
-    for sport, relative in [('NFL', 'docs/props/top-picks.json'), ('MLB', 'docs/mlb/data/latest.json')]:
+    for sport, relative in [('NFL', 'docs/props/top-picks.json'), ('MLB', 'docs/mlb/data/latest.json'),
+                           ('NFLContext', 'docs/props/model-context.json')]:
         try:
             feeds[sport] = json.loads((ROOT/relative).read_text())
         except (OSError, ValueError):
@@ -64,7 +81,12 @@ def selected(feeds, now):
     result = subprocess.run(['node', str(ROOT/'scripts/analyst_shortlist.cjs')],
         input=json.dumps(dict(feeds=feeds, asof=iso(now)), allow_nan=False),
         capture_output=True, text=True, timeout=30, check=True, cwd=ROOT)
-    return json.loads(result.stdout)
+    result = json.loads(result.stdout)
+    from nfl_prop_diagnostics import review_diagnostics
+    for row in result['selected']:
+        if row['sport'] == 'NFL':
+            row['model_diagnostics'] = review_diagnostics(row, feeds.get('NFLContext'), row['forecast_at'])
+    return result
 
 
 def normalized(row):
@@ -94,6 +116,60 @@ def session_at(now, config):
     return next((key for key, (lo, hi) in config['sessions'].items() if lo <= hour < hi), None)
 
 
+def review_payload(board, sources, asof, config):
+    """Fit the existing byte cap; retain full diagnostics in the archived board.
+
+    Compact redundant audit metadata first. If needed, shorten source excerpts
+    equally, then retain one source per candidate before any second sources.
+    No candidate, price, distribution assumption or numerical input is removed.
+    """
+    request = astra.payload(board, sources, asof, config, instructions=INSTRUCTIONS, schema=SCHEMA,
+        prompt_version=PROMPT_VERSION, extra_fields=('sport', 'probability_basis', 'market_reference',
+            'model_limitations', 'home_pitcher', 'away_pitcher', 'model_diagnostics'))
+    packet = json.loads(request['input'])
+    for r in packet['candidates']:
+        d = r.get('model_diagnostics')
+        if not d:
+            continue
+        c = d.get('calibration')
+        if c:
+            for field in ('artifact_sha256', 'version', 'fitted_weeks', 'limitation'):
+                c.pop(field, None)
+        if d.get('projection'):
+            d['projection'].pop('version', None)
+        # The timestamps and full book keys remain in the board. Every quote
+        # below was tested against the same five-minute pairing window.
+        d['quote_window_seconds'] = 300
+        for q in [d.get('offered_book_central_quote'), *d.get('offered_book_nearby_quotes', []), *d.get('other_book_central_quotes', [])]:
+            if q:
+                q.pop('last_update', None)
+                q.pop('name', None)  # All quotes are for the candidate's side.
+        for q in [d.get('offered_book_central_quote'), *d.get('offered_book_nearby_quotes', [])]:
+            if q:
+                q.pop('bookmaker', None)  # Offered book is explicit on the row.
+        # Shared method limitations already appear in instructions and trace.
+        r.pop('model_limitations', None)
+        r.pop('invalidation_conditions', None)  # Identical global checks in instructions.
+    def size():
+        request['input'] = json.dumps(packet, ensure_ascii=False, separators=(',', ':'))
+        return len(json.dumps(request, ensure_ascii=False).encode())
+    cap = min(26000, config['max_request_bytes'])
+    for length in (1000, 700, 450):
+        if size() <= cap:
+            break
+        for s in packet['sources']:
+            s['excerpt'] = s['excerpt'][:length]
+    if size() > cap:
+        covered, retained = set(), []
+        for s in packet['sources']:
+            if set(s['candidate_ids'])-covered:
+                retained.append(s); covered.update(s['candidate_ids'])
+        packet['sources'] = retained
+    size()
+    astra.bounds(request, config)  # Still fail closed; never raise the budget.
+    return request
+
+
 def review(board, feeds, config, archive, clock, *, assessment_update=False):
     if not board['candidates']:
         board['review_status'] = 'no_candidates'
@@ -121,14 +197,12 @@ def review(board, feeds, config, archive, clock, *, assessment_update=False):
     if any(r['review_key'] not in current for r in board['candidates']):
         board['review_status'] = 'expired_during_research'
         return board
-    request = astra.payload(board, sources, asof, config, instructions=INSTRUCTIONS, schema=SCHEMA,
-        prompt_version=PROMPT_VERSION, extra_fields=('sport', 'probability_basis', 'market_reference',
-            'model_limitations', 'home_pitcher', 'away_pitcher'))
+    request = review_payload(board, sources, asof, config)
     amount = astra.bounds(request, config)
     request_id = digest(request)[:24]
     packet = archive/'requests'/f'{request_id}.json'
     immutable(packet, dict(board_id=board['board_id'], request_id=request_id,
-        prepared_at=iso(asof), request=request, diagnostics=diagnostics))
+        prepared_at=iso(asof), request=request, diagnostics=diagnostics, collected_sources=sources))
     # Both workflows use one concurrency group and the same local lock. Retain
     # the legacy NHL ledger; its actual spend/reservations count against this cap.
     cap = min(5, config['weekly_budget_usd']) - astra.recent_spend(ROOT/'artifacts/nhl/analyst/budget.json', asof)
@@ -143,7 +217,10 @@ def review(board, feeds, config, archive, clock, *, assessment_update=False):
         response = astra.call_api(request)
         finished = clock()
         immutable(archive/'responses'/f'{request_id}.json', dict(received_at=iso(finished), response=response))
-        results = astra.parse_response(response, board, sources, asof, schema=SCHEMA, prompt_version=PROMPT_VERSION)
+        # Validate citations against exactly the excerpts the model received.
+        supplied = {s['source_id']: s for s in json.loads(request['input'])['sources']}
+        reviewed_sources = [dict(s, excerpt=supplied[s['source_id']]['excerpt']) for s in sources if s['source_id'] in supplied]
+        results = astra.parse_response(response, board, reviewed_sources, asof, schema=SCHEMA, prompt_version=PROMPT_VERSION)
         by_id = {q['candidate_id']: q for q in results}
         for r in board['candidates']:
             r['qualitative_review'] = dict(by_id[r['candidate_id']], evidence_asof=iso(asof),

@@ -25,7 +25,9 @@ class BriefingContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             out=Path(td)/'docs/props/top.html'
             args=SimpleNamespace(merged_csv='unused',out=str(out),season=2026,week=3)
-            with patch.object(props,'prepare_records',return_value=[row,dict(row,player='Unsupported',model_status='Legacy estimate')]):
+            with patch.object(props,'prepare_records',return_value=[row,dict(row,player='Unsupported',model_status='Legacy estimate')]), \
+                 patch('nfl_prop_diagnostics.build_context',return_value={'schema_version':1,'groups':{}}), \
+                 patch.object(props.pd,'read_csv'):
                 props.build_page(args,top_only=True)
             feed=json.loads((out.parent/'top-picks.json').read_text())
             packed=json.loads(re.search(r'id="props-data">(.*?)</script>',out.read_text()).group(1))

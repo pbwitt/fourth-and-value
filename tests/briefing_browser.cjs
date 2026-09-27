@@ -76,6 +76,23 @@ const server=http.createServer((req,res)=>{
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
       await page.locator('#daily-picks').screenshot({path:`/tmp/fv-astra-review-${width}.png`});
     }
+    // Diagnostics remain separate from the original prediction and escape source text.
+    feeds.Reviews.sports.MLB.candidates[0].model_diagnostics={projection:{attempts:26,completion_rate:.6,yards_per_completion:9.6,
+      current_sample:[{season:2026,week:1,attempts:5,completions:3,passing_yards:18}],recent_mean_weight:.2,yards_per_completion_recent_weight:.2},
+      calibration:{raw_probability:.914365,outside_fitted_range:true},other_books_at_exact_line:0,
+      offered_book_nearby_quotes:[{name:'<img src=x onerror=alert(1)>',point:242.5,price:-240}],
+      raw_distribution_stress:{market_centered_mean:211.5,probability:.6678}};
+    for(const width of [390,768,1440]) {
+      await page.setViewportSize({width,height:1000});await page.reload();await page.waitForSelector('.pick-diagnostics',{state:'attached'});
+      await page.locator('.read-pick-review').click();await page.locator('.pick-diagnostics summary').click();
+      assert.match(await page.locator('.pick-diagnostics').textContent(),/5 attempts, 3 completions, 18 yards/);
+      assert.match(await page.locator('.pick-diagnostics').textContent(),/91.4% before historical calibration/);
+      assert.match(await page.locator('.pick-diagnostics').textContent(),/not a new forecast/);
+      assert.equal(await page.locator('.pick-diagnostics img').count(),0);
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+      await page.locator('.pick-research').screenshot({path:`/tmp/fv-model-diagnostic-${width}.png`});
+    }
+    delete feeds.Reviews.sports.MLB.candidates[0].model_diagnostics;
     // A full model-and-price assessment renders with no news and no layout change.
     const q=feeds.Reviews.sports.MLB.candidates[0].qualitative_review;
     q.status='needs_information';q.evidence=[];
