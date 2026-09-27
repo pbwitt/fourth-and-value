@@ -5,8 +5,35 @@
 #pick-tracker .track-confirm{display:flex;gap:10px;align-items:flex-start;font-size:.9rem}
 #pick-tracker .track-confirm input{width:auto;margin-top:7px;flex-shrink:0}
 
-.pick-research{margin-top:.65rem;max-width:42rem;font-size:.9rem;overflow-wrap:anywhere}.pick-research summary{cursor:pointer;font-weight:600}.pick-research p,.pick-research li{margin:.6rem 0}.pick-research ul{padding-left:1.2rem}
+.pick-research{margin-top:.65rem;max-width:42rem;font-size:.9rem;overflow-wrap:anywhere}.pick-research summary{cursor:pointer;font-weight:600}.pick-research p,.pick-research li{margin:.6rem 0}.pick-research ul{padding-left:1.2rem}.pick-research-row{scroll-margin-top:90px}
 
-#top-picks-analysis{margin:1.5rem 0;padding:1.2rem 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}#top-picks-analysis h3{margin-top:0}.pick-summary-paragraph{max-width:76ch;line-height:1.7;overflow-wrap:anywhere}.pick-research-row{scroll-margin-top:90px}
 
 .newsroom.article.briefing{max-width:1100px}.briefing>.lead,.briefing>p{max-width:76ch}.picks-table{min-width:900px}.picks-table td{vertical-align:top}.picks-table th:first-child{width:26%}.pick-estimate{min-width:145px}.estimate-detail,.summary-bet,.summary-game{display:block}.estimate-detail{margin-top:4px}.summary-game{margin-bottom:6px}.pick-summary-paragraph+.pick-summary-paragraph{margin-top:1.5rem}.pick-research{max-width:min(76ch,calc(100vw - 70px))}
+
+/* Keep the desktop comparison table; stack each offer for phones and tablets. */
+@media(max-width:820px){
+  #daily-picks .picks-table{display:block;min-width:0;width:100%;font-size:.9rem}
+  #daily-picks .picks-table caption{display:block;text-align:left;padding:0 0 12px;font-size:.8rem;color:var(--muted)}
+  #daily-picks .picks-table thead{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  #daily-picks .picks-table tbody{display:block;width:100%}
+  #daily-picks .pick-offer-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:"bet bet" "offer book" "time time" "model market";gap:14px 16px;padding:16px;background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-top:16px}
+  #daily-picks .pick-offer-row td{display:block;min-width:0;padding:0;border:0;overflow-wrap:anywhere}
+  #daily-picks .pick-offer-row td[data-label]::before{content:attr(data-label);display:block;color:var(--mint);font-size:.75rem;font-weight:650;margin-bottom:5px}
+  #daily-picks .pick-offer-row .pick-bet{grid-area:bet;padding-bottom:12px;border-bottom:1px solid var(--line)}
+  #daily-picks .pick-bet>a{font-size:1rem;line-height:1.45}
+  #daily-picks .pick-offer{grid-area:offer}
+  #daily-picks .pick-book{grid-area:book}
+  #daily-picks .pick-quote-time{grid-area:time;font-size:.82rem}
+  #daily-picks .pick-model{grid-area:model}
+  #daily-picks .pick-market{grid-area:market}
+  #daily-picks .pick-offer-row .pick-estimate{padding-top:12px;border-top:1px solid var(--line)}
+  #daily-picks .pick-estimate .meta{font-size:.76rem;line-height:1.5}
+  #daily-picks .pick-offer-row .meta{line-height:1.5}
+  #daily-picks .track-pick{display:block;width:100%;min-height:44px;font-size:.85rem;margin-top:8px;white-space:normal}
+  #daily-picks .pick-research-row{display:block;margin-bottom:20px}
+  #daily-picks .pick-research-row>td{display:block;padding:0 8px 12px}
+  #daily-picks .pick-research{max-width:100%;margin-top:0}
+  #daily-picks .pick-research>summary{min-height:44px;padding:12px 0;line-height:1.5}
+  #daily-picks .picks-table tr:not([class]){display:block}
+  #daily-picks .picks-table td[colspan="6"]{display:block;overflow-wrap:anywhere}
+}
