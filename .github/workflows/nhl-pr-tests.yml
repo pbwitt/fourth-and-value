@@ -7,6 +7,9 @@ on:
       - 'tests/test_nhl*.py'
       - 'tests/nhl_browser.cjs'
       - 'docs/assets/nhl.js'
+      - 'docs/assets/nhl-candidates.*'
+      - 'config/nhl_analyst.json'
+      - 'docs/nav.js'
       - 'models/nhl/**'
       - 'requirements-nhl.txt'
       - '.github/workflows/nhl-*.yml'
@@ -27,6 +30,7 @@ jobs:
       - run: python -m unittest discover -s tests -p 'test_nhl*.py'
       - run: python -m unittest discover -s tests -p 'test_nba.py'
       - run: python scripts/nhl/refresh.py --offline
+      - run: python scripts/nhl/analyst.py
       - run: python scripts/site_notices.py --scope nhl
       - uses: actions/setup-node@v4
         with:

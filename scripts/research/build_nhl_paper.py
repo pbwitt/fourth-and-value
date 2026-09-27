@@ -99,7 +99,7 @@ def main():
     tags['ODDS'] = table('Table 11. Decimal odds distribution among shadow selections; five quantiles [minimum, 25%, median, 75%, maximum].',
         ['Season', 'Min', '25%', 'Median', '75%', 'Max'], [[s[:4]+'–'+s[-2:]]+[f'{x:.4f}' for x in v['nominal']['decimal_odds_quantiles']] for s,v in m['shadow'].items()])
     source_files = ['evaluation.json','paired-differences.json','historical-market-evaluation.json','selection-lock.json']
-    evidence = dict(paper='FV-2026-02',model_version=e['version'],source_commit=SOURCE_COMMIT,
+    evidence = dict(paper='FV-2026-02',paper_version='1.1',model_version=e['version'],source_commit=SOURCE_COMMIT,
         hashes={name:hashlib.sha256((REPORT/name).read_bytes()).hexdigest() for name in source_files},
         evaluation=e,paired_differences=d,historical_market_evaluation=m)
     DEST.mkdir(parents=True,exist_ok=True)
