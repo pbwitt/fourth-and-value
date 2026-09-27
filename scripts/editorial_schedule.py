@@ -124,7 +124,7 @@ def plan(root=ROOT,now=None,event_name=None,event_schedule=None,manual_refresh=F
     board_today=same_et_day(board_at,now)
     board_fresh=bool(board.get("status")=="ready" and board_today and board_age is not None and board_age<1.25)
     morning_models=event_name=="schedule" and 5<=local.hour<10
-    refresh_mlb=manual or bool(((writer_eligible and retry_mlb) or morning_models) and not board_fresh)
+    refresh_mlb=manual  # Automatic MLB pulls belong to the 7:00 / 16:30 sports schedule.
 
     nfl=load(Path(root)/'docs/nfl/data/latest.json',{})
     nfl_at=nfl.get('model_checked_at')

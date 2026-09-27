@@ -51,6 +51,21 @@ class PricingTests(unittest.TestCase):
     def quote(self,game='g1',book='A',point=50.5,side='over',price=-110):
         return dict(game_id=game,player='A Player',market_std='rush_yds',bookmaker=book,point=point,name=side,price=price)
 
+    def test_injury_signal_handles_unpriced_and_one_sided_markets(self):
+        injuries=pd.DataFrame(columns=['team','position','availability'])
+        predictions=pd.DataFrame([dict(game='B @ A',home_team='A',away_team='B',total_pred=45)])
+        consensus=pd.DataFrame(columns=['game','market','consensus_line'])
+        movement=pd.DataFrame([dict(game='B @ A',total_move=float('nan'),book='A')])
+        lines=pd.DataFrame([dict(game='B @ A',book='A',total_over_line=45.5,
+                                 total_over_price=float('nan'),total_under_price=float('nan'))])
+        result=build_signal(injuries,predictions,consensus,movement,lines).iloc[0]
+        self.assertEqual((result.best_over,result.best_under,result.largest_downward_move_book),('','',''))
+        self.assertEqual(result.signal_status,'insufficient_market_history')
+        lines.loc[0,'total_under_price']=-115
+        result=build_signal(injuries,predictions,consensus,movement,lines).iloc[0]
+        self.assertEqual(result.best_over,'')
+        self.assertEqual(result.best_under,'A 45.5 (-115)')
+
     def test_devig_pairs_exact_event_line_and_distinct_book(self):
         rows=[self.quote(),self.quote(side='under'),self.quote(),self.quote(point=60.5),
               self.quote(game='g2',side='under'),self.quote(book='B',price=100),self.quote(book='B',side='under',price=-120)]

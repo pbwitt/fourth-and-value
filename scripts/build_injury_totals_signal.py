@@ -48,14 +48,23 @@ def build_signal(injuries: pd.DataFrame, predictions: pd.DataFrame,
         market_move = float(pd.to_numeric(m.get("total_move"), errors="coerce").median()) if not m.empty else np.nan
         residual = market_move - model_impact if pd.notna(market_move) else np.nan
         gl = lines[lines["game"] == gname] if lines is not None and not lines.empty else pd.DataFrame()
-        if not gl.empty:
-            over = gl.loc[pd.to_numeric(gl["total_over_price"], errors="coerce").idxmax()]
-            under = gl.loc[pd.to_numeric(gl["total_under_price"], errors="coerce").idxmax()]
-            best_over = f"{over['book']} {over['total_over_line']:.1f} ({over['total_over_price']:+.0f})"
-            best_under = f"{under['book']} {under['total_over_line']:.1f} ({under['total_under_price']:+.0f})"
-        else:
-            best_over = best_under = ""
-        movers = m.loc[pd.to_numeric(m["total_move"], errors="coerce").idxmin(), "book"] if not m.empty else ""
+        def best_quote(side):
+            price_col = f"total_{side}_price"
+            line_col = f"total_{side}_line"
+            if gl.empty or price_col not in gl:
+                return ""
+            if line_col not in gl:
+                line_col = "total_over_line"  # Legacy paired-line schema.
+            prices = pd.to_numeric(gl[price_col], errors="coerce")
+            thresholds = pd.to_numeric(gl[line_col], errors="coerce")
+            valid = np.isfinite(prices) & (prices.abs() >= 100) & np.isfinite(thresholds)
+            if not valid.any():
+                return ""
+            index = prices[valid].idxmax()
+            return f"{gl.loc[index, 'book']} {thresholds.loc[index]:.1f} ({prices.loc[index]:+.0f})"
+        best_over, best_under = best_quote("over"), best_quote("under")
+        moves = pd.to_numeric(m["total_move"], errors="coerce").dropna() if not m.empty else pd.Series(dtype=float)
+        movers = m.loc[moves.idxmin(), "book"] if not moves.empty else ""
         if pd.isna(market_move):
             status = "insufficient_market_history"
         elif residual <= -1.5 and model_impact < 0:

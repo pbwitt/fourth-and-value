@@ -1,8 +1,9 @@
 /* Use the exact same selection policy as the public morning table. */
 const fs=require('node:fs');
-const {collect,reviewKey,reviewBetKey,comparison}=require('../docs/assets/briefing-picks.js');
+const {collect,shortlist,reviewKey,reviewBetKey,comparison}=require('../docs/assets/briefing-picks.js');
 const input=JSON.parse(fs.readFileSync(0,'utf8'));
 const result=collect(input.feeds,Date.parse(input.asof));
+result.card=shortlist(result.selected,Date.parse(input.asof));
 result.selected=result.selected.filter(r=>['NFL','MLB','NHL'].includes(r.sport)).map(r=>({...r,review_key:reviewKey(r),review_bet_key:reviewBetKey(r),
   review_context:{...comparison(r),probability_basis:'conditional_on_nonpush',
     projected_quantity:r.sport==='NFL'?r.mu:r.sport==='NHL'?r.projected_mean:r.model_mean,

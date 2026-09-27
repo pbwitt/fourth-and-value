@@ -8,11 +8,12 @@ import re
 
 ROOT=Path(__file__).resolve().parents[1]
 WORKFLOWS={
+ 'morning-picks.yml':('Morning research edition','Refresh NFL, MLB and NHL, wait for all three jobs, then research and publish one dated card.'),
  'editorial-daily.yml':('Early morning / editorial scheduler','Conditional feed recovery, price rundown and separate daily articles. Morning recovery attempts are eligibility-gated; each trigger does not mean a new paid article.'),
  'nfl-weekly.yml':('NFL data and models','Refresh statistics, player estimates, scoring projections and available prices; publish before research. Also callable by early morning recovery.'),
- 'mlb-daily.yml':('MLB data and models','Refresh history/training cache, prices, lineups and forecasts. Also callable by morning recovery.'),
+ 'mlb-daily.yml':('MLB data and models','Refresh history/training cache, prices, lineups and forecasts. Morning refresh is coordinated by Morning Picks Edition.'),
  'nhl-daily.yml':('NHL data and models','Refresh regular-season statistics and prices, run inference, publish all qualifying candidates. Later refresh can capture newly posted props.'),
- 'analyst-daily.yml':('Top Picks discovery and review','Runs after successful sports refreshes as well as these checks. Independent discovery, model screening, sourced assessment and publication share the daily research cap.')}
+ 'analyst-daily.yml':('Top Picks discovery and review','Runs once after the morning feeds finish, or as an explicit operator test. No automatic intraday research.')}
 
 
 def times(cron):
@@ -41,20 +42,18 @@ def render():
     for name,(label,description) in WORKFLOWS.items():
         source=(ROOT/'.github/workflows'/name).read_text()
         crons=re.findall(r"cron: ['\"]([^'\"]+)['\"]",source)
-        if name=='nhl-daily.yml':
-            hours=re.search(r'now.hour in \((\d+),(\d+)\)',source)
-            if not hours:raise ValueError('NHL local-time gate changed: update documentation generator')
-            minute=crons[0].split()[0]
-            schedule=times(f'{minute} {hours[1]},{hours[2]} * * *')
-        else:
-            if source.count('timezone: America/New_York')!=len(crons):
-                raise ValueError('Schedule timezone changed: review public timing')
-            schedule='<br>'.join(escape(times(c)) for c in crons)
+        if source.count('timezone: America/New_York')!=len(crons):
+            raise ValueError('Schedule timezone changed: review public timing')
+        schedule='<br>'.join(escape(times(c)) for c in crons)
+        if name in ('nhl-daily.yml','mlb-daily.yml','nfl-weekly.yml'):
+            schedule='daily: 7:00 a.m. via morning workflow<br>'+schedule
+        if name=='analyst-daily.yml':schedule='After the 7 a.m. data jobs finish; explicit manual tests only otherwise'
         rows.append(f'<tr><td>{escape(label)}</td><td>{schedule}</td><td>{escape(description)}</td></tr>')
     paths=[ROOT/'.github/workflows'/n for n in WORKFLOWS]
+    paths += [ROOT/'.github/workflows/editorial-watchdog.yml']
     paths += [ROOT/p for p in ['config/analyst_review.json','config/nhl_analyst.json',
         'scripts/editorial_schedule.py','scripts/analyst_review.py','scripts/research_discovery.py',
-        'scripts/research_budget.py','scripts/mlb/predict.py','scripts/nhl/v2/candidates.py','docs/assets/briefing-picks.js']]
+        'scripts/research_budget.py','scripts/morning_card.py','scripts/mlb/predict.py','scripts/nhl/v2/candidates.py','docs/assets/briefing-picks.js']]
     fingerprint=hashlib.sha256(b''.join(p.read_bytes() for p in paths)).hexdigest()[:20]
     values=dict(POLICY=config['policy_version'],SCHEDULE=''.join(rows),NHL_EV=f"{nhl['minimum_ev']*100:g}",
         MORNING_BUDGET=f"{config['daily_budget_usd']-config['later_reserve_usd']:.2f}",LATER_RESERVE=f"{config['later_reserve_usd']:.2f}",NHL_QUOTE=str(nhl['quote_max_minutes']),NHL_MODEL=str(nhl['model_max_hours']),BUDGET=f"{config['daily_budget_usd']:.2f}",FINGERPRINT=fingerprint)

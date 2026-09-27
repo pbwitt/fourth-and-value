@@ -8,14 +8,14 @@ const browser=await chromium.launch({headless:true,...(process.env.CHROME_PATH?{
 try{const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
 for(const width of [390,1440]){await page.setViewportSize({width,height:1000});await page.goto(base+'/research/daily-process.html');
 assert.match(await page.locator('h1').textContent(),/daily picks/);assert.match(await page.locator('main').textContent(),/\$2.75/);
-assert.match(await page.locator('main').textContent(),/10:30 a.m./);assert.match(await page.locator('main').textContent(),/4:30 p.m./);
+assert.match(await page.locator('main').textContent(),/7:00 a.m./);assert.match(await page.locator('main').textContent(),/4:30 p.m./);
 assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
 await page.screenshot({path:`/tmp/fv-daily-process-${width}.png`});}
 const now=Date.parse('2026-09-27T12:00:00Z');await page.clock.install({time:now});let feeds=fixture(now);
 feeds.MLB.rows=Array.from({length:32},(_,i)=>({...feeds.MLB.rows[0],event_id:'m'+i,player:'Player '+i}));
 feeds.Discovery={schema_version:1,decision_date:'2026-09-27',generated_at:new Date(now).toISOString(),status:'budget_exhausted',slate_games:10,submitted_games:[['MLB','one']],candidates:[{...feeds.MLB.rows[0],sport:'MLB',game_id:'research',player:'Research Player',forecast_at:new Date(now).toISOString(),model_probability:null,model_withheld:'No eligible model',discovery_origin:'independent_research',score:0,review:'Awaiting review',url:'/mlb/picks.html'}]};
 feeds.Reviews={schema_version:1,sports:{},budget:{day:'2026-09-27',charged_or_reserved_usd:2,limit_usd:2.75}};
-const urls={'/props/top-picks.json':'NFL','/mlb/data/latest.json':'MLB','/nhl/data/latest.json':'NHL','/nhl/data/candidates.json':'NHLBoard','/props/model-context.json':'NFLContext','/briefing/reviews.json':'Reviews','/briefing/discovery.json':'Discovery'};
+const urls={'/briefing/morning-card.json':'Card','/props/top-picks.json':'NFL','/mlb/data/latest.json':'MLB','/nhl/data/latest.json':'NHL','/nhl/data/candidates.json':'NHLBoard','/props/model-context.json':'NFLContext','/briefing/reviews.json':'Reviews','/briefing/discovery.json':'Discovery'};
 for(const [url,key] of Object.entries(urls))await page.route('**'+url,r=>feeds[key]?r.fulfill({json:feeds[key]}):r.fulfill({status:503,body:'Unavailable'}));
 await page.goto(base+'/briefing/');await page.waitForFunction(()=>document.querySelectorAll('#research-picks-rows > tr').length===20);
 assert.match(await page.locator('#picks-status').textContent(),/0 reviewed picks/);

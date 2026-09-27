@@ -65,3 +65,30 @@ Rays–Phillies exposures. The page flags that concentration. The broad research
 pool retains 314 additional offers, rather than presenting them as a daily card.
 No additional paid calls were needed for this change. The public process document
 now starts with a simple flow and retains the precise workflow schedule below it.
+
+
+## 2026-09-27: durable morning edition
+
+The reader requested one morning research card and NHL/MLB refreshes at 07:00
+and 16:30 Eastern. A shared 07:00 parent now waits for NFL, MLB and NHL, then
+runs independent discovery and bounded candidate review. Intraday sports and
+editorial refreshes no longer trigger paid Top Picks review. NBA is deferred.
+The previous client selected against mutable feeds and lost completed reviews
+when quote/forecast/evidence identities changed. Preserve those strict checks
+at publication, then archive the resulting original rows as a dated edition.
+Never apply the old review to a new quote. Later source boards remain separate.
+A manual afternoon test is labeled Test edition; same-day reruns skip all paid
+work unless replacement is explicitly requested. Keep empty valid editions too.
+Normal research is $2.75 each Eastern day, entirely available in the morning;
+the authorized Sep 27 testing ceiling is $20 including prior charges. Eight
+review batches, up to three candidates each, bound each run. No required picks.
+
+An immediate supervised feed refresh also exposed an inherited NFL injury
+screen crash: idxmax/idxmin on all-missing prices/movement. Missing sides now
+remain unavailable while other valid sides/games continue. A regression covers
+unpriced and one-sided markets. This does not validate the injury prior.
+
+Validation: immutable snapshot/versioning, paid-run idempotency, morning-window
+checks, budget preservation, unavailable feeds, rollover, quote expiry, mobile
+and desktop rendering, actual-price tracker entry, and existing research/tests.
+This is an operational reliability change, not new evidence of betting edge.

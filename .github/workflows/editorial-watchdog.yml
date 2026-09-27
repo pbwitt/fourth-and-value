@@ -56,7 +56,7 @@ jobs:
                   for run in json.loads(raw))
               if not active:
                   subprocess.run(['gh', 'workflow', 'run', 'editorial-daily.yml', '--ref', 'main',
-                      '-f', 'refresh_briefing=true'], check=True)
+                      '-f', 'refresh_briefing=false', '-f', 'scheduled_recovery=true'], check=True)
                   print('Recovery dispatched: ' + reason)
               else:
                   print('Editorial run already active; no duplicate dispatch')

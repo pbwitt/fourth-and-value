@@ -230,3 +230,19 @@ assert.equal(shortlist([absent,mlbCard],now)[0].player,mlbCard.player);
 assert.equal(shortlist([absent],now)[0].card_rank_score,null);
 assert.equal(shortlist([{...absent,human_decision:'select'},mlbCard],now)[0].player,'Unknown');
 console.log('PASS: cross-sport card order, comparable units, conservative NFL probability, pushes and missing models.');
+// Editions keep the exact published assessment after prices expire or games start.
+{
+  const {editionRows}=require('../docs/assets/briefing-picks.js');
+  const row={...sample,commence_time:iso(now+3600e3),quoted_at:iso(now-60e3),human_decision:'unreviewed',review_matches_current:true,
+    qualitative_review:{...sample.qualitative_review,reviewed_at:iso(now),assessment:{verdict:'consider',reason:'Case',model_case:'Model',price_case:'Price',context_case:'Context',blocking_checks:[]}}};
+  const card={schema_version:1,kind:'morning',decision_date:day(now),published_at:iso(now),rows:[row]};
+  assert.equal(editionRows(card,now).length,1);
+  assert.equal(editionRows(card,now+24*3600e3).length,1);
+  assert.equal(editionRows(card,now-1).length,0,'future editions unavailable');
+  assert.equal(editionRows({...card,rows:[null,{...row,commence_time:'bad'}]},now).length,0);
+  assert.equal(editionRows({...card,rows:[{...row,review_matches_current:false}]},now).length,0);
+  assert.equal(editionRows({...card,rows:[{...row,qualitative_review:{...row.qualitative_review,reviewed_at:iso(now-4*3600e3)}}]},now).length,0);
+  assert.equal(editionRows({...card,rows:[{...row,human_decision:'pass'}]},now).length,0);
+  assert.equal(editionRows({...card,rows:[{...row,qualitative_review:{...row.qualitative_review,assessment:{...row.qualitative_review.assessment,verdict:'wait'}}}]},now).length,0);
+}
+console.log('PASS: immutable edition, review-at-publication validity, future/invalid dates and started games.');

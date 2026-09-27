@@ -455,6 +455,9 @@ def main():
     parser.add_argument('--assessment-update', action='store_true',
         help='Explicit one-time assessment revision per prompt/session, within the existing shared cap')
     parser.add_argument('--env-file', type=Path)
+    parser.add_argument('--publish-card', action='store_true')
+    parser.add_argument('--test-edition', action='store_true', help='Explicit operator test, visibly labeled; same daily budget')
+    parser.add_argument('--replace-card', action='store_true', help='Replace the public edition; immutable copies are retained')
     args = parser.parse_args()
     if args.env_file:
         from dotenv import load_dotenv
@@ -463,8 +466,22 @@ def main():
     lock.parent.mkdir(parents=True, exist_ok=True)
     with lock.open('a') as handle:
         fcntl.flock(handle, fcntl.LOCK_EX)
-        result = prepare(load_feeds(), datetime.now(timezone.utc), json.loads(CONFIG.read_text()),
+        now=datetime.now(timezone.utc)
+        config=json.loads(CONFIG.read_text())
+        if args.test_edition:
+            config['sessions']={'test':[0,24]}
+        if args.publish_card:
+            from morning_card import existing_today, publish_card
+            if not session_at(now,config):
+                print(json.dumps({'status':'outside_morning_window','published_card_preserved':True}));return
+            if existing_today(ROOT,now) and not args.replace_card:
+                print(json.dumps({'status':'edition_already_published','paid_requests':0}));return
+        feeds=load_feeds()
+        result = prepare(feeds, now, config,
             run_review=args.astra, assessment_update=args.assessment_update)
+        if args.publish_card:
+            publish_card(load_feeds(),result,datetime.now(timezone.utc),root=ROOT,
+                kind='test' if args.test_edition else 'morning')
     print(json.dumps({s: {'status': b['review_status'], 'candidates': len(b['candidates'])} for s, b in result['sports'].items()}))
 
 
