@@ -653,9 +653,9 @@ refreshing keeps their error visible. Completed drafts display DRAFT READY.
 
 ### Morning review table — September 26
 
-The latest `/briefing/` places the price rundown first, then `Today's picks` in
-the same table style. `docs/assets/briefing-picks.js` reads existing public model
-boards without paid requests or retraining. Bet, American price, actual quote
+The latest `/briefing/` places `Today's picks` first, with the price rundown
+below it in the same table style. `docs/assets/briefing-picks.js` reads existing
+public model boards without paid requests or retraining. Bet, American price, actual quote
 time in Eastern, book, model-detail link and review status stay together.
 
 Inputs: `/props/top-picks.json` (schema 1, written with NFL Top Picks by

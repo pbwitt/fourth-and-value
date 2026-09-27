@@ -26,7 +26,7 @@ const server=http.createServer((req,res)=>{
       await page.setViewportSize({width,height:1000});await page.goto(base+'/briefing/');
       await page.waitForFunction(()=>document.getElementById('picks-status').textContent.startsWith('3 candidates'));
       assert.equal(await page.locator('#daily-picks-rows tr').count(),3);
-      assert.deepEqual((await page.locator('h2').allTextContents()).slice(0,2),['The price rundown',"Today's picks"]);
+      assert.deepEqual((await page.locator('main > h2, #daily-picks-heading').allTextContents()).slice(0,2),["Today's picks",'The price rundown']);
       assert.equal(await page.getByText('What changed and what’s next',{exact:true}).count(),0);
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
       assert.match(await page.locator('#daily-picks-rows').textContent(),/7:59:00 AM ET/);

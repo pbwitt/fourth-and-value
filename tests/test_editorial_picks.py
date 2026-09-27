@@ -44,4 +44,4 @@ class BriefingContractTests(unittest.TestCase):
             self.assertIn('id="daily-picks"',current)
             self.assertNotIn('id="daily-picks"',archived)
             self.assertNotIn('What changed and what’s next',current)
-            self.assertLess(current.index('The price rundown'),current.index("Today's picks"))
+            self.assertLess(current.index('id="daily-picks-heading"'),current.index('<h2>The price rundown</h2>'))
