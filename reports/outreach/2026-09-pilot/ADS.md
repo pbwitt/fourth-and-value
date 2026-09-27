@@ -1,7 +1,14 @@
-# Paid-ad feasibility and first test
+# Paid-ad reference — deferred
 
-Prepared September 27, 2026. **Proposal only: no ad budget, account, geographic
-audience, placement, or platform approval has been established.**
+Prepared September 27, 2026. **Paid ads are on hold at the owner's request while
+the site builds readership.** No ad budget, account, geographic audience,
+placement, or platform approval has been established.
+
+The material below is retained for a possible future discussion, not an active
+plan. Do not pursue paid-channel research, applications, sponsorship quotes, or
+campaigns unless the owner explicitly resumes this work. No traffic threshold
+or future date automatically reactivates it. Recheck policies and pricing if
+the work is resumed.
 
 ## What to promote
 
@@ -10,14 +17,15 @@ research, and limitations. The NHL methods paper is a concrete first destination
 with a PDF and numerical evidence. It suits an initial research-oriented
 campaign without depending on a fresh morning card or a particular day's pick.
 
-Recommended first step: establish eligibility for one channel, then consider a
+If the owner resumes paid ads, the first step would be to establish eligibility
+for one channel, then consider a
 small fixed-total test. Do not split a tiny budget among several networks. If a
 platform's requirements or minimums make the test unsuitable, pause that option
 rather than purchase a larger campaign.
 
 ## Channel assessment
 
-| Channel | Verified policy / evidence | Decision for this pilot |
+| Channel | Verified policy / evidence | Considerations if paid ads resume |
 | --- | --- | --- |
 | Google Search | Google's [gambling policy](https://support.google.com/adspolicy/answer/15132179?hl=en) restricts gambling-promoting content to eligible categories and locations with certification. It names aggregator/affiliate comparisons; other gambling-promoting content is not automatically eligible. | Ask for classification of the actual site before planning a launch. A picks/research site does not automatically qualify as an aggregator. Search intent could fit, but eligibility, CPC and viable budget are unverified. |
 | X | X's [gambling-content policy](https://business.x.com/en/help/ads-policies/ads-content-policies/gambling-content) expressly includes tips, odds, picks and forecasts, with certification and geographic restrictions. | A possible channel after platform confirmation for our content and intended audience. The existing handle does not confer ad eligibility. |
@@ -32,8 +40,9 @@ destinations after approval, or label the campaign as something unrelated.
 
 ## Illustrative seven-day test
 
-This example answers what a modest test could look like while the owner chooses
-budget and geography. **The $100 figure is not authorization to spend.**
+This deferred example describes a possible modest test. No budget or geography
+decision is pending while paid ads are on hold. **The $100 figure is not
+authorization to spend.**
 
 | Setting | Proposed value |
 | --- | --- |

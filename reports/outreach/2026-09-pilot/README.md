@@ -4,13 +4,15 @@ Prepared September 27, 2026. Repository reference: `403df3269a361cdd05d5a3dd3bc7
 
 ## What is ready
 
-The owner authorized preparing and carrying out a small outreach pilot, and asked
-that paid ads be considered. This package contains a researched venue shortlist,
-original post drafts, an access-request draft, ad copy, and a measurement plan.
+The owner authorized preparing and carrying out a small organic outreach pilot.
+Paid advertising is **on hold at the owner's request** while the site builds
+readership. Do not pursue ad accounts, approvals, quotes, or campaigns until the
+owner explicitly resumes that work. This package contains a researched venue
+shortlist, original post drafts, an access-request draft, and a measurement plan.
 No posts, account applications, outreach messages, ad purchases, or recurring
 promotion jobs have been sent or activated. Advertising spend authorized: **$0**.
-The $100 example in [ADS.md](ADS.md) is a proposal, separate from all existing
-research and editorial budgets.
+The $100 example and creative in [ADS.md](ADS.md) are retained only as deferred
+reference material, separate from all existing research and editorial budgets.
 
 This branch changes only promotion documents. It does not change the site's
 morning runs, models, picks, public pages, dependencies, or spending settings.
@@ -28,10 +30,7 @@ morning runs, models, picks, public pages, dependencies, or spending settings.
    explanation and disclose the affiliation. Omit the site link unless allowed.
    A removed contribution ends that venue's pilot; do not repost it elsewhere in
    that community or use another account.
-4. Consider one paid channel after its eligibility, audience, measurement, and
-   total budget are settled. Use the existing research paper or process page as
-   the landing page. Do not make a new picks promise to support an ad.
-5. After seven days from the first publication, record reach, meaningful replies,
+4. After seven days from the first publication, record reach, meaningful replies,
    actual spending, attributable visits where measurable, and what readers found
    useful. Decide whether to continue from that evidence. There is no automatic
    increase in posting frequency or spend.
@@ -45,7 +44,7 @@ available, not a scheduled background task.
 | File | Purpose |
 | --- | --- |
 | [OUTREACH.md](OUTREACH.md) | Verified venue rules, post drafts, access route, and Reddit request text |
-| [ADS.md](ADS.md) | Paid-channel feasibility, proposed bounded test, copy, and measurement |
+| [ADS.md](ADS.md) | Deferred paid-ad reference; no active paid-ad work |
 | [activity.csv](activity.csv) | Empty activity ledger; append actual actions, not scheduled intentions |
 
 ## What still needs an external answer
@@ -54,8 +53,6 @@ available, not a scheduled background task.
 | --- | --- | --- |
 | Branded account/profile and publishing access | Needed to publish as Fourth & Value | Asked owner; no usable account connection established |
 | Reddit commercial/API approval if using an agent | Owner permission alone does not establish platform access | Not applied for; request draft prepared |
-| Ad platform classification and account access | The site's betting content may be restricted | No approval or ad account established |
-| Total ad budget and target locations | Determines the actual paid test | Asked owner; $100/one week is only an example |
 | Visitor measurement | Clicks alone cannot demonstrate retained readership | No working attribution pipeline established in this audit |
 
 Do not request passwords in chat. Use a supported account authorization flow when

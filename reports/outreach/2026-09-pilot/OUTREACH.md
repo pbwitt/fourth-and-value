@@ -121,10 +121,12 @@ into a claim about today's model. If a reader asks for a source and links are
 allowed, reference the NHL paper transparently; do not insert promotional links
 into unrelated replies.
 
-### P1 — publisher sponsorship inquiry, if paid placement is pursued
+### P1 — publisher sponsorship inquiry — deferred
 
-Recipient not selected; message unsent. Use only the publisher's advertising
-contact, not private messages to individual community members.
+Paid placements are on hold at the owner's request. This draft is retained for
+reference; do not select a recipient or send it unless the owner resumes paid
+advertising. If resumed, use only the publisher's advertising contact, not
+private messages to individual community members.
 
 > Hello — I work on Fourth & Value, which publishes sports forecasting research,
 > price comparisons and dated betting analysis. We're considering a small,
