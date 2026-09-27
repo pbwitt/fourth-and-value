@@ -23,6 +23,7 @@
   const assessment=q=>q?.assessment&&['consider','wait','pass'].includes(q.assessment.verdict)&&
     ['reason','model_case','price_case','context_case'].every(k=>typeof q.assessment[k]==='string')&&
     Array.isArray(q.assessment.blocking_checks)&&q.assessment.blocking_checks.every(x=>typeof x==='string')?q.assessment:null;
+  const displayReview=r=>String(r.review||'').replace(/ · (?:human|analyst) review (?:needed|required)/gi,'');
   const verdictLabel=a=>({consider:'Consider',wait:'Needs review',pass:'Pass · case not supported'})[a.verdict];
   const reviewLabel=q=>assessment(q)?verdictLabel(assessment(q)):({research_support:'Sourced support',concern:'Sourced concern · review before deciding',needs_information:'Reporting reviewed · full assessment pending'})[q?.status]||'Qualitative review needed';
   const completeReview=q=>q&&['research_support','concern','needs_information'].includes(q.status)&&
@@ -347,7 +348,7 @@
     const related=r.card_related_candidates??r.related_candidates;
     const exposure=related?'<br>Shared game: '+related+' other '+(r.card_related_candidates!==undefined?'shortlisted bet(s)':'research candidate(s)'):'';
     const dated=r.card_snapshot_at?`<br><strong>${stamp(r.commence_time)<=Date.now()?'Game started · historical assessment':'Published assessment · confirm current conditions'}</strong><br>Analysis and prices preserved from ${esc(time(r.card_snapshot_at))}`:'';
-    return `<tr><td><a href="${esc(r.url)}"><strong>${esc(betLabel(r))}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${esc(String(r.review||'').replace(/ · (?:human|analyst) review (?:needed|required)/gi,''))}${reason}${exposure}${dated}${r.discovery_origin?'<br>Origin: '+(r.discovery_origin==='independent_research'?'independent research':'model and independent research'):''}</span></td><td class="pick-estimate">${modelHTML(r)}</td><td class="pick-estimate">${marketHTML(r)}</td><td>${offer}<span class="meta estimate-detail">${pct(comparison(r).breakEven)} break-even*</span></td><td><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td>${esc(r.book_label||r.book)}<br><button type="button" class="track-pick secondary" data-track-pick="${index}" ${saved?'disabled':''} aria-label="${esc((saved?'Tracked: ':'Track bet: ')+betLabel(r))}">${saved?'Tracked':'Track bet'}</button></td></tr>${research?`<tr class="pick-research-row" id="pick-review-${index}"><td colspan="6">${research}</td></tr>`:''}`;
+    return `<tr><td><a href="${esc(r.url)}"><strong>${esc(betLabel(r))}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${esc(displayReview(r))}${reason}${exposure}${dated}${r.discovery_origin?'<br>Origin: '+(r.discovery_origin==='independent_research'?'independent research':'model and independent research'):''}</span></td><td class="pick-estimate">${modelHTML(r)}</td><td class="pick-estimate">${marketHTML(r)}</td><td>${offer}<span class="meta estimate-detail">${pct(comparison(r).breakEven)} break-even*</span></td><td><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td>${esc(r.book_label||r.book)}<br><button type="button" class="track-pick secondary" data-track-pick="${index}" ${saved?'disabled':''} aria-label="${esc((saved?'Tracked: ':'Track bet: ')+betLabel(r))}">${saved?'Tracked':'Track bet'}</button></td></tr>${research?`<tr class="pick-research-row" id="pick-review-${index}"><td colspan="6">${research}</td></tr>`:''}`;
   }
 
   async function mount() {
@@ -402,7 +403,7 @@
       form.reset();$('track-save').disabled=!!draft.saved;$('track-feedback').textContent='';$('track-signin').hidden=true;
       $('track-bet-description').textContent=`${row.sport} · ${row.game} · ${betLabel(row)} · ${row.book_label||row.book}`;
       $('track-quote').textContent=`${row.card_snapshot_at?'Historical edition quote':'Saved quote'}: ${odds(row.price)} at ${time(row.quoted_at)}. Enter the price of the bet you actually placed.`;
-      $('track-review').textContent=`Review status: ${row.review}.`;
+      $('track-review').textContent=`Review status: ${displayReview(row)}.`;
       $('track-grading').textContent=row.sport==='MLB'||(row.sport==='NFL'&&['h2h','spreads','totals'].includes(row.market))||(row.sport==='NHL'&&['h2h','spreads'].includes(row.market))?'This market can be logged, but automatic result grading is not connected yet. The bet will be saved as pending.':'';
       $('track-odds').value=row.price;dialog.showModal();$('track-stake').focus();
     });
