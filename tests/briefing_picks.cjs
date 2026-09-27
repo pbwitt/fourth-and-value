@@ -33,7 +33,7 @@ f=fixture();f.MLB=null;assert.equal(collect(f,now).selected.length,2,'one feed f
 f=fixture();f.NHLBoard.candidates[0].human_decision='pass';assert.equal(collect(f,now).selected.length,2);
 f=fixture();f.NHLBoard.candidates[0].qualitative_review={status:'research_support',offer_id:'wrong',forecast_id:'forecast'};
 assert.equal(collect(f,now).selected.at(-1).review,'Context review needed');
-f.NHLBoard.candidates[0].qualitative_review.offer_id='offer';assert.match(collect(f,now).selected.at(-1).review,/analyst review needed/);
+f.NHLBoard.candidates[0].qualitative_review.offer_id='offer';assert.match(collect(f,now).selected.at(-1).review,/Sourced support/);
 // ET day, including next-UTC-day evening games and DST boundaries.
 f=fixture(Date.parse('2026-09-27T02:00:00Z'));assert.equal(collect(f,Date.parse('2026-09-27T02:00:00Z')).selected.length,3);
 assert.equal(day('2026-11-01T05:30:00Z'),day('2026-11-01T06:30:00Z'));

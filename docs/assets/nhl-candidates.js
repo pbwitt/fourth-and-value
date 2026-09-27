@@ -9,11 +9,11 @@
   const time=v=>v?new Date(v).toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' ET':'Unavailable';
   const day=v=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(v);
   const safeUrl=v=>{try {const u=new URL(v);return u.protocol==='https:'&&!u.username&&!u.password?u.href:null;}catch{return null;}};
-  const statuses={shared_research_queue:'Sourced review is pending in the shared sports research queue.',partially_reviewed:'Some candidates have been reviewed; the rest remain queued.',completed:'Our analysis is complete. Interpretations need human verification.',no_candidates:'No candidates qualified; no analysis was requested.',
-    no_usable_reporting:'Dated, relevant reporting was unavailable. Research requires a human check.',api_key_unavailable:'Our analysis is unavailable. The quantitative shortlist is still available for manual research.',
-    disabled:'Automated research is disabled.',not_requested:'Automated research has not been requested.',already_attempted_today:'A morning research request was already attempted. These refreshed candidates need a new human review.',
+  const statuses={shared_research_queue:'Sourced review is pending in the shared sports research queue.',partially_reviewed:'Some candidates have been reviewed; the rest remain queued.',completed:'Our analysis is complete. Review the findings and current conditions before deciding.',no_candidates:'No candidates qualified; no analysis was requested.',
+    no_usable_reporting:'Dated, relevant reporting was unavailable. Further context needs checking.',api_key_unavailable:'Our analysis is unavailable. The quantitative shortlist is still available for manual research.',
+    disabled:'Automated research is disabled.',not_requested:'Automated research has not been requested.',already_attempted_today:'A morning research request was already attempted. The updated offers need another assessment.',
     afternoon_quantitative_update:'Afternoon quantitative update. No additional context review was requested.',budget_exhausted:'The shared daily research budget is exhausted. Remaining candidates await review.',
-    expired_during_research:'Quotes expired during source collection. Refresh and reprice before deciding.',review_unavailable:'Our analysis could not be verified. Review these candidates manually.',feed_unavailable:'The market or model feed is unavailable.'};
+    expired_during_research:'Quotes expired during source collection. Refresh and reprice before deciding.',review_unavailable:'Our analysis could not be verified. Review the available information before deciding.',feed_unavailable:'The market or model feed is unavailable.'};
   let board,data;
   try {
     const responses=await Promise.all([fetch('./data/candidates.json',{cache:'no-store'}),fetch(root.dataset.feed,{cache:'no-store'})]);
@@ -43,13 +43,13 @@
   function research(r){
     const q=r.qualitative_review;
     if(!q||q.offer_id!==r.offer_id||q.forecast_id!==r.forecast_id)return '<h3>2. Context review</h3><p>Research unavailable for this exact forecast. Verify goalie, lineup and role assumptions yourself.</p>';
-    const labels={research_support:'Sourced support · human review required',concern:'Sourced concern',needs_information:'Needs information'};
-    const a=q.assessment,verdict={consider:'Consider · human review needed',wait:'Needs review',pass:'Pass · case not supported'};
+    const labels={research_support:'Sourced support',concern:'Sourced concern',needs_information:'Needs information'};
+    const a=q.assessment,verdict={consider:'Consider',wait:'Needs review',pass:'Pass · case not supported'};
     const judgment=a&&verdict[a.verdict]?`<p><strong>Our assessment: ${esc(verdict[a.verdict])}.</strong> ${esc(a.reason)}</p><p><strong>Model case:</strong> ${esc(a.model_case)}</p><p><strong>Price case:</strong> ${esc(a.price_case)}</p><p><strong>Relevant context:</strong> ${esc(a.context_case)}</p>${a.blocking_checks?.length?'<p><strong>What needs checking:</strong> '+a.blocking_checks.map(esc).join('; ')+'</p>':''}`:'<p>This earlier review checked reporting only. A full model-and-price assessment is pending.</p>';
     return `<h3>2. Our assessment</h3>${judgment}${window.FVInjuryContext?.render(r,board.sources)||''}<p class="meta">Reporting: ${esc(labels[q.status]||'Unverified research')}. A reporting gap alone does not invalidate the numerical case.</p>${q.evidence.map(e=>{
       const s=sources.get(e.source_id),url=safeUrl(s?.url);if(!s||!url)return '<p>Evidence source unavailable; do not rely on this note.</p>';
       return `<div class="panel"><p><strong>${esc(e.direction)} · ${esc(e.kind)}</strong></p><blockquote>${esc(e.excerpt)}</blockquote><p>Our analysis: ${esc(e.interpretation)}</p><p><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a> · ${esc(window.FVInjuryContext?.sourceTime(s)||`Published ${time(s.published_at)}`)}; retrieved ${esc(time(s.retrieved_at))}.</p><p class="meta">Possibly reflected in: ${esc(e.represented_in.replaceAll('_',' '))}.</p></div>`;
-    }).join('')}<p><strong>Countercase:</strong> ${esc(q.countercase)}</p><p><strong>Still to verify:</strong> ${q.open_checks.map(esc).join('; ')}.</p><p class="meta">Fourth &amp; Value analysis · ${esc(time(q.reviewed_at))} · AI-assisted research. Source excerpts matched automatically; interpretation has not been verified by a human. Original probabilities unchanged.</p>`;
+    }).join('')}<p><strong>Countercase:</strong> ${esc(q.countercase)}</p><p><strong>Still to verify:</strong> ${q.open_checks.map(esc).join('; ')}.</p><p class="meta">Fourth &amp; Value analysis · ${esc(time(q.reviewed_at))} · Review the analysis and confirm the current line, price and conditions before deciding. Original probabilities unchanged.</p>`;
   }
   function card(r){
     const valid=fresh(r),id=r.candidate_id;
