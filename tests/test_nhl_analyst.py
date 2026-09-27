@@ -103,6 +103,11 @@ class CandidateTests(unittest.TestCase):
         self.assertEqual(rows, before)
         self.assertEqual(b, shortlist(state(rows), NOW, CONFIG))
 
+    def test_distinct_bets_in_same_game_survive(self):
+        b=shortlist(state([row(),row(1,offer_id='alternate',forecast_id='alternate-forecast',line=6.5)]),NOW,CONFIG)
+        self.assertEqual(len(b['candidates']),2)
+        self.assertEqual(len({r['exposure_group'] for r in b['candidates']}),1)
+
     def test_error_or_old_feed_cannot_reuse_shortlist(self):
         for s in [dict(state(), status='feed_error'), dict(state(), model_error='failed'),
                   dict(state(), last_success_at=iso(NOW-timedelta(hours=1)))]:

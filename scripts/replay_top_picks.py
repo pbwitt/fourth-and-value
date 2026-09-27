@@ -10,7 +10,9 @@ import analyst_review
 
 
 def replay():
-    feeds=analyst_review.load_feeds();feeds.pop('Reviews',None);feeds.pop('Discovery',None)
+    # Pin the archived snapshots, even after scheduled production feeds change.
+    paths={'NFL':'docs/props/top-picks.json','NFLContext':'docs/props/model-context.json','MLB':'docs/mlb/data/latest.json'}
+    feeds={k:json.loads(subprocess.run(['git','show','611e9c4:'+path],cwd=ROOT,check=True,capture_output=True,text=True).stdout) for k,path in paths.items()}
     report={'input_hashes':{s:digest(feeds.get(s)) for s in ('NFL','NFLContext','MLB')},'evaluation':'Selection replay, not forecast validation or a betting backtest','sports':{}}
     with tempfile.TemporaryDirectory() as td:
         old=Path(td)/'legacy.js'

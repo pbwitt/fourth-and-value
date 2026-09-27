@@ -5,8 +5,7 @@ billable API request were made while preparing this branch.
 
 ## Saved-data selection replay
 
-Command: `python scripts/replay_top_picks.py`. Inputs are the checked-in source
-boards/model context, with content hashes in `selection-replay.json`. Each sport
+Command: `python scripts/replay_top_picks.py`. Inputs are source boards/model context frozen at commit `611e9c4`, with content hashes in `selection-replay.json`. Each sport
 is evaluated one second after its own saved forecast time; these are separate
 replays, not a claim that both feeds were simultaneously fresh.
 
@@ -35,7 +34,7 @@ research. The existing NHL empirical paper remains unchanged in its results.
 
 ## Verification completed
 
-- 52 NHL tests: pricing, pushes, settlement, identity, point-in-time features,
+- 53 NHL tests: pricing, pushes, settlement, identity, point-in-time features,
   candidate breadth, evidence and legacy paid-entry retirement.
 - 33 NFL tests and 21 MLB tests, including quote export compatibility and revised
   EV guard. Existing pandas deprecation/resource warnings are unchanged.
