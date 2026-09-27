@@ -8,10 +8,24 @@
 <p id="picks-status" class="meta" role="status">Loading today's model lists…</p>
 <div class="table-wrap"><table><caption>Games today in Eastern time. These are experimental candidates; review status appears below each bet.</caption><thead><tr><th scope="col">Bet / game</th><th scope="col">Price</th><th scope="col">Price time (ET)</th><th scope="col">Book</th></tr></thead><tbody id="daily-picks-rows"><tr><td colspan="4">Waiting for current model and price checks.</td></tr></tbody></table></div>
 <p id="picks-coverage" class="meta"></p>
+<dialog id="pick-tracker" aria-labelledby="pick-tracker-title">
+<h2 id="pick-tracker-title">Track this bet</h2>
+<p id="track-bet-description"></p><p class="meta" id="track-quote"></p><p class="meta" id="track-review"></p>
+<form id="track-bet-form">
+<label for="track-odds">Price you received (American)</label><input id="track-odds" type="number" step="1" required>
+<label for="track-stake">Stake ($)</label><input id="track-stake" type="number" min="0.01" step="0.01" inputmode="decimal" required>
+<label class="track-confirm"><input id="track-confirm" type="checkbox" required> I confirm this bet, line, book, price and stake.</label>
+<p class="meta">Saving records your bet in your account. It does not place a wager or mark qualitative review complete.</p>
+<p class="meta" id="track-grading"></p>
+<p id="track-feedback" role="status" aria-live="polite"></p>
+<p id="track-signin" hidden><a href="/tracking/" target="_blank" rel="noopener">Sign in to Bet Tracker</a>, then return to this form and save.</p>
+<div class="actions"><button id="track-save" type="submit">Save to Bet Tracker</button><button id="track-cancel" class="secondary" type="button">Close</button></div>
+<a href="/tracking/">Open Bet Tracker →</a>
+</form></dialog>
 <details><summary>How this review list is selected</summary><p>The list uses each sport's existing model selection rules, then shows up to four candidates per sport and one per game. NFL candidates follow the Top Picks model-edge ranking; MLB follows its model expected-return ranking; NHL follows its sensitivity-based shortlist ranking. Rankings are within each sport. There is no daily minimum and market-only price differences do not qualify.</p><p>NFL quotes expire after 48 hours under its current Top Picks policy; MLB model inputs and quotes after 90 minutes; NHL quotes and forecasts after 30 minutes, with model inputs checked within 36 hours. Started games, missing forecasts and failed feeds are excluded. The table rechecks expiry while open and reloads source boards every five minutes. The price time is the sportsbook quote timestamp, never the page refresh time.</p><p>NHL context research is shown separately from your decision. A supported narrative is not analyst approval or a numerical adjustment. NBA will be added later.</p></details>
 <p class="meta"><a href="/props/top.html">NFL model detail</a> · <a href="/mlb/picks.html">MLB model detail</a> · <a href="/nhl/picks.html">NHL model and context</a> · <a href="/tracking/">Bet Tracker</a></p>
 <noscript><p>Enable JavaScript to check today's live source boards, or open the sport-specific model pages above.</p></noscript>
-</section><script src="/assets/briefing-picks.js?v=1" defer></script>
+</section><link rel="stylesheet" href="/assets/briefing-tracker.css?v=1"><script src="/assets/briefing-picks.js?v=2" defer></script>
 {% else %}<p><a href="/briefing/#daily-picks">Open today's picks and current quote checks →</a>. This dated edition preserves its market rundown; current picks are shown only on the latest briefing.</p>{% endif %}
 {% if analysis %}<h2>Behind the numbers</h2>{% for a in analysis %}<section><p class="eyebrow">{{ a.sport }} · Analysis · {{ a.date }}</p><h3><a href="{{ a.url }}">{{ a.title }}</a></h3><p>{{ a.excerpt }}</p></section>{% endfor %}{% endif %}
 <h2>Reporting to follow</h2><ul class="news-list">{% for n in news %}<li><span class="tag">{{ n.sport }}</span> <a href="{{ n.url }}">{{ n.title }}</a><div class="meta">ESPN · {{ n.published_label }}</div></li>{% else %}<li>No current feed items could be verified.</li>{% endfor %}</ul>

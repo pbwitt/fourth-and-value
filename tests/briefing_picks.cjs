@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict');
-const {collect,rowHTML,day}=require('../docs/assets/briefing-picks.js');
+const {collect,rowHTML,day,ticketData}=require('../docs/assets/briefing-picks.js');
 const now=Date.parse('2026-09-27T12:00:00Z'), iso=t=>new Date(t).toISOString();
 function fixture(t=now) {
   const base={game:'Away @ Home',commence_time:iso(t+3600e3),player:'Example player',side:'Over',line:2.5,price:110,book:'a',book_label:'Book A',market:'player_points',market_label:'Points',quoted_at:iso(t-60e3)};
@@ -46,5 +46,19 @@ const picks=collect(f,now).selected.filter(r=>r.sport==='MLB');
 assert.equal(picks.length,4);assert.equal(new Set(picks.map(r=>r.game_id)).size,4);assert.equal(picks[0].book,'better');
 f=fixture();const picked=collect(f,now).selected[0],html=rowHTML({...picked,player:'<img src=x onerror=alert(1)>'});
 assert(html.includes(iso(now-60e3)));assert(!html.includes('<img'));assert(html.includes('+110'));assert(html.includes('Book A'));
+// Track actual execution price, preserve exact market identity and handle pushes.
+let ticket=ticketData(picked,-120,25);
+assert.equal(ticket.odds,-120);assert.equal(ticket.stake_dollars,25);assert.equal(ticket.market_type,'receptions');
+assert.equal(ticket.side,'over');assert.equal(ticket.line,2.5);assert.equal(ticket.model_prob,.6);
+assert(Math.abs(ticket.edge_bps-(.6-120/220)*10000)<1e-8);
+const mlb=collect(fixture(),now).selected.find(r=>r.sport==='MLB');
+ticket=ticketData({...mlb,market:'h2h',side:'Home',player:'',line:null,model_probability:.54,model_push_probability:0},150,12.5);
+assert.equal(ticket.line,null);assert.equal(ticket.side,'Home');assert.equal(ticket.market_type,'h2h');assert.equal(ticket.player,null);
+const nhl=collect(fixture(),now).selected.find(r=>r.sport==='NHL');
+ticket=ticketData({...nhl,push_probability:.1},100,10);
+assert.equal(ticket.market_type,'points');assert(Math.abs(ticket.model_prob-2/3)<1e-8);
+assert.equal(ticketData(mlb,110,10).model_prob,null,'unknown push probability must not become zero');
+assert.throws(()=>ticketData(picked,99,25));assert.throws(()=>ticketData(picked,110,0));assert.throws(()=>ticketData(picked,110,2.001));
+assert(rowHTML(picked).includes('Track bet'));assert(rowHTML(picked,0,true).includes('disabled'));
 console.log('PASS: morning shortlist model gates, exact quotes, ET days, freshness, failures, exposure and review identity.');
 module.exports={fixture};

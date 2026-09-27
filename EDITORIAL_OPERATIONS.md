@@ -691,3 +691,38 @@ Checks: `node tests/briefing_picks.cjs`, `node tests/briefing_browser.cjs`
 expiry, mobile/desktop navigation and the retired NFL Insights redirect.
 Revert this PR to roll back the table, added NFL export, and navigation change;
 no database migration or credential change is required.
+
+### Tracking a briefing candidate
+
+Each row's Track bet button opens a prefilled confirmation dialog. The game,
+market, side, line and book remain attached to that offer; the reader enters the
+actual American odds and stake. The displayed original quote timestamp and
+qualitative status remain visible. Saving never changes model selection,
+qualitative review or analyst-decision status. MLB and NFL rows still require
+qualitative review; only NHL has a linked sourced review when its board supplies
+one. No paid review call is triggered by logging.
+
+The existing Supabase account and `bets` table receive the ticket only after the
+reader confirms and submits. Signed-out users get a sign-in link. The dialog
+retains its ticket UUID through an uncertain response, prevents concurrent saves
+and verifies an owner-visible duplicate before declaring a retry successful.
+Existing `autoTrackBet` callers retain their boolean/alert interface; the dialog
+uses the new structured `saveTrackedBet` result. No schema migration is needed.
+
+The saved odds are the user's execution price. Non-push model probability and
+edge at that price use the existing ledger fields, preserving NFL's conditional
+probability semantics and converting MLB/NHL win-plus-push probabilities where
+available. Missing push information does not become a fabricated zero. Original
+quote times/forecast versions remain in sport archives; the existing bet table
+has no dedicated quote-snapshot fields. Logging is separate from wager placement.
+
+MLB and NHL moneyline/puck-line automatic tracker grading are not connected; the
+dialog explains that these tickets stay pending. Pending stakes remain visible
+as exposure but do not count as realized losses or enter realized ROI. No new
+result-grading claims are made. Saved text is escaped on the tracker page.
+
+Validation: `node tests/tracker_saves.cjs`, the extended briefing shortlist tests,
+and Playwright briefing tests cover account ownership, actual-price mapping,
+null moneyline lines, pushes, no write before confirmation, signed-out and error
+states, duplicate-click/retry protection, and draft preservation through expiry.
+All save tests use a fake client; no real bets or sign-in emails are created.
