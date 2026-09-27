@@ -56,6 +56,9 @@ def source(b=None, **changes):
 def response(b=None):
     b = b or board()
     review = dict(candidate_id=b['candidates'][0]['candidate_id'], status='needs_information',
+                  assessment=dict(verdict='wait', reason='The goalie assumption needs verification.',
+                      model_case='The sensitivity range qualifies at this quote.', price_case='The quote clears the scenario minimum.',
+                      context_case='Starting goalie remains unverified.', blocking_checks=['Verify the starting goalie.']),
                   countercase='Unconfirmed goalie assumptions could change the scoring forecast.',
                   open_checks=['Verify the starting goalie before deciding.'], evidence=[dict(
                       source_id='s1', excerpt='the starting goalie will be announced after warmups',
@@ -159,15 +162,23 @@ class EvidenceAndAstraTests(unittest.TestCase):
             self.assertEqual(astra.reserve(path, 'later', NOW, .6, 1), 'budget_exhausted')
             self.assertEqual(astra.reserve(path, 'next-week', NOW+timedelta(days=8), .6, 1), 'reserved')
 
-    def test_empty_missing_key_no_evidence_afternoon_skip_paid_request(self):
+    def test_empty_missing_key_afternoon_skip_paid_request(self):
         with patch.object(astra, 'call_api') as call, patch.object(evidence, 'collect', return_value=([], {})), tempfile.TemporaryDirectory() as tmp:
             with patch.dict('os.environ', {'OPENAI_API_KEY': ''}):
                 self.assertEqual(analyst.review(board(), CONFIG)['review_status'], 'api_key_unavailable')
             with patch.dict('os.environ', {'OPENAI_API_KEY': 'synthetic-not-a-key'}):
                 self.assertEqual(analyst.review(shortlist(state([]), NOW, CONFIG), CONFIG)['review_status'], 'no_candidates')
                 self.assertEqual(analyst.review(dict(board(), session='afternoon'), CONFIG)['review_status'], 'afternoon_quantitative_update')
-                self.assertEqual(analyst.review(board(), CONFIG, Path(tmp), clock=lambda: NOW)['review_status'], 'no_usable_reporting')
             call.assert_not_called()
+
+    def test_no_reporting_permits_model_and_price_assessment(self):
+        raw=response(); value=json.loads(raw['output'][0]['content'][0]['text']); value['reviews'][0]['evidence']=[]
+        raw['output'][0]['content'][0]['text']=json.dumps(value)
+        with tempfile.TemporaryDirectory() as tmp, patch.dict('os.environ', {'OPENAI_API_KEY':'synthetic'}), \
+             patch.object(evidence,'collect',return_value=([],{})), patch.object(astra,'checkpoint'), \
+             patch.object(astra,'call_api',return_value=raw) as call:
+            result=analyst.review(board(), CONFIG, Path(tmp), clock=lambda:NOW)
+            self.assertEqual(result['review_status'],'completed'); call.assert_called_once()
 
     def test_success_and_failure_preserve_quant_forecast_and_no_duplicate_api_call(self):
         for fail in (False, True):

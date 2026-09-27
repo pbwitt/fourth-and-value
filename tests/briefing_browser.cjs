@@ -76,6 +76,23 @@ const server=http.createServer((req,res)=>{
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
       await page.locator('#daily-picks').screenshot({path:`/tmp/fv-astra-review-${width}.png`});
     }
+    // A full model-and-price assessment renders with no news and no layout change.
+    const q=feeds.Reviews.sports.MLB.candidates[0].qualitative_review;
+    q.status='needs_information';q.evidence=[];
+    for(const verdict of ['consider','wait','pass']) {
+      q.assessment={verdict,reason:'The model case needs a defensible opportunity estimate.',model_case:'Projected role drives the estimate.',
+        price_case:'The reviewed quote clears the numerical screen.',context_case:'No relevant reporting verified.',
+        blocking_checks:verdict==='wait'?['Verify expected playing time.']:[]};
+      for(const width of [390,768,1440]) {
+        await page.setViewportSize({width,height:1000});await page.reload();await page.waitForSelector('.pick-research');
+        assert.match(await page.locator('#picks-analysis-text').textContent(),/Our assessment:/);
+        await page.locator('.read-pick-review').click();
+        assert.match(await page.locator('.pick-research').textContent(),/Model case:/);
+        assert.match(await page.locator('.pick-research').textContent(),/No relevant reporting was verified/);
+        assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+        await page.locator('#daily-picks').screenshot({path:`/tmp/fv-assessment-${verdict}-${width}.png`});
+      }
+    }
     await page.clock.fastForward(31000);
     assert(await page.locator('.pick-research').evaluate(el=>el.open),'reading a review must survive the expiry timer');
     feeds.MLB.rows[0].price=120;await page.reload();await page.waitForSelector('.pick-research');

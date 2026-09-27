@@ -9,6 +9,11 @@ on:
     types: [completed]
     branches: [main]
   workflow_dispatch:
+    inputs:
+      assessment_update:
+        description: 'One assessment revision for the current prompt/session (same shared budget)'
+        type: boolean
+        default: false
   workflow_call:
 
 # NHL and this workflow serialize their reservations against one combined cap.
@@ -43,7 +48,11 @@ jobs:
       - name: Research the current model shortlist
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: python scripts/analyst_review.py --astra
+          ASSESSMENT_UPDATE: ${{ github.event_name == 'workflow_dispatch' && inputs.assessment_update || false }}
+        run: |
+          args=(--astra)
+          if [ "$ASSESSMENT_UPDATE" = 'true' ]; then args+=(--assessment-update); fi
+          python scripts/analyst_review.py "${args[@]}"
       - name: Archive reproducible research packets
         if: always()
         uses: actions/upload-artifact@v4

@@ -20,7 +20,11 @@
   const reviewKey=r=>JSON.stringify([reviewBetKey(r),r.price,r.quoted_at,r.forecast_at,
     r.model_prob??r.model_probability,r.push_prob??r.model_push_probability,
     r.consensus_prob??r.other_book_probability,r.model_version??r.model_status]);
-  const reviewLabel=q=>({research_support:'Sourced support · analyst review needed',concern:'Sourced concern · review before deciding',needs_information:'More information needed'})[q?.status]||'Qualitative review needed';
+  const assessment=q=>q?.assessment&&['consider','wait','pass'].includes(q.assessment.verdict)&&
+    ['reason','model_case','price_case','context_case'].every(k=>typeof q.assessment[k]==='string')&&
+    Array.isArray(q.assessment.blocking_checks)&&q.assessment.blocking_checks.every(x=>typeof x==='string')?q.assessment:null;
+  const verdictLabel=a=>({consider:'Consider · human review needed',wait:'Wait · resolve the blocker',pass:'Pass · case not supported'})[a.verdict];
+  const reviewLabel=q=>assessment(q)?verdictLabel(assessment(q)):({research_support:'Sourced support · analyst review needed',concern:'Sourced concern · review before deciding',needs_information:'Reporting reviewed · full assessment pending'})[q?.status]||'Qualitative review needed';
   const completeReview=q=>q&&['research_support','concern','needs_information'].includes(q.status)&&
     typeof q.countercase==='string'&&Array.isArray(q.open_checks)&&q.open_checks.every(x=>typeof x==='string')&&
     Array.isArray(q.evidence)&&q.evidence.every(e=>e&&['source_id','direction','interpretation','represented_in'].every(k=>typeof e[k]==='string'));
@@ -119,7 +123,7 @@
     if(r.human_decision==='watch')return 'Analyst: watch / wait';
     const q=r.qualitative_review;
     if(!q||q.offer_id!==r.offer_id||q.forecast_id!==r.forecast_id)return 'Context review needed';
-    return ({research_support:'Sourced support · analyst review needed',concern:'Sourced concern · review before deciding',needs_information:'More information needed'})[q.status]||'Context review needed';
+    return reviewLabel(q);
   }
 
   function collect(feeds,now=Date.now()) {
@@ -174,7 +178,9 @@
     const prev=r.reviewed_candidate;
     const original=prev?`<p class="meta">Reviewed ${esc(odds(prev.price))} at ${esc(time(prev.quoted_at))}. ${r.review_matches_current?'Matches this offer and forecast.':'Current price or forecast differs; this is earlier context, not a review of the current offer.'}</p>`:'';
     const correction=oldNFLReview(r)?'<p class="notice">Method correction: this earlier note was given an incorrect description of the NFL model. Its probabilities are calibrated to historical results, not current market prices. Any claim below that it is “market-calibrated” is incorrect. The forecast itself is unchanged.</p>':'';
-    return `<details class="pick-research"><summary>Fourth &amp; Value analysis · ${esc(time(q.reviewed_at))}</summary><p><strong>Why it surfaced:</strong> ${esc(screenReason(r))}</p>${original}${correction}${items?`<ul>${items}</ul>`:'<p><strong>Additional supporting context unverified.</strong> The numerical screen flagged this offer, but the reporting reviewed did not verify additional context supporting the bet. It remains a candidate for further review.</p>'}<p><strong>Case against:</strong> ${esc(q.countercase)}</p><p><strong>Check before deciding:</strong></p><ul>${q.open_checks.map(s=>`<li>${esc(s)}</li>`).join('')}</ul><p class="meta">AI-assisted research; human verification still required. This review does not change the model probability or establish a betting edge.</p></details>`;
+    const a=assessment(q);
+    const judgment=a?`<p><strong>Our assessment: ${esc(verdictLabel(a))}.</strong> ${esc(a.reason)}</p><p><strong>Model case:</strong> ${esc(a.model_case)}</p><p><strong>Price case:</strong> ${esc(a.price_case)}</p><p><strong>Relevant context:</strong> ${esc(a.context_case)}</p>${a.blocking_checks.length?'<p><strong>Before this can advance:</strong></p><ul>'+a.blocking_checks.map(s=>`<li>${esc(s)}</li>`).join('')+'</ul>':''}`:'<p class="meta">This earlier review checked reporting only. A full model-and-price assessment is pending.</p>';
+    return `<details class="pick-research"><summary>Fourth &amp; Value analysis · ${esc(time(q.reviewed_at))}</summary><p><strong>Why it surfaced:</strong> ${esc(screenReason(r))}</p>${original}${correction}${judgment}${items?`<ul>${items}</ul>`:'<p class="meta">No relevant reporting was verified for this review. That does not, by itself, invalidate the model-and-price case.</p>'}<p><strong>Case against:</strong> ${esc(q.countercase)}</p><p><strong>Final checks:</strong></p><ul>${q.open_checks.map(s=>`<li>${esc(s)}</li>`).join('')}</ul><p class="meta">AI-assisted analysis; human verification still required. Consider, wait and pass are assessments of the reviewed offer, not automatic bets. Original model probabilities remain unchanged.</p></details>`;
   }
 
   function summaryHTML(selected) {
@@ -190,15 +196,17 @@
     for(const row of reviewed)if(featured.length<3&&!featured.includes(row))featured.push(row);
     const paragraphs=featured.map(r=>{
       const q=r.qualitative_review,prior=r.reviewed_candidate||r;
-      const status={research_support:'Our review found relevant supporting reporting; analyst verification is still needed.',concern:'Our review found a concern to resolve.',needs_information:'The reporting reviewed has not yet established a supporting case for this bet.'}[q.status];
+      const a=assessment(q);
+      const status=a?`<strong>Our assessment: ${esc(verdictLabel(a))}.</strong> ${esc(a.reason)}`:{research_support:'Our review found relevant supporting reporting; analyst verification is still needed.',concern:'Our review found a concern to resolve.',needs_information:'The earlier review checked reporting only; a full betting assessment is pending.'}[q.status];
       const evidence=citedEvidence(r).find(({e})=>['supports','concern'].includes(e.direction));
       const source=evidence?` ${esc(evidence.e.interpretation)} <a href="${esc(evidence.s.url)}" target="_blank" rel="noopener noreferrer">Source</a>.`:'';
       const changed=r.review_matches_current===false?' <strong>The price or forecast has changed since this review; reassess the current offer.</strong>':'';
       const original=changed?` This review assessed ${esc(odds(prior.price))} quoted ${esc(time(prior.quoted_at))}.`:'';
-      const check=q.open_checks[0]?` <strong>Still to check:</strong> ${esc(q.open_checks[0])}`:'';
+      const next=a?a.blocking_checks[0]:q.open_checks[0];
+      const check=next?` <strong>Still to check:</strong> ${esc(next)}`:'';
       // Keep long countercases, source timestamps and offer metadata in the full
       // review/table. No new AI call, shortened quotation or invented narrative.
-      const countercase=q.status==='concern'&&!oldNFLReview(r)?` ${esc(q.countercase)}`:'';
+      const countercase=!a&&q.status==='concern'&&!oldNFLReview(r)?` ${esc(q.countercase)}`:'';
       return `<p class="pick-summary-paragraph"><strong class="summary-bet">${esc(betLabel(r).replaceAll(' · ',' '))}</strong><span class="meta summary-game">${esc(r.sport)} · ${esc(r.game)}</span>${esc(screenReason(r))} ${status}${changed}${original}${source}${countercase}${check} <a class="read-pick-review" href="#pick-review-${selected.indexOf(r)}">Read our full analysis</a>.</p>`;
     }).join('');
     return paragraphs+`<p class="meta">${reviewed.length} of ${selected.length} current candidates reviewed; ${featured.length} summarized here. Full findings and remaining checks appear under each bet. A completed review is not bet approval.</p>`;

@@ -50,9 +50,6 @@ def review(board, config, archive=ARCHIVE, clock=lambda: datetime.now(timezone.u
     asof = clock()
     board['evidence_status'] = diagnostics
     board['sources'] = [{k: v for k, v in s.items() if k != 'excerpt'} for s in sources]
-    if not sources:
-        board['review_status'] = 'no_usable_reporting'
-        return board
     # Collection can take time; never submit a critique of an already invalid candidate.
     if any(exclusion(r, asof, config) for r in board['candidates']):
         board['review_status'] = 'expired_during_research'

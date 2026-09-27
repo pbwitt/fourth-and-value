@@ -129,12 +129,23 @@ assert(!rowHTML({...nhl,projected_mean:null,projected_home_reg_goals:99.9}).incl
 const noEvidence={...nflView,reviewed_candidate:reviewed,review_sources:[],qualitative_review:{...reviewed.qualitative_review,
  status:'needs_information',prompt_version:'mlb-nfl-context-1',evidence:[]}};
 const detail=rowHTML(noEvidence),brief=summaryHTML([noEvidence]);
-assert.match(detail,/Additional supporting context unverified/);
+assert.match(detail,/No relevant reporting was verified/);
 assert.match(detail,/Method correction/);assert.match(detail,/historical results/);
 assert.match(detail,/Fourth &amp; Value analysis/);assert(!detail.includes('Astra'));
-assert.match(brief,/reporting reviewed has not yet established/);
+assert.match(brief,/full betting assessment is pending/);
 assert(!brief.includes('Astra'));assert(!brief.includes('market-calibrated'));
 assert.equal(researchStatus('NFL',{sports:{NFL:{decision_date:day(now),review_status:'already_attempted_this_session'}}},[noEvidence],now),'NFL: 1/1 candidates reviewed');
 assert.equal(researchStatus('NFL',{},[],now),'NFL: no current candidates');
 console.log('PASS: morning shortlist model gates, exact quotes, ET days, freshness, failures, exposure and review identity.');
 module.exports={fixture};
+
+// Reporting status and betting assessment are distinct; model-only consideration is possible.
+for(const verdict of ['consider','wait','pass']) {
+ const assessed={...noEvidence,qualitative_review:{...noEvidence.qualitative_review,prompt_version:'mlb-nfl-context-3',assessment:{
+  verdict,reason:'Specific model and price assessment.',model_case:'Opportunity forecast is uncertain.',price_case:'Exact-line quote assessed.',
+  context_case:'No additional reporting verified.',blocking_checks:verdict==='wait'?['Confirm projected opportunity.']:[]}}};
+ assert.match(rowHTML(assessed),/Our assessment:/);assert.match(rowHTML(assessed),/Model case:/);assert.match(rowHTML(assessed),/Price case:/);
+ assert.match(summaryHTML([assessed]),/Specific model and price assessment/);
+ assert(!summaryHTML([assessed]).includes('full betting assessment is pending'));
+ assert(!rowHTML({...assessed,qualitative_review:{...assessed.qualitative_review,assessment:{...assessed.qualitative_review.assessment,reason:'<img src=x>'}}}).includes('<img'));
+}
