@@ -116,3 +116,18 @@ scheduler is configured. Reservation commits still trigger Pages builds. Deliver
 verification detects failure and later starts can recover delivery without paid
 research; it does not remove build churn. Bounded research can leave candidates
 unassessed. No new profitability or completeness claim follows from these fixes.
+
+## Small follow-up: test editions cannot complete the morning run — 2026-09-27
+
+The shared completion check previously accepted both morning and test cards for
+scheduled runs. A successful early operator test could therefore prevent the real
+morning feeds and research from running. Require a completed morning card in both
+the parent gate and research CLI. Explicit tests may still reuse either completed
+kind, so repeats do not accidentally incur more work; replacement remains explicit.
+Keep original test archives and all same-day spending when publishing the morning
+edition. Tests cover this transition, completed-run skips and the late-start guard.
+
+The owner requested small changes that preserve the progress already made. Defer
+feed-reuse changes, additional scheduling infrastructure and selection/ranking
+changes. The current schedule, editorial handoff, models, quote checks, ten-pick
+limit and research allowance are unchanged. This fix needs no paid API test.
