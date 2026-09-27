@@ -137,7 +137,7 @@ sports; unused capacity does not roll over. Existing odds-feed and independent
 article-writer costs are outside it. The legacy NHL paid entry point now only
 marks the shared queue; it cannot spend a second allowance.
 
-Owner-authorized release testing on **September 27, 2026 only** uses a **$10
+Owner-authorized release testing on **September 27, 2026 only** uses a **$20
 shared ceiling**, configured by `test_budget_override` with an exact Eastern date
 and authorization reason. It includes every charge already recorded that day;
 it does not reset or create another ledger. Both discovery and review use the
@@ -216,3 +216,5 @@ ledger to regain spending or retry an unknown billable request.
 OpenAI references checked 2026-09-27: [model/pricing](https://developers.openai.com/api/docs/models/gpt-6-astra),
 [web search](https://developers.openai.com/api/docs/guides/tools-web-search),
 and [Responses API](https://developers.openai.com/api/reference/typescript/resources/responses/methods/create).
+
+Each research run attempts at most eight batches of at most three candidates. The broad candidate pool remains available, but the runner reports `review_limit_reached` when it stops this focused review. This is separate from the shared daily spending ceiling.
