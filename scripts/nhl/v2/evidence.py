@@ -12,7 +12,7 @@ import requests
 
 from .data import digest, iso, stamp
 
-HOSTS = ('nhl.com', 'espn.com', 'cbssports.com')
+HOSTS = ('nhl.com', 'mlb.com', 'nfl.com', 'espn.com', 'cbssports.com')
 FEEDS = ('https://www.espn.com/espn/rss/nhl/news',
          'https://www.cbssports.com/rss/headlines/nhl/')
 
@@ -82,7 +82,7 @@ def article_text(html):
 def terms(row):
     names = [row.get('player', ''), row.get('home_team', ''), row.get('away_team', '')]
     # Full names and unambiguous team nicknames; never a city alone or player surname alone.
-    names += [' '.join(team.split()[-2:]) if team.endswith(('Maple Leafs', 'Red Wings', 'Blue Jackets', 'Golden Knights'))
+    names += [' '.join(team.split()[-2:]) if team.endswith(('Maple Leafs', 'Red Wings', 'Blue Jackets', 'Golden Knights', 'Red Sox', 'White Sox', 'Blue Jays'))
               else team.split()[-1] for team in names[1:] if team]
     return [n.casefold() for n in names if len(n) >= 4]
 
@@ -90,6 +90,20 @@ def terms(row):
 def matches(row, text):
     text = text.casefold().replace('-', ' ')
     return any(re.search(r'(?<!\w)'+re.escape(t)+r'(?!\w)', text) for t in terms(row))
+
+
+def reporting_priority(row, source):
+    text = (source['title']+' '+source['url']).casefold()
+    # Facts affecting opportunity get priority over generic team coverage. Other
+    # outlets' betting selections are not evidence of our own edge.
+    if re.search(r'best.bets|betting.picks|picks.odds|odds.best|promo.code|expert.picks', text):
+        return -1
+    priority = 5 if re.search(r'injur|lineup|practice|active|starter|weather|bullpen|scratch|pitcher', text) else 0
+    if row.get('player') and row['player'].casefold() in text.replace('-', ' '):
+        priority += 3
+    if urlsplit(source['url']).hostname in ('www.nfl.com','www.mlb.com','www.nhl.com'):
+        priority += 1
+    return priority
 
 
 def usable(source, row, asof):
@@ -102,13 +116,18 @@ def usable(source, row, asof):
         return False
 
 
-def collect(rows, clock=lambda: datetime.now(timezone.utc)):
+def collect(rows, clock=lambda: datetime.now(timezone.utc), sport='NHL'):
     """Max three index requests, eight article requests, two sources/candidate."""
     if not rows:
         return [], {'status': 'no_candidates', 'failures': []}
     pool, sources, failures = [], [], []
     now = clock()
-    for feed in FEEDS:
+    if sport not in ('NHL', 'MLB', 'NFL'):
+        raise ValueError('Unsupported reporting sport')
+    feeds = FEEDS if sport == 'NHL' else (
+        f'https://www.espn.com/espn/rss/{sport.lower()}/news',
+        f'https://www.cbssports.com/rss/headlines/{sport.lower()}/')
+    for feed in feeds:
         try:
             tree = ET.fromstring(fetch(feed))
             for item in tree.findall('.//item')[:40]:
@@ -124,16 +143,18 @@ def collect(rows, clock=lambda: datetime.now(timezone.utc)):
         except (requests.RequestException, ValueError, ET.ParseError):
             failures.append({'host': urlsplit(feed).hostname, 'stage': 'feed_unavailable'})
     try:
-        index = fetch('https://www.nhl.com/news/')
+        domain = sport.lower()+'.com'
+        index = fetch(f'https://www.{domain}/news/')
         for href in dict.fromkeys(unescape(u) for u in re.findall(r'href=[\"\']([^\"\'?#]+)[\"\']', index)):
-            url = urljoin('https://www.nhl.com', href)
+            url = urljoin('https://www.'+domain, href)
             if trusted(url) and '/news/' in url and any(matches(r, url) for r in rows):
                 pool.append(dict(url=url, title='', published_at=None))
     except (requests.RequestException, ValueError):
-        failures.append({'host': 'www.nhl.com', 'stage': 'index_unavailable'})
+        failures.append({'host': 'www.'+domain, 'stage': 'index_unavailable'})
     seen, attempts, counts = set(), 0, {r['candidate_id']: 0 for r in rows}
     # Round-robin by candidate avoids spending every fetch on the first matchup.
-    queues = [[s for s in pool if matches(r, s['title']+' '+s['url'])] for r in rows]
+    queues = [sorted([s for s in pool if matches(r, s['title']+' '+s['url']) and reporting_priority(r, s) >= 0],
+                     key=lambda s: (reporting_priority(r, s), s.get('published_at') or ''), reverse=True) for r in rows]
     for n in range(max((len(q) for q in queues), default=0)):
         for row, queue in zip(rows, queues):
             if n >= len(queue) or counts[row['candidate_id']] >= 2 or attempts >= 8:

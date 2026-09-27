@@ -16,6 +16,26 @@
   const decimal=p=>p>0?1+p/100:1-100/p;
   const key=r=>JSON.stringify([r.sport,r.game_id,r.player,r.market_std||r.market,r.side,r.line,r.book,r.quoted_at]);
   const betLabel=r=>[r.player,r.side,r.line===null?'':r.market==='spreads'&&r.line>0?'+'+r.line:String(r.line),r.market_label].filter(Boolean).join(' · ');
+  const reviewBetKey=r=>JSON.stringify([r.sport,String(r.game_id),r.player||'',r.market_std||r.market,r.side,r.line,r.book,r.commence_time]);
+  const reviewKey=r=>JSON.stringify([reviewBetKey(r),r.price,r.quoted_at,r.forecast_at,
+    r.model_prob??r.model_probability,r.push_prob??r.model_push_probability,
+    r.consensus_prob??r.other_book_probability,r.model_version??r.model_status]);
+  const reviewLabel=q=>({research_support:'Sourced support · analyst review needed',concern:'Sourced concern · review before deciding',needs_information:'More information needed'})[q?.status]||'Qualitative review needed';
+  const completeReview=q=>q&&['research_support','concern','needs_information'].includes(q.status)&&
+    typeof q.countercase==='string'&&Array.isArray(q.open_checks)&&q.open_checks.every(x=>typeof x==='string')&&
+    Array.isArray(q.evidence)&&q.evidence.every(e=>e&&['source_id','direction','interpretation','represented_in'].every(k=>typeof e[k]==='string'));
+
+  function attachReview(r,feed,now) {
+    const board=feed?.sports?.[r.sport];
+    if(feed?.schema_version!==1||board?.decision_date!==day(now))return r;
+    const previous=records(board.candidates).find(p=>p.review_bet_key===reviewBetKey(r));
+    const q=previous?.qualitative_review;
+    if(!completeReview(q)||q.offer_id!==previous.offer_id||q.forecast_id!==previous.forecast_id||
+      !recent(q.reviewed_at,now,12*HOUR)||stamp(q.reviewed_at)>=stamp(r.commence_time))return r;
+    const exact=previous.review_key===reviewKey(r);
+    return {...r,qualitative_review:q,review_sources:records(board.sources),reviewed_candidate:previous,
+      review_matches_current:exact,review:exact?reviewLabel(q):'Price or forecast changed · research needs recheck'};
+  }
 
   function ticketData(r,price,stake) {
     price=Number(price);stake=Number(stake);
@@ -57,14 +77,14 @@
         available=data?.schema_version===1&&data.status==='ready'&&recent(data.generated_at,now,48*HOUR);
         if(available)candidates=rows(data).filter(r=>today(r,now)&&recent(r.last_update,now,48*HOUR)&&
           r.model_status?.startsWith('Calibration fitted')&&finite(r.model_prob)&&r.model_prob>0&&r.model_prob<1&&finite(r.edge_bps)&&r.edge_bps>0)
-          .map(r=>({...r,book:r.bookmaker,side:r.name,line:r.point,quoted_at:r.last_update,
+          .map(r=>({...r,book:r.bookmaker,side:r.name,line:r.point,quoted_at:r.last_update,forecast_at:data.generated_at,
             game_id:r.game_id||r.game+'|'+r.commence_time,score:r.edge_bps,
             review:'Qualitative review needed',url:'/props/top.html?'+new URLSearchParams({q:r.player||r.game,market:r.market_std,game:r.game})}));
       } else if(sport==='MLB') {
         available=data?.status==='ready'&&!data.model_error&&recent(data.last_success_at,now,12*HOUR)&&recent(data.model_checked_at,now,90*MINUTE);
         if(available)candidates=rows(data).filter(r=>today(r,now)&&r.is_model_pick===true&&recent(r.quoted_at,now,90*MINUTE)&&
           finite(r.model_probability)&&r.model_probability>0&&r.model_probability<1&&finite(r.model_ev_pct)&&r.model_ev_pct>0)
-          .map(r=>({...r,game_id:r.mlb_game_id||r.event_id,score:r.model_ev_pct,review:'Qualitative review needed',
+          .map(r=>({...r,game_id:r.mlb_game_id||r.event_id,forecast_at:data.model_checked_at,model_version:data.model_version,score:r.model_ev_pct,review:'Qualitative review needed',
             url:'/mlb/picks.html?'+new URLSearchParams({game:r.event_id,market:r.market,q:r.player||''})}));
       } else {
         available=['ready','waiting_for_markets'].includes(data?.status)&&!data.model_error&&recent(data.last_success_at,now,30*MINUTE)&&
@@ -84,20 +104,36 @@
       for(const r of candidates) {
         if(count>=4||seen.has(r.game_id))continue;
         seen.add(r.game_id);count++;
-        selected.push({...r,sport});
+        selected.push(sport==='NHL'?{...r,sport,review_sources:records(board.sources)}:attachReview({...r,sport},feeds.Reviews,now));
       }
       coverage.push({sport,count,available,message:!available?'Current model list unavailable or expired':count?`${count} review candidate${count===1?'':'s'}`:'No qualifying games remaining today'});
     }
     return {selected,coverage};
   }
 
+  function researchHTML(r) {
+    const q=r.qualitative_review;
+    if(!completeReview(q))return '';
+    if(r.sport==='NHL'&&(q.offer_id!==r.offer_id||q.forecast_id!==r.forecast_id))return '';
+    const safeURL=url=>{try{const u=new URL(url);return u.protocol==='https:'&&!u.username&&!u.password&&['espn.com','cbssports.com','nhl.com','nfl.com','mlb.com'].some(h=>u.hostname===h||u.hostname.endsWith('.'+h));}catch{return false;}};
+    const items=q.evidence.map(e=>{
+      const s=r.review_sources?.find(s=>s.source_id===e.source_id);
+      if(!s||!safeURL(s.url))return '';
+      return `<li><strong>${esc(e.direction)}:</strong> ${esc(e.interpretation)} <a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a> <span class="meta">Published ${esc(time(s.published_at))} · may already be reflected in ${esc(e.represented_in.replaceAll('_',' '))}.</span></li>`;
+    }).join('');
+    const prev=r.reviewed_candidate;
+    const original=prev?`<p class="meta">Reviewed ${esc(odds(prev.price))} at ${esc(time(prev.quoted_at))}. ${r.review_matches_current?'Matches this offer and forecast.':'Current price or forecast differs; this is earlier context, not a review of the current offer.'}</p>`:'';
+    return `<details class="pick-research"><summary>Astra analysis · ${esc(time(q.reviewed_at))}</summary>${original}${items?`<ul>${items}</ul>`:'<p>No supporting source evidence verified.</p>'}<p><strong>Case against:</strong> ${esc(q.countercase)}</p><p><strong>Check before deciding:</strong></p><ul>${q.open_checks.map(s=>`<li>${esc(s)}</li>`).join('')}</ul><p class="meta">Sourced AI critique; human verification still required. Model probability is unchanged. Reviews are archived for prospective evaluation.</p></details>`;
+  }
+
   function rowHTML(r,index=0,saved=false) {
-    return `<tr><td><a href="${esc(r.url)}"><strong>${esc(betLabel(r))}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${esc(r.review)}</span></td><td>${esc(odds(r.price))}</td><td><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td>${esc(r.book_label||r.book)}<br><button type="button" class="track-pick secondary" data-track-pick="${index}" ${saved?'disabled':''} aria-label="${esc((saved?'Tracked: ':'Track bet: ')+betLabel(r))}">${saved?'Tracked':'Track bet'}</button></td></tr>`;
+    const research=researchHTML(r);
+    return `<tr><td><a href="${esc(r.url)}"><strong>${esc(betLabel(r))}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${esc(r.review)}</span></td><td>${esc(odds(r.price))}</td><td><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td>${esc(r.book_label||r.book)}<br><button type="button" class="track-pick secondary" data-track-pick="${index}" ${saved?'disabled':''} aria-label="${esc((saved?'Tracked: ':'Track bet: ')+betLabel(r))}">${saved?'Tracked':'Track bet'}</button></td></tr>${research?`<tr class="pick-research-row"><td colspan="4">${research}</td></tr>`:''}`;
   }
 
   async function mount() {
     const root=document.getElementById('daily-picks');if(!root)return;
-    const urls={NFL:'/props/top-picks.json',MLB:'/mlb/data/latest.json',NHL:'/nhl/data/latest.json',NHLBoard:'/nhl/data/candidates.json'};
+    const urls={NFL:'/props/top-picks.json',MLB:'/mlb/data/latest.json',NHL:'/nhl/data/latest.json',NHLBoard:'/nhl/data/candidates.json',Reviews:'/briefing/reviews.json'};
     let feeds={},checked=null,loading=false,current=[],draft=null,trackingReady=null,saving=false;
     const tickets=new Map(),dialog=document.getElementById('pick-tracker'),form=document.getElementById('track-bet-form');
     const $=id=>document.getElementById(id);
@@ -107,6 +143,8 @@
       document.getElementById('daily-picks-rows').innerHTML=current.map((r,i)=>rowHTML(r,i,tickets.get(key(r))?.saved)).join('')||'<tr><td colspan="4">No current bets qualify for today’s review list. See the feed status below; an empty list is a valid result.</td></tr>';
       document.getElementById('picks-status').textContent=`${result.selected.length} candidates for ${new Date(now).toLocaleDateString('en-US',{timeZone:'America/New_York',month:'long',day:'numeric'})} · ${checked?'Source boards checked '+time(checked):'Checking source boards'}.`;
       document.getElementById('picks-coverage').textContent=result.coverage.map(c=>`${c.sport}: ${c.message}`).join(' · ');
+      const research=document.getElementById('picks-research-status');
+      if(research)research.textContent=['NFL','MLB'].map(s=>`${s} Astra: ${feeds.Reviews?.sports?.[s]?.decision_date===day(now)?(feeds.Reviews.sports[s].review_status||'unavailable').replaceAll('_',' '):'today’s review pending'}`).join(' · ');
       if(draft&&dialog.open&&!saving&&!draft.saved&&!collect(feeds,now).selected.some(r=>key(r)===key(draft.row))) {
         $('track-quote').textContent=`Saved quote: ${odds(draft.row.price)} at ${time(draft.row.quoted_at)}. This offer has expired or changed. Enter the price of the bet you actually placed.`;
       }
@@ -165,6 +203,6 @@
     await load();setInterval(render,30000);setInterval(load,300000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
   }
-  if(typeof module==='object'&&module.exports)module.exports={collect,rowHTML,day,ticketData};
+  if(typeof module==='object'&&module.exports)module.exports={collect,rowHTML,day,ticketData,reviewKey,reviewBetKey};
   else mount();
 })(typeof window==='undefined'?globalThis:window);

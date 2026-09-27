@@ -726,3 +726,7 @@ and Playwright briefing tests cover account ownership, actual-price mapping,
 null moneyline lines, pushes, no write before confirmation, signed-out and error
 states, duplicate-click/retry protection, and draft preservation through expiry.
 All save tests use a fake client; no real bets or sign-in emails are created.
+
+## Sourced shortlist review
+
+MLB and NFL now share the NHL Astra review infrastructure after the quantitative screen. See [ANALYST_RESEARCH.md](ANALYST_RESEARCH.md) for schedules, unchanged model semantics, exact offer matching, archives, the combined $5 rolling-week research budget, operational limits and rollback. Reviews appear beneath each reviewed bet in the briefing; changed prices/forecasts require a recheck. This does not establish qualitative uplift or mark a bet as analyst-approved.

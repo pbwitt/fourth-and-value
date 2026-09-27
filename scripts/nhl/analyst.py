@@ -63,7 +63,8 @@ def review(board, config, archive=ARCHIVE, clock=lambda: datetime.now(timezone.u
     packet_path = archive/'requests'/f'{request_id}.json'
     immutable(packet_path, dict(board_id=board['board_id'], request_id=request_id,
                                prepared_at=iso(asof), request=request, source_diagnostics=diagnostics))
-    result = astra.reserve(budget, key, asof, amount, config['weekly_budget_usd'])
+    remaining = config['weekly_budget_usd'] - astra.recent_spend(ROOT/'artifacts/analyst/budget.json', asof)
+    result = astra.reserve(budget, key, asof, amount, remaining)
     if result != 'reserved':
         board['review_status'] = result
         return board
@@ -115,7 +116,7 @@ def main():
         from dotenv import load_dotenv
         load_dotenv(args.env_file, override=False)
     # Serialize local reservations as well as the GitHub concurrency group.
-    lock = ROOT/'data/nhl/analyst.lock'
+    lock = ROOT/'data/analyst/review.lock'
     lock.parent.mkdir(parents=True, exist_ok=True)
     with lock.open('a') as handle:
         fcntl.flock(handle, fcntl.LOCK_EX)
