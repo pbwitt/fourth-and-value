@@ -1,0 +1,41 @@
+name: Morning Picks Edition
+on:
+  schedule:
+    - cron: '0 7 * * *'
+      timezone: America/New_York
+  workflow_dispatch:
+    inputs:
+      test_edition:
+        description: Publish an explicitly labeled test edition outside morning hours
+        type: boolean
+        default: false
+      replace_card:
+        description: Archive and replace an existing edition for this date
+        type: boolean
+        default: false
+concurrency:
+  group: morning-picks-edition
+  cancel-in-progress: false
+permissions:
+  contents: write
+  pages: write
+jobs:
+  nfl:
+    uses: ./.github/workflows/nfl-weekly.yml
+    with:
+      editorial_refresh: true
+    secrets: inherit
+  mlb:
+    uses: ./.github/workflows/mlb-daily.yml
+    secrets: inherit
+  nhl:
+    uses: ./.github/workflows/nhl-daily.yml
+    secrets: inherit
+  research:
+    needs: [nfl, mlb, nhl]
+    if: always() && !cancelled()
+    uses: ./.github/workflows/analyst-daily.yml
+    with:
+      test_edition: ${{ inputs.test_edition || false }}
+      replace_card: ${{ inputs.replace_card || false }}
+    secrets: inherit

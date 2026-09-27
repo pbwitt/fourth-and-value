@@ -50,8 +50,8 @@ rows without an eligible model say Not established and cannot create a tracker
 model probability/edge. Original forecasts remain archived and may be supplied
 as explicitly unqualified diagnostic context. Numerical estimates are never
 invented or adjusted by the language model. Market Watch and daily-article
-selection/writing remain separate. Morning MLB/NFL refresh eligibility now also
-runs independently of article-slot exhaustion.
+selection/writing remain separate. MLB no longer has automatic early editorial
+refreshes; fresh-data article slots may wait for the 7 a.m. feed.
 
 ## Quantitative policy and ranking
 
@@ -121,21 +121,37 @@ Interpretations still require human review. Missing news alone is not a veto.
 
 ## Schedule, budget and failures
 
-See the generated public schedule for exact times. Early morning jobs refresh
-stale MLB/NFL boards, then call research before briefing publication. Standalone
-successful MLB/NFL/NHL refreshes also trigger research. Additional checks occur
-at 08:45, 10:45, 12:45, 15:45, 16:45 and 18:45 ET. Review windows are 05:00–12:00
-and 12:00–21:00. NHL scheduled refreshes remain 10:30/16:30 ET. New props may post
-later; no quote is invented. NFL/MLB quotes expire after 90 minutes; NHL Top Picks
-quotes/forecasts after 30 minutes, with model inputs under 36 hours.
+`Morning Picks Edition` starts at **07:00 America/New_York** every day. It calls
+NFL, MLB and NHL reusable workflows, waits for all three, then calls research.
+A failed sport is reported unavailable; healthy fresh boards may still qualify.
+NHL/MLB standalone schedules are **16:30 Eastern**. Existing NFL game-day updates
+remain. Neither later updates nor editorial publication trigger paid research.
+There is no hourly MLB refresh. NBA integration remains future work.
 
-All Top Picks research uses `artifacts/analyst/daily-budget.json`: **$2.75 per
-America/New_York calendar day**, including legacy same-day ledger charges.
-Morning requests can use at most $2.00, retaining $0.75 for noon-and-later checks.
-One shared allowance covers discovery, follow-up and reviews across all three
-sports; unused capacity does not roll over. Existing odds-feed and independent
-article-writer costs are outside it. The legacy NHL paid entry point now only
-marks the shared queue; it cannot spend a second allowance.
+Normal research runs 07:00–12:00 ET, after the feeds complete. Publication has no
+promised minute. The whole **$2.75 daily** allowance is available to this morning
+run; there is no afternoon reserve. All charges share
+`artifacts/analyst/daily-budget.json`, including prior/legacy same-day charges.
+No automatic intraday discovery or reassessment runs. Existing odds-feed and
+article-writer costs remain outside this cap. The legacy NHL entry point only
+marks the shared queue and cannot spend independently.
+
+`scripts/morning_card.py` calls the same Node/browser selector at publication.
+Quotes/forecasts must pass the normal sport-specific freshness checks, and
+consider reviews must match the exact offer and be no older than three hours.
+Up to ten distinct ideas are written to `/briefing/morning-card.json` (schema 1)
+and an immutable `/briefing/cards/DATE-ID.json` archive. Each row preserves the
+original quote, model, market comparison, review and sources. Later updates never
+mutate the edition. Started games are labeled historical; previous-day editions
+are explicitly labeled previous. The separate research pool still expires rows.
+A temporary card-fetch failure retains the last dated card in an open browser.
+
+`--publish-card` skips before any paid call if this Eastern date already has an
+edition (including a valid empty edition). `--replace-card` is an explicit
+operator override; archives and spending remain intact. `--test-edition` permits
+an outside-window run and labels it Test edition. Both flags are workflow inputs.
+The scheduled parent defaults both to false. A blank card is allowed when no
+completed consider review qualifies; wait/pass/unreviewed entries never fill it.
 
 Owner-authorized release testing on **September 27, 2026 only** uses a **$20
 shared ceiling**, configured by `test_budget_override` with an exact Eastern date
@@ -196,18 +212,27 @@ complete outcomes. No private tracker records are read or written by this runner
 
 ## Release, monitoring and rollback
 
-Merge/deploy only after approval. Following release, refresh the sports feeds so
-the new NFL quote feed and MLB EV policy exist, then run Morning Candidate Research.
-Inspect the reserved/settled budget, immutable packets, public discovery/review
-status and live table. First production search needs monitoring: the new hosted
-search route is covered by mocked transport/schema tests, not a paid call on this
-review branch. Missing sources, budget exhaustion and an empty card are valid
-states, never labeled completed review. Target a supervised morning pilot before
-relying on the new process for Tuesday's decisions.
+After authorized release, dispatch `Morning Picks Edition` to exercise the full
+feed → review → immutable-card sequence. For an afternoon test use:
+
+```sh
+gh workflow run morning-picks.yml --ref main -f test_edition=true -f replace_card=true
+```
+
+Inspect all three feed jobs, the research result, charged/reserved usage, the
+card's edition/date/coverage, original timestamps and live desktop/mobile table.
+A rerun with default inputs must not replace a same-day edition or spend again.
+A normal scheduled run starts at 7 a.m.; its publication time depends on feeds
+and research. Alerts remain GitHub Actions failures; zero selections are a valid
+result, distinct from a failed workflow. The research pool shows feed coverage.
+Run `python -m unittest discover -s tests -p 'test_morning_card.py'` for archival
+and idempotency tests. Browser tests check missing feeds, expired quotes and
+retention through later updates. No tests call paid research APIs.
 
 To stop research, set `astra_enabled` and `discovery_enabled` false; model/feed
 updates remain available. For a selection/UI rollback, first disable paid review,
-then restore the prior selector and templates from commit `611e9c4` after approval.
+then revert the morning-edition code/workflow commit if required. Preserve
+`docs/briefing/cards/` archives and the last card, even during a UI rollback.
 Keep the new budget module, serialized workflow and disabled paid entry points.
 Do not revert the entire change in a way that re-enables the old weekly-funded
 runner. Preserve both daily and legacy ledgers and all archives. Never reset a

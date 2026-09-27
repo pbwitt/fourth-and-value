@@ -1,7 +1,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('node:http'),path=require('node:path');
 const {chromium}=require('playwright');
 const {fixture}=require('./briefing_picks.cjs');
-const {collect,reviewKey,reviewBetKey}=require('../docs/assets/briefing-picks.js');
+const {collect,shortlist,reviewKey,reviewBetKey}=require('../docs/assets/briefing-picks.js');
 const root=path.resolve(__dirname,'../docs');
 const server=http.createServer((req,res)=>{
   let name=decodeURIComponent(req.url.split('?')[0]);if(name.endsWith('/'))name+='index.html';
@@ -22,7 +22,7 @@ const server=http.createServer((req,res)=>{
     await page.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',r=>r.fulfill({contentType:'text/javascript',body:'/* fake auth client installed by this test */'}));
     await page.route('**/*.supabase.co/**',r=>{throw Error('Test must never call a real tracker database');});
     async function openReview(){const pool=page.locator('#picks-research-pool');if(await pool.locator('.pick-research').count())await pool.evaluate(e=>e.open=true);const d=page.locator('.pick-research').first();if(!await d.evaluate(e=>e.open))await d.locator(':scope > summary').click();}
-    const urls={'/props/top-picks.json':'NFL','/mlb/data/latest.json':'MLB','/nhl/data/latest.json':'NHL','/nhl/data/candidates.json':'NHLBoard','/briefing/reviews.json':'Reviews'};
+    const urls={'/briefing/morning-card.json':'Card','/props/top-picks.json':'NFL','/mlb/data/latest.json':'MLB','/nhl/data/latest.json':'NHL','/nhl/data/candidates.json':'NHLBoard','/briefing/reviews.json':'Reviews'};
     for(const [url,key] of Object.entries(urls))await page.route('**'+url,r=>feeds[key]?r.fulfill({json:feeds[key]}):r.fulfill({status:503,body:'Unavailable'}));
     for(const width of [390,768,1440]) {
       await page.setViewportSize({width,height:1000});await page.goto(base+'/briefing/');
@@ -40,7 +40,7 @@ const server=http.createServer((req,res)=>{
       assert.equal(await page.getByText('What changed and what’s next',{exact:true}).count(),0);
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
       assert.match(await page.locator('#research-picks-rows').textContent(),/7:59:00 AM ET/);
-      assert.match(await page.locator('#picks-analysis-text').textContent(),/No completed current assessment/);
+      assert.match(await page.locator('#picks-analysis-text').textContent(),/morning edition has not published qualifying picks/);
       await page.locator('[data-track-pick="1"]').click();
       assert(await page.locator('#pick-tracker').isVisible());
       assert.equal(await page.locator('#track-odds').inputValue(),'110');
@@ -74,7 +74,7 @@ const server=http.createServer((req,res)=>{
       missing_teams:['Missing team'],injury_rows:[{player:'<img src=x onerror=alert(1)>',team:'Boston Red Sox',position:'SP',injury:'Shoulder',status:'15-day injured list',reported_update:'Sat, Sep 26'}]});
     for(const width of [390,768,1440]) {
       await page.setViewportSize({width,height:1000});await page.reload();await page.waitForSelector('.pick-research',{state:'attached'});
-      assert.match(await page.locator('#picks-analysis-text').textContent(),/No completed current assessment/);
+      assert.match(await page.locator('#picks-analysis-text').textContent(),/morning edition has not published qualifying picks/);
       await openReview();
       assert.match(await page.locator('.pick-research').textContent(),/A lineup change could reduce projected opportunity/);
       await openReview();
@@ -119,9 +119,10 @@ const server=http.createServer((req,res)=>{
       q.assessment={verdict,reason:'The model case needs a defensible opportunity estimate.',model_case:'Projected role drives the estimate.',
         price_case:'The reviewed quote clears the numerical screen.',context_case:'No relevant reporting verified.',
         blocking_checks:verdict==='wait'?['Verify expected playing time.']:[]};
+      feeds.Card={schema_version:1,kind:'morning',decision_date:'2026-09-27',published_at:new Date(now).toISOString(),rows:shortlist(collect(feeds,now).selected,now)};
       for(const width of [390,768,1440]) {
         await page.setViewportSize({width,height:1000});await page.reload();await page.waitForSelector('.pick-research',{state:'attached'});
-        assert.match(await page.locator('#picks-analysis-text').textContent(),verdict==='consider'?/Our assessment:/:/No completed current assessment/);
+        assert.match(await page.locator('#picks-analysis-text').textContent(),verdict==='consider'?/Our assessment:/:/morning edition has not published qualifying picks/);
         if(verdict==='consider'){
           assert.equal(await page.locator('#daily-picks-rows [data-track-pick]').count(),1);
           await page.locator('#daily-picks-rows [data-track-pick]').click();
@@ -147,7 +148,7 @@ const server=http.createServer((req,res)=>{
     assert(await page.locator('.pick-research').evaluate(el=>el.open),'reading a review must survive the expiry timer');
     feeds.MLB.rows[0].price=120;await page.reload();await page.waitForSelector('.pick-research',{state:'attached'});
     assert.match(await page.locator('#research-picks-rows').textContent(),/Price or forecast changed/);
-    assert.match(await page.locator('#picks-analysis-text').textContent(),/No completed current assessment/);
+    assert.match(await page.locator('#picks-analysis-text').textContent(),/morning edition has not published qualifying picks/);
     feeds.MLB.rows[0].price=110;feeds.Reviews=null;await page.reload();
     await page.waitForFunction(()=>document.getElementById('research-pool-label').textContent.includes('3 additional'));
     assert.match(await page.locator('#picks-status').textContent(),/0 reviewed picks/);
@@ -178,9 +179,30 @@ const server=http.createServer((req,res)=>{
     feeds.MLB=null;await page.reload();await page.waitForFunction(()=>document.getElementById('picks-coverage').textContent.includes('MLB: Current model list unavailable'));
     assert.equal(await page.locator('#research-picks-rows tr').count(),1);
     feeds={};await page.reload();await page.waitForFunction(()=>document.getElementById('research-pool-label').textContent.includes('0 additional'));
-    assert.match(await page.locator('#daily-picks-rows').textContent(),/No reviewed picks are ready/);
-    assert.match(await page.locator('#picks-analysis-text').textContent(),/No completed current assessment/);
+    assert.match(await page.locator('#daily-picks-rows').textContent(),/No published morning picks/);
+    assert.match(await page.locator('#picks-analysis-text').textContent(),/morning edition has not published qualifying picks/);
     await page.screenshot({path:'/tmp/fv-briefing-empty.png',fullPage:true});
+    feeds=fixture(now);
+    const original=collect(feeds,now).selected.find(r=>r.sport==='MLB');
+    const reviewed={...original,review_key:reviewKey(original),review_bet_key:reviewBetKey(original),offer_id:'o',forecast_id:'f',qualitative_review:{
+      offer_id:'o',forecast_id:'f',status:'needs_information',reviewed_at:new Date(now).toISOString(),countercase:'Original risk.',open_checks:[],evidence:[],
+      assessment:{verdict:'consider',reason:'Original assessment.',model_case:'Original projection.',price_case:'Original quote.',context_case:'No verified news.',blocking_checks:[]}}};
+    feeds.Reviews={schema_version:1,sports:{MLB:{decision_date:'2026-09-27',candidates:[reviewed],sources:[]}}};
+    const card={schema_version:1,kind:'test',decision_date:'2026-09-27',published_at:new Date(now).toISOString(),rows:shortlist(collect(feeds,now).selected,now)};
+    feeds={Card:card};await page.reload();await page.waitForSelector('#daily-picks-rows [data-track-pick]');
+    await page.clock.fastForward(6*3600e3);
+    assert.match(await page.locator('#picks-status').textContent(),/Test edition for 2026-09-27/);
+    assert.match(await page.locator('#daily-picks-rows').textContent(),/Game started · historical assessment/);
+    assert.match(await page.locator('#daily-picks-rows').textContent(),/Original assessment/);
+    assert.equal(await page.locator('#daily-picks-rows [data-track-pick]').count(),1);
+    await page.locator('#daily-picks-rows [data-track-pick]').click();
+    assert.match(await page.locator('#track-quote').textContent(),/Historical edition quote/);
+    await page.locator('#track-cancel').click();
+    delete feeds.Card;await page.clock.fastForward(5*60e3);await page.waitForTimeout(100);
+    assert.equal(await page.locator('#daily-picks-rows [data-track-pick]').count(),1,'temporary endpoint failure retains dated card');
+    await page.clock.fastForward(24*3600e3);
+    assert.match(await page.locator('#picks-status').textContent(),/Previous edition/);
+    await page.screenshot({path:'/tmp/fv-morning-edition-persisted.png',fullPage:true});
     await page.goto(base+'/props/insights.html');await page.waitForURL(base+'/nfl/');
     await page.goto(base+'/briefing/2026-09-26.html');assert.equal(await page.locator('#daily-picks').count(),0,'dated archive must never show current picks');
     await page.goto(base+'/tracking/');await page.waitForSelector('#betTracker:visible');

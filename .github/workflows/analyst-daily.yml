@@ -1,20 +1,24 @@
 name: Morning Candidate Research
 
 on:
-  schedule:
-    - cron: '45 8,10,12,15,16,18 * * *'
-      timezone: America/New_York
-  workflow_run:
-    workflows: ['MLB Daily Update', 'NFL Weekly Update', 'NHL Daily Update']
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
     inputs:
-      assessment_update:
-        description: 'One assessment revision for the current prompt/session (same shared budget)'
+      test_edition:
+        description: 'Explicit test edition outside the morning window (same daily allowance)'
+        type: boolean
+        default: false
+      replace_card:
+        description: 'Replace the public card after archiving the previous edition'
         type: boolean
         default: false
   workflow_call:
+    inputs:
+      test_edition:
+        type: boolean
+        default: false
+      replace_card:
+        type: boolean
+        default: false
 
 # NHL and this workflow serialize their reservations against one combined cap.
 concurrency:
@@ -27,7 +31,7 @@ permissions:
 
 jobs:
   review:
-    if: github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || (github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.conclusion == 'success'))
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -45,15 +49,18 @@ jobs:
         run: |
           node tests/briefing_picks.cjs
           python -m unittest discover -s tests -p 'test_analyst_review.py'
+          python -m unittest discover -s tests -p 'test_morning_card.py'
           python -m unittest discover -s tests -p 'test_research*.py'
           python -m unittest discover -s tests -p 'test_nhl_injuries.py'
       - name: Discover opportunities and research the current candidate pool
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ASSESSMENT_UPDATE: ${{ github.event_name == 'workflow_dispatch' && inputs.assessment_update || false }}
+          TEST_EDITION: ${{ inputs.test_edition || false }}
+          REPLACE_CARD: ${{ inputs.replace_card || false }}
         run: |
-          args=(--astra)
-          if [ "$ASSESSMENT_UPDATE" = 'true' ]; then args+=(--assessment-update); fi
+          args=(--astra --publish-card)
+          if [ "$TEST_EDITION" = 'true' ]; then args+=(--test-edition); fi
+          if [ "$REPLACE_CARD" = 'true' ]; then args+=(--replace-card); fi
           python scripts/analyst_review.py "${args[@]}"
       - name: Archive reproducible research packets
         if: always()
@@ -67,6 +74,7 @@ jobs:
           git config user.name 'Fourth & Value Research'
           git config user.email 'actions@github.com'
           git add docs/briefing/reviews.json docs/briefing/discovery.json docs/nhl/data/candidates.json artifacts/analyst/
+          if [ -f docs/briefing/morning-card.json ]; then git add docs/briefing/morning-card.json docs/briefing/cards/; fi
           if git diff --cached --quiet; then exit 0; fi
           git commit -m 'Research: publish multi-sport discovery and candidate reviews'
           for attempt in 1 2 3; do

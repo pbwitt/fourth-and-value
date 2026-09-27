@@ -96,7 +96,9 @@ class ScreeningTests(unittest.TestCase):
 
     def test_eastern_sessions_and_dst(self):
         self.assertEqual(analyst.session_at(NOW, CONFIG), 'morning')
-        self.assertEqual(analyst.session_at(NOW+timedelta(hours=3), CONFIG), 'later')
+        self.assertIsNone(analyst.session_at(NOW+timedelta(hours=3), CONFIG))
+        self.assertIsNone(analyst.session_at(datetime(2026,9,27,10,59,tzinfo=timezone.utc), CONFIG))
+        self.assertEqual(analyst.session_at(datetime(2026,9,27,11,tzinfo=timezone.utc), CONFIG), 'morning')
         self.assertIsNone(analyst.session_at(NOW+timedelta(hours=12), CONFIG))
         self.assertEqual(analyst.session_at(datetime(2026,11,1,15,tzinfo=timezone.utc),CONFIG),'morning')
 

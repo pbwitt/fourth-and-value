@@ -67,13 +67,13 @@ class EditorialScheduleTests(unittest.TestCase):
         self.assertFalse(result['writer_eligible'])
         self.assertEqual(result['writer_reason'],'funding_required')
 
-    def test_mlb_refresh_is_state_and_freshness_driven(self):
+    def test_mlb_editorial_recovery_does_not_add_scheduled_refreshes(self):
         td,root=self.make_root();self.addCleanup(td.cleanup)
         now=datetime(2026,9,24,13,0,tzinfo=timezone.utc)
         self.write_state(root,'2026-09-24',{'allocation':[['MLB','news-market']],'slots':{
             '0-mlb':{'status':'waiting_for_data'}}})
         stale=sched.plan(root,now,event_name='schedule')
-        self.assertTrue(stale['refresh_mlb'])
+        self.assertFalse(stale['refresh_mlb'])
         (root/'docs/mlb/data/latest.json').write_text(json.dumps({
             'status':'ready','model_checked_at':'2026-09-24T12:30:00Z'}))
         fresh=sched.plan(root,now,event_name='schedule')
@@ -139,10 +139,11 @@ class EditorialScheduleTests(unittest.TestCase):
         publish=workflow.split('\n  publish:\n',1)[1].split('\n  diagnostics:',1)[0]
         self.assertIn('pip install -r requirements.txt',publish)
         self.assertLess(publish.index('pip install -r requirements.txt'),publish.index("test_editorial*.py"))
-        self.assertIn('needs: [plan, refresh-mlb, refresh-nfl, review-candidates]',publish)
-        review=workflow.split('\n  review-candidates:\n',1)[1].split('\n  publish:',1)[0]
-        self.assertIn('needs: [plan, refresh-mlb, refresh-nfl]',review)
-        self.assertIn('uses: ./.github/workflows/analyst-daily.yml',review)
+        self.assertIn('needs: [plan, refresh-mlb, refresh-nfl]',publish)
+        self.assertNotIn('review-candidates:',workflow)
+        morning=(sched.ROOT/'.github/workflows/morning-picks.yml').read_text()
+        self.assertIn('needs: [nfl, mlb, nhl]',morning)
+        self.assertIn('uses: ./.github/workflows/analyst-daily.yml',morning)
         self.assertIn('  workflow_call:',(sched.ROOT/'.github/workflows/analyst-daily.yml').read_text())
 
     def test_expected_writer_requires_recent_completed_marker(self):

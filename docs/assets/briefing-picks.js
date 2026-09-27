@@ -187,6 +187,19 @@
     return a?.verdict==='pass'?9:a?.verdict==='consider'?0:a?.verdict==='wait'?3:r.discovery_origin==='independent_research'?2:1;
   }
 
+  // An edition is a historical assessment. Later quotes and kickoffs must not
+  // silently rewrite it or erase its original analysis.
+  function editionRows(edition,now=Date.now()) {
+    const at=stamp(edition?.published_at);
+    if(edition?.schema_version!==1||!['morning','test'].includes(edition.kind)||!Number.isFinite(at)||at>now||
+      edition.decision_date!==day(at)||!Array.isArray(edition.rows)||edition.rows.length>SHORTLIST_LIMIT)return [];
+    return edition.rows.filter(r=>r&&priced(r)&&Number.isFinite(stamp(r.commence_time))&&day(stamp(r.commence_time))===edition.decision_date&&
+      stamp(r.quoted_at)<=at&&stamp(r.commence_time)>at&&hasReview(r)&&
+      recent(r.qualitative_review.reviewed_at,at,3*HOUR)&&r.human_decision!=='pass'&&r.review_matches_current!==false&&
+      (r.human_decision==='select'||assessment(r.qualitative_review)?.verdict==='consider'&&!assessment(r.qualitative_review).blocking_checks.length))
+      .map(r=>({...r,card_snapshot_at:edition.published_at,card_edition:edition.kind}));
+  }
+
   function collect(feeds,now=Date.now()) {
     const selected=[],coverage=[],excluded=[];
     for(const sport of ['NFL','MLB','NHL']) {
@@ -322,7 +335,7 @@
     }).join('');
     const currentReviews=reviewed.filter(r=>r.review_matches_current!==false).length;
     const earlier=reviewed.length-currentReviews;
-    return paragraphs+`<p class="meta">${currentReviews} of ${selected.length} current candidates reviewed${earlier?`; ${earlier} with earlier analysis requiring a recheck`:''}; ${featured.length} summarized here. Full findings and remaining checks appear under each bet. A completed review is not bet approval.</p>`;
+    return paragraphs+`<p class="meta">${currentReviews} of ${selected.length} ${selected.some(r=>r.card_snapshot_at)?'published':'current'} candidates reviewed${earlier?`; ${earlier} with earlier analysis requiring a recheck`:''}; ${featured.length} summarized here. Full findings and remaining checks appear under each bet. A completed review is not bet approval.</p>`;
   }
 
   function rowHTML(r,index=0,saved=false) {
@@ -333,31 +346,33 @@
     const offer=`<strong class="book-offer-line">${esc(line)}</strong><span class="estimate-detail">${esc(odds(r.price))}</span>`;
     const related=r.card_related_candidates??r.related_candidates;
     const exposure=related?'<br>Shared game: '+related+' other '+(r.card_related_candidates!==undefined?'shortlisted bet(s)':'research candidate(s)'):'';
-    return `<tr><td><a href="${esc(r.url)}"><strong>${esc(betLabel(r))}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${esc(r.review)}${reason}${exposure}${r.discovery_origin?'<br>Origin: '+(r.discovery_origin==='independent_research'?'independent research':'model and independent research'):''}</span></td><td class="pick-estimate">${modelHTML(r)}</td><td class="pick-estimate">${marketHTML(r)}</td><td>${offer}<span class="meta estimate-detail">${pct(comparison(r).breakEven)} break-even*</span></td><td><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td>${esc(r.book_label||r.book)}<br><button type="button" class="track-pick secondary" data-track-pick="${index}" ${saved?'disabled':''} aria-label="${esc((saved?'Tracked: ':'Track bet: ')+betLabel(r))}">${saved?'Tracked':'Track bet'}</button></td></tr>${research?`<tr class="pick-research-row" id="pick-review-${index}"><td colspan="6">${research}</td></tr>`:''}`;
+    const dated=r.card_snapshot_at?`<br><strong>${stamp(r.commence_time)<=Date.now()?'Game started · historical assessment':'Published assessment · confirm current conditions'}</strong><br>Analysis and prices preserved from ${esc(time(r.card_snapshot_at))}`:'';
+    return `<tr><td><a href="${esc(r.url)}"><strong>${esc(betLabel(r))}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${esc(r.review)}${reason}${exposure}${dated}${r.discovery_origin?'<br>Origin: '+(r.discovery_origin==='independent_research'?'independent research':'model and independent research'):''}</span></td><td class="pick-estimate">${modelHTML(r)}</td><td class="pick-estimate">${marketHTML(r)}</td><td>${offer}<span class="meta estimate-detail">${pct(comparison(r).breakEven)} break-even*</span></td><td><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td>${esc(r.book_label||r.book)}<br><button type="button" class="track-pick secondary" data-track-pick="${index}" ${saved?'disabled':''} aria-label="${esc((saved?'Tracked: ':'Track bet: ')+betLabel(r))}">${saved?'Tracked':'Track bet'}</button></td></tr>${research?`<tr class="pick-research-row" id="pick-review-${index}"><td colspan="6">${research}</td></tr>`:''}`;
   }
 
   async function mount() {
     const root=document.getElementById('daily-picks');if(!root)return;
-    const urls={NFL:'/props/top-picks.json',MLB:'/mlb/data/latest.json',NHL:'/nhl/data/latest.json',NHLBoard:'/nhl/data/candidates.json',NFLContext:'/props/model-context.json',Discovery:'/briefing/discovery.json',Reviews:'/briefing/reviews.json'};
+    const urls={NFL:'/props/top-picks.json',MLB:'/mlb/data/latest.json',NHL:'/nhl/data/latest.json',NHLBoard:'/nhl/data/candidates.json',NFLContext:'/props/model-context.json',Discovery:'/briefing/discovery.json',Reviews:'/briefing/reviews.json',Card:'/briefing/morning-card.json'};
     let feeds={},checked=null,loading=false,current=[],visibleLimit=20,draft=null,trackingReady=null,saving=false;
     const tickets=new Map(),dialog=document.getElementById('pick-tracker'),form=document.getElementById('track-bet-form');
     const $=id=>document.getElementById(id);
     function render() {
       const now=Date.now(),result=collect(feeds,now);
-      const card=shortlist(result.selected,now),cardKeys=new Set(card.map(key)),pool=result.selected.filter(r=>!cardKeys.has(key(r)));
+      const edition=feeds.Card,card=editionRows(edition,now),cardKeys=new Set(card.map(key)),pool=result.selected.filter(r=>!cardKeys.has(key(r)));
       current=[...card,...pool];
       const openReviews=new Set(Array.from(root.querySelectorAll('.pick-research[open]')).map(el=>el.closest('tr').dataset.reviewKey));
-      document.getElementById('daily-picks-rows').innerHTML=card.map((r,i)=>rowHTML(r,i,tickets.get(key(r))?.saved)).join('')||'<tr><td colspan="6">No reviewed picks are ready. Pending, wait and pass assessments remain in the separate research pool.</td></tr>';
+      document.getElementById('daily-picks-rows').innerHTML=card.map((r,i)=>rowHTML(r,i,tickets.get(key(r))?.saved)).join('')||'<tr><td colspan="6">No published morning picks are available. The research pool is separate from the morning edition.</td></tr>';
       const poolRows=$('research-picks-rows');if(poolRows)poolRows.innerHTML=pool.slice(0,visibleLimit).map((r,i)=>rowHTML(r,i+card.length,tickets.get(key(r))?.saved)).join('')||'<tr><td colspan="6">No additional research candidates.</td></tr>';
       const poolLabel=$('research-pool-label');if(poolLabel)poolLabel.textContent=`Research pool · ${pool.length} additional offers · not the daily card`;
       const more=$('picks-show-more');if(more){more.hidden=pool.length<=visibleLimit;more.textContent=`Show all ${pool.length} research offers (${Math.min(visibleLimit,pool.length)} shown)`;}
       current.forEach((r,i)=>{const row=$('pick-review-'+i);if(row){row.dataset.reviewKey=key(r);row.querySelector('details').open=openReviews.has(key(r));}});
-      const summary=$('picks-analysis-text');if(summary)summary.innerHTML=card.length?summaryHTML(card):'<p>No completed current assessment qualifies for the daily card yet. We will leave it empty until a case is ready; the separate research pool shows work in progress.</p>';
-      document.getElementById('picks-status').textContent=`${card.length} reviewed picks for ${new Date(now).toLocaleDateString('en-US',{timeZone:'America/New_York',month:'long',day:'numeric'})} · Up to ${SHORTLIST_LIMIT}, with no daily minimum · ${checked?'Source boards checked '+time(checked):'Checking source boards'}.`;
+      const summary=$('picks-analysis-text');if(summary)summary.innerHTML=card.length?summaryHTML(card):'<p>The morning edition has not published qualifying picks. Later odds refreshes do not create or erase the dated research card.</p>';
+      const editionAt=stamp(edition?.published_at),validEdition=Number.isFinite(editionAt)&&editionAt<=now&&edition?.schema_version===1&&['morning','test'].includes(edition.kind)&&edition.decision_date===day(editionAt)&&Array.isArray(edition.rows)&&edition.rows.length<=SHORTLIST_LIMIT;
+      document.getElementById('picks-status').textContent=validEdition?`${card.length} reviewed picks · ${edition.kind==='test'?'Test':'Morning'} edition for ${edition.decision_date} · Published ${time(edition.published_at)}${edition.decision_date!==day(now)?' · Previous edition; today’s edition is not available':''}. Original prices and analysis; not continuously reassessed.`:'0 reviewed picks · Waiting for the morning edition. Research starts after the 7 a.m. Eastern data refreshes finish.';
       const exposure=$('picks-exposure');if(exposure){const games=new Set(card.map(r=>r.exposure_group||r.sport+':'+r.game_id));exposure.textContent=card.length>1&&games.size===1?'All shortlisted offers are from one game and share exposure. They are not independent signals.':'';}
       document.getElementById('picks-coverage').textContent=result.coverage.map(c=>`${c.sport}: ${c.message}`).join(' · ');
       const budgetStatus=document.getElementById('picks-budget-status'), budget=feeds.Reviews?.budget;
-      if(budgetStatus)budgetStatus.textContent=budget&&budget.day===day(now)?`Today’s research: $${budget.charged_or_reserved_usd.toFixed(2)} charged or reserved of $${budget.limit_usd.toFixed(2)} across sports. Unfinished reviews remain queued.`:'Research is limited to $2.75 per Eastern calendar day across sports; current spending status is pending.';
+      if(budgetStatus)budgetStatus.textContent=budget&&budget.day===day(now)?`Today’s research: $${budget.charged_or_reserved_usd.toFixed(2)} charged or reserved of $${budget.limit_usd.toFixed(2)} across sports. Research runs in the morning; additional candidates are not automatically reassessed later.`:'Morning research is limited to $2.75 per Eastern calendar day across sports; current spending status is pending.';
       const research=document.getElementById('picks-research-status');
       if(research){const d=feeds.Discovery;const extra=d?.decision_date===day(now)?` · Independent discovery: ${d.status.replaceAll('_',' ')}; ${d.submitted_games?.length||0}/${d.slate_games||0} games submitted (not exhaustive research)`:'';research.textContent=['NFL','MLB','NHL'].map(s=>researchStatus(s,feeds.Reviews,result.selected,now)).join(' · ')+extra;}
       if(draft&&dialog.open&&!saving&&!draft.saved&&!collect(feeds,now).selected.some(r=>key(r)===key(draft.row))) {
@@ -382,11 +397,11 @@
       const button=event.target.closest('[data-track-pick]');if(!button)return;
       const row=current[Number(button.dataset.trackPick)];if(!row)return;
       const itemKey=key(row);
-      if(!collect(feeds,Date.now()).selected.some(r=>key(r)===itemKey)){render();return;}
+      if(![...editionRows(feeds.Card),...collect(feeds,Date.now()).selected].some(r=>key(r)===itemKey)){render();return;}
       draft=tickets.get(itemKey)||{id:crypto.randomUUID(),row:{...row},saved:false};tickets.set(itemKey,draft);
       form.reset();$('track-save').disabled=!!draft.saved;$('track-feedback').textContent='';$('track-signin').hidden=true;
       $('track-bet-description').textContent=`${row.sport} · ${row.game} · ${betLabel(row)} · ${row.book_label||row.book}`;
-      $('track-quote').textContent=`Saved quote: ${odds(row.price)} at ${time(row.quoted_at)}. Confirm the actual price below.`;
+      $('track-quote').textContent=`${row.card_snapshot_at?'Historical edition quote':'Saved quote'}: ${odds(row.price)} at ${time(row.quoted_at)}. Enter the price of the bet you actually placed.`;
       $('track-review').textContent=`Review status: ${row.review}.`;
       $('track-grading').textContent=row.sport==='MLB'||(row.sport==='NFL'&&['h2h','spreads','totals'].includes(row.market))||(row.sport==='NHL'&&['h2h','spreads'].includes(row.market))?'This market can be logged, but automatic result grading is not connected yet. The bet will be saved as pending.':'';
       $('track-odds').value=row.price;dialog.showModal();$('track-stake').focus();
@@ -418,12 +433,13 @@
           try {const response=await fetch(url,{cache:'no-store',signal:AbortSignal.timeout(15000)});if(!response.ok)throw Error();return [sport,await response.json()];}
           catch {return [sport,null];}
         }));
-        feeds=Object.fromEntries(entries);checked=new Date().toISOString();render();
+        const next=Object.fromEntries(entries);if(!next.Card&&feeds.Card)next.Card=feeds.Card;
+        feeds=next;checked=new Date().toISOString();render();
       } finally {loading=false;}
     }
     await load();setInterval(render,30000);setInterval(load,300000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
   }
-  if(typeof module==='object'&&module.exports)module.exports={collect,shortlist,ideaKey,SHORTLIST_LIMIT,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus};
+  if(typeof module==='object'&&module.exports)module.exports={collect,shortlist,editionRows,ideaKey,SHORTLIST_LIMIT,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus};
   else mount();
 })(typeof window==='undefined'?globalThis:window);
