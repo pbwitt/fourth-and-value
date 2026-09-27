@@ -9,11 +9,11 @@
   const time=v=>v?new Date(v).toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' ET':'Unavailable';
   const day=v=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(v);
   const safeUrl=v=>{try {const u=new URL(v);return u.protocol==='https:'&&!u.username&&!u.password?u.href:null;}catch{return null;}};
-  const statuses={completed:'Astra research completed. Interpretations need human verification.',no_candidates:'No candidates qualified; no Astra request was made.',
-    no_usable_reporting:'Dated, relevant reporting was unavailable. Research requires a human check.',api_key_unavailable:'Astra is unavailable. The quantitative shortlist is still available for manual research.',
+  const statuses={completed:'Our analysis is complete. Interpretations need human verification.',no_candidates:'No candidates qualified; no analysis was requested.',
+    no_usable_reporting:'Dated, relevant reporting was unavailable. Research requires a human check.',api_key_unavailable:'Our analysis is unavailable. The quantitative shortlist is still available for manual research.',
     disabled:'Automated research is disabled.',not_requested:'Automated research has not been requested.',already_attempted_today:'A morning research request was already attempted. These refreshed candidates need a new human review.',
-    afternoon_quantitative_update:'Afternoon quantitative update. No additional paid Astra review was requested.',budget_exhausted:'The weekly research budget is exhausted. Review these candidates manually.',
-    expired_during_research:'Quotes expired during source collection. Refresh and reprice before deciding.',review_unavailable:'Astra research could not be verified. Review these candidates manually.',feed_unavailable:'The market or model feed is unavailable.'};
+    afternoon_quantitative_update:'Afternoon quantitative update. No additional context review was requested.',budget_exhausted:'The weekly research budget is exhausted. Review these candidates manually.',
+    expired_during_research:'Quotes expired during source collection. Refresh and reprice before deciding.',review_unavailable:'Our analysis could not be verified. Review these candidates manually.',feed_unavailable:'The market or model feed is unavailable.'};
   let board,data;
   try {
     const responses=await Promise.all([fetch('./data/candidates.json',{cache:'no-store'}),fetch(root.dataset.feed,{cache:'no-store'})]);
@@ -46,8 +46,8 @@
     const labels={research_support:'Sourced support · human review required',concern:'Sourced concern',needs_information:'Needs information'};
     return `<h3>2. Context review</h3><p><strong>${esc(labels[q.status]||'Unverified research')}</strong></p>${q.evidence.map(e=>{
       const s=sources.get(e.source_id),url=safeUrl(s?.url);if(!s||!url)return '<p>Evidence source unavailable; do not rely on this note.</p>';
-      return `<div class="panel"><p><strong>${esc(e.direction)} · ${esc(e.kind)}</strong></p><blockquote>${esc(e.excerpt)}</blockquote><p>Astra interpretation: ${esc(e.interpretation)}</p><p><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a> · published ${esc(time(s.published_at))}; retrieved ${esc(time(s.retrieved_at))}.</p><p class="meta">Possibly reflected in: ${esc(e.represented_in.replaceAll('_',' '))}.</p></div>`;
-    }).join('')}<p><strong>Countercase:</strong> ${esc(q.countercase)}</p><p><strong>Still to verify:</strong> ${q.open_checks.map(esc).join('; ')}.</p><p class="meta">Astra · ${esc(time(q.reviewed_at))} · Source excerpts matched automatically; interpretation has not been verified by a human. Original probabilities unchanged.</p>`;
+      return `<div class="panel"><p><strong>${esc(e.direction)} · ${esc(e.kind)}</strong></p><blockquote>${esc(e.excerpt)}</blockquote><p>Our analysis: ${esc(e.interpretation)}</p><p><a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a> · published ${esc(time(s.published_at))}; retrieved ${esc(time(s.retrieved_at))}.</p><p class="meta">Possibly reflected in: ${esc(e.represented_in.replaceAll('_',' '))}.</p></div>`;
+    }).join('')}<p><strong>Countercase:</strong> ${esc(q.countercase)}</p><p><strong>Still to verify:</strong> ${q.open_checks.map(esc).join('; ')}.</p><p class="meta">Fourth &amp; Value analysis · ${esc(time(q.reviewed_at))} · AI-assisted research. Source excerpts matched automatically; interpretation has not been verified by a human. Original probabilities unchanged.</p>`;
   }
   function card(r){
     const valid=fresh(r),id=r.candidate_id;

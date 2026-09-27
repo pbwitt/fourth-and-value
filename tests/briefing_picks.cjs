@@ -1,13 +1,13 @@
 const assert=require('node:assert/strict');
-const {collect,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML}=require('../docs/assets/briefing-picks.js');
+const {collect,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus}=require('../docs/assets/briefing-picks.js');
 const now=Date.parse('2026-09-27T12:00:00Z'), iso=t=>new Date(t).toISOString();
 function fixture(t=now) {
   const base={game:'Away @ Home',commence_time:iso(t+3600e3),player:'Example player',side:'Over',line:2.5,price:110,book:'a',book_label:'Book A',market:'player_points',market_label:'Points',quoted_at:iso(t-60e3)};
   return {
-    NFL:{schema_version:1,status:'ready',generated_at:iso(t),rows:[{...base,game_id:'nfl1',bookmaker:'a',market_std:'receptions',name:'Over',point:2.5,last_update:base.quoted_at,model_prob:.6,model_status:'Calibration fitted · historical',edge_bps:100}]},
-    MLB:{status:'ready',last_success_at:iso(t),model_checked_at:iso(t),rows:[{...base,event_id:'mlb1',is_model_pick:true,model_probability:.6,model_ev_pct:8}]},
+    NFL:{schema_version:1,status:'ready',generated_at:iso(t),rows:[{...base,game_id:'nfl1',bookmaker:'a',market_std:'receptions',name:'Over',point:2.5,last_update:base.quoted_at,model_prob:.6,push_prob:0,mu:3.4,consensus_prob:.53,consensus_line:2.5,book_count:3,model_status:'Calibration fitted · historical',edge_bps:100}]},
+    MLB:{status:'ready',last_success_at:iso(t),model_checked_at:iso(t),rows:[{...base,event_id:'mlb1',is_model_pick:true,model_probability:.6,model_push_probability:0,other_book_probability:.52,other_books:2,model_mean:3.1,model_ev_pct:8}]},
     NHL:{status:'ready',snapshot_id:'snap',last_success_at:iso(t)},
-    NHLBoard:{schema_version:1,status:'ready',source_snapshot_id:'snap',generated_at:iso(t),decision_date:day(t),candidates:[{...base,nhl_game_id:'nhl1',candidate_rank:1,independent_probability:.6,final_probability:.6,decision_at:iso(t),model_data_checked_at:iso(t),offer_id:'offer',forecast_id:'forecast',human_decision:'unreviewed'}]}
+    NHLBoard:{schema_version:1,status:'ready',source_snapshot_id:'snap',generated_at:iso(t),decision_date:day(t),candidates:[{...base,nhl_game_id:'nhl1',candidate_rank:1,independent_probability:.6,final_probability:.6,push_probability:0,market_probability:.51,other_books:3,projected_mean:3.2,decision_at:iso(t),model_data_checked_at:iso(t),offer_id:'offer',forecast_id:'forecast',human_decision:'unreviewed'}]}
   };
 }
 assert.equal(collect(fixture(),now).selected.length,3);
@@ -57,7 +57,7 @@ assert.equal(ticket.line,null);assert.equal(ticket.side,'Home');assert.equal(tic
 const nhl=collect(fixture(),now).selected.find(r=>r.sport==='NHL');
 ticket=ticketData({...nhl,push_probability:.1},100,10);
 assert.equal(ticket.market_type,'points');assert(Math.abs(ticket.model_prob-2/3)<1e-8);
-assert.equal(ticketData(mlb,110,10).model_prob,null,'unknown push probability must not become zero');
+assert.equal(ticketData({...mlb,model_push_probability:undefined},110,10).model_prob,null,'unknown push probability must not become zero');
 assert.throws(()=>ticketData(picked,99,25));assert.throws(()=>ticketData(picked,110,0));assert.throws(()=>ticketData(picked,110,2.001));
 assert(rowHTML(picked).includes('Track bet'));assert(rowHTML(picked,0,true).includes('disabled'));
 // Sourced analysis is tied to the exact offer/forecast. Earlier context is
@@ -83,16 +83,16 @@ f.Reviews.sports.MLB.sources[0].url='javascript:alert(1)';f.Reviews.sports.MLB.c
 const safe=rowHTML(collect(f,now).selected.find(r=>r.sport==='MLB'));
 assert(!safe.includes('javascript:'));assert(!safe.includes('<img'));
 assert.match(summaryHTML([]),/No current candidates/);
-assert.match(summaryHTML(collect(fixture(),now).selected),/awaiting a completed Astra review/);
+assert.match(summaryHTML(collect(fixture(),now).selected),/awaiting our analysis/);
 f.MLB.rows[0].price=110;f.Reviews.sports.MLB.sources[0].url='https://www.espn.com/mlb/story/test';
 let summarized=summaryHTML(collect(f,now).selected);
-assert.match(summarized,/Astra flagged a sourced concern/);assert.match(summarized,/The case against:/);
+assert.match(summarized,/Our review found a concern to resolve/);assert.match(summarized,/Still to check:/);
 assert.match(summarized,/Verify the lineup/);assert.match(summarized,/href="#pick-review-1"/);
 assert(!summarized.includes('<img'));assert.match(summarized,/1 of 3 current candidates/);
 f.MLB.rows[0].price=120;summarized=summaryHTML(collect(f,now).selected);
 assert.match(summarized,/price or forecast has changed/);assert.match(summarized,/assessed \+110/);
 f.Reviews.sports.MLB.candidates[0].qualitative_review.offer_id='wrong';
-assert.match(summaryHTML(collect(f,now).selected),/awaiting a completed Astra review/);
+assert.match(summaryHTML(collect(f,now).selected),/awaiting our analysis/);
 // Keep it a few paragraphs, cover sports, and do not invent a new ranking.
 const sample={...reviewed,reviewed_candidate:reviewed,review_sources:[],review:'Sourced concern'};
 const many=[{...sample,sport:'NFL',game:'NFL first'},{...sample,sport:'NFL',game:'NFL second'},
@@ -102,5 +102,39 @@ assert.equal((summarized.match(/class="pick-summary-paragraph"/g)||[]).length,3)
 assert(summarized.indexOf('NFL first')<summarized.indexOf('MLB first'));
 assert(summarized.indexOf('MLB first')<summarized.indexOf('NFL second'));
 assert(!summarized.includes('MLB second'));
+// Comparable model/market percentages, exact-line labels and missing-data behavior.
+const nflView={...picked,mu:42.17,consensus_line:33.5,consensus_prob:.52,book_count:5,line:32.5};
+assert.equal(comparison(nflView).model,.6);
+assert.equal(comparison(nflView).market,.52);
+assert.match(rowHTML(nflView),/42.2/);
+assert.match(rowHTML(nflView),/Median line: 33.5/);
+assert.match(rowHTML(nflView),/Win chance\* at 32.5/);
+assert.match(rowHTML(nflView),/includes listed book/);
+assert.match(rowHTML(nflView),/47.6% break-even/);
+assert.match(rowHTML(nflView),/Historical outcome calibration/);
+for(const sport of ['MLB','NHL']) {
+  const row=sport==='MLB'?{...mlb,model_probability:.54,model_push_probability:.1}: {...nhl,final_probability:.54,push_probability:.1};
+  assert(Math.abs(comparison(row).model-.6)<1e-8);
+  assert.match(rowHTML(row),/60.0%/);assert.match(rowHTML(row),/Push: 10.0%/);
+  assert.match(rowHTML(row),/other paired books/);
+  assert.equal(comparison({...row,[sport==='MLB'?'model_push_probability':'push_probability']:undefined}).model,null);
+  assert.equal(comparison({...row,[sport==='MLB'?'model_push_probability':'push_probability']:.8}).model,null);
+}
+assert.equal(comparison({...nflView,consensus_prob:null}).market,null);
+assert.equal(comparison({...nflView,book_count:0}).market,null);
+assert.equal(comparison({...mlb,other_book_probability:null,consensus_probability:.9}).market,null);
+assert(!rowHTML({...mlb,model_mean_label:'<img src=x>'}).includes('<img'));
+assert(!rowHTML({...mlb,market:'h2h',model_mean:987.6}).includes('987.6'));
+assert(!rowHTML({...nhl,projected_mean:null,projected_home_reg_goals:99.9}).includes('99.9'));
+const noEvidence={...nflView,reviewed_candidate:reviewed,review_sources:[],qualitative_review:{...reviewed.qualitative_review,
+ status:'needs_information',prompt_version:'mlb-nfl-context-1',evidence:[]}};
+const detail=rowHTML(noEvidence),brief=summaryHTML([noEvidence]);
+assert.match(detail,/Additional supporting context unverified/);
+assert.match(detail,/Method correction/);assert.match(detail,/historical results/);
+assert.match(detail,/Fourth &amp; Value analysis/);assert(!detail.includes('Astra'));
+assert.match(brief,/reporting reviewed has not yet established/);
+assert(!brief.includes('Astra'));assert(!brief.includes('market-calibrated'));
+assert.equal(researchStatus('NFL',{sports:{NFL:{decision_date:day(now),review_status:'already_attempted_this_session'}}},[noEvidence],now),'NFL: 1/1 candidates reviewed');
+assert.equal(researchStatus('NFL',{},[],now),'NFL: no current candidates');
 console.log('PASS: morning shortlist model gates, exact quotes, ET days, freshness, failures, exposure and review identity.');
 module.exports={fixture};

@@ -27,11 +27,16 @@ const server=http.createServer((req,res)=>{
       await page.setViewportSize({width,height:1000});await page.goto(base+'/briefing/');
       await page.waitForFunction(()=>document.getElementById('picks-status').textContent.startsWith('3 candidates'));
       assert.equal(await page.locator('#daily-picks-rows tr').count(),3);
+      assert.deepEqual(await page.locator('.picks-table th').allTextContents(),['Bet / game','Model prediction','Market consensus','Price','Price time (ET)','Book']);
+      assert.equal(await page.locator('#daily-picks-rows tr').first().locator('td').count(),6);
+      assert.match(await page.locator('#daily-picks-rows').textContent(),/53.0%/);
+      assert.match(await page.locator('#daily-picks-rows').textContent(),/Projected Points: 3.4/i);
+      assert(!(await page.locator('#daily-picks').textContent()).includes('Astra'));
       assert.deepEqual((await page.locator('main > h2, #daily-picks-heading').allTextContents()).slice(0,2),["Today's picks",'The price rundown']);
       assert.equal(await page.getByText('What changed and what’s next',{exact:true}).count(),0);
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
       assert.match(await page.locator('#daily-picks-rows').textContent(),/7:59:00 AM ET/);
-      assert.match(await page.locator('#picks-analysis-text').textContent(),/awaiting a completed Astra review/);
+      assert.match(await page.locator('#picks-analysis-text').textContent(),/awaiting our analysis/);
       await page.locator('[data-track-pick="1"]').click();
       assert(await page.locator('#pick-tracker').isVisible());
       assert.equal(await page.locator('#track-odds').inputValue(),'110');
@@ -60,11 +65,13 @@ const server=http.createServer((req,res)=>{
         open_checks:['Verify the announced batting order before deciding.'],evidence:[{source_id:'s1',direction:'concern',interpretation:'Check whether the expected role still applies.',represented_in:'model_features'}]}}]}}};
     for(const width of [390,768,1440]) {
       await page.setViewportSize({width,height:1000});await page.reload();await page.waitForSelector('.pick-research');
-      assert.match(await page.locator('#picks-analysis-text').textContent(),/Astra flagged a sourced concern/);
+      assert.match(await page.locator('#picks-analysis-text').textContent(),/Our review found a concern to resolve/);
       assert.match(await page.locator('#picks-analysis-text').textContent(),/A lineup change could reduce projected opportunity/);
       await page.locator('.read-pick-review').click();
       assert(await page.locator('.pick-research').evaluate(el=>el.open));
       assert.match(await page.locator('.pick-research').textContent(),/Case against:/);
+      assert.match(await page.locator('.pick-research summary').textContent(),/Fourth & Value analysis/);
+      assert.equal(await page.locator('.pick-research-row td').getAttribute('colspan'),'6');
       assert.match(await page.locator('#daily-picks-rows').textContent(),/Sourced concern/);
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
       await page.locator('#daily-picks').screenshot({path:`/tmp/fv-astra-review-${width}.png`});

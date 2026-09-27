@@ -65,7 +65,7 @@ class ScreeningTests(unittest.TestCase):
         nfl, mlb = [analyst.normalized(next(r for r in rows if r['sport'] == s)) for s in ('NFL','MLB')]
         self.assertIsNone(nfl['independent_probability'])
         self.assertEqual(nfl['final_probability'], .55)
-        self.assertIn('conditional_on_nonpush', nfl['probability_basis'])
+        self.assertEqual(nfl['probability_basis'], 'conditional_on_nonpush_outcome_calibrated')
         self.assertEqual(mlb['independent_probability'], .55)
         self.assertEqual(mlb['push_probability'], .01)
         self.assertEqual(mlb['quoted_at'], f['MLB']['rows'][0]['quoted_at'])
@@ -123,7 +123,9 @@ class ResearchTests(unittest.TestCase):
         b=board('NFL'); p=astra.payload(b,[source(b)],NOW,CONFIG,instructions=analyst.INSTRUCTIONS,
             schema=analyst.SCHEMA,prompt_version=analyst.PROMPT_VERSION,extra_fields=('probability_basis','model_limitations'))
         self.assertEqual(p['model'],'gpt-6-astra'); self.assertNotIn('tools',p)
-        self.assertIn('NOT independent',p['instructions'])
+        self.assertIn('NOT current market consensus',p['instructions'])
+        self.assertIn('historical game outcomes',p['instructions'])
+        self.assertEqual(analyst.PROMPT_VERSION,'mlb-nfl-context-2')
         self.assertLess(astra.bounds(p,CONFIG),1)
         self.assertIsNone(json.loads(p['input'])['candidates'][0]['independent_probability'])
 
