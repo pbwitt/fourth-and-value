@@ -51,7 +51,8 @@ model probability/edge. Original forecasts remain archived and may be supplied
 as explicitly unqualified diagnostic context. Numerical estimates are never
 invented or adjusted by the language model. Market Watch and daily-article
 selection/writing remain separate. MLB no longer has automatic early editorial
-refreshes; fresh-data article slots may wait for the 7 a.m. feed.
+refreshes; article writing follows the coordinated 7:05 a.m. sports feeds,
+with an 8:30 a.m. delivery target.
 
 ## Quantitative policy and ranking
 
@@ -125,13 +126,20 @@ All bets should be reviewed before deciding. Missing news alone is not a veto.
 starts at **07:35, 08:05 and 08:35**. A gate reads current main before any sport
 pull: a completed same-day edition skips all three feeds and paid research, then
 verifies delivery. A missing or incomplete edition calls NFL, MLB and NHL reusable
-workflows, waits for all three, then calls research.
+workflows, waits for all three, then calls research. A separate short handoff
+dispatches editorial with scheduled recovery semantics; writing does not block
+Top Picks research or its recovery starts. Explicit test editions skip the
+automatic editorial handoff.
 Parent job results travel with the card. A failed sport or expired feed marks
 the run incomplete; completed assessments from healthy boards remain visible.
 NHL/MLB standalone schedules are **16:30 Eastern**. Existing NFL game-day updates
 remain. Neither later updates nor editorial publication trigger paid research.
 There is no hourly MLB refresh. The article watchdog uses scheduled recovery
-eligibility, not the manual full-refresh path. NBA integration remains future work.
+eligibility, not the manual full-refresh path. Automatic articles require
+post-7:05 model checks within 90 minutes and remain subject to per-story data
+and source validation. Editorial targets 08:30 ET and closes automatic writing
+at noon; hourly maintenance and approved-post publication continue. NBA
+integration into the coordinated sports refresh remains future work.
 
 Normal research runs 07:00–12:00 ET, after the feeds complete. Publication has no
 promised minute. The whole **$2.75 daily** allowance is available to this morning

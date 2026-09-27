@@ -21,16 +21,21 @@ class EditorialScheduleTests(unittest.TestCase):
         (root/'docs/editorial/published.json').write_text('[]')
         return td,root
 
+    def write_model(self,root,at,sport='NFL',**changes):
+        path=root/f'docs/{sport.lower()}/data/latest.json';path.parent.mkdir(parents=True,exist_ok=True)
+        path.write_text(json.dumps(dict(status='ready',model_checked_at=at,**changes)))
+
     def write_state(self,root,day,state):
         (root/'docs/editorial/runs'/f'{day}.json').write_text(json.dumps(state))
 
-    def test_hourly_run_after_five_can_rescue_unattempted_slot_without_cron_match(self):
+    def test_hourly_run_can_rescue_slot_after_morning_models_without_cron_match(self):
         td,root=self.make_root();self.addCleanup(td.cleanup)
         now=datetime(2026,9,24,12,0,tzinfo=timezone.utc)  # 8 AM Eastern
+        self.write_model(root,'2026-09-24T11:45:00Z')
         self.write_state(root,'2026-09-24',{'date':'2026-09-24','allocation':[['NFL','news-market'],['MLB','news-market']],'slots':{}})
         result=sched.plan(root,now,event_name='schedule',event_schedule='17 * * * *')
         self.assertTrue(result['writer_eligible'])
-        self.assertEqual(result['mode'],'catch-up')
+        self.assertEqual(result['mode'],'morning')
         self.assertIn('unattempted',result['writer_reason'])
 
     def test_hourly_run_before_five_does_not_start_paid_writer(self):
@@ -42,6 +47,7 @@ class EditorialScheduleTests(unittest.TestCase):
     def test_waiting_for_data_remains_retryable_but_started_slot_does_not(self):
         td,root=self.make_root();self.addCleanup(td.cleanup)
         now=datetime(2026,9,24,13,0,tzinfo=timezone.utc)
+        self.write_model(root,'2026-09-24T12:30:00Z')
         allocation=[['NFL','news-market'],['MLB','news-market']]
         self.write_state(root,'2026-09-24',{'allocation':allocation,'slots':{
             '0-nfl':{'status':'published'},'1-mlb':{'status':'waiting_for_data'}}})
@@ -102,35 +108,40 @@ class EditorialScheduleTests(unittest.TestCase):
         self.assertTrue(result['refresh_nfl'])
         self.assertEqual(result['writer_reason'],'writing_disabled')
 
-    def test_early_morning_fetches_nfl_before_eight(self):
+    def test_early_morning_neither_writes_nor_pulls_sports(self):
         td,root=self.make_root();self.addCleanup(td.cleanup)
-        now=datetime(2026,9,27,9,7,tzinfo=timezone.utc)  # 5:07 AM Eastern
+        now=datetime(2026,9,27,9,7,tzinfo=timezone.utc)
         result=sched.plan(root,now,event_name='schedule')
-        self.assertTrue(result['refresh_nfl'])
-        self.assertEqual(result['mode'],'morning')
+        for field in ('writer_eligible','refresh_nfl','refresh_mlb','refresh_briefing'):
+            self.assertFalse(result[field])
+        self.assertEqual(result['writer_reason'],'outside_morning_writing_window')
 
-    def test_morning_nfl_refresh_survives_article_limit_and_funding_guard(self):
+    def test_waits_for_actual_models_not_just_a_later_clock(self):
         td,root=self.make_root();self.addCleanup(td.cleanup)
-        now=datetime(2026,9,27,10,7,tzinfo=timezone.utc)
-        for state in [{'funding_required':True},{}]:
-            self.write_state(root,'2026-09-27',state)
-            (root/'docs/editorial/published.json').write_text(json.dumps([
-                {'date':'2026-09-27','kind':'Analysis','url':'/a'},
-                {'date':'2026-09-27','kind':'Analysis','url':'/b'}] if not state else []))
-            result=sched.plan(root,now,event_name='schedule')
-            self.assertFalse(result['writer_eligible'])
-            self.assertTrue(result['refresh_nfl'])
+        now=datetime(2026,9,27,11,47,tzinfo=timezone.utc)
+        self.assertFalse(sched.plan(root,now,event_name='schedule')['writer_eligible'])
+        for at in ['2026-09-26T23:30:00Z','2026-09-27T10:45:00Z','2026-09-27T12:00:00Z']:
+            self.write_model(root,at)
+            self.assertFalse(sched.plan(root,now,event_name='schedule')['writer_eligible'])
+        self.write_model(root,'2026-09-27T11:20:00Z')
+        ready=sched.plan(root,now,event_name='schedule')
+        self.assertTrue(ready['writer_eligible']);self.assertEqual(ready['ready_model_sports'],['NFL'])
+        self.assertFalse(ready['refresh_nfl']);self.assertFalse(ready['refresh_mlb'])
+        self.write_model(root,'2026-09-27T11:20:00Z',model_error='feed failure')
+        self.assertFalse(sched.plan(root,now,event_name='schedule')['writer_eligible'])
 
-    def test_current_morning_nfl_snapshot_avoids_duplicate_refresh(self):
+    def test_automatic_writing_closes_at_noon_even_with_fresh_models(self):
         td,root=self.make_root();self.addCleanup(td.cleanup)
-        directory=root/'docs/nfl/data';directory.mkdir(parents=True)
-        now=datetime(2026,9,27,10,7,tzinfo=timezone.utc)
-        (directory/'latest.json').write_text(json.dumps({'status':'ready','model_checked_at':'2026-09-27T09:30:00Z'}))
+        now=datetime(2026,9,27,16,7,tzinfo=timezone.utc)
+        self.write_model(root,'2026-09-27T16:00:00Z')
         result=sched.plan(root,now,event_name='schedule')
-        self.assertTrue(result['nfl_board_fresh']);self.assertFalse(result['refresh_nfl'])
-        for stamp in ['2026-09-26T22:30:00Z','2026-09-27T11:30:00Z']:
-            (directory/'latest.json').write_text(json.dumps({'status':'ready','model_checked_at':stamp}))
-            self.assertTrue(sched.plan(root,now,event_name='schedule')['refresh_nfl'])
+        self.assertFalse(result['writer_eligible']);self.assertFalse(result['refresh_nfl'])
+        self.assertTrue(result['refresh_briefing'])
+
+    def test_morning_window_observes_daylight_saving(self):
+        for month,hour in [(9,11),(12,12)]:
+            self.assertFalse(sched.morning_window(datetime(2026,month,27,hour,4,tzinfo=timezone.utc)))
+            self.assertTrue(sched.morning_window(datetime(2026,month,27,hour,5,tzinfo=timezone.utc)))
 
     def test_production_publisher_dependencies_and_research_order(self):
         # Regression for a production-only import failure: CI had NumPy while
@@ -148,6 +159,14 @@ class EditorialScheduleTests(unittest.TestCase):
         morning=(sched.ROOT/'.github/workflows/morning-picks.yml').read_text()
         self.assertIn('needs: [gate, nfl, mlb, nhl]',morning)
         self.assertIn('uses: ./.github/workflows/analyst-daily.yml',morning)
+        handoff=morning.split('\n  editorial:\n',1)[1]
+        self.assertIn('needs: [gate, nfl, mlb, nhl]',handoff)
+        self.assertIn('!inputs.test_edition',handoff)
+        self.assertIn('scheduled_recovery=true -f refresh_briefing=false',handoff)
+        self.assertIn('GH_REPO: ${{ github.repository }}',handoff)
+        self.assertIn("cron: '47 7-10 * * *'",workflow)
+        self.assertNotIn("cron: '7 5 * * *'",workflow)
+        self.assertIn("workflows: ['Morning Picks Edition']",watchdog)
         self.assertIn('  workflow_call:',(sched.ROOT/'.github/workflows/analyst-daily.yml').read_text())
 
     def test_expected_writer_requires_recent_completed_marker(self):
@@ -188,8 +207,8 @@ class EditorialScheduleTests(unittest.TestCase):
         state['slots']['0-nfl']['status']='review';path.write_text(json.dumps(state))
         sched.verify_writer(root,now,expected=True,idea_id=identifier)
 
-    def test_delivery_target_is_630_eastern_in_summer_and_winter(self):
-        for month,utc_hour in ((9,10),(12,11)):
+    def test_delivery_target_is_830_eastern_in_summer_and_winter(self):
+        for month,utc_hour in ((9,12),(12,13)):
             with self.subTest(month=month):
                 before=datetime(2026,month,26,utc_hour,29,59,tzinfo=timezone.utc)
                 target=datetime(2026,month,26,utc_hour,30,tzinfo=timezone.utc)
@@ -199,7 +218,7 @@ class EditorialScheduleTests(unittest.TestCase):
 
     def test_delivery_fails_after_deadline_even_if_writer_completed(self):
         td,root=self.make_root();self.addCleanup(td.cleanup)
-        now=datetime(2026,9,26,12,0,tzinfo=timezone.utc)
+        now=datetime(2026,9,26,13,0,tzinfo=timezone.utc)
         self.write_state(root,'2026-09-26',{'last_writer_check':{
             'at':now.isoformat(),'status':'completed','counts':{'published':1}}})
         with self.assertRaisesRegex(SystemExit,'0/2'):
@@ -207,7 +226,7 @@ class EditorialScheduleTests(unittest.TestCase):
 
     def test_delivery_counts_unique_existing_public_articles(self):
         td,root=self.make_root();self.addCleanup(td.cleanup)
-        now=datetime(2026,9,26,12,0,tzinfo=timezone.utc)
+        now=datetime(2026,9,26,13,0,tzinfo=timezone.utc)
         articles=root/'docs/editorial/articles';articles.mkdir()
         rows=[{'date':'2026-09-26','kind':'Analysis','url':f'/editorial/articles/{name}.html'} for name in ('a','b')]
         (root/'docs/editorial/published.json').write_text(json.dumps(rows+[rows[0]]))

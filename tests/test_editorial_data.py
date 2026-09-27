@@ -20,6 +20,28 @@ class DataOrdering(unittest.TestCase):
         self.assertFalse(w.data_readiness('MLB',self.board,self.briefing,self.now)['ready'])
         self.board['last_success_at']=self.now.isoformat();self.board['status']='feed_error'
         self.assertFalse(w.data_readiness('MLB',self.board,self.briefing,self.now)['ready'])
+    def test_automatic_articles_require_post_start_models_but_manual_requests_do_not(self):
+        self.board['model_checked_at']='2026-09-23T10:45:00Z'  # 6:45 ET; within 90 minutes.
+        with patch.dict('os.environ',{'EDITORIAL_REQUIRE_MORNING_MODELS':'true'}):
+            for sport in ('MLB','NFL'):
+                status=w.data_readiness(sport,self.board,self.briefing,self.now)
+                self.assertFalse(status['ready']);self.assertIn('7:05',status['reason'])
+            self.board['model_checked_at']='2026-09-23T11:10:00Z'
+            self.assertTrue(w.data_readiness('MLB',self.board,self.briefing,self.now)['ready'])
+            self.board['model_error']='upstream failed'
+            self.assertFalse(w.data_readiness('NFL',self.board,self.briefing,self.now)['ready'])
+        self.board.pop('model_error');self.board['model_checked_at']='2026-09-23T10:45:00Z'
+        with patch.dict('os.environ',{'EDITORIAL_REQUIRE_MORNING_MODELS':'false'}):
+            self.assertTrue(w.data_readiness('MLB',self.board,self.briefing,self.now)['ready'])
+    def test_delayed_automatic_writer_rechecks_window_before_using_fresh_data(self):
+        now=self.now.replace(hour=16)  # Noon ET, even if the planner ran earlier.
+        self.board['model_checked_at']=now.isoformat()
+        self.briefing['generated_at']=now.isoformat()
+        with patch.dict('os.environ',{'EDITORIAL_REQUIRE_MORNING_MODELS':'true'}):
+            status=w.data_readiness('NFL',self.board,self.briefing,now)
+            self.assertFalse(status['ready']);self.assertIn('noon',status['reason'])
+        with patch.dict('os.environ',{'EDITORIAL_REQUIRE_MORNING_MODELS':'false'}):
+            self.assertTrue(w.data_readiness('NFL',self.board,self.briefing,now)['ready'])
     def test_previous_day_briefing_rejected_even_within_six_hours(self):
         now=datetime(2026,9,23,5,tzinfo=timezone.utc)
         self.briefing['generated_at']='2026-09-23T03:00:00Z'

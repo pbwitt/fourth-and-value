@@ -229,6 +229,12 @@ def data_readiness(sport,board,briefing,now):
             result['reason']='MLB model inputs have not been successfully checked through yesterday';return result
     if sport!='MLB' and not recent(board.get('model_checked_at'),1.5):
         result['reason']=sport+' model inputs are missing or stale in the editorial feed'+(': '+board['model_status'] if board.get('model_status') else '');return result
+    if os.getenv('EDITORIAL_REQUIRE_MORNING_MODELS')=='true':
+        from editorial_schedule import morning_start, morning_window
+        if not morning_window(now):
+            result['reason']='Automatic morning writing runs from 7:05 a.m. to noon Eastern';return result
+        if board.get('status')!='ready' or board.get('model_error') or ed.stamp(board['model_checked_at'])<morning_start(now):
+            result['reason']=sport+' is waiting for a successful model check after today’s 7:05 a.m. Eastern refresh';return result
     result.update(ready=True,reason='Current data checks passed')
     return result
 

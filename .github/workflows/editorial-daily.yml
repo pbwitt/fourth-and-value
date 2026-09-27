@@ -1,13 +1,9 @@
 name: Editorial Morning Briefing
 on:
   schedule:
-    # Start at 5:07 AM Eastern; target two live articles by 6:30 AM.
-    - cron: '7 5 * * *'
-      timezone: America/New_York
-    - cron: '7 6 * * *'
-      timezone: America/New_York
-    # Recovery opportunities throughout the morning; the planner is idempotent.
-    - cron: '27,47 5-9 * * *'
+    # Primary start is dispatched after Morning Picks finishes the sports feeds.
+    # These are recovery opportunities; target two live articles by 8:30 AM ET.
+    - cron: '47 7-10 * * *'
       timezone: America/New_York
     - cron: '7 11,16,21 * * *'
       timezone: America/New_York
@@ -150,6 +146,8 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python scripts/editorial_writer.py --check-api
       - name: Record current data readiness
+        env:
+          EDITORIAL_REQUIRE_MORNING_MODELS: ${{ needs.plan.outputs.mode != 'manual' && needs.plan.outputs.mode != 'requested-idea' }}
         run: python scripts/editorial_writer.py --inspect-data
       - name: Show resilient run classification
         run: |
@@ -162,6 +160,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           REQUESTED_ID: ${{ inputs.idea_id }}
           PUBLISH_OWN: ${{ inputs.publish_own }}
+          EDITORIAL_REQUIRE_MORNING_MODELS: ${{ needs.plan.outputs.mode != 'manual' && needs.plan.outputs.mode != 'requested-idea' }}
         run: |
           if [ -n "$REQUESTED_ID" ]; then
             if [ "$PUBLISH_OWN" = "true" ]; then
@@ -229,7 +228,7 @@ jobs:
           echo '::error::Cloud API check failed. Price updates published, but writing credentials or funding require attention.'
           exit 1
       # Private ideas and drafts are never logged or uploaded as public artifacts.
-      # The paid writer runs only for the morning edition or an explicit manual refresh.
+      # Automatic writing is gated to fresh morning models, 07:05–12:00 Eastern.
 
   diagnostics:
     needs: [plan, refresh-mlb, refresh-nfl, publish]

@@ -97,6 +97,30 @@ def mlb_retry_relevant(root,now):
     return False,"no_mlb_retry_needed"
 
 
+def morning_start(now):
+    return now.astimezone(ET).replace(hour=7,minute=5,second=0,microsecond=0)
+
+
+def morning_window(now):
+    return morning_start(now) <= now and now.astimezone(ET).hour < 12
+
+
+def current_morning_models(root,now):
+    """Recovery may use only models checked after today's coordinated start.
+
+    This is a scheduling gate. Per-story input, cutoff, matchup, quote and source
+    validation still runs before any paid writing request.
+    """
+    ready=[]
+    for sport in ('NFL','MLB','NBA','NHL'):
+        board=load(Path(root)/f'docs/{sport.lower()}/data/latest.json',{})
+        checked=stamp(board.get('model_checked_at'))
+        age=age_hours(board.get('model_checked_at'),now)
+        if board.get('status')=='ready' and not board.get('model_error') and checked and morning_start(now)<=checked<=now and age is not None and 0<=age<=1.5:
+            ready.append(sport)
+    return ready
+
+
 def plan(root=ROOT,now=None,event_name=None,event_schedule=None,manual_refresh=False):
     now=(now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     local=now.astimezone(ET)
@@ -105,8 +129,12 @@ def plan(root=ROOT,now=None,event_name=None,event_schedule=None,manual_refresh=F
     manual=event_name=="workflow_dispatch" and bool(manual_refresh)
 
     need,need_reason=writer_need(root,now)
-    after_start=(local.hour>=5)
-    writer_eligible=bool(need and (manual or (event_name=="schedule" and after_start)))
+    after_start=now>=morning_start(now)
+    ready_sports=current_morning_models(root,now)
+    writer_eligible=bool(need and (manual or (event_name=="schedule" and morning_window(now) and ready_sports)))
+    if need and not manual:
+        if not morning_window(now):need_reason='outside_morning_writing_window'
+        elif not ready_sports:need_reason='waiting_for_morning_models'
 
     briefing=load(Path(root)/"docs/briefing/latest.json",{})
     briefing_at=briefing.get("generated_at")
@@ -123,20 +151,18 @@ def plan(root=ROOT,now=None,event_name=None,event_schedule=None,manual_refresh=F
     board_age=age_hours(board_at,now)
     board_today=same_et_day(board_at,now)
     board_fresh=bool(board.get("status")=="ready" and board_today and board_age is not None and board_age<1.25)
-    morning_models=event_name=="schedule" and 5<=local.hour<10
-    refresh_mlb=manual  # Automatic MLB pulls belong to the 7:00 / 16:30 sports schedule.
+    refresh_mlb=manual  # Automatic MLB pulls belong to the coordinated sports schedule.
 
     nfl=load(Path(root)/'docs/nfl/data/latest.json',{})
     nfl_at=nfl.get('model_checked_at')
     nfl_age=age_hours(nfl_at,now)
     nfl_fresh=bool(nfl.get('status')=='ready' and same_et_day(nfl_at,now) and nfl_age is not None and 0<=nfl_age<1.25)
-    # Morning picks must not depend on unused article slots or writer funding.
-    # The 8 AM standalone refresh supplements this early-morning refresh.
-    morning_models=event_name=='schedule' and 5<=local.hour<10
-    refresh_nfl=bool((manual or writer_eligible or morning_models) and not nfl_fresh)
+    # Automatic writing consumes completed sports refreshes; it must not launch
+    # another refresh while the morning research is using its snapshot.
+    refresh_nfl=bool(manual and not nfl_fresh)
 
     if manual:mode="manual"
-    elif writer_eligible and 5<=local.hour<7:mode="morning"
+    elif writer_eligible and now<delivery_target(now):mode="morning"
     elif writer_eligible:mode="catch-up"
     elif refresh_briefing:mode="market-refresh"
     else:mode="maintenance"
@@ -150,6 +176,7 @@ def plan(root=ROOT,now=None,event_name=None,event_schedule=None,manual_refresh=F
         writer_needed=need,
         writer_reason=need_reason,
         writer_eligible=writer_eligible,
+        ready_model_sports=ready_sports,
         refresh_briefing=refresh_briefing,
         briefing_at=briefing_at,
         briefing_age_hours=None if briefing_age is None else round(briefing_age,3),
@@ -196,7 +223,7 @@ def verify_writer(root=ROOT,now=None,expected=False,idea_id=None):
 
 
 def delivery_target(now):
-    return now.astimezone(ET).replace(hour=6,minute=30,second=0,microsecond=0)
+    return now.astimezone(ET).replace(hour=8,minute=30,second=0,microsecond=0)
 
 
 def delivery_due(now):
