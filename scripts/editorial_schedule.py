@@ -129,7 +129,10 @@ def plan(root=ROOT,now=None,event_name=None,event_schedule=None,manual_refresh=F
     nfl_at=nfl.get('model_checked_at')
     nfl_age=age_hours(nfl_at,now)
     nfl_fresh=bool(nfl.get('status')=='ready' and same_et_day(nfl_at,now) and nfl_age is not None and 0<=nfl_age<1.25)
-    refresh_nfl=bool(writer_eligible and not nfl_fresh)
+    # Morning picks must not depend on unused article slots or writer funding.
+    # The 8 AM standalone refresh supplements this early-morning refresh.
+    morning_models=event_name=='schedule' and 5<=local.hour<10
+    refresh_nfl=bool((manual or writer_eligible or morning_models) and not nfl_fresh)
 
     if manual:mode="manual"
     elif writer_eligible and 5<=local.hour<7:mode="morning"
@@ -151,6 +154,9 @@ def plan(root=ROOT,now=None,event_name=None,event_schedule=None,manual_refresh=F
         briefing_age_hours=None if briefing_age is None else round(briefing_age,3),
         refresh_mlb=refresh_mlb,
         refresh_nfl=refresh_nfl,
+        nfl_board_at=nfl_at,
+        nfl_board_age_hours=None if nfl_age is None else round(nfl_age,3),
+        nfl_board_fresh=nfl_fresh,
         mlb_retry_relevant=retry_mlb,
         mlb_retry_reason=retry_reason,
         mlb_board_at=board_at,

@@ -105,8 +105,19 @@ jobs:
       editorial_refresh: true
     secrets: inherit
 
-  publish:
+  review-candidates:
     needs: [plan, refresh-mlb, refresh-nfl]
+    # Reusable sports refreshes do not independently emit workflow_run events.
+    # Make the early morning model -> research -> publication order explicit.
+    if: always() && !cancelled() && needs.plan.result == 'success' && (needs.plan.outputs.refresh_nfl == 'true' || needs.plan.outputs.refresh_mlb == 'true')
+    permissions:
+      contents: write
+      pages: write
+    uses: ./.github/workflows/analyst-daily.yml
+    secrets: inherit
+
+  publish:
+    needs: [plan, refresh-mlb, refresh-nfl, review-candidates]
     # Briefing/freshness still publishes after an upstream failure; writer checks data separately.
     if: always() && !cancelled() && needs.plan.result == 'success'
     runs-on: ubuntu-latest
@@ -124,7 +135,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install requests jinja2
+      - name: Install publication and contract-test dependencies
+        run: pip install -r requirements.txt
       - name: Verify freshness, escaping and publication guards
         run: python -m unittest discover -s tests -p 'test_editorial*.py'
       - name: Refresh market prices and briefing
@@ -225,7 +237,7 @@ jobs:
       # The paid writer runs only for the morning edition or an explicit manual refresh.
 
   diagnostics:
-    needs: [plan, refresh-mlb, refresh-nfl, publish]
+    needs: [plan, refresh-mlb, refresh-nfl, review-candidates, publish]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

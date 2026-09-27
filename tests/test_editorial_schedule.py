@@ -99,7 +99,51 @@ class EditorialScheduleTests(unittest.TestCase):
         self.assertFalse(result['writer_eligible'])
         self.assertTrue(result['refresh_briefing'])
         self.assertTrue(result['refresh_mlb'])
+        self.assertTrue(result['refresh_nfl'])
         self.assertEqual(result['writer_reason'],'writing_disabled')
+
+    def test_early_morning_fetches_nfl_before_eight(self):
+        td,root=self.make_root();self.addCleanup(td.cleanup)
+        now=datetime(2026,9,27,9,7,tzinfo=timezone.utc)  # 5:07 AM Eastern
+        result=sched.plan(root,now,event_name='schedule')
+        self.assertTrue(result['refresh_nfl'])
+        self.assertEqual(result['mode'],'morning')
+
+    def test_morning_nfl_refresh_survives_article_limit_and_funding_guard(self):
+        td,root=self.make_root();self.addCleanup(td.cleanup)
+        now=datetime(2026,9,27,10,7,tzinfo=timezone.utc)
+        for state in [{'funding_required':True},{}]:
+            self.write_state(root,'2026-09-27',state)
+            (root/'docs/editorial/published.json').write_text(json.dumps([
+                {'date':'2026-09-27','kind':'Analysis','url':'/a'},
+                {'date':'2026-09-27','kind':'Analysis','url':'/b'}] if not state else []))
+            result=sched.plan(root,now,event_name='schedule')
+            self.assertFalse(result['writer_eligible'])
+            self.assertTrue(result['refresh_nfl'])
+
+    def test_current_morning_nfl_snapshot_avoids_duplicate_refresh(self):
+        td,root=self.make_root();self.addCleanup(td.cleanup)
+        directory=root/'docs/nfl/data';directory.mkdir(parents=True)
+        now=datetime(2026,9,27,10,7,tzinfo=timezone.utc)
+        (directory/'latest.json').write_text(json.dumps({'status':'ready','model_checked_at':'2026-09-27T09:30:00Z'}))
+        result=sched.plan(root,now,event_name='schedule')
+        self.assertTrue(result['nfl_board_fresh']);self.assertFalse(result['refresh_nfl'])
+        for stamp in ['2026-09-26T22:30:00Z','2026-09-27T11:30:00Z']:
+            (directory/'latest.json').write_text(json.dumps({'status':'ready','model_checked_at':stamp}))
+            self.assertTrue(sched.plan(root,now,event_name='schedule')['refresh_nfl'])
+
+    def test_production_publisher_dependencies_and_research_order(self):
+        # Regression for a production-only import failure: CI had NumPy while
+        # the publishing job installed only requests/jinja2.
+        workflow=(sched.ROOT/'.github/workflows/editorial-daily.yml').read_text()
+        publish=workflow.split('\n  publish:\n',1)[1].split('\n  diagnostics:',1)[0]
+        self.assertIn('pip install -r requirements.txt',publish)
+        self.assertLess(publish.index('pip install -r requirements.txt'),publish.index("test_editorial*.py"))
+        self.assertIn('needs: [plan, refresh-mlb, refresh-nfl, review-candidates]',publish)
+        review=workflow.split('\n  review-candidates:\n',1)[1].split('\n  publish:',1)[0]
+        self.assertIn('needs: [plan, refresh-mlb, refresh-nfl]',review)
+        self.assertIn('uses: ./.github/workflows/analyst-daily.yml',review)
+        self.assertIn('  workflow_call:',(sched.ROOT/'.github/workflows/analyst-daily.yml').read_text())
 
     def test_expected_writer_requires_recent_completed_marker(self):
         td,root=self.make_root();self.addCleanup(td.cleanup)

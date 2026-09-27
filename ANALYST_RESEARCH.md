@@ -62,7 +62,7 @@ claimed to improve results.
 
 ## Schedule, spending and failures
 
-`Morning Candidate Research` runs after standalone MLB/NFL refreshes and at
+`Morning Candidate Research` is explicitly called by the early editorial workflow after its MLB/NFL refresh jobs and before briefing publication. It also runs after standalone MLB/NFL refreshes and at
 05:45, 08:45, 10:45, 12:45 and 15:45 America/New_York. GitHub execution can be
 delayed. At most one paid attempt per sport in 05:00–12:00 and a distinct later
 12:00–18:00 window. Empty slates, missing sources/keys, or expired candidates
