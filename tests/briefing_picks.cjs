@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict');
-const {collect,rowHTML,day,ticketData}=require('../docs/assets/briefing-picks.js');
+const {collect,rowHTML,day,ticketData,reviewKey,reviewBetKey}=require('../docs/assets/briefing-picks.js');
 const now=Date.parse('2026-09-27T12:00:00Z'), iso=t=>new Date(t).toISOString();
 function fixture(t=now) {
   const base={game:'Away @ Home',commence_time:iso(t+3600e3),player:'Example player',side:'Over',line:2.5,price:110,book:'a',book_label:'Book A',market:'player_points',market_label:'Points',quoted_at:iso(t-60e3)};
@@ -60,5 +60,27 @@ assert.equal(ticket.market_type,'points');assert(Math.abs(ticket.model_prob-2/3)
 assert.equal(ticketData(mlb,110,10).model_prob,null,'unknown push probability must not become zero');
 assert.throws(()=>ticketData(picked,99,25));assert.throws(()=>ticketData(picked,110,0));assert.throws(()=>ticketData(picked,110,2.001));
 assert(rowHTML(picked).includes('Track bet'));assert(rowHTML(picked,0,true).includes('disabled'));
+// Sourced analysis is tied to the exact offer/forecast. Earlier context is
+// preserved with an explicit warning, never promoted to a current approval.
+f=fixture();const original=collect(f,now).selected.find(r=>r.sport==='MLB');
+const reviewed={...original,review_key:reviewKey(original),review_bet_key:reviewBetKey(original),offer_id:'o',forecast_id:'f',
+  qualitative_review:{status:'concern',offer_id:'o',forecast_id:'f',reviewed_at:iso(now),countercase:'A changed role may invalidate the estimate.',open_checks:['Verify the lineup.'],
+    evidence:[{source_id:'s1',direction:'concern',interpretation:'Check the projected role.',represented_in:'model_features'}]}};
+f.Reviews={schema_version:1,sports:{MLB:{decision_date:day(now),review_status:'completed',candidates:[reviewed],sources:[{source_id:'s1',url:'https://www.espn.com/mlb/story/test',title:'Synthetic report',published_at:iso(now-3600e3)}]}}};
+let researched=collect(f,now).selected.find(r=>r.sport==='MLB');
+assert.equal(researched.review_matches_current,true);assert.match(researched.review,/Sourced concern/);
+assert.match(rowHTML(researched),/Case against:/);assert.match(rowHTML(researched),/espn.com/);
+f.MLB.rows[0].price=120;researched=collect(f,now).selected.find(r=>r.sport==='MLB');
+assert.equal(researched.review_matches_current,false);assert.match(researched.review,/needs recheck/);
+assert.match(rowHTML(researched),/earlier context, not a review of the current offer/);
+f.MLB.rows[0].line=3.5;assert.equal(collect(f,now).selected.find(r=>r.sport==='MLB').qualitative_review,undefined);
+f.MLB.rows[0].line=2.5;f.Reviews.sports.MLB.decision_date='2026-09-26';
+assert.equal(collect(f,now).selected.find(r=>r.sport==='MLB').qualitative_review,undefined);
+f.Reviews.sports.MLB.decision_date=day(now);f.Reviews.sports.MLB.candidates[0].qualitative_review.reviewed_at=iso(now+1000);
+assert.equal(collect(f,now).selected.find(r=>r.sport==='MLB').qualitative_review,undefined);
+f.Reviews.sports.MLB.candidates[0].qualitative_review.reviewed_at=iso(now);
+f.Reviews.sports.MLB.sources[0].url='javascript:alert(1)';f.Reviews.sports.MLB.candidates[0].qualitative_review.countercase='<img src=x onerror=alert(1)>';
+const safe=rowHTML(collect(f,now).selected.find(r=>r.sport==='MLB'));
+assert(!safe.includes('javascript:'));assert(!safe.includes('<img'));
 console.log('PASS: morning shortlist model gates, exact quotes, ET days, freshness, failures, exposure and review identity.');
 module.exports={fixture};

@@ -77,20 +77,22 @@ def validate_shape(value, schema):
             raise ValueError('Invalid review category')
 
 
-def payload(board, sources, asof, config):
+def payload(board, sources, asof, config, *, instructions=INSTRUCTIONS, schema=SCHEMA,
+            prompt_version=PROMPT_VERSION, extra_fields=()):
     fields = ('candidate_id', 'game', 'player', 'market_label', 'side', 'line', 'book_label', 'price',
               'quoted_at', 'commence_time', 'independent_probability', 'market_probability', 'final_probability',
               'push_probability', 'estimated_ev', 'minimum_acceptable_odds', 'signal_type',
               'key_drivers', 'uncertainties', 'goalie_assumption', 'lineup_assumption', 'invalidation_conditions')
+    fields += tuple(extra_fields)
     rows = board['candidates']
     sources = [s for s in sources if any(usable(s, r, asof) for r in rows)]
-    packet = dict(prompt_version=PROMPT_VERSION, forecast_at=board['generated_at'], review_asof=iso(asof),
+    packet = dict(prompt_version=prompt_version, forecast_at=board['generated_at'], review_asof=iso(asof),
                   candidates=[{k: r.get(k) for k in fields} for r in rows], sources=sources,
                   instructions_for_human='Original model remains unchanged; verify all research before deciding.')
     return dict(model=MODEL, service_tier='default', store=False, reasoning={'effort': 'low'},
-                max_output_tokens=config['max_output_tokens'], instructions=INSTRUCTIONS,
+                max_output_tokens=config['max_output_tokens'], instructions=instructions,
                 input=json.dumps(packet, ensure_ascii=False),
-                text={'format': dict(type='json_schema', name='nhl_context_review', strict=True, schema=SCHEMA)})
+                text={'format': dict(type='json_schema', name='sports_context_review', strict=True, schema=schema)})
 
 
 def bounds(request, config):
@@ -115,6 +117,14 @@ def reserve(path, key, now, amount, cap):
     return 'reserved'
 
 
+def recent_spend(path, now):
+    """Read the other serialized review workflow's ledger; never reset its history."""
+    if not path.exists():
+        return 0
+    return sum(e['charge_usd'] for e in json.loads(path.read_text())['entries']
+               if stamp(e['at']) >= now-timedelta(days=7))
+
+
 def settle_budget(path, key, usage=None):
     ledger = json.loads(path.read_text())
     entry = next(e for e in ledger['entries'] if e['key'] == key)
@@ -132,10 +142,10 @@ def checkpoint(paths):
     if os.getenv('GITHUB_REF') != 'refs/heads/main':
         raise RuntimeError('Paid CI reviews require main and a durable reservation')
     paths = [str(p.relative_to(ROOT)) for p in paths]
-    commands = [['git', 'config', 'user.name', 'Fourth & Value NHL'],
+    commands = [['git', 'config', 'user.name', 'Fourth & Value Research'],
                 ['git', 'config', 'user.email', 'actions@github.com'],
                 ['git', 'add', '--', *paths],
-                ['git', 'commit', '--only', '-m', 'NHL: reserve bounded analyst review', '--', *paths],
+                ['git', 'commit', '--only', '-m', 'Research: reserve bounded analyst review', '--', *paths],
                 ['git', 'pull', '--rebase', '--autostash', 'origin', 'main'],
                 ['git', 'push', 'origin', 'HEAD:main']]
     for command in commands:
@@ -157,7 +167,7 @@ def call_api(request):
     return response.json()
 
 
-def parse_response(response, board, sources, asof):
+def parse_response(response, board, sources, asof, *, schema=SCHEMA, prompt_version=PROMPT_VERSION):
     if response.get('status') != 'completed':
         raise ValueError('Incomplete Astra response')
     blocks = [c for item in response.get('output', []) if item.get('type') == 'message' for c in item.get('content', [])]
@@ -165,7 +175,7 @@ def parse_response(response, board, sources, asof):
         raise ValueError('Astra refused review')
     text = ''.join(c.get('text', '') for c in blocks if c.get('type') == 'output_text')
     result = json.loads(text)
-    validate_shape(result, SCHEMA)
+    validate_shape(result, schema)
     candidates = {r['candidate_id']: r for r in board['candidates']}
     ids = [r['candidate_id'] for r in result['reviews']]
     if len(ids) != len(set(ids)) or set(ids) != set(candidates):
@@ -194,6 +204,6 @@ def parse_response(response, board, sources, asof):
         if re.search(r'\d\s*%|\b(?:guaranteed|lock|sure bet)\b', prose, re.I):
             raise ValueError('Unsupported numeric confidence or certainty')
         review.update(reviewed_at=iso(asof), offer_id=row['offer_id'], forecast_id=row['forecast_id'],
-                      model=MODEL, prompt_version=PROMPT_VERSION, evaluation_status='prospective_shadow_only',
+                      model=MODEL, prompt_version=prompt_version, evaluation_status='prospective_shadow_only',
                       human_verified=False, probability_adjustment=None)
     return result['reviews']

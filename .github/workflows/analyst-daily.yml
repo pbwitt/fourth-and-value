@@ -1,0 +1,73 @@
+name: Morning Candidate Research
+
+on:
+  schedule:
+    - cron: '45 5,8,10,12,15 * * *'
+      timezone: America/New_York
+  workflow_run:
+    workflows: ['MLB Daily Update', 'NFL Weekly Update']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# NHL and this workflow serialize their reservations against one combined cap.
+concurrency:
+  group: analyst-reviews
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pages: write
+
+jobs:
+  review:
+    if: github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: pip install requests==2.32.5
+      - name: Verify selection and research boundaries
+        run: |
+          node tests/briefing_picks.cjs
+          python -m unittest discover -s tests -p 'test_analyst_review.py'
+      - name: Research the current model shortlist
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python scripts/analyst_review.py --astra
+      - name: Archive reproducible research packets
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate-research-${{ github.run_id }}
+          path: artifacts/analyst/
+          retention-days: 90
+      - name: Publish reviews and durable spending ledger
+        run: |
+          git config user.name 'Fourth & Value Research'
+          git config user.email 'actions@github.com'
+          git add docs/briefing/reviews.json artifacts/analyst/
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Research: publish sourced MLB and NFL candidate reviews'
+          for attempt in 1 2 3; do
+            if ! git pull --rebase origin main; then
+              git rebase --abort || true
+              echo '::error::Concurrent edit needs review; research is retained in artifacts.'
+              exit 1
+            fi
+            if git push origin HEAD:main; then exit 0; fi
+            sleep 5
+          done
+          exit 1
+      - name: Rebuild public site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST "repos/$GITHUB_REPOSITORY/pages/builds" --jq .status

@@ -1,6 +1,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('node:http'),path=require('node:path');
 const {chromium}=require('playwright');
 const {fixture}=require('./briefing_picks.cjs');
+const {collect,reviewKey,reviewBetKey}=require('../docs/assets/briefing-picks.js');
 const root=path.resolve(__dirname,'../docs');
 const server=http.createServer((req,res)=>{
   let name=decodeURIComponent(req.url.split('?')[0]);if(name.endsWith('/'))name+='index.html';
@@ -20,7 +21,7 @@ const server=http.createServer((req,res)=>{
     });
     await page.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',r=>r.fulfill({contentType:'text/javascript',body:'/* fake auth client installed by this test */'}));
     await page.route('**/*.supabase.co/**',r=>{throw Error('Test must never call a real tracker database');});
-    const urls={'/props/top-picks.json':'NFL','/mlb/data/latest.json':'MLB','/nhl/data/latest.json':'NHL','/nhl/data/candidates.json':'NHLBoard'};
+    const urls={'/props/top-picks.json':'NFL','/mlb/data/latest.json':'MLB','/nhl/data/latest.json':'NHL','/nhl/data/candidates.json':'NHLBoard','/briefing/reviews.json':'Reviews'};
     for(const [url,key] of Object.entries(urls))await page.route('**'+url,r=>feeds[key]?r.fulfill({json:feeds[key]}):r.fulfill({status:503,body:'Unavailable'}));
     for(const width of [390,768,1440]) {
       await page.setViewportSize({width,height:1000});await page.goto(base+'/briefing/');
@@ -49,6 +50,25 @@ const server=http.createServer((req,res)=>{
       await page.locator('#daily-picks').scrollIntoViewIfNeeded();
       await page.screenshot({path:`/tmp/fv-briefing-picks-${width}.png`,fullPage:true});
     }
+    // Expanded research, changed-price rechecks and source failures on all sizes.
+    const selected=collect(feeds,now).selected.find(r=>r.sport==='MLB');
+    feeds.Reviews={schema_version:1,sports:{MLB:{decision_date:'2026-09-27',review_status:'completed',sources:[{
+      source_id:'s1',url:'https://www.espn.com/mlb/story/synthetic',title:'Synthetic lineup report',published_at:new Date(now-3600e3).toISOString()}],candidates:[{
+      ...selected,review_key:reviewKey(selected),review_bet_key:reviewBetKey(selected),offer_id:'o',forecast_id:'f',qualitative_review:{
+        offer_id:'o',forecast_id:'f',status:'concern',reviewed_at:new Date(now).toISOString(),countercase:'A lineup change could reduce projected opportunity.',
+        open_checks:['Verify the announced batting order before deciding.'],evidence:[{source_id:'s1',direction:'concern',interpretation:'Check whether the expected role still applies.',represented_in:'model_features'}]}}]}}};
+    for(const width of [390,768,1440]) {
+      await page.setViewportSize({width,height:1000});await page.reload();await page.waitForSelector('.pick-research');
+      await page.locator('.pick-research summary').click();
+      assert.match(await page.locator('.pick-research').textContent(),/Case against:/);
+      assert.match(await page.locator('#daily-picks-rows').textContent(),/Sourced concern/);
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+      await page.locator('#daily-picks').screenshot({path:`/tmp/fv-astra-review-${width}.png`});
+    }
+    feeds.MLB.rows[0].price=120;await page.reload();await page.waitForSelector('.pick-research');
+    assert.match(await page.locator('#daily-picks-rows').textContent(),/Price or forecast changed/);
+    feeds.MLB.rows[0].price=110;feeds.Reviews=null;await page.reload();
+    await page.waitForFunction(()=>document.getElementById('picks-status').textContent.startsWith('3 candidates'));
     // Real shared helper against a local fake client: no auth emails or real bets.
     await page.locator('[data-track-pick="1"]').click();
     await page.locator('#track-odds').fill('-120');await page.locator('#track-stake').fill('25');await page.locator('#track-confirm').check();
