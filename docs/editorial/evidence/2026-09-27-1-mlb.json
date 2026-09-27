@@ -1,0 +1,202 @@
+{
+  "as_of": "2026-09-27T10:54:06.139854+00:00",
+  "sport": "MLB",
+  "data_readiness": {
+    "ready": true,
+    "briefing_at": "2026-09-27T10:53:45.308399+00:00",
+    "board_at": "2026-09-27T10:51:45.773643Z",
+    "model_checked_at": "2026-09-27T10:51:48.923239Z",
+    "required_history_through": "2026-09-26",
+    "history_through": "2026-09-26",
+    "reason": "Current data checks passed"
+  },
+  "markets": [
+    {
+      "id": "total-7b589a322a1e421d031d8b1abb24d911",
+      "sport": "MLB",
+      "game": "Tampa Bay Rays @ Philadelphia Phillies",
+      "commence_time": "2026-09-27T19:05:00+00:00",
+      "start_label": "Sun 03:05 PM ET",
+      "median": 7.0,
+      "minimum": 7.0,
+      "maximum": 7.5,
+      "books": {
+        "draftkings": 7.0,
+        "lowvig": 7.0,
+        "betonlineag": 7.0,
+        "fanatics": 7.0,
+        "williamhill_us": 7.5,
+        "betmgm": 7.0,
+        "betus": 7.0,
+        "fanduel": 7.5,
+        "bovada": 7.0,
+        "betrivers": 7.0,
+        "mybookieag": 7.0
+      },
+      "quotes": [
+        {
+          "book": "lowvig",
+          "label": "LowVig.ag",
+          "line": 7.0,
+          "over_price": -113,
+          "under_price": -102,
+          "quoted_at": "2026-09-27T10:53:13+00:00"
+        },
+        {
+          "book": "betonlineag",
+          "label": "BetOnline.ag",
+          "line": 7.0,
+          "over_price": -115,
+          "under_price": -105,
+          "quoted_at": "2026-09-27T10:52:40+00:00"
+        },
+        {
+          "book": "fanduel",
+          "label": "FanDuel",
+          "line": 7.5,
+          "over_price": 110,
+          "under_price": -134,
+          "quoted_at": "2026-09-27T10:53:31+00:00"
+        },
+        {
+          "book": "williamhill_us",
+          "label": "Caesars",
+          "line": 7.5,
+          "over_price": 109,
+          "under_price": -129,
+          "quoted_at": "2026-09-27T10:51:13+00:00"
+        }
+      ],
+      "previous_books": {
+        "betmgm": 7.5,
+        "betonlineag": 7.5,
+        "betus": 7.5,
+        "draftkings": 7.0,
+        "fanatics": 7.0,
+        "lowvig": 7.5,
+        "williamhill_us": 7.5
+      },
+      "change_from": "2026-09-26T22:40:49.807131+00:00",
+      "change": -0.5,
+      "change_label": "-0.5 (7 matched books)",
+      "quote_selection": "Selected books only; range/median use all observed books"
+    }
+  ],
+  "model_rows": [
+    {
+      "id": "model-20",
+      "event_id": "7b589a322a1e421d031d8b1abb24d911",
+      "game": "Tampa Bay Rays @ Philadelphia Phillies",
+      "commence_time": "2026-09-27T19:05:00Z",
+      "book": "draftkings",
+      "book_label": "DraftKings",
+      "market": "pitcher_strikeouts",
+      "market_label": "Pitcher strikeouts",
+      "player": "Nick Martinez",
+      "side": "Under",
+      "line": 3.5,
+      "price": 108.0,
+      "book_probability": 0.4807692307692308,
+      "consensus_probability": 0.45374290433428893,
+      "fair_probability": 0.45329879628218805,
+      "paired_books": 3,
+      "best_price": true,
+      "quoted_at": "2026-09-27T10:51:09Z",
+      "model_probability": 0.5745977010001451,
+      "model_push_probability": 0.0,
+      "model_conditional_probability": 0.5745977010001451,
+      "model_mean": 3.3735764034991917,
+      "model_mean_label": "Projected pitcher strikeouts",
+      "model_ev_pct": 19.516321808030177,
+      "model_edge_pp": 9.38284702309143,
+      "model_fair_price": -135,
+      "model_inputs": {
+        "Recent starter outings": 15,
+        "Starter outs/start, last five": 17.14,
+        "Starter strikeouts per batter faced": 0.171,
+        "Opponent strikeouts per PA": 0.191
+      },
+      "model_status": "Eligible experimental model pick",
+      "is_model_pick": true,
+      "model_input_through": "2026-09-26",
+      "model_version": "mlb-v1.0-ffe831160a077d5d-2026-09-26",
+      "lineup_status": "Awaiting published batting orders"
+    }
+  ],
+  "model_references": [],
+  "model_availability": [
+    {
+      "event_id": "",
+      "game": "Tampa Bay Rays @ Philadelphia Phillies",
+      "available": true,
+      "forecast_count": 96,
+      "eligible_pick_count": 4,
+      "statuses": [
+        "No pick: estimated edge is below the 3% EV / 3-point threshold",
+        "No pick: a better price is available at the same line",
+        "Eligible experimental model pick",
+        "Another offer is selected for this player and market"
+      ]
+    }
+  ],
+  "methods": "## Feature windows\n\nAll windows also have a 370-day maximum lookback.\n\n- Team: last 40 games; runs scored/allowed, PA and K/H/HR/BB/TB rates. Bullpen RA/9 is computed from team pitching minus the starter. Bullpen workload is pitches in the previous three calendar days.\n- Pitcher: last 15 starts; last-five outs and pitches, batters faced, K/BB/H/HR rates, runs per out, and rest capped at 30 days.\n- Batter: last 60 appearances; rates per PA, last 20 starting appearances for PA context, original/published batting slot and a transparent projected-PA input.\n- Park: last 100 games at the venue, shrunk by 40 games toward nine combined runs. This is a venue scoring indicator, not an isolated park factor; home-team quality can influence it.\n- Matchup: home/away and postseason indicators; own and opponent team and starter features.\n\nSmall samples shrink toward fixed league-like priors. Missing players do not receive public league-average or 50% predictions. Teams require ten prior games, each probable starter three prior starts, and hitters 50 prior PA plus a published lineup match.\n\nThese mod",
+  "model_status": "Independent MLB forecasts available",
+  "limitations": "NFL injury adjustments are not established by this evidence. A live total is not a prop forecast. Only validated fresh model rows are included. Historical quotes are not openers.",
+  "target_game": {
+    "event_id": "7b589a322a1e421d031d8b1abb24d911",
+    "game": "Tampa Bay Rays @ Philadelphia Phillies",
+    "commence_time": "2026-09-27T19:05:00+00:00",
+    "selection": "qualified-selection",
+    "model_availability": {
+      "event_id": "",
+      "game": "Tampa Bay Rays @ Philadelphia Phillies",
+      "available": true,
+      "forecast_count": 96,
+      "eligible_pick_count": 4,
+      "statuses": [
+        "No pick: estimated edge is below the 3% EV / 3-point threshold",
+        "No pick: a better price is available at the same line",
+        "Eligible experimental model pick",
+        "Another offer is selected for this player and market"
+      ]
+    }
+  },
+  "reporting": [
+    {
+      "title": "Reeling Phillies have one more game to save their season",
+      "url": "https://www.mlb.com/news/phillies-lose-to-rays-unable-to-clinch-playoff-spot-again",
+      "published_at": "2026-09-27",
+      "published_timestamp": "2026-09-27T04:50:00+00:00",
+      "id": "s1",
+      "retrieved_at": "2026-09-27T10:54:06.139854+00:00"
+    },
+    {
+      "title": "How the D-backs can pass the Phillies for the final NL Wild Card spot",
+      "url": "https://www.mlb.com/news/diamondbacks-scenarios-for-making-the-playoffs-2026",
+      "published_at": "2026-09-27",
+      "published_timestamp": "2026-09-27T04:03:00+00:00",
+      "id": "s2",
+      "retrieved_at": "2026-09-27T10:54:06.139854+00:00"
+    },
+    {
+      "title": "Could the Phillies blow their playoff berth? How recent slump, surging D-backs have made wild-card race messy",
+      "url": "https://www.cbssports.com/mlb/news/phillies-playoff-berth-diamondbacks-national-league-wild-card/",
+      "published_at": "2026-09-26",
+      "published_timestamp": "2026-09-26T23:50:34+00:00",
+      "id": "s3",
+      "retrieved_at": "2026-09-27T10:54:06.139854+00:00"
+    }
+  ],
+  "validation_context": {
+    "input_through": "2026-09-26",
+    "training_through": "2026-07-28",
+    "calibration_through": "2026-08-27",
+    "test_start": "2026-08-28",
+    "test_end": "2026-09-26"
+  },
+  "model_data_dates": {
+    "history_through": "2026-09-26",
+    "weights_trained_through": "2026-07-28"
+  },
+  "model_required": true
+}
