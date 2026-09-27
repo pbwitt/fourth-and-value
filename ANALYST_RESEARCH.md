@@ -38,7 +38,7 @@ The sport-specific screens are not equivalent. NFL takes fitted-calibration esti
 ## Evidence and analysis
 
 The shared NHL collector reads ESPN/CBS league RSS plus official MLB/NFL news
-indexes. It retrieves at most eight articles per sport, at most two relevant
+indexes. NFL also checks at most eight candidate-team official news indexes. It retrieves at most eight articles per sport, at most two relevant
 sources per candidate, published within 72 hours and retrieved before the
 review. Publication and retrieval times are separate. Opportunity/injury reporting is ranked before generic team coverage; betting-pick/promotional headlines are excluded. Matching uses full player
 names or full team names/nicknames, never a city or player surname alone.
@@ -53,7 +53,7 @@ news coverage is incomplete; verified lineup, injury or weather data may be
 missing. MLB hitter props require published batting orders under the existing
 model policy, so the morning list can omit them until a later update.
 
-Prompt `mlb-nfl-context-3` / `nhl-context-2` separates the **betting assessment**
+Prompt `mlb-nfl-context-4` / `nhl-context-2` separates the **betting assessment**
 from the reporting status. Each assessment supplies model, price and context
 cases, a reason and one of three verdicts:
 
@@ -118,7 +118,7 @@ as tokens plus overhead at $12.50/M input and $50/M output, with 10% margin.
 Maximum reservation is under $0.62/call; actual usage is normally lower. A timeout
 retains its reservation. CI commits/pushes reservation and exact packet before
 calling the API. A failed checkpoint prevents payment. Each sport can require
-roughly two minutes of bounded source retrieval plus up to four minutes API time.
+roughly four minutes of bounded NFL source retrieval (three league indexes, up to eight team indexes and eight articles) plus up to four minutes API time.
 No new paid feed or hosting service is required.
 
 API details checked against official documentation on 2026-09-27:
@@ -204,3 +204,44 @@ blockers, unchanged forecasts, duplicate revision prevention and invented numeri
 confidence rejection. Existing four-candidate production packets were checked
 against the unchanged request budget; this is an integration check, not evidence
 of forecasting or qualitative performance. No real bets were written by tests.
+
+
+### September 27: explain model disagreement and alternate lines
+
+NFL exports an additive `/props/model-context.json` alongside its original Top
+Picks contract. Passing props retain the actual pre-cutoff sample, career and
+position means, opportunity/efficiency inputs, adjustment stages, sigma and
+raw-to-calibrated probability provenance. No model weights, probabilities,
+ranking rules, or article-generation behavior change in this release.
+
+The research runner requires the exact forecast time plus game, player, market,
+side, line, book, odds and quote timestamp before attaching diagnostics. It shows
+the offered book's central and nearby line choices and separate other-book
+central quotes. Paired opposite prices and compared quotes must be within five
+minutes; integer-line Normal stress tests are omitted because a push-aware
+inversion has not been validated. A market median is never presented as an
+expected mean. Normal sensitivity is explicitly hypothetical, never a corrected
+forecast, recalibration, or executable EV claim.
+
+Expand **See the model inputs and line comparison** inside Fourth & Value analysis.
+The review must explain the largest demonstrated cause of disagreement, distinguish
+alternate lines from different forecasts, use supplied role reporting, and identify
+what remains unresolved. Model/price transforms do not count as independent signals.
+The numeric trace remains available even when the prose assessment is brief.
+
+The original diagnostic board and collected excerpts are archived. Request packing
+removes redundant metadata first, then shortens excerpts equally (1000/700/450
+characters), retaining one source per covered candidate before second sources if
+necessary. No candidate or model estimate is dropped. The exact excerpt sent is
+used for citation validation. Oversized packets still fail before reserving or
+spending; the 26,000-byte and shared $5 limits remain unchanged.
+
+The [Murray audit](reports/nfl-model-diagnostics/README.md) reproduces the original
+144.7512355 mean and 71.4467432 sigma. It identifies the five-attempt injury-shortened
+sample and endpoint calibration as inherited limitations, not independent evidence
+of a 98% win chance. The sourced return-to-starting-role report challenges the
+workload assumption. A defensible full-start workload model and tail calibration
+validation remain unresolved; this explanatory release does not claim to fix them.
+Rollback the release commit to remove traces, retain immutable reviews and both
+spending ledgers, and rebuild Pages. Existing NFL feeds remain compatible without
+the optional diagnostic sidecar.

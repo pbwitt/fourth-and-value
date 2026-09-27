@@ -12,7 +12,19 @@ import requests
 
 from .data import digest, iso, stamp
 
-HOSTS = ('nhl.com', 'mlb.com', 'nfl.com', 'espn.com', 'cbssports.com')
+NFL_TEAM_SITES = dict(zip(
+    ['Arizona Cardinals','Atlanta Falcons','Baltimore Ravens','Buffalo Bills','Carolina Panthers','Chicago Bears',
+     'Cincinnati Bengals','Cleveland Browns','Dallas Cowboys','Denver Broncos','Detroit Lions','Green Bay Packers',
+     'Houston Texans','Indianapolis Colts','Jacksonville Jaguars','Kansas City Chiefs','Las Vegas Raiders',
+     'Los Angeles Chargers','Los Angeles Rams','Miami Dolphins','Minnesota Vikings','New England Patriots',
+     'New Orleans Saints','New York Giants','New York Jets','Philadelphia Eagles','Pittsburgh Steelers',
+     'San Francisco 49ers','Seattle Seahawks','Tampa Bay Buccaneers','Tennessee Titans','Washington Commanders'],
+    ['azcardinals.com','atlantafalcons.com','baltimoreravens.com','buffalobills.com','panthers.com','chicagobears.com',
+     'bengals.com','clevelandbrowns.com','dallascowboys.com','denverbroncos.com','detroitlions.com','packers.com',
+     'houstontexans.com','colts.com','jaguars.com','chiefs.com','raiders.com','chargers.com','therams.com',
+     'miamidolphins.com','vikings.com','patriots.com','neworleanssaints.com','giants.com','newyorkjets.com',
+     'philadelphiaeagles.com','steelers.com','49ers.com','seahawks.com','buccaneers.com','tennesseetitans.com','commanders.com']))
+HOSTS = ('nhl.com', 'mlb.com', 'nfl.com', 'espn.com', 'cbssports.com', *NFL_TEAM_SITES.values())
 FEEDS = ('https://www.espn.com/espn/rss/nhl/news',
          'https://www.cbssports.com/rss/headlines/nhl/')
 
@@ -101,7 +113,7 @@ def reporting_priority(row, source):
     priority = 5 if re.search(r'injur|lineup|practice|active|starter|weather|bullpen|scratch|pitcher', text) else 0
     if row.get('player') and row['player'].casefold() in text.replace('-', ' '):
         priority += 3
-    if urlsplit(source['url']).hostname in ('www.nfl.com','www.mlb.com','www.nhl.com'):
+    if (urlsplit(source['url']).hostname or '').removeprefix('www.') in ('nfl.com','mlb.com','nhl.com', *NFL_TEAM_SITES.values()):
         priority += 1
     return priority
 
@@ -117,7 +129,7 @@ def usable(source, row, asof):
 
 
 def collect(rows, clock=lambda: datetime.now(timezone.utc), sport='NHL'):
-    """Max three index requests, eight article requests, two sources/candidate."""
+    """Three league indexes + at most eight NFL team indexes; eight articles total."""
     if not rows:
         return [], {'status': 'no_candidates', 'failures': []}
     pool, sources, failures = [], [], []
@@ -151,6 +163,18 @@ def collect(rows, clock=lambda: datetime.now(timezone.utc), sport='NHL'):
                 pool.append(dict(url=url, title='', published_at=None))
     except (requests.RequestException, ValueError):
         failures.append({'host': 'www.'+domain, 'stage': 'index_unavailable'})
+    if sport == 'NFL':
+        domains = list(dict.fromkeys(NFL_TEAM_SITES[t] for r in rows for t in
+            (r.get('home_team'), r.get('away_team')) if t in NFL_TEAM_SITES))[:8]
+        for team_domain in domains:
+            try:
+                index = fetch('https://www.'+team_domain+'/news/')
+                for href in dict.fromkeys(unescape(u) for u in re.findall(r'href=[\"\']([^\"\'?#]+)[\"\']', index)):
+                    url = urljoin('https://www.'+team_domain, href)
+                    if trusted(url) and '/news/' in url and any(matches(r, url) for r in rows):
+                        pool.append(dict(url=url, title='', published_at=None))
+            except (requests.RequestException, ValueError):
+                failures.append({'host': team_domain, 'stage': 'team_index_unavailable'})
     seen, attempts, counts = set(), 0, {r['candidate_id']: 0 for r in rows}
     # Round-robin by candidate avoids spending every fetch on the first matchup.
     queues = [sorted([s for s in pool if matches(r, s['title']+' '+s['url']) and reporting_priority(r, s) >= 0],

@@ -28,7 +28,7 @@
   const completeReview=q=>q&&['research_support','concern','needs_information'].includes(q.status)&&
     typeof q.countercase==='string'&&Array.isArray(q.open_checks)&&q.open_checks.every(x=>typeof x==='string')&&
     Array.isArray(q.evidence)&&q.evidence.every(e=>e&&['source_id','direction','interpretation','represented_in'].every(k=>typeof e[k]==='string'));
-  const safeSourceURL=url=>{try{const u=new URL(url);return u.protocol==='https:'&&!u.username&&!u.password&&['espn.com','cbssports.com','nhl.com','nfl.com','mlb.com'].some(h=>u.hostname===h||u.hostname.endsWith('.'+h));}catch{return false;}};
+  const safeSourceURL=url=>{try{const u=new URL(url);return u.protocol==='https:'&&!u.username&&!u.password&&["espn.com","cbssports.com","nhl.com","nfl.com","mlb.com","azcardinals.com","atlantafalcons.com","baltimoreravens.com","buffalobills.com","panthers.com","chicagobears.com","bengals.com","clevelandbrowns.com","dallascowboys.com","denverbroncos.com","detroitlions.com","packers.com","houstontexans.com","colts.com","jaguars.com","chiefs.com","raiders.com","chargers.com","therams.com","miamidolphins.com","vikings.com","patriots.com","neworleanssaints.com","giants.com","newyorkjets.com","philadelphiaeagles.com","steelers.com","49ers.com","seahawks.com","buccaneers.com","tennesseetitans.com","commanders.com"].some(h=>u.hostname===h||u.hostname.endsWith('.'+h));}catch{return false;}};
   const hasReview=r=>completeReview(r.qualitative_review)&&(r.sport==='NHL'?
     r.qualitative_review.offer_id===r.offer_id&&r.qualitative_review.forecast_id===r.forecast_id:
     !!r.reviewed_candidate);
@@ -36,7 +36,7 @@
     .filter(({s})=>s&&safeSourceURL(s.url));
   const probability=n=>finite(n)&&n>=0&&n<=1;
   const pct=n=>probability(n)?(100*n).toFixed(1)+'%':'Unavailable';
-  const number=n=>n.toFixed(1);
+  const number=n=>finite(n)?n.toFixed(1):'Unavailable';
   const oldNFLReview=r=>r.sport==='NFL'&&hasReview(r)&&r.qualitative_review.prompt_version==='mlb-nfl-context-1';
   // All comparison percentages use the same outcome and exclude refunded pushes.
   // Keep missing push mass unknown; never substitute a book probability.
@@ -169,6 +169,17 @@
     return {selected,coverage};
   }
 
+  function diagnosticHTML(r) {
+    const d=r.reviewed_candidate?.model_diagnostics||r.model_diagnostics;
+    if(!d)return '';
+    const p=d.projection,c=d.calibration,s=d.raw_distribution_stress;
+    const inputs=p?`<p><strong>Passing inputs:</strong> ${esc(number(p.attempts))} attempts × ${pct(p.completion_rate)} completion rate × ${esc(number(p.yards_per_completion))} yards per completion. Their product gives expected passing yards before matchup and venue adjustments.</p><p><strong>Recent sample:</strong> ${(p.current_sample||[]).map(g=>`${esc(g.season)} week ${esc(g.week)}: ${esc(g.attempts)} attempts, ${esc(g.completions)} completions, ${esc(g.passing_yards)} yards`).join('; ')||'No current-season sample'}. ${pct(p.recent_mean_weight)} recent weight for attempts and ${pct(p.yards_per_completion_recent_weight)} for yards per completion; partial appearances are not separately adjusted.</p>`:'';
+    const calibration=c&&finite(c.raw_probability)?`<p><strong>Probability calculation:</strong> ${pct(c.raw_probability)} before historical calibration. ${c.outside_fitted_range?'This input is outside the calibration sample’s fitted range and receives an endpoint value.':'Historical calibration maps this estimate to the displayed probability.'} The calibration artifact does not report the number of observations in this tail.</p>`:'';
+    const ladder=d.offered_book_nearby_quotes?.length?`<p><strong>Same-book line choices:</strong> ${d.offered_book_nearby_quotes.map(q=>`${esc(q.name)} ${esc(q.point)} at ${esc(odds(q.price))}`).join('; ')}. ${d.offered_book_central_quote?`Its most evenly priced line is ${esc(d.offered_book_central_quote.point)} at ${esc(odds(d.offered_book_central_quote.price))}.`:''}</p>`:'';
+    const sensitivity=s?`<p><strong>What would change the price case:</strong> In a hypothetical Normal distribution using the existing spread of outcomes, moving the mean to ${esc(number(s.market_centered_mean))} gives ${pct(s.probability)} for this side. ${finite(s.mean_at_break_even)?'In this hypothetical distribution, break-even occurs at a mean of '+esc(number(s.mean_at_break_even))+'. ':''}This is a sensitivity check, not a new forecast; a market median line is not necessarily a mean.</p>`:'';
+    return `<details class="pick-diagnostics"><summary>See the model inputs and line comparison</summary>${inputs}${calibration}${ladder}<p>${esc(d.other_books_at_exact_line)} other paired books at this exact line. Different thresholds are not interchangeable prices.</p>${sensitivity}</details>`;
+  }
+
   function researchHTML(r) {
     const q=r.qualitative_review;
     if(!hasReview(r))return '';
@@ -180,7 +191,7 @@
     const correction=oldNFLReview(r)?'<p class="notice">Method correction: this earlier note was given an incorrect description of the NFL model. Its probabilities are calibrated to historical results, not current market prices. Any claim below that it is “market-calibrated” is incorrect. The forecast itself is unchanged.</p>':'';
     const a=assessment(q);
     const judgment=a?`<p><strong>Our assessment: ${esc(verdictLabel(a))}.</strong> ${esc(a.reason)}</p><p><strong>Model case:</strong> ${esc(a.model_case)}</p><p><strong>Price case:</strong> ${esc(a.price_case)}</p><p><strong>Relevant context:</strong> ${esc(a.context_case)}</p>${a.blocking_checks.length?'<p><strong>Before this can advance:</strong></p><ul>'+a.blocking_checks.map(s=>`<li>${esc(s)}</li>`).join('')+'</ul>':''}`:'<p class="meta">This earlier review checked reporting only. A full model-and-price assessment is pending.</p>';
-    return `<details class="pick-research"><summary>Fourth &amp; Value analysis · ${esc(time(q.reviewed_at))}</summary><p><strong>Why it surfaced:</strong> ${esc(screenReason(r))}</p>${original}${correction}${judgment}${items?`<ul>${items}</ul>`:'<p class="meta">No relevant reporting was verified for this review. That does not, by itself, invalidate the model-and-price case.</p>'}<p><strong>Case against:</strong> ${esc(q.countercase)}</p><p><strong>Final checks:</strong></p><ul>${q.open_checks.map(s=>`<li>${esc(s)}</li>`).join('')}</ul><p class="meta">AI-assisted analysis; human verification still required. Consider, wait and pass are assessments of the reviewed offer, not automatic bets. Original model probabilities remain unchanged.</p></details>`;
+    return `<details class="pick-research"><summary>Fourth &amp; Value analysis · ${esc(time(q.reviewed_at))}</summary><p><strong>Why it surfaced:</strong> ${esc(screenReason(r))}</p>${original}${correction}${judgment}${diagnosticHTML(r)}${items?`<ul>${items}</ul>`:'<p class="meta">No relevant reporting was verified for this review. That does not, by itself, invalidate the model-and-price case.</p>'}<p><strong>Case against:</strong> ${esc(q.countercase)}</p><p><strong>Final checks:</strong></p><ul>${q.open_checks.map(s=>`<li>${esc(s)}</li>`).join('')}</ul><p class="meta">AI-assisted analysis; human verification still required. Consider, wait and pass are assessments of the reviewed offer, not automatic bets. Original model probabilities remain unchanged.</p></details>`;
   }
 
   function summaryHTML(selected) {

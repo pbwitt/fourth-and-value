@@ -34,6 +34,7 @@ from injury_adjustments import load_week_injuries
 from pathlib import Path
 from datetime import datetime, timezone
 import os
+import json
 
 # absolute base for historical snapshots
 HIST_DIR = Path("/Users/pwitt/fourth-and-value/data/preds_historical")
@@ -1653,6 +1654,12 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
         mu_map[mkt] = mu
         sg_map[mkt] = sg
 
+    # Preserve a trace of the existing calculation; these copies never alter it.
+    from nfl_prop_diagnostics import passing_trace, clean as clean_diagnostic
+    pass_players = cands.loc[cands.market_std.isin(['pass_attempts', 'pass_completions', 'pass_yds']), 'player'].unique()
+    pass_trace = passing_trace(logs, career_df, pass_latents, season, pass_players)
+    before_adjustments = {m: values.copy() for m, values in mu_map.items()}
+
     print(f"[family] Derived params for {len(mu_map)} Normal markets from latents")
 
     # Players with zero current-season games AND zero career history for
@@ -1706,6 +1713,7 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
     # ========================================
     # APPLY HOME/AWAY ADJUSTMENTS
     # ========================================
+    after_defense = {m: values.copy() for m, values in mu_map.items()}
     if home_away_map:
         print(f"[home/away] Applying home field advantage adjustments...")
         home_away_applied = 0
@@ -1921,6 +1929,16 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
     pass_yds_mask = params["market_std"].isin(["pass_completions", "pass_yds"])
     params.loc[pass_yds_mask, "implied_ypc_pass"] = params.loc[pass_yds_mask, "player"].map(player_to_ypc_pass)
 
+    def trace_row(row):
+        if row['market_std'] not in ('pass_attempts', 'pass_completions', 'pass_yds'):
+            return None
+        p, m = row['player'], row['market_std']
+        trace = dict(pass_trace[p], mean_stages=clean_diagnostic(dict(
+            before_adjustments=float(before_adjustments[m][p]), after_defense=float(after_defense[m][p]),
+            after_venue=float(mu_map[m][p]), final=float(row['mu']))))
+        return json.dumps(trace, separators=(',', ':'), allow_nan=False)
+    params['projection_diagnostics'] = params.apply(trace_row, axis=1)
+
     print("[diagnostics] Added implied_ypc, implied_ypr, implied_cr, implied_comp_pct, implied_ypc_pass")
 
     # attach season/week if missing
@@ -2085,7 +2103,7 @@ def main():
     cols = ["season","week","player","player_key","name_std","market_std","market",
         "dist","mu","sigma","lam","used_logs","is_home","no_real_data",
         "implied_ypc","implied_ypr","implied_comp_pct","implied_ypc_pass","implied_cr",
-        "injury_availability","injury_status"]
+        "injury_availability","injury_status","projection_diagnostics"]
     params = params[[c for c in cols if c in params.columns]].copy()
     params = standardize_input(params)           # adds market_std/name/point/name_std
     params = apply_priors_if_missing(params)     # fills missing mu/sigma/lam using PRIORS

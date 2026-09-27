@@ -118,6 +118,9 @@ def build_page(args, top_only=False):
         feed.write_text(json.dumps(dict(schema_version=1, status='ready',
             generated_at=now.isoformat(), policy_version='nfl-top-picks-v1',
             rows=published), separators=(',', ':'), allow_nan=False)+'\n')
+        from nfl_prop_diagnostics import build_context
+        context = build_context(pd.read_csv(args.merged_csv, low_memory=False), now.isoformat())
+        (feed.parent/'model-context.json').write_text(json.dumps(context, separators=(',', ':'), allow_nan=False)+'\n')
     print(f'[props] wrote {args.out}: {len(records):,} offers, {len(future):,} upcoming; quote freshness verified: {verified}')
 
 

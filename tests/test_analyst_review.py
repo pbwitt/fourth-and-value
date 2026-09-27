@@ -100,6 +100,39 @@ class ScreeningTests(unittest.TestCase):
 
 
 class ResearchTests(unittest.TestCase):
+    def test_official_team_reporting_is_allowlisted_and_retrieved(self):
+        b=board('NFL'); row=b['candidates'][0]
+        url='https://www.giants.com/news/synthetic-player-starter'
+        self.assertTrue(evidence.trusted(url))
+        self.assertFalse(evidence.trusted('https://www.giants.com.evil.test/news/report'))
+        article=dict({'@type':'NewsArticle'},headline='Synthetic Player returns as Giants starter',
+            datePublished=iso(NOW-timedelta(hours=1)),articleBody=('Synthetic Player is returning as the starting player for the New York Giants. '*12))
+        def fetch(u):
+            if u==url:return '<script type="application/ld+json">'+json.dumps(article)+'</script>'
+            if u=='https://www.giants.com/news/':return '<a href="/news/synthetic-player-starter">Report</a>'
+            return '<rss></rss>'
+        with patch.object(evidence,'fetch',side_effect=fetch):
+            sources,status=evidence.collect([row],lambda:NOW,sport='NFL')
+        self.assertEqual(len(sources),1)
+        self.assertEqual(sources[0]['url'],url)
+        self.assertTrue(evidence.usable(sources[0],row,NOW))
+
+    def test_request_compaction_preserves_candidate_numbers_and_original_sources(self):
+        b=board('NFL');s=source(b);s['excerpt']='The starting lineup has not been announced yet. '*32
+        b['candidates']=[dict(b['candidates'][0],candidate_id=str(i)) for i in range(4)]
+        trace=json.loads((ROOT/'reports/nfl-model-diagnostics/2026-09-27-murray.json').read_text())['model_diagnostics']
+        for r in b['candidates']:
+            r['model_diagnostics']=deepcopy(trace)
+        sources=[dict(s,source_id=str(i),candidate_ids=[str(i//2)]) for i in range(8)]
+        before=deepcopy((b,sources))
+        request=analyst.review_payload(b,sources,NOW,CONFIG)
+        self.assertLessEqual(len(json.dumps(request,ensure_ascii=False).encode()),26000)
+        self.assertEqual((b,sources),before)
+        packet=json.loads(request['input'])
+        self.assertEqual(len(packet['candidates']),4)
+        self.assertTrue(all(r['final_probability']==.55 for r in packet['candidates']))
+        self.assertEqual({cid for s in packet['sources'] for cid in s['candidate_ids']},{str(i) for i in range(4)})
+
     def test_source_priority_prefers_role_reporting_over_betting_picks(self):
         row=board('NFL')['candidates'][0]
         story=lambda title:dict(title=title,url='https://www.nfl.com/news/test')
@@ -128,7 +161,7 @@ class ResearchTests(unittest.TestCase):
         self.assertEqual(p['model'],'gpt-6-astra'); self.assertNotIn('tools',p)
         self.assertIn('NOT current market consensus',p['instructions'])
         self.assertIn('historical game outcomes',p['instructions'])
-        self.assertEqual(analyst.PROMPT_VERSION,'mlb-nfl-context-3')
+        self.assertEqual(analyst.PROMPT_VERSION,'mlb-nfl-context-4')
         self.assertLess(astra.bounds(p,CONFIG),1)
         self.assertIsNone(json.loads(p['input'])['candidates'][0].get('independent_probability'))
 
