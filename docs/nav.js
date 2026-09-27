@@ -161,7 +161,6 @@
       className: 'nfl-sport',
       items: [
         { href: `${base}/nfl/`, label: 'NFL Overview' },
-        { href: `${base}/props/insights.html`, label: 'Insights archive' },
         { href: `${base}/props/index.html`, label: 'Player Props' },
         { href: `${base}/props/top.html`, label: 'Top Picks' },
         { href: `${base}/props/arbitrage.html`, label: 'Pricing checks' },

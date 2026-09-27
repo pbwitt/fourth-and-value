@@ -28,11 +28,6 @@ on:
         description: 'Optional upcoming regular-season week (auto-detected if empty)'
         required: false
         type: number
-      generate_insights:
-        description: 'Explicitly approve paid game insights for this run'
-        required: false
-        type: boolean
-        default: false
 
 concurrency:
   group: nfl-weekly-update
@@ -90,16 +85,11 @@ jobs:
         if: steps.week.outputs.active == 'true'
         env:
           ODDS_API_KEY: ${{ secrets.NFL_ODDS_API_KEY || secrets.MLB_ODDS_API_KEY || secrets.ODDS_API_KEY }}
-          OPENAI_API_KEY: ${{ github.event_name == 'workflow_dispatch' && inputs.generate_insights && secrets.OPENAI_API_KEY || '' }}
-          OPENAI_INSIGHTS_MODEL: gpt-6-astra
-          APPROVE_INSIGHTS: ${{ github.event_name == 'workflow_dispatch' && inputs.generate_insights && 'true' || 'false' }}
           NFL_SEASON: ${{ steps.week.outputs.season }}
           NFL_WEEK: ${{ steps.week.outputs.week }}
         run: |
-          skip_insights=1
-          if [ "$APPROVE_INSIGHTS" = "true" ]; then skip_insights=0; fi
-          make --always-make monday_all SEASON="$NFL_SEASON" WEEK="$NFL_WEEK" SKIP_AI_INSIGHTS="$skip_insights"
-          make --always-make nfl_totals_daily SEASON="$NFL_SEASON" WEEK="$NFL_WEEK" SKIP_AI_INSIGHTS=1
+          make --always-make monday_all SEASON="$NFL_SEASON" WEEK="$NFL_WEEK"
+          make --always-make nfl_totals_daily SEASON="$NFL_SEASON" WEEK="$NFL_WEEK"
           python scripts/export_nfl_editorial.py --season "$NFL_SEASON" --week "$NFL_WEEK"
       - name: Freeze current-week pregame evidence
         id: weekly_snapshot

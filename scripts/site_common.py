@@ -33,7 +33,7 @@ def write_with_nav(out_path: str, title: str, main_html: str,
 </head>
 <body>
   <div id="nav-root"></div>
-  <script src="{rel}/nav.js?v=33"></script>
+  <script src="{rel}/nav.js?v=44"></script>
   {main_html}
 </body>
 </html>"""
@@ -106,7 +106,6 @@ def nav_html(active: str = "") -> str:
 
     NAV_LINKS = [
            ("Home", "/index.html"),
-        ("Insights", "/props/insights.html"),
         ("Props", "/props/index.html"),
        ("Top Picks", "/props/top.html"),
      ("Consensus", "/props/consensus.html"),

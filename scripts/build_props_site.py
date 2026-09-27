@@ -86,7 +86,7 @@ def build_page(args, top_only=False):
     html = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{escape(title)} | Fourth &amp; Value</title>{metadata(args.out,title+' | Fourth & Value',description)}
 <link rel="icon" href="{rel}/assets/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="{rel}/assets/site.css"></head>
-<body><a class="skip-link" href="#main">Skip to props</a><div id="nav-root"></div><script src="{rel}/nav.js?v=42"></script>
+<body><a class="skip-link" href="#main">Skip to props</a><div id="nav-root"></div><script src="{rel}/nav.js?v=44"></script>
 <main id="main" class="wrap">{nfl_links(rel, 'Top picks' if top_only else 'Player props')}
 <p class="eyebrow">{context}</p><h1>{title}</h1>
 <p class="lead">{'A shortlist of positive model edges with player data, fitted calibration and recent quotes.' if top_only else 'Find a player, compare the same line across books, and see what supports the model estimate.'}</p>
@@ -111,6 +111,13 @@ def build_page(args, top_only=False):
 <script type="application/json" id="props-data">{payload}</script><script src="{rel}/assets/props.js" defer></script></body></html>'''
     Path(args.out).parent.mkdir(parents=True,exist_ok=True)
     Path(args.out).write_text(html)
+    if top_only:
+        # Additive public contract for the morning briefing; exactly the same
+        # candidates and quote times as the existing Top Picks page.
+        feed = Path(args.out).parent/'top-picks.json'
+        feed.write_text(json.dumps(dict(schema_version=1, status='ready',
+            generated_at=now.isoformat(), policy_version='nfl-top-picks-v1',
+            rows=published), separators=(',', ':'), allow_nan=False)+'\n')
     print(f'[props] wrote {args.out}: {len(records):,} offers, {len(future):,} upcoming; quote freshness verified: {verified}')
 
 
