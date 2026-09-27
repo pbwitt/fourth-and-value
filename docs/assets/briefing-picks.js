@@ -144,12 +144,31 @@
   }
   const outcomeKey=r=>JSON.stringify([r.sport,String(r.game_id),r.player||'',r.market_std||r.market,String(r.side).toLowerCase(),r.line,r.settlement_profile||'']);
   const SHORTLIST_LIMIT=10;
+  function cardValue(r) {
+    if(r.model_withheld||r.discovery_origin==='independent_research')return null;
+    // NHL already supplies worst-scenario log growth at this fixed fraction.
+    // Use the same units for NFL/MLB; sport-specific ranks are not comparable.
+    if(r.sport==='NHL')return finite(r.rank_score)?r.rank_score:null;
+    const push=r.sport==='NFL'?r.push_prob:r.model_push_probability;
+    let win=r.sport==='NFL'?r.model_prob:r.model_probability;
+    if(!probability(win)||!probability(push)||push>=1)return null;
+    if(r.sport==='NFL') {
+      if(probability(r.forecast_health?.raw_probability))win=Math.min(win,r.forecast_health.raw_probability);
+      win*=1-push;
+    }
+    const loss=1-win-push;
+    if(loss<0||!finite(r.price)||Math.abs(r.price)<100)return null;
+    return win*Math.log1p(.0025*(decimal(r.price)-1))+loss*Math.log1p(-.0025);
+  }
+  const cardTier=r=>cardValue(r)===null?4:r.forecast_health?.tier||1;
   function ideaKey(r) {
     return JSON.stringify([r.sport,String(r.game_id),r.player||'',r.market_std||r.market,String(r.side).toLowerCase(),r.settlement_profile||'']);
   }
   function shortlist(selected,now=Date.now()) {
     const seen=new Set(),card=[];
-    const ordered=[...selected].sort((a,b)=>Number(b.human_decision==='select')-Number(a.human_decision==='select'));
+    const ordered=[...selected].sort((a,b)=>Number(b.human_decision==='select')-Number(a.human_decision==='select')||
+      cardTier(a)-cardTier(b)||(cardValue(b)??-Infinity)-(cardValue(a)??-Infinity)||
+      stamp(a.commence_time)-stamp(b.commence_time)||outcomeKey(a).localeCompare(outcomeKey(b)));
     for(const r of ordered) {
       const a=hasReview(r)&&r.review_matches_current!==false&&recent(r.qualitative_review.reviewed_at,now,3*HOUR)?assessment(r.qualitative_review):null;
       if(r.human_decision==='pass'||!(r.human_decision==='select'||a?.verdict==='consider'&&!a.blocking_checks.length))continue;
@@ -161,7 +180,7 @@
       if(ideas.some(v=>seen.has(v)))continue;ideas.forEach(v=>seen.add(v));
       card.push(r);if(card.length>=SHORTLIST_LIMIT)break;
     }
-    return card.map(r=>({...r,card_related_candidates:card.filter(q=>q.sport===r.sport&&q.game_id===r.game_id).length-1}));
+    return card.map(r=>({...r,card_rank_score:cardValue(r),card_related_candidates:card.filter(q=>q.sport===r.sport&&q.game_id===r.game_id).length-1}));
   }
   function rankTier(r) {
     const a=hasReview(r)&&r.review_matches_current!==false?assessment(r.qualitative_review):null;
