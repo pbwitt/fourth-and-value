@@ -10,6 +10,12 @@ import editorial_writer as w
 
 class IdeaTests(unittest.TestCase):
     now=datetime(2026,9,25,10,tzinfo=timezone.utc)
+    def setUp(self):
+        # Both the run and its model evidence use the fixture clock. UTC's
+        # next date must not make evidence appear future-dated in Eastern time.
+        clock=patch.object(w,'datetime',wraps=datetime)
+        clock.start().now.return_value=self.now
+        self.addCleanup(clock.stop)
     def row(self,**updates):
         return dict(id='aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',user_id='reader',sport='NFL',kind='analysis',
             idea='Investigate Falcons injuries',body='',status='submitted',created_at='2026-09-24T10:00:00Z',updated_at='v1',**updates)
@@ -87,7 +93,7 @@ class IdeaTests(unittest.TestCase):
         with TemporaryDirectory() as td:
             root=Path(td);docs=root/'docs';state=docs/'editorial/runs';state.mkdir(parents=True)
             w.ed.write_json(state/'2026-09-25.json',{'allocation':[['NFL','idea:'+row['id']],['MLB','news-market']],'slots':{'1-mlb':{'status':'skipped'}}})
-            packet={'markets':[{'id':'q1'}],'model_rows':[{'id':'model-q1','model_mean':5.2,'model_version':'v1','model_input_through':datetime.now(timezone.utc).date().isoformat()}],'data_readiness':{'ready':True}}
+            packet={'markets':[{'id':'q1'}],'model_rows':[{'id':'model-q1','model_mean':5.2,'model_version':'v1','model_input_through':self.now.astimezone(w.ed.ETZ).date().isoformat()}],'data_readiness':{'ready':True}}
             with patch.dict(w.ed.CFG,{'writing_enabled':True}),patch.object(w.ed,'DOCS',docs),patch.object(w.ed,'ROOT',root),patch.object(w,'STATE',state),patch.object(w.budget,'PATH',root/'budget.json'),patch.object(w.budget,'checkpoint'),patch.object(w.ed,'render_home'),patch.object(w,'evidence',return_value=packet),patch.object(w,'compact',side_effect=lambda p:p),patch.object(w,'select_target',return_value=None),patch.object(w.reporting,'collect',return_value=[{'title':'News'}]),patch.object(w.ideas,'get',return_value=row),patch.object(w.ideas,'claim',return_value=True),patch.object(w.ideas,'save_draft') as save,patch.object(w.ideas,'finish') as finish,patch.object(w,'call_api',return_value=response),patch.object(w,'response_text',side_effect=[json.dumps(article),json.dumps({'pass':True})]),patch.object(w,'validate',return_value=600):
                 w.run(self.now)
             save.assert_called_once();finish.assert_not_called()
@@ -104,7 +110,7 @@ class IdeaTests(unittest.TestCase):
         with TemporaryDirectory() as td:
             root=Path(td);docs=root/'docs';state=docs/'editorial/runs';state.mkdir(parents=True)
             w.ed.write_json(state/'2026-09-25.json',{'allocation':[['NFL','idea:'+row['id']],['MLB','news-market']],'slots':{'1-mlb':{'status':'skipped'}}})
-            packet={'markets':[{'id':'q1'}],'model_rows':[{'id':'model-q1','model_mean':5.2,'model_version':'v1','model_input_through':datetime.now(timezone.utc).date().isoformat()}],'data_readiness':{'ready':True}}
+            packet={'markets':[{'id':'q1'}],'model_rows':[{'id':'model-q1','model_mean':5.2,'model_version':'v1','model_input_through':self.now.astimezone(w.ed.ETZ).date().isoformat()}],'data_readiness':{'ready':True}}
             with patch.dict(w.ed.CFG,{'writing_enabled':True}),patch.object(w.ed,'DOCS',docs),patch.object(w.ed,'ROOT',root),patch.object(w,'STATE',state),patch.object(w.budget,'PATH',root/'budget.json'),patch.object(w.budget,'checkpoint'),patch.object(w.ed,'render_home'),patch.object(w,'evidence',return_value=packet),patch.object(w,'compact',side_effect=lambda p:p),patch.object(w,'select_target',return_value=None),patch.object(w.reporting,'collect',return_value=[{'title':'News'}]),patch.object(w.ideas,'get',return_value=row),patch.object(w.ideas,'claim',return_value=True),patch.object(w.ideas,'save_draft') as save,patch.object(w.ideas,'finish') as finish,patch.object(w,'call_api',return_value=response),patch.object(w,'response_text',side_effect=[json.dumps(article),json.dumps({'pass':True})]),patch.object(w,'validate',return_value=600):
                 w.run(self.now)
             save.assert_not_called();finish.assert_called_once()
@@ -121,7 +127,7 @@ class IdeaTests(unittest.TestCase):
         with TemporaryDirectory() as td:
             root=Path(td);docs=root/'docs';state=docs/'editorial/runs';state.mkdir(parents=True)
             w.ed.write_json(state/'2026-09-25.json',{'allocation':[['NFL','idea:'+row['id']],['MLB','news-market']],'slots':{'0-nfl':{'status':'published'},'1-mlb':{'status':'published'}}})
-            packet={'markets':[{'id':'q1'}],'model_rows':[{'id':'model-q1','model_mean':5.2,'model_version':'v1','model_input_through':datetime.now(timezone.utc).date().isoformat()}],'data_readiness':{'ready':True}}
+            packet={'markets':[{'id':'q1'}],'model_rows':[{'id':'model-q1','model_mean':5.2,'model_version':'v1','model_input_through':self.now.astimezone(w.ed.ETZ).date().isoformat()}],'data_readiness':{'ready':True}}
             with patch.dict(w.ed.CFG,{'writing_enabled':True}),patch.object(w.ed,'DOCS',docs),patch.object(w.ed,'ROOT',root),patch.object(w,'STATE',state),patch.object(w.budget,'PATH',root/'budget.json'),patch.object(w.budget,'checkpoint'),patch.object(w.ed,'render_home'),patch.object(w,'evidence',return_value=packet),patch.object(w,'compact',side_effect=lambda p:p),patch.object(w,'select_target',return_value=None),patch.object(w.reporting,'collect',return_value=[{'title':'News'}]),patch.object(w.ideas,'get',return_value=row),patch.object(w.ideas,'claim',return_value=True),patch.object(w.ideas,'save_draft') as save,patch.object(w.ideas,'finish') as finish,patch.object(w,'call_api',return_value=response),patch.object(w,'response_text',side_effect=[json.dumps(article),json.dumps({'pass':True})]),patch.object(w,'validate',return_value=600):
                 w.run(self.now,idea_id=row['id'])
             save.assert_called_once();finish.assert_not_called()

@@ -4,6 +4,11 @@ on:
   pull_request:
     paths:
       - 'scripts/editorial*.py'
+      - 'scripts/editorial_templates/**'
+      - 'scripts/build_props_site.py'
+      - 'docs/assets/briefing-picks.js'
+      - 'tests/briefing_picks.cjs'
+      - 'tests/briefing_browser.cjs'
       - 'tests/test_editorial*.py'
       - 'tests/editorial_permissions.cjs'
       - 'tests/editorial_dispatch.cjs'
@@ -33,6 +38,10 @@ jobs:
         with:
           node-version: '22'
       - run: node tests/editorial_dispatch.cjs
+      - run: node tests/briefing_picks.cjs
+      - run: npm install --no-save --package-lock=false playwright@1.55.1
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/briefing_browser.cjs
       - name: Test private reader permissions in isolated PostgreSQL
         run: |
           npm install --prefix /tmp/fv-editorial-db @electric-sql/pglite@0.5.8

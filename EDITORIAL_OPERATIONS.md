@@ -650,3 +650,44 @@ historical; the recovered ledger and private queue record the completed draft.
 
 Stalled submitted items display NEEDS ATTENTION and count in the inbox notice;
 refreshing keeps their error visible. Completed drafts display DRAFT READY.
+
+### Morning review table — September 26
+
+The latest `/briefing/` places the price rundown first, then `Today's picks` in
+the same table style. `docs/assets/briefing-picks.js` reads existing public model
+boards without paid requests or retraining. Bet, American price, actual quote
+time in Eastern, book, model-detail link and review status stay together.
+
+Inputs: `/props/top-picks.json` (schema 1, written with NFL Top Picks by
+`build_props_site.py`), `/mlb/data/latest.json`, and the matching NHL
+`latest.json`/`candidates.json` pair. The NFL export preserves the exact existing
+Top Picks rows and timestamps; there is no new NFL model or new calibration.
+Market Watch membership never supplies candidates. NBA remains deferred.
+
+The view keeps games on the current Eastern date, before start, and applies each
+board's freshness limits: NFL 48 hours; MLB quote/model check 90 minutes; NHL
+quote/forecast 30 minutes and model input check under 36 hours. Missing models,
+failed/expired feeds and mismatched NHL snapshots fail closed for that sport.
+No missing independent probability is filled with consensus. NHL analyst passes
+are hidden; sourced support, concerns, open information and analyst selection for
+shadow tracking have different labels. All rows remain experimental.
+
+Display policy: up to four per sport, one per game, with no daily minimum. NFL
+uses the existing model-edge order, MLB estimated-return order and NHL candidate
+rank. Ties prefer the better price and newer quote. These are review candidates,
+not a newly validated cross-sport strategy or automatic analyst approval.
+Expiry is checked every 30 seconds on an open tab; source boards reload every
+five minutes and when the tab regains visibility. A failed read withdraws that
+sport's rows. Quote times are never replaced with page or fetch times.
+
+Dated editions retain their market snapshots and link to the current review
+list; they do not insert today's picks into a historical edition. Original model
+and offer snapshots remain in sport-specific archives. The aggregated view does
+not create a placed-bet ledger; record the price actually obtained in Bet Tracker.
+
+Checks: `node tests/briefing_picks.cjs`, `node tests/briefing_browser.cjs`
+(Playwright Chromium), and `python -m unittest discover -s tests -p
+ 'test_editorial*.py'`. The browser suite covers valid/empty/failed data, quote
+expiry, mobile/desktop navigation and the retired NFL Insights redirect.
+Revert this PR to roll back the table, added NFL export, and navigation change;
+no database migration or credential change is required.

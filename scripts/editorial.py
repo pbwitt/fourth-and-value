@@ -180,7 +180,7 @@ def render_home(data,now):
     # Opinion remains a distinct, permanent archive; approved analysis also
     # appears in the existing blog without rebuilding any authored article.
     opinion_cards=''.join('<article class="card opinion"><p class="eyebrow">Opinion · '+html_lib.escape(a['date'])+'</p><h2><a href="'+html_lib.escape(a['url'],quote=True)+'">'+html_lib.escape(a['title'])+'</a></h2><p>'+html_lib.escape(a['excerpt'])+'</p></article>' for a in catalog if a['kind']=='Opinion')
-    (DOCS/'editorial/index.html').write_text('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Opinion | Fourth &amp; Value</title><meta name="description" content="Independent opinion on sports, accountability and the institutions behind the games."><link rel="canonical" href="https://fourthandvalue.com/editorial/"><link rel="stylesheet" href="/assets/editorial.css"></head><body><div id="nav-root"></div><script src="/nav.js?v=42"></script><main class="newsroom article"><p class="eyebrow">Independent perspectives</p><h1>Opinion.</h1><p class="lead">The arguments beyond the numbers. Each piece is clearly labeled and approved by its author.</p>'+opinion_cards+'<footer><a href="/">Home</a> · <a href="/editorial/inbox.html">Editorial desk</a></footer></main></body></html>\n')
+    (DOCS/'editorial/index.html').write_text('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Opinion | Fourth &amp; Value</title><meta name="description" content="Independent opinion on sports, accountability and the institutions behind the games."><link rel="canonical" href="https://fourthandvalue.com/editorial/"><link rel="stylesheet" href="/assets/editorial.css"></head><body><div id="nav-root"></div><script src="/nav.js?v=44"></script><main class="newsroom article"><p class="eyebrow">Independent perspectives</p><h1>Opinion.</h1><p class="lead">The arguments beyond the numbers. Each piece is clearly labeled and approved by its author.</p>'+opinion_cards+'<footer><a href="/">Home</a> · <a href="/editorial/inbox.html">Editorial desk</a></footer></main></body></html>\n')
     blog=DOCS/'blog/index.html';text=blog.read_text()
     text=re.sub(r'<!-- editorial-managed:start -->.*?<!-- editorial-managed:end -->','',text,flags=re.S)
     entries='<li class="post" data-title="Daily market briefing" data-excerpt="Fresh prices and reporting"><h2><a href="/briefing/">The daily market briefing</a></h2><p class="excerpt">Observed prices, differences between books and recent reporting. Updated throughout the day.</p></li>'
@@ -197,9 +197,10 @@ def render_briefing(data,now,archive=True):
     ctx['analysis']=sorted((a for a in articles if featured_now(a,now)),key=lambda a:(a['date'],a.get('published_at','')),reverse=True)[:3]
     ctx.update(title=f"The market rundown: {now.astimezone(ETZ).strftime('%B %d, %Y')}",url=f'/briefing/{day}.html',evidence_url=f'/briefing/history/{day}.json')
     PUBLIC.mkdir(exist_ok=True,parents=True)
-    html=ENV.get_template('briefing.html').render(**ctx)+'\n'
+    html=ENV.get_template('briefing.html').render(**ctx,live_picks=False)+'\n'
     if archive:(PUBLIC/f'{day}.html').write_text(html)
-    (PUBLIC/'index.html').write_text(html.replace(f'https://fourthandvalue.com/briefing/{day}.html','https://fourthandvalue.com/briefing/'))
+    ctx['url']='/briefing/'
+    (PUBLIC/'index.html').write_text(ENV.get_template('briefing.html').render(**ctx,live_picks=True)+'\n')
 
 def api_headers():
     key=os.getenv('SUPABASE_SERVICE_ROLE_KEY')

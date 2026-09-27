@@ -3,7 +3,6 @@ PY ?= python3
 SEASON ?=
 WEEK   ?=
 DATE   ?= $(shell date +%Y-%m-%d)
-SKIP_AI_INSIGHTS ?= 1
 
 # Require SEASON/WEEK for NFL targets
 ifeq ($(strip $(SEASON)),)
@@ -29,20 +28,10 @@ INJURY_REPORT := data/injuries/injuries_week$(WEEK).csv
 
 PROPS_HTML := $(DOCS_DIR)/props/index.html
 TOP_HTML   := $(DOCS_DIR)/props/top.html
-INSIGHTS_HTML := $(DOCS_DIR)/props/insights.html
-INSIGHTS_JSON := docs/data/ai/insights_week$(WEEK).json
 ARB_HTML   := $(DOCS_DIR)/props/arbitrage.html
 ODDS_CSV   := $(ODDS_DIR)/latest.csv
 FAM_ARB_CSV := data/qc/family_arbitrage.csv
 INCOH_CSV  := data/qc/incoherent_books.csv
-
-# AI Insights spend API credits. Scheduled site refreshes can leave the last
-# generated Insights page in place; opt in with SKIP_AI_INSIGHTS=0.
-ifeq ($(SKIP_AI_INSIGHTS),1)
-WEEKLY_INSIGHTS :=
-else
-WEEKLY_INSIGHTS := $(INSIGHTS_HTML)
-endif
 
 # ---- Phony targets ----
 .PHONY: monday_all monday_all_pub weekly qc publish_pages props_now_pages serve_preview clean_pages clean injuries
@@ -55,7 +44,7 @@ monday_all: weekly qc
 	@echo "[OK] All QC checks passed ✓"
 
 # Weekly pipeline (consensus removed - now integrated into Props page)
-weekly: $(PROPS_HTML) $(TOP_HTML) $(WEEKLY_INSIGHTS) $(ARB_HTML)
+weekly: $(PROPS_HTML) $(TOP_HTML) $(ARB_HTML)
 	$(PY) scripts/build_site_metadata.py
 
 # QC checks (run after weekly build)
@@ -137,24 +126,6 @@ $(TOP_HTML): scripts/build_top_picks.py scripts/build_props_site.py scripts/site
 	  --week $(WEEK) \
 	  --title "Top Picks — Week $(WEEK)"
 
-# 5b) Generate AI insights JSON
-# Written directly into docs/ so it's published alongside the HTML pages
-# (data/ is gitignored - anything written only there never reaches the site).
-$(INSIGHTS_JSON): scripts/make_ai_commentary.py $(MERGED) | docs/data/ai
-	$(PY) scripts/make_ai_commentary.py \
-	  --season $(SEASON) \
-	  --week $(WEEK) \
-	  --merged_csv $(MERGED) \
-	  --out_json $@ \
-	  --force
-
-$(INSIGHTS_HTML): scripts/build_insights_page.py $(INSIGHTS_JSON) | $(DOCS_DIR)/props
-	$(PY) scripts/build_insights_page.py \
-	  --season $(SEASON) \
-	  --week $(WEEK) \
-	  --title "Fourth & Value — Insights (Week $(WEEK))" \
-	  --out $@
-
 $(ARB_HTML): scripts/build_arbitrage_page.py $(INCOH_CSV) $(MERGED) | $(DOCS_DIR)/props
 	$(PY) scripts/build_arbitrage_page.py \
 	  --incoherent-csv $(INCOH_CSV) \
@@ -163,7 +134,7 @@ $(ARB_HTML): scripts/build_arbitrage_page.py $(INCOH_CSV) $(MERGED) | $(DOCS_DIR
 
 
 # Pages-only rebuild (when CSV already exists)
-props_now_pages: $(PROPS_HTML) $(TOP_HTML) $(INSIGHTS_HTML)
+props_now_pages: $(PROPS_HTML) $(TOP_HTML)
 	@echo "[OK] Pages rebuilt from $(MERGED)"
 
 # Local preview
@@ -186,7 +157,7 @@ monday_all_pub: monday_all publish_pages
 
 # Cleanup
 clean_pages:
-	rm -f $(PROPS_HTML) $(TOP_HTML) $(INSIGHTS_HTML)
+	rm -f $(PROPS_HTML) $(TOP_HTML)
 
 clean:
 	rm -f $(PARAMS) $(MERGED)
