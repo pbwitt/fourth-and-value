@@ -62,7 +62,9 @@ only. NHL retains its coherent scoring/opportunity forecasts, verified settlemen
 2% EV and adverse-scenario minimum-price rule. NHL ranking still uses worst-case
 fixed-fraction log growth; the fraction is not stake advice.
 
-A current consider assessment ranks before pending/wait/pass within each sport.
+A current consider assessment ranks before pending/wait/pass across all sports,
+so a reviewed MLB/NHL offer appears before unreviewed NFL rows in the initial table.
+No cross-sport probability or numerical value score is introduced.
 Reliability then precedes each sport's numerical score. Later review batches
 prioritize previously reviewed offers needing new context/price assessment.
 Multiple bets in the same game remain possible and are not assumed independent.

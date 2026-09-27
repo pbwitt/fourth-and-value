@@ -223,6 +223,10 @@
         message:(!available?'Current model list unavailable or expired. ':'')+(count?`${count} review candidate${count===1?'':'s'}`:'No qualifying offers currently available')+
           (held?` · ${held} unreliable or sensitivity-failing forecasts withheld`:'')+(sport==='NHL'?' · unposted markets can enter on the next refresh':'')});
     }
+    // A reviewed MLB/NHL opportunity must not disappear below the initial
+    // twenty unreviewed NFL rows. Compare assessment status across sports;
+    // retain each sport's existing numerical order within that status.
+    selected.sort((a,b)=>rankTier(a)-rankTier(b));
     return {selected,coverage,excluded};
   }
 
@@ -277,7 +281,9 @@
       const countercase=!a&&q.status==='concern'&&!oldNFLReview(r)?` ${esc(q.countercase)}`:'';
       return `<p class="pick-summary-paragraph"><strong class="summary-bet">${esc(betLabel(r).replaceAll(' · ',' '))}</strong><span class="meta summary-game">${esc(r.sport)} · ${esc(r.game)}</span>${esc(screenReason(r))} ${status}${changed}${original}${source}${countercase}${check} <a class="read-pick-review" href="#pick-review-${selected.indexOf(r)}">Read our full analysis</a>.</p>`;
     }).join('');
-    return paragraphs+`<p class="meta">${reviewed.length} of ${selected.length} current candidates reviewed; ${featured.length} summarized here. Full findings and remaining checks appear under each bet. A completed review is not bet approval.</p>`;
+    const currentReviews=reviewed.filter(r=>r.review_matches_current!==false).length;
+    const earlier=reviewed.length-currentReviews;
+    return paragraphs+`<p class="meta">${currentReviews} of ${selected.length} current candidates reviewed${earlier?`; ${earlier} with earlier analysis requiring a recheck`:''}; ${featured.length} summarized here. Full findings and remaining checks appear under each bet. A completed review is not bet approval.</p>`;
   }
 
   function rowHTML(r,index=0,saved=false) {

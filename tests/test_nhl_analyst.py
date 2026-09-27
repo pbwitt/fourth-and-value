@@ -157,6 +157,22 @@ class EvidenceAndAstraTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 astra.bounds(bad, CONFIG)
 
+    def test_negated_guarantee_is_caution_without_allowing_certainty_or_percentages(self):
+        for text, allowed in [('Reported usage supports involvement, not guaranteed volume.', True),
+                              ('This is guaranteed to win.', False),
+                              ('Not guaranteed volume, but this is a guaranteed win.', False),
+                              ('Not guaranteed, but 88% confidence.', False),
+                              ('This is a lock.', False)]:
+            with self.subTest(text=text):
+                raw=response(); value=json.loads(raw['output'][0]['content'][0]['text'])
+                value['reviews'][0]['evidence'][0]['interpretation']=text
+                raw['output'][0]['content'][0]['text']=json.dumps(value)
+                if allowed:
+                    self.assertEqual(len(astra.parse_response(raw, board(), [source()], NOW)), 1)
+                else:
+                    with self.assertRaises(ValueError):
+                        astra.parse_response(raw, board(), [source()], NOW)
+
     def test_budget_reservation_duplicate_rolling_cap_and_uncertain_timeout(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp)/'budget.json'

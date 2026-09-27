@@ -91,6 +91,7 @@ assert.match(summarized,/Verify the lineup/);assert.match(summarized,/href="#pic
 assert(!summarized.includes('<img'));assert.match(summarized,/1 of 3 current candidates/);
 f.MLB.rows[0].price=120;summarized=summaryHTML(collect(f,now).selected);
 assert.match(summarized,/price or forecast has changed/);assert.match(summarized,/assessed \+110/);
+assert.match(summarized,/0 of 3 current candidates reviewed; 1 with earlier analysis requiring a recheck/);
 f.Reviews.sports.MLB.candidates[0].qualitative_review.offer_id='wrong';
 assert.match(summaryHTML(collect(f,now).selected),/awaiting our analysis/);
 // Keep it a few paragraphs, cover sports, and do not invent a new ranking.
@@ -154,6 +155,15 @@ for(const verdict of ['consider','wait','pass']) {
 f=fixture();f.MLB.rows.push({...f.MLB.rows[0],market:'pitcher_strikeouts',market_label:'Strikeouts',line:5.5});
 assert.equal(collect(f,now).selected.filter(r=>r.sport==='MLB').length,2);
 assert.equal(collect(f,now).selected.find(r=>r.sport==='MLB').related_candidates,1);
+// A current MLB consider assessment stays above the first twenty NFL rows.
+f=fixture();f.NFL.rows=Array.from({length:25},(_,i)=>({...f.NFL.rows[0],game_id:'nfl-'+i}));
+const crossSportReview={...reviewed,qualitative_review:{...reviewed.qualitative_review,offer_id:'o',assessment:{
+ verdict:'consider',reason:'Current model and price assessed.',model_case:'Experimental model.',
+ price_case:'Exact offer reviewed.',context_case:'No material blocker identified.',blocking_checks:[]}}};
+f.Reviews={schema_version:1,sports:{MLB:{decision_date:day(now),review_status:'completed',candidates:[crossSportReview],sources:[]}}};
+assert.equal(collect(f,now).selected[0].sport,'MLB');
+f.MLB.rows[0].price=120;
+assert.equal(collect(f,now).selected[0].sport,'NFL');
 // Quarantine historical partial workloads and per-offer calibration extrapolation.
 f=fixture();let nf=f.NFL.rows[0];nf.player='Synthetic QB';nf.market_std='pass_yds';nf.model_prob=.98;
 const gkey=JSON.stringify([nf.game_id,nf.player,nf.market_std]);
