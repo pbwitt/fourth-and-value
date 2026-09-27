@@ -30,6 +30,54 @@
     !!r.reviewed_candidate);
   const citedEvidence=r=>r.qualitative_review.evidence.map(e=>({e,s:r.review_sources?.find(s=>s.source_id===e.source_id)}))
     .filter(({s})=>s&&safeSourceURL(s.url));
+  const probability=n=>finite(n)&&n>=0&&n<=1;
+  const pct=n=>probability(n)?(100*n).toFixed(1)+'%':'Unavailable';
+  const number=n=>n.toFixed(1);
+  const oldNFLReview=r=>r.sport==='NFL'&&hasReview(r)&&r.qualitative_review.prompt_version==='mlb-nfl-context-1';
+  // All comparison percentages use the same outcome and exclude refunded pushes.
+  // Keep missing push mass unknown; never substitute a book probability.
+  function comparison(r) {
+    const push=r.sport==='NFL'?r.push_prob:r.sport==='MLB'?r.model_push_probability:r.push_probability;
+    const win=r.sport==='NFL'?null:r.sport==='MLB'?r.model_probability:r.final_probability;
+    const model=r.sport==='NFL'?(probability(r.model_prob)?r.model_prob:null):
+      probability(win)&&probability(push)&&push<1&&win+push<=1?win/(1-push):null;
+    const market=r.sport==='NFL'?r.consensus_prob:r.sport==='MLB'?r.other_book_probability:r.market_probability;
+    const books=r.sport==='NFL'?r.book_count:r.other_books;
+    return {model,market:probability(market)&&finite(books)&&books>0?market:null,
+      books,push:probability(push)?push:null,breakEven:1/decimal(r.price)};
+  }
+  function modelHTML(r) {
+    const c=comparison(r);
+    const mean=r.sport==='NFL'?r.mu:r.sport==='MLB'?r.model_mean:r.projected_mean;
+    let projection='';
+    if(finite(mean)&&r.market!=='h2h') {
+      const label=r.sport==='MLB'?r.model_mean_label||'Projected '+r.market_label.toLowerCase():'Projected '+r.market_label.toLowerCase();
+      projection=`<span class="estimate-detail">${esc(label)}: ${esc(number(mean))}</span>`;
+    }
+    const basis=r.sport==='NFL'?'Historical outcome calibration':r.sport==='NHL'&&r.final_probability!==r.independent_probability?'Final model estimate':'Independent model';
+    return `<strong>${pct(c.model)}</strong><span class="estimate-detail">Win chance*</span>${projection}<span class="meta estimate-detail">${basis} · experimental${c.push>0?'<br>Push: '+pct(c.push):''}</span>`;
+  }
+  function marketHTML(r) {
+    const c=comparison(r),line=finite(r.line)?' at '+r.line:' for this outcome';
+    const median=r.sport==='NFL'&&finite(r.consensus_line)?`<span class="estimate-detail">Median line: ${esc(r.consensus_line)}</span>`:'';
+    const basis=c.market===null?'Paired prices unavailable':`${c.books} ${r.sport==='NFL'?'paired':'other paired'} book${c.books===1?' only':'s'}${r.sport==='NFL'?' · includes listed book':''}`;
+    return `<strong>${pct(c.market)}</strong><span class="estimate-detail">Win chance*${esc(line)}</span>${median}<span class="meta estimate-detail">${esc(basis)}</span>`;
+  }
+  function screenReason(r) {
+    const c=comparison(r);
+    if(c.model===null)return 'This offer passed its sport’s numerical screen; a comparable probability is unavailable.';
+    const market=c.market===null?'':`, versus ${pct(c.market)} from ${c.books===1?(r.sport==='NFL'?'one paired book':'one other book'):(r.sport==='NFL'?'the market':'other books')}`;
+    return `The experimental model estimates a ${pct(c.model)} win chance${market}. The offered ${odds(r.price)} needs ${pct(c.breakEven)} to break even, excluding pushes.`;
+  }
+  function researchStatus(sport,feed,selected,now) {
+    const rows=selected.filter(r=>r.sport===sport),reviewed=rows.filter(hasReview);
+    if(reviewed.length)return `${sport}: ${reviewed.length}/${rows.length} candidates reviewed${reviewed.some(r=>r.review_matches_current===false)?' · changed offers need recheck':''}`;
+    if(!rows.length)return `${sport}: no current candidates`;
+    const board=feed?.sports?.[sport];
+    const status=board?.decision_date===day(now)?board.review_status:null;
+    const label={no_usable_reporting:'relevant reporting unavailable',review_unavailable:'analysis unavailable',api_key_unavailable:'analysis unavailable',budget_exhausted:'analysis unavailable',outside_review_window:'review pending'}[status]||'review pending';
+    return `${sport}: ${label}`;
+  }
 
   function attachReview(r,feed,now) {
     const board=feed?.sports?.[r.sport];
@@ -125,13 +173,14 @@
     }).join('');
     const prev=r.reviewed_candidate;
     const original=prev?`<p class="meta">Reviewed ${esc(odds(prev.price))} at ${esc(time(prev.quoted_at))}. ${r.review_matches_current?'Matches this offer and forecast.':'Current price or forecast differs; this is earlier context, not a review of the current offer.'}</p>`:'';
-    return `<details class="pick-research"><summary>Astra analysis · ${esc(time(q.reviewed_at))}</summary>${original}${items?`<ul>${items}</ul>`:'<p>No supporting source evidence verified.</p>'}<p><strong>Case against:</strong> ${esc(q.countercase)}</p><p><strong>Check before deciding:</strong></p><ul>${q.open_checks.map(s=>`<li>${esc(s)}</li>`).join('')}</ul><p class="meta">Sourced AI critique; human verification still required. Model probability is unchanged. Reviews are archived for prospective evaluation.</p></details>`;
+    const correction=oldNFLReview(r)?'<p class="notice">Method correction: this earlier note was given an incorrect description of the NFL model. Its probabilities are calibrated to historical results, not current market prices. Any claim below that it is “market-calibrated” is incorrect. The forecast itself is unchanged.</p>':'';
+    return `<details class="pick-research"><summary>Fourth &amp; Value analysis · ${esc(time(q.reviewed_at))}</summary><p><strong>Why it surfaced:</strong> ${esc(screenReason(r))}</p>${original}${correction}${items?`<ul>${items}</ul>`:'<p><strong>Additional supporting context unverified.</strong> The numerical screen flagged this offer, but the reporting reviewed did not verify additional context supporting the bet. It remains a candidate for further review.</p>'}<p><strong>Case against:</strong> ${esc(q.countercase)}</p><p><strong>Check before deciding:</strong></p><ul>${q.open_checks.map(s=>`<li>${esc(s)}</li>`).join('')}</ul><p class="meta">AI-assisted research; human verification still required. This review does not change the model probability or establish a betting edge.</p></details>`;
   }
 
   function summaryHTML(selected) {
     if(!selected.length)return '<p>No current candidates are available to summarize. The feed status below shows whether games have started, prices have expired, or a model list is unavailable.</p>';
     const reviewed=selected.filter(hasReview);
-    if(!reviewed.length)return `<p>${selected.length} current candidate${selected.length===1?' is':'s are'} awaiting a completed Astra review. There is no sourced qualitative analysis to summarize yet.</p>`;
+    if(!reviewed.length)return `<p>${selected.length} current candidate${selected.length===1?' is':'s are'} awaiting our analysis. These offers passed the numerical screen; the reporting review is still pending.</p>`;
     // Cover the leading reviewed candidate in each sport, then fill up to three
     // paragraphs in existing model order. No new score or cross-sport ranking.
     const featured=[];
@@ -141,20 +190,23 @@
     for(const row of reviewed)if(featured.length<3&&!featured.includes(row))featured.push(row);
     const paragraphs=featured.map(r=>{
       const q=r.qualitative_review,prior=r.reviewed_candidate||r;
-      const status={research_support:'Astra found sourced support that still needs your verification.',concern:'Astra flagged a sourced concern.',needs_information:'Astra needs more information before the case can be assessed.'}[q.status];
-      const evidence=citedEvidence(r)[0];
-      const source=evidence?` ${esc(evidence.e.interpretation)} (<a href="${esc(evidence.s.url)}" target="_blank" rel="noopener noreferrer">${esc(evidence.s.title)}</a>; published ${esc(time(evidence.s.published_at))}).`:'';
+      const status={research_support:'Our review found relevant supporting reporting; analyst verification is still needed.',concern:'Our review found a concern to resolve.',needs_information:'The reporting reviewed has not yet established a supporting case for this bet.'}[q.status];
+      const evidence=citedEvidence(r).find(({e})=>['supports','concern'].includes(e.direction));
+      const source=evidence?` ${esc(evidence.e.interpretation)} <a href="${esc(evidence.s.url)}" target="_blank" rel="noopener noreferrer">Source</a>.`:'';
       const changed=r.review_matches_current===false?' <strong>The price or forecast has changed since this review; reassess the current offer.</strong>':'';
       const original=changed?` This review assessed ${esc(odds(prior.price))} quoted ${esc(time(prior.quoted_at))}.`:'';
-      const check=q.open_checks[0]?` <strong>Before deciding:</strong> ${esc(q.open_checks[0])}`:'';
-      return `<p class="pick-summary-paragraph"><strong>${esc(r.sport)} · ${esc(r.game)} — ${esc(betLabel(r))}.</strong> The listed price is ${esc(odds(r.price))} at ${esc(r.book_label||r.book)}, quoted ${esc(time(r.quoted_at))}. ${status}${changed}${original}${source} <strong>The case against:</strong> ${esc(q.countercase)}${check} <a class="read-pick-review" href="#pick-review-${selected.indexOf(r)}">Read the full Astra review</a>. <span class="meta">Reviewed ${esc(time(q.reviewed_at))}.</span></p>`;
+      const check=q.open_checks[0]?` <strong>Still to check:</strong> ${esc(q.open_checks[0])}`:'';
+      // Keep long countercases, source timestamps and offer metadata in the full
+      // review/table. No new AI call, shortened quotation or invented narrative.
+      const countercase=q.status==='concern'&&!oldNFLReview(r)?` ${esc(q.countercase)}`:'';
+      return `<p class="pick-summary-paragraph"><strong class="summary-bet">${esc(betLabel(r).replaceAll(' · ',' '))}</strong><span class="meta summary-game">${esc(r.sport)} · ${esc(r.game)}</span>${esc(screenReason(r))} ${status}${changed}${original}${source}${countercase}${check} <a class="read-pick-review" href="#pick-review-${selected.indexOf(r)}">Read our full analysis</a>.</p>`;
     }).join('');
-    return paragraphs+`<p class="meta">${reviewed.length} of ${selected.length} current candidates have a completed review; ${featured.length} summarized here. Other reviews and remaining checks are under each bet below. Model estimates remain unchanged.</p>`;
+    return paragraphs+`<p class="meta">${reviewed.length} of ${selected.length} current candidates reviewed; ${featured.length} summarized here. Full findings and remaining checks appear under each bet. A completed review is not bet approval.</p>`;
   }
 
   function rowHTML(r,index=0,saved=false) {
     const research=researchHTML(r);
-    return `<tr><td><a href="${esc(r.url)}"><strong>${esc(betLabel(r))}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${esc(r.review)}</span></td><td>${esc(odds(r.price))}</td><td><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td>${esc(r.book_label||r.book)}<br><button type="button" class="track-pick secondary" data-track-pick="${index}" ${saved?'disabled':''} aria-label="${esc((saved?'Tracked: ':'Track bet: ')+betLabel(r))}">${saved?'Tracked':'Track bet'}</button></td></tr>${research?`<tr class="pick-research-row" id="pick-review-${index}"><td colspan="4">${research}</td></tr>`:''}`;
+    return `<tr><td><a href="${esc(r.url)}"><strong>${esc(betLabel(r))}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${esc(r.review)}</span></td><td class="pick-estimate">${modelHTML(r)}</td><td class="pick-estimate">${marketHTML(r)}</td><td>${esc(odds(r.price))}<span class="meta estimate-detail">${pct(comparison(r).breakEven)} break-even*</span></td><td><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td>${esc(r.book_label||r.book)}<br><button type="button" class="track-pick secondary" data-track-pick="${index}" ${saved?'disabled':''} aria-label="${esc((saved?'Tracked: ':'Track bet: ')+betLabel(r))}">${saved?'Tracked':'Track bet'}</button></td></tr>${research?`<tr class="pick-research-row" id="pick-review-${index}"><td colspan="6">${research}</td></tr>`:''}`;
   }
 
   async function mount() {
@@ -167,13 +219,13 @@
       const now=Date.now(),result=collect(feeds,now);
       current=result.selected;
       const openReviews=new Set(Array.from(root.querySelectorAll('.pick-research[open]')).map(el=>el.closest('tr').dataset.reviewKey));
-      document.getElementById('daily-picks-rows').innerHTML=current.map((r,i)=>rowHTML(r,i,tickets.get(key(r))?.saved)).join('')||'<tr><td colspan="4">No current bets qualify for today’s review list. See the feed status below; an empty list is a valid result.</td></tr>';
+      document.getElementById('daily-picks-rows').innerHTML=current.map((r,i)=>rowHTML(r,i,tickets.get(key(r))?.saved)).join('')||'<tr><td colspan="6">No current bets qualify for today’s review list. See the feed status below; an empty list is a valid result.</td></tr>';
       current.forEach((r,i)=>{const row=$('pick-review-'+i);if(row){row.dataset.reviewKey=key(r);row.querySelector('details').open=openReviews.has(key(r));}});
       const summary=$('picks-analysis-text');if(summary)summary.innerHTML=summaryHTML(current);
       document.getElementById('picks-status').textContent=`${result.selected.length} candidates for ${new Date(now).toLocaleDateString('en-US',{timeZone:'America/New_York',month:'long',day:'numeric'})} · ${checked?'Source boards checked '+time(checked):'Checking source boards'}.`;
       document.getElementById('picks-coverage').textContent=result.coverage.map(c=>`${c.sport}: ${c.message}`).join(' · ');
       const research=document.getElementById('picks-research-status');
-      if(research)research.textContent=['NFL','MLB'].map(s=>`${s} Astra: ${feeds.Reviews?.sports?.[s]?.decision_date===day(now)?(feeds.Reviews.sports[s].review_status||'unavailable').replaceAll('_',' '):'today’s review pending'}`).join(' · ');
+      if(research)research.textContent=['NFL','MLB','NHL'].map(s=>researchStatus(s,feeds.Reviews,current,now)).join(' · ');
       if(draft&&dialog.open&&!saving&&!draft.saved&&!collect(feeds,now).selected.some(r=>key(r)===key(draft.row))) {
         $('track-quote').textContent=`Saved quote: ${odds(draft.row.price)} at ${time(draft.row.quoted_at)}. This offer has expired or changed. Enter the price of the bet you actually placed.`;
       }
@@ -237,6 +289,6 @@
     await load();setInterval(render,30000);setInterval(load,300000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
   }
-  if(typeof module==='object'&&module.exports)module.exports={collect,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML};
+  if(typeof module==='object'&&module.exports)module.exports={collect,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus};
   else mount();
 })(typeof window==='undefined'?globalThis:window);

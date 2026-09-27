@@ -10,12 +10,14 @@ The model estimates, market prices, AI review and human decision remain separate
 `docs/assets/briefing-picks.js` owns selection in both the browser and the Node
 adapter `scripts/analyst_shortlist.cjs`. The Python runner does not approximate
 that policy. NFL and MLB feeds and routes retain their existing contracts.
-`/briefing/reviews.json` is an additive schema-version-1 feed. Expand **Astra
+`/briefing/reviews.json` is an additive schema-version-1 feed. Expand **Fourth & Value
 analysis** beneath a candidate to read sourced evidence, the countercase and
 checks that could invalidate the thesis. Bet Tracker remains beside each row.
 The independent price rundown is unaffected.
 
-**Top picks analysis**, above the table, presents up to three short prose summaries of completed reviews. It starts with the leading reviewed candidate per sport, then fills any remaining space in existing model order. It repeats the stored interpretation, countercase and first open check without another AI request, changing model scores or inventing claims. Source links, quote/review times and changed-offer warnings remain visible. Each paragraph opens the full review, which contains every evidence item and open check. Missing or expired reviews produce an explicit waiting/empty state. Open reviews stay open during the 30-second freshness refresh when their offer remains on the list.
+**Our analysis**, above the table, presents up to three short summaries, taking the leading reviewed candidate per sport before filling in model order. Each explains the numerical probability/price screen and the first unresolved check. Relevant support or concern can include a sourced interpretation; full countercases, all checks, quote times and publication times remain available in the expanded review. No additional AI request or score change is made for presentation. Missing or expired reviews stay explicit; changed-offer warnings and open review panels survive refreshes.
+
+The table adds model prediction and market consensus columns. Forecast means retain their units; MLB game-margin means are explicitly home margins and are omitted for moneylines. NHL regulation means are never presented as a full-game total. All comparison win probabilities are conditional on non-push settlement: MLB/NHL win mass is divided by one minus push mass, while NFL already supplies that quantity. Missing push mass or paired market coverage stays unavailable, never 50% or a market fallback. NFL's median line is separate from its exact-line consensus probability. MLB/NHL references exclude the offered book; NFL's current reference includes it and is labeled accordingly. Break-even is computed from the actual quoted price.
 
 Each review retains the game, player, market, side, line, book, actual odds,
 quote timestamp, forecast timestamp and probability values it assessed. The
@@ -25,12 +27,11 @@ Changed line, player, book, game or day cannot inherit that review. Sources and
 review times remain visible; old reviews expire after 12 hours and games expire
 at their scheduled start. Failed research does not make an old forecast current.
 
-NFL probabilities are conditional on non-push settlement and already incorporate
-market calibration. They are not independent forecasts; its consensus may
-include the offered book. MLB probabilities are unconditional wins with a
-separate push mass; its other-book market reference is conditional on non-push
-settlement. No conversion is silently inferred when push mass is missing.
-This change does not repair or revalidate the legacy NFL model.
+NFL probabilities are conditional on non-push settlement. The production path (`make_player_prop_params.py` → `make_props_edges.py` → `models/nfl_prop_calibration.json`) uses player-history parameters followed by isotonic calibration to graded historical outcomes. Current market consensus is attached separately by `market_math.add_market_comparisons`; it is not the calibration target. The research adapter continues to leave `independent_probability` unpopulated for NFL rather than change that legacy field's semantics; `final_probability` is its conditional estimate. MLB provides unconditional win and separate push mass.
+
+Correction recorded September 27, 2026: prompt v1 and our earlier explanatory copy incorrectly called NFL market-calibrated. Prompt v2 corrects the description without changing forecasts, spending caps, or already-consumed review slots. Archived v1 responses remain intact; the browser labels affected NFL reviews with an explicit correction and avoids repeating their incorrect model description in the short summary. No retrospective performance or probability improvement is claimed.
+
+The sport-specific screens are not equivalent. NFL takes fitted-calibration estimates with a positive probability gap over offered break-even, with no upper discrepancy guard. MLB requires its upstream predictive checks, >=3% model EV, >=3 percentage-point gap, at least two paired books, best observed price, and rejects EV >30%. NHL requires coherent independent probabilities, verified settlement, >=2% EV and the adverse-scenario minimum price. The briefing limits each sport to four candidates, one per game, and does not promote missing qualitative support to approval. This presentation change does not repair or revalidate the NFL model.
 
 ## Evidence and analysis
 
