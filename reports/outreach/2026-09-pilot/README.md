@@ -19,9 +19,10 @@ morning runs, models, picks, public pages, dependencies, or spending settings.
 
 ## First pilot
 
-1. Establish access to the site's own X account and identify any existing Reddit
-   account. The site's navigation links to [@fourthandvalue](https://x.com/fourthandvalue);
-   that link establishes neither ownership nor a usable publishing connection.
+1. Resolve the X developer-app enrollment error described below, verify the
+   authenticated account is [@fourthandvalue](https://x.com/fourthandvalue), and
+   identify any existing Reddit account. The public handle alone does not
+   establish ownership or usable publishing access.
 2. Publish the first original research post from [OUTREACH.md](OUTREACH.md) through
    an authorized account. Use the second post on a different day. Answer genuine
    questions about the methods and limitations.
@@ -51,13 +52,38 @@ available, not a scheduled background task.
 
 | Item | Why it matters | Current state |
 | --- | --- | --- |
-| Branded account/profile and publishing access | Needed to publish as Fourth & Value | Asked owner; no usable account connection established |
+| X developer app enrollment | Needed to verify and publish as Fourth & Value | Existing credentials found; X rejected verification with `client-not-enrolled`; owner asked to attach app to a Project |
+| Reddit account/profile | Needed for community participation | No account identified |
 | Reddit commercial/API approval if using an agent | Owner permission alone does not establish platform access | Not applied for; request draft prepared |
 | Visitor measurement | Clicks alone cannot demonstrate retained readership | No working attribution pipeline established in this audit |
 
 Do not request passwords in chat. Use a supported account authorization flow when
 a suitable integration is chosen. Any additional account/service fees need to fit
 an explicitly agreed budget; they are not part of the picks research allowance.
+
+## Execution status
+
+The owner explicitly renewed permission to carry out organic engagement after
+putting paid ads on hold. Inspection then found the existing
+`scripts/post_tweet.py` and locally configured X credentials. The read-only
+`GET https://api.x.com/2/users/me` check returned HTTP 403, `Client Forbidden`,
+reason `client-not-enrolled`. X's response says the app supplying the keys and
+tokens must be attached to a developer Project. A second read-only request
+confirmed that reason. No publishing request was sent, and no credentials were
+printed or committed.
+
+The owner needs to attach the existing app to a Project through the
+[X developer portal](https://developer.x.com/en/portal/dashboard). If that
+requires purchasing access, stop and report the cost rather than buying it.
+After configuration is corrected, verify the account, check recent posts for
+duplicates, and publish X1 using the existing authorized script. New permission
+to do organic outreach is not needed. A different authenticated account must not
+be treated as the branded account automatically.
+
+There is no running engagement monitor or scheduled posting task. Forum posting
+also remains unavailable without an identified account and applicable platform
+access. The activity ledger stays empty until a public contribution is actually
+published; API checks are not engagement.
 
 ## Evidence and messaging
 

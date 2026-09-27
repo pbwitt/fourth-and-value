@@ -6,7 +6,7 @@ Research date: September 27, 2026. All copy below is a draft; nothing was posted
 
 | Venue | What the primary source establishes | Pilot decision |
 | --- | --- | --- |
-| [Fourth & Value on X](https://x.com/fourthandvalue) | The repository's `docs/nav.js` links to this handle. Posting access and ownership were not verified. | First owned-channel candidate after access is established. Use X1 and X2 below on separate days. |
+| [Fourth & Value on X](https://x.com/fourthandvalue) | The repository links to this handle and has a posting script with locally configured credentials. Verification returned HTTP 403, `client-not-enrolled`; the authenticated account remains unverified. | First owned-channel candidate once the app is attached to a developer Project and the account check succeeds. Use X1 and X2 on separate days. |
 | [r/sportsbook](https://www.reddit.com/r/sportsbook/) | Community rules reject promotion-only contributions and require the full analysis on Reddit. Individual recurring threads impose additional requirements. | Conditional candidate for a relevant methods/discussion thread. R1 below is not a Pick of the Day entry. Check that thread's rules; no automatic permission to add a brand link. |
 | [r/algobetting](https://www.reddit.com/r/algobetting/) | The rules prohibit advertising and reject short-run bragging about individual picks/days. | Excluded from promotional posting. Do not disguise a marketing post as an educational answer. |
 | [r/hockey](https://www.reddit.com/r/hockey/wiki/selfpromotion/) | Its self-promotion guide requires meaningful participation and three other posts for each self-promotion post; it also bars sales. | Deferred. A new account should not begin with a betting promotion. Genuine hockey-research discussion may fit later, subject to current rules. Do not manufacture participation to satisfy a ratio. |
@@ -26,8 +26,21 @@ this package does not implement a Reddit scraper or posting bot. An owner using
 Reddit's normal interface still has to follow the community rules; that is
 distinct from obtaining access for an automated agent.
 
+Use the existing `scripts/post_tweet.py` for the first X post once its app
+enrollment is corrected and the branded account is verified. The initial
+connection audit missed this repository capability; the execution check is
+recorded in README.md. No replacement integration is needed to attempt that
+route.
+
+X's [automation rules](https://help.x.com/en/rules-and-policies/x-automation)
+permit informational automated posts subject to its rules. They prohibit
+unsolicited automated replies based on keyword searches and require explicit
+prior approval for AI reply bots. This pilot therefore starts with an original
+post on the owned account; it does not launch a reply bot or use website
+scripting to work around the API enrollment failure.
+
 The connected-tool directory search found no Reddit publishing plugin. It found
-Metricool as a possible social-publishing integration, but that does not establish
+Metricool as an optional social-publishing integration, but that does not establish
 Reddit support or usable access to our X account. Its [X access guide](https://help.metricool.com/x-twitter-access-in-metricool-2bt66)
 and [X add-on guide](https://help.metricool.com/your-guide-to-the-x-twitter-add-on-wt5wy)
 describe a paid-plan requirement and a $10/month per-account X add-on. No plugin,
@@ -67,9 +80,10 @@ Post from the site's own branded account. Source: the linked paper, especially
 its abstract, player results, and limitations. The text plus link fits a normal
 short X post using X's shortened-link length.
 
-> We tested NHL forecasts across four seasons. Player-count predictions improved
-> over a simple baseline; a betting edge remains unproven. Our paper explains the
-> results, pricing logic and limitations.
+> We tested four seasons of NHL forecasts. Player predictions improved on a
+> simple baseline, but a betting edge remains unproven.
+>
+> What would you want to see before trusting a model?
 >
 > https://fourthandvalue.com/research/nhl-forecasting-and-market-pricing.html
 
