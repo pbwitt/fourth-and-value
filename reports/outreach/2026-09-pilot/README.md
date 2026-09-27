@@ -19,13 +19,12 @@ morning runs, models, picks, public pages, dependencies, or spending settings.
 
 ## First pilot
 
-1. Resolve the X developer-app enrollment error described below, verify the
-   authenticated account is [@fourthandvalue](https://x.com/fourthandvalue), and
-   identify any existing Reddit account. The public handle alone does not
-   establish ownership or usable publishing access.
-2. Publish the first original research post from [OUTREACH.md](OUTREACH.md) through
-   an authorized account. Use the second post on a different day. Answer genuine
-   questions about the methods and limitations.
+1. The owner handles X. The X drafts in [OUTREACH.md](OUTREACH.md) are available
+   for the owner's use; the assistant must not publish to X or pursue its app
+   setup unless the owner explicitly changes that division of work.
+2. Identify an existing Reddit or forum account and establish an authorized
+   publishing connection and any required platform access. A public profile link
+   identifies an account but does not provide publishing access.
 3. Make at most one community contribution during the first week, only in a
    suitable current thread where the rules permit it. Include the full useful
    explanation and disclose the affiliation. Omit the site link unless allowed.
@@ -52,7 +51,6 @@ available, not a scheduled background task.
 
 | Item | Why it matters | Current state |
 | --- | --- | --- |
-| X developer app enrollment | Needed to verify and publish as Fourth & Value | Existing credentials found; X rejected verification with `client-not-enrolled`; owner asked to attach app to a Project |
 | Reddit account/profile | Needed for community participation | No account identified |
 | Reddit commercial/API approval if using an agent | Owner permission alone does not establish platform access | Not applied for; request draft prepared |
 | Visitor measurement | Clicks alone cannot demonstrate retained readership | No working attribution pipeline established in this audit |
@@ -72,13 +70,12 @@ tokens must be attached to a developer Project. A second read-only request
 confirmed that reason. No publishing request was sent, and no credentials were
 printed or committed.
 
-The owner needs to attach the existing app to a Project through the
-[X developer portal](https://developer.x.com/en/portal/dashboard). If that
-requires purchasing access, stop and report the cost rather than buying it.
-After configuration is corrected, verify the account, check recent posts for
-duplicates, and publish X1 using the existing authorized script. New permission
-to do organic outreach is not needed. A different authenticated account must not
-be treated as the branded account automatically.
+The owner subsequently said they will handle X. That instruction supersedes
+the earlier request to fix the X app and the assistant's plan to publish X1.
+The access-check result is retained as history, not an active assistant task.
+X publishing and account setup are now the owner's responsibility. Organic
+outreach to other communities remains authorized, subject to account access and
+the relevant community and platform rules.
 
 There is no running engagement monitor or scheduled posting task. Forum posting
 also remains unavailable without an identified account and applicable platform
