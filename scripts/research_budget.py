@@ -60,8 +60,21 @@ def save(path, ledger):
     os.replace(temp, path)
 
 
+def daily_limit(now, config=None):
+    config = config or {}
+    cap = min(CAP, config.get('daily_budget_usd', CAP))
+    override = config.get('test_budget_override') or {}
+    if override.get('date') == day(now):
+        cap = override.get('limit_usd')
+        if not isinstance(override.get('reason'), str) or not override['reason'].strip():
+            raise ValueError('Test allowance requires an authorization reason')
+    if type(cap) not in (int, float) or not math.isfinite(cap) or cap <= 0:
+        raise ValueError('Invalid daily research allowance')
+    return cap
+
+
 def run_cap(now, config):
-    cap=min(CAP,config['daily_budget_usd'])
+    cap=daily_limit(now,config)
     # This reserve protects noon-and-later source/price rechecks; it is not a
     # second allowance. All stages charge the same calendar-day ledger.
     if now.astimezone(ET).hour<12:
@@ -69,15 +82,17 @@ def run_cap(now, config):
     return max(0,cap)
 
 
-def usage_summary(now, path=PATH, legacy=None):
+def usage_summary(now, path=PATH, legacy=None, config=None):
     ledger = read(path, legacy)
     used = sum(e['charge_usd'] for e in ledger['entries'] if e.get('day', day(stamp(e['at']))) == day(now))
-    return dict(day=day(now), timezone=str(ET), limit_usd=CAP, charged_or_reserved_usd=round(used, 6),
-                remaining_usd=round(max(0, CAP-used), 6))
+    cap = daily_limit(now,config)
+    return dict(day=day(now), timezone=str(ET), limit_usd=cap, charged_or_reserved_usd=round(used, 6),
+                remaining_usd=round(max(0, cap-used), 6))
 
 
-def reserve(key, now, amount, *, path=PATH, legacy=None, cap=CAP):
-    if not math.isfinite(amount) or amount <= 0 or not 0 < cap <= CAP:
+def reserve(key, now, amount, *, path=PATH, legacy=None, cap=CAP, config=None):
+    limit = daily_limit(now,config)
+    if not math.isfinite(amount) or amount <= 0 or not 0 < cap <= limit:
         raise ValueError('Invalid research reservation')
     with locked(path):
         ledger = read(path, legacy)
@@ -89,7 +104,9 @@ def reserve(key, now, amount, *, path=PATH, legacy=None, cap=CAP):
         if used+amount > cap+1e-9:
             return 'budget_exhausted'
         ledger['entries'].append(dict(key=key, at=iso(now), day=day(now), charge_usd=amount,
-            reserved_usd=amount, status='reserved'))
+            reserved_usd=amount, status='reserved', daily_limit_usd=limit,
+            limit_reason=(config or {}).get('test_budget_override',{}).get('reason')
+                if (config or {}).get('test_budget_override',{}).get('date')==day(now) else None))
         save(path, ledger)
     return 'reserved'
 
