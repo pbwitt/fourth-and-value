@@ -348,19 +348,25 @@ def run_queue(boards, feeds, config, archive, clock, assessment_update=False):
     """Round-robin review batches across sports, without a candidate quota."""
     size=min(3,max(1,config.get('review_batch_size',3)))
     stopped=False
+    attempts=0
+    limit=max(1,int(config.get('max_review_batches',8)))
+    stop_reason=None
     while not stopped and any(b.get('_research_queue',{}).get('pending') for b in boards):
         for board in boards:
             queue=board.get('_research_queue')
             if not queue or not queue['pending']: continue
+            if attempts>=limit:
+                stopped=True;stop_reason='review_limit_reached';break
             batch={k:v for k,v in board.items() if k!='_research_queue'}
             batch['candidates']=queue['pending'][:size]
             batch['_prepared_evidence']=(queue['sources'],queue['diagnostics'])
             try: reviewed=review(batch,feeds,config,archive,clock,assessment_update=assessment_update)
             except Exception as error: reviewed=dict(batch,review_status='review_unavailable',review_error=type(error).__name__)
+            attempts+=1
             queue['statuses'].append(reviewed['review_status'])
             queue['pending']=queue['pending'][size:]
             if reviewed['review_status'] in ('budget_exhausted','budget_halted'):
-                stopped=True;break
+                stopped=True;stop_reason=reviewed['review_status'];break
     for board in boards:
         queue=board.pop('_research_queue',None)
         if queue is None:continue
@@ -368,7 +374,7 @@ def run_queue(boards, feeds, config, archive, clock, assessment_update=False):
         statuses=queue['statuses']
         board.update(reviewed_count=done,pending_count=len(board['candidates'])-done,
             review_status='completed' if done==len(board['candidates']) else
-            'budget_exhausted' if stopped else 'partially_reviewed' if done else
+            stop_reason if stopped else 'partially_reviewed' if done else
             (statuses[-1] if statuses else 'not_requested'))
 
 

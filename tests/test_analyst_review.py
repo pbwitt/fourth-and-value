@@ -277,6 +277,19 @@ class ResearchTests(unittest.TestCase):
                     self.assertEqual(entry['status'],'uncertain_reservation_retained')
                     self.assertEqual(entry['charge_usd'],entry['reserved_usd'])
 
+    def test_review_queue_stops_at_bounded_batch_limit(self):
+        b=board();b['candidates']=[dict(b['candidates'][0],candidate_id=str(i)) for i in range(30)]
+        b['_research_queue']=dict(pending=list(b['candidates']),sources=[],diagnostics={},statuses=[])
+        def completed(batch,*args,**kwargs):
+            for row in batch['candidates']:row['qualitative_review']={'assessment':{'verdict':'consider'}}
+            return dict(batch,review_status='completed')
+        with patch.object(analyst,'review',side_effect=completed) as call:
+            analyst.run_queue([b],feeds(),dict(CONFIG,max_review_batches=2),Path('/unused'),lambda:NOW)
+        self.assertEqual(call.call_count,2)
+        self.assertEqual(b['reviewed_count'],6)
+        self.assertEqual(b['pending_count'],24)
+        self.assertEqual(b['review_status'],'review_limit_reached')
+
     def test_authorized_test_allowance_reaches_review_without_erasing_spend(self):
         b=board()
         cfg=dict(CONFIG,test_budget_override=dict(date='2026-09-27',limit_usd=10,reason='Owner test'))
