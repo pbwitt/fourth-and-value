@@ -40,4 +40,4 @@ VIDEO_SLUG=nhl-season-preview-2026 node scripts/render_editorial_video.cjs
 
 Set `NODE_PATH` if Playwright is installed outside this checkout. `CHROME_PATH` can identify the local Chrome executable. Approval for this video's creation is the owner's request; the command flag does not authorize a YouTube upload. The [official speech guide](https://developers.openai.com/api/docs/guides/text-to-speech) documents Cedar and the voice-disclosure requirement used in the description.
 
-The audio and video are dated production snapshots. Regenerating with a model alias may produce a different voice rendering; the cached WAVs and hashes preserve this edition. No site deployment or YouTube upload is part of this branch.
+The audio and video are dated production snapshots. Regenerating with a model alias may produce a different voice rendering; the cached WAVs and hashes preserve this edition. The site Videos page features the master. The owner handles the YouTube upload.

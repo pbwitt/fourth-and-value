@@ -1,6 +1,6 @@
 # YouTube publication package
 
-Status: narrated video prepared for the owner to upload. Not uploaded or published.
+Status: narrated video ready for the owner to upload to YouTube. The site Videos page includes the master; no YouTube upload has been made.
 
 ## Recommended title
 
