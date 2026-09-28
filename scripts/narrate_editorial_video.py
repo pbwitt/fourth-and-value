@@ -49,7 +49,7 @@ def main():
         scenes=list(pool.map(generate,enumerate(spec['scenes'],1)))
     start=0
     for s in scenes:s['start']=start;start+=s['duration']
-    spec.update(scenes=scenes,duration=start,production_status='Owner approved generation September 22, 2026')
+    spec.update(scenes=scenes,duration=start,production_status=spec.get('production_status','Generated from approved narration spec'))
     (out/'timeline.json').write_text(json.dumps(spec,indent=2)+'\n')
     print(f'Total duration: {start:.2f}s')
 
