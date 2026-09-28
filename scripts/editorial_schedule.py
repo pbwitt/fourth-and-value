@@ -230,6 +230,22 @@ def delivery_due(now):
     return now>=delivery_target(now)
 
 
+# Skip reasons meaning the day's evidence holds no eligible story. Stale or
+# failed refreshes are deliberately absent so they still fail delivery.
+NO_STORY_REASONS=('has no validated model forecasts','matchup-specific model inputs are unavailable',
+    'no distinct matchup','no current market or model data')
+
+
+def no_eligible_story(root,state,now):
+    """True when a completed writer pass found no eligible story in every sport."""
+    marker=state.get('last_writer_check',{})
+    if marker.get('status')!='completed' or not same_et_day(marker.get('at'),now):return False
+    if any(slot.get('status') in ('started','waiting_for_data') for slot in state.get('slots',{}).values()):return False
+    skips=state.get('data_skips',{})
+    return all(any(term in str(skips.get(sport,'')).lower() for term in NO_STORY_REASONS)
+        for sport in config(root).get('sports') or ('NFL','MLB','NBA','NHL'))
+
+
 def verify_delivery(root=ROOT,now=None):
     """Check the product delivered, after publishing so a partial edition survives."""
     now=(now or datetime.now(timezone.utc)).astimezone(timezone.utc)
@@ -241,8 +257,11 @@ def verify_delivery(root=ROOT,now=None):
         and (Path(root)/'docs'/row['url'].lstrip('/')).is_file()}
     state=today_state(root,now)
     due=delivery_due(now)
+    if len(delivered)>=limit:status='complete'
+    elif due and no_eligible_story(root,state,now):status='limited'
+    else:status='overdue' if due else 'pending'
     result=dict(date=now.astimezone(ET).date().isoformat(),expected=limit,delivery_target=delivery_target(now).isoformat(),
-        published=len(delivered),status='complete' if len(delivered)>=limit else 'overdue' if due else 'pending',
+        published=len(delivered),status=status,
         writer_reason=writer_need(root,now)[1],
         slots={key:value.get('status') for key,value in state.get('slots',{}).items()},
         data_skips=state.get('data_skips',{}))
@@ -252,7 +271,9 @@ def verify_delivery(root=ROOT,now=None):
         with open(summary,'a') as stream:
             stream.write(f"\n## Morning articles: {len(delivered)}/{limit} — {result['status']}\n\n")
             stream.write('```json\n'+json.dumps(result,indent=2)+'\n```\n')
-    if due and len(delivered)<limit:
+    if status=='limited':
+        print(f"::warning::Morning edition limited to {len(delivered)}/{limit}: no sport had another eligible story")
+    elif due and len(delivered)<limit:
         raise SystemExit(f"Morning edition incomplete: {len(delivered)}/{limit} articles published; inspect delivery diagnostics")
     return result
 

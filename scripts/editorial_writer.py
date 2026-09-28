@@ -227,6 +227,9 @@ def data_readiness(sport,board,briefing,now):
         if board.get('status')!='ready' or not recent(board.get('last_success_at'),1.5):result['reason']='MLB needs a successful current-day market refresh within 90 minutes';return result
         if not recent(board.get('model_checked_at'),1.5) or result['history_through']!=through or board.get('history_error') or board.get('model_status')!='Independent MLB forecasts available':
             result['reason']='MLB model inputs have not been successfully checked through yesterday';return result
+    # A feed that has never carried a model check is withheld by design, not stale.
+    if sport!='MLB' and board.get('status')=='ready' and not board.get('model_error') and not board.get('model_checked_at'):
+        result['reason']=sport+' has no validated model forecasts in its feed'+(': '+board['model_status'] if board.get('model_status') else '');return result
     if sport!='MLB' and not recent(board.get('model_checked_at'),1.5):
         result['reason']=sport+' model inputs are missing or stale in the editorial feed'+(': '+board['model_status'] if board.get('model_status') else '');return result
     if os.getenv('EDITORIAL_REQUIRE_MORNING_MODELS')=='true':

@@ -20,6 +20,12 @@ class DataOrdering(unittest.TestCase):
         self.assertFalse(w.data_readiness('MLB',self.board,self.briefing,self.now)['ready'])
         self.board['last_success_at']=self.now.isoformat();self.board['status']='feed_error'
         self.assertFalse(w.data_readiness('MLB',self.board,self.briefing,self.now)['ready'])
+    def test_feed_without_any_model_check_is_unvalidated_not_stale(self):
+        board={'status':'ready','last_success_at':self.now.isoformat(),'model_status':'Historical baselines; NBA predictions are not validated'}
+        status=w.data_readiness('NBA',board,self.briefing,self.now)
+        self.assertFalse(status['ready']);self.assertIn('no validated model forecasts',status['reason'])
+        board['model_error']='upstream failed'
+        self.assertIn('missing or stale',w.data_readiness('NBA',board,self.briefing,self.now)['reason'])
     def test_automatic_articles_require_post_start_models_but_manual_requests_do_not(self):
         self.board['model_checked_at']='2026-09-23T10:45:00Z'  # 6:45 ET; within 90 minutes.
         with patch.dict('os.environ',{'EDITORIAL_REQUIRE_MORNING_MODELS':'true'}):
