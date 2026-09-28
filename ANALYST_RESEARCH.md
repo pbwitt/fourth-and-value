@@ -187,9 +187,16 @@ date, kind and status, using unique query strings and no-cache requests. It trie
 cannot be proven. The next recovery start verifies/rebuilds a completed edition
 without paid research. Browser/CDN caches can still delay visibility for readers.
 
-All four recovery starts depend on GitHub Actions. They reduce scheduler risk but
-cannot recover if GitHub drops all of them; no independent scheduling service is
-configured. GitHub documents both timezone support and delayed/dropped cron events:
+All four existing scheduled starts depend on GitHub cron. The September 28
+incident confirmed that none arrived during the morning. An independent Supabase
+trigger is now implemented in `supabase/morning_scheduler.sql`, with four bounded
+dispatches to the same workflow and existing idempotency/budget gates. **Activation
+is pending a Supabase administrator's setup and live verification**; a Git merge
+alone does not install it. See [MORNING_SCHEDULER.md](MORNING_SCHEDULER.md) for the
+incident evidence, installation, receipt checks and rollback. Workflow summaries
+record the trigger source and gate execution time. Until activated, all automatic
+starts still share GitHub's scheduler. GitHub documents timezone support and
+delayed/dropped cron events:
 https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule
 
 Owner-authorized release testing on **September 27, 2026 only** uses a **$20

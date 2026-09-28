@@ -19,6 +19,23 @@ def gate(root, now, *, test_edition=False, replace_card=False):
     return dict(refresh=True, reason='missing_or_incomplete_edition')
 
 
+def record_start(now, result, *, source='operator', summary_path=None):
+    """Record gate execution time, without guessing which cron occurrence was delayed."""
+    local = now.astimezone(ET)
+    source = source if source in ('github-schedule', 'supabase', 'operator') else 'unknown'
+    record = dict(trigger_source=source, gate_checked_at=now.isoformat(),
+                  eastern_time=local.isoformat(), **result)
+    print(json.dumps(record))
+    if summary_path:
+        with open(summary_path, 'a') as output:
+            output.write('\n## Morning start\n\n'
+                         f'- Source: {source}\n'
+                         f'- Gate checked (Eastern): {local.isoformat()}\n'
+                         '- Daily target start: 07:05 America/New_York\n'
+                         f'- Gate: {result["reason"]}\n')
+    return record
+
+
 def verify_live(edition_id, *, root=ROOT, attempts=24, interval=20,
                 fetch=urlopen, sleep=time.sleep):
     card=json.loads((root/'docs/briefing/morning-card.json').read_text())
@@ -50,8 +67,15 @@ def main():
     parser.add_argument('--attempts',type=int,default=24)
     args=parser.parse_args()
     if args.gate:
-        result=gate(ROOT,datetime.now(timezone.utc),test_edition=args.test_edition,replace_card=args.replace_card)
-        print(json.dumps(result))
+        now=datetime.now(timezone.utc)
+        try:
+            result=gate(ROOT,now,test_edition=args.test_edition,replace_card=args.replace_card)
+        except RuntimeError:
+            record_start(now,dict(refresh=False,reason='outside_window_without_completed_edition'),
+                source=os.getenv('MORNING_TRIGGER_SOURCE','operator'),summary_path=os.getenv('GITHUB_STEP_SUMMARY'))
+            raise
+        record_start(now,result,source=os.getenv('MORNING_TRIGGER_SOURCE','operator'),
+            summary_path=os.getenv('GITHUB_STEP_SUMMARY'))
         if os.getenv('GITHUB_OUTPUT'):
             with open(os.environ['GITHUB_OUTPUT'],'a') as output:
                 output.write('refresh='+str(result['refresh']).lower()+'\n')
