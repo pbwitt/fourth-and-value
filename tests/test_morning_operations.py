@@ -17,6 +17,17 @@ NOW=datetime(2026,9,28,11,5,tzinfo=timezone.utc)
 
 
 class MorningOperationsTests(unittest.TestCase):
+    def test_start_report_records_actual_trigger_and_gate_without_guessing_delay(self):
+        with TemporaryDirectory() as td:
+            summary=Path(td)/'summary.md'
+            result=ops.record_start(NOW,dict(refresh=True,reason='missing_or_incomplete_edition'),
+                source='supabase',summary_path=summary)
+            self.assertEqual(result['trigger_source'],'supabase')
+            self.assertEqual(result['eastern_time'],'2026-09-28T07:05:00-04:00')
+            self.assertIn('Source: supabase',summary.read_text())
+            result=ops.record_start(NOW,dict(refresh=False,reason='edition_already_published'),source='unsafe\ntext')
+            self.assertEqual(result['trigger_source'],'unknown')
+
     def value(self):
         return dict(schema_version=1,status='published',kind='morning',rows=[],edition_id='test-edition',decision_date='2026-09-28',published_at=NOW.isoformat())
 

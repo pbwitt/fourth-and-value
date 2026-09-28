@@ -5,6 +5,7 @@ on:
       - 'scripts/**'
       - 'tests/**'
       - 'config/**'
+      - 'supabase/morning_scheduler.sql'
       - 'docs/assets/briefing-picks.js'
       - 'docs/research/daily-process.html'
       - '.github/workflows/**'
@@ -27,3 +28,7 @@ jobs:
       - run: python -m unittest discover -s tests -p 'test_research*.py'
       - run: python -m unittest discover -s tests -p 'test_analyst_review.py'
       - run: python -m unittest discover -s tests -p 'test_morning*.py'
+      - name: Test independent morning scheduler in isolated PostgreSQL
+        run: |
+          npm install --prefix /tmp/fv-morning-db @electric-sql/pglite@0.5.8
+          FV_PGLITE=/tmp/fv-morning-db/node_modules/@electric-sql/pglite node tests/morning_scheduler.cjs

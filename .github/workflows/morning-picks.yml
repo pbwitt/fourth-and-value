@@ -5,6 +5,11 @@ on:
       timezone: America/New_York
   workflow_dispatch:
     inputs:
+      trigger_source:
+        description: Where the start request originated (diagnostics only)
+        type: choice
+        options: [operator, supabase]
+        default: operator
       test_edition:
         description: Publish an explicitly labeled test edition outside morning hours
         type: boolean
@@ -37,6 +42,7 @@ jobs:
         env:
           TEST_EDITION: ${{ inputs.test_edition || false }}
           REPLACE_CARD: ${{ inputs.replace_card || false }}
+          MORNING_TRIGGER_SOURCE: ${{ github.event_name == 'schedule' && 'github-schedule' || inputs.trigger_source || 'operator' }}
         run: |
           args=(--gate)
           if [ "$TEST_EDITION" = 'true' ]; then args+=(--test-edition); fi
