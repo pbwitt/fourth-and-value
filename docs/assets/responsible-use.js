@@ -3,7 +3,7 @@
 function mount(){
  if(!document.querySelector('link[href*="responsible-use.css"]')){const css=document.createElement('link');css.rel='stylesheet';css.href='/assets/responsible-use.css?v=1';document.head.appendChild(css);}
  const path=location.pathname.replace(/^\//,'');
- const contextual=/^(props|nfl|nba|nhl|mlb|tracking|briefing|research)\//.test(path)||path==='methods.html'||path.startsWith('editorial/articles/')||(path.startsWith('blog/')&&!['blog/','blog/index.html'].includes(path));
+ const contextual=/^(props|nfl|nba|nhl|mlb|tracking|briefing|research|tools)\//.test(path)||path==='methods.html'||path.startsWith('editorial/articles/')||(path.startsWith('blog/')&&!['blog/','blog/index.html'].includes(path));
  if(contextual&&!document.getElementById('fv-betting-notice')){const h=document.querySelector('h1');if(h)(h.closest('header')||h).insertAdjacentHTML('afterend',NOTICE);}
  if(!document.getElementById('fv-responsible-footer'))document.body.insertAdjacentHTML('beforeend',FOOTER);
 }

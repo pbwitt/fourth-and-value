@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Fourth &amp; Value — Synthetic Hold: How to Find the True Price of Any Betting Market</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Synthetic hold measures what a betting market really costs when you take the best price at every sportsbook. How to calculate it, with NFL examples." />
+  <link rel="icon" href="../assets/logo.svg" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {"@type": "Question", "name": "What is synthetic hold in sports betting?", "acceptedAnswer": {"@type": "Answer", "text": "Synthetic hold is the hold of a market built from the best available price on each side across all sportsbooks. It measures the real cost of a bet for anyone who can shop multiple books."}},
+      {"@type": "Question", "name": "How is synthetic hold different from vig?", "acceptedAnswer": {"@type": "Answer", "text": "Vig, or juice, is what one book charges. Synthetic hold is what the whole market charges when you take the best price on each side. It is always equal to or lower than the lowest single-book hold on the same market."}},
+      {"@type": "Question", "name": "Does a negative synthetic hold guarantee a profit?", "acceptedAnswer": {"@type": "Answer", "text": "Only if both prices are on the same line, both books settle the bet the same way, and you get both bets placed before either price moves."}},
+      {"@type": "Question", "name": "Is arbitrage betting legal?", "acceptedAnswer": {"@type": "Answer", "text": "Where sports betting is legal, betting both sides at different books is not against the law. But sportsbooks can limit or close accounts they identify as arbitrage bettors."}},
+      {"@type": "Question", "name": "Do I need accounts at multiple sportsbooks?", "acceptedAnswer": {"@type": "Answer", "text": "To take advantage of synthetic hold, yes. Every added book gives you another price to choose from, and even two or three books can cut your cost noticeably."}}
+    ]
+  }
+  </script>
+  <style>
+    :root{
+      --bg:#0b0e13; --surface:#12161d; --ink:#eef1f5; --muted:#8b93a1; --line:#232a35;
+      --accent:#6ea8fe; --good:#2dd4bf; --warn:#f0ab3d;
+    }
+    *{box-sizing:border-box}
+    html,body{ margin:0; background:var(--bg); }
+    body{ color:var(--ink); font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
+    a{ color:var(--accent); }
+    .wrap{ max-width:720px; margin:0 auto; padding:40px 24px 96px; }
+    .kicker{ font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); display:flex; align-items:center; gap:10px; margin-bottom:22px; }
+    .kicker .dot{ width:6px; height:6px; border-radius:50%; background:var(--accent); }
+    h1{ font-family:'Fraunces',serif; font-weight:600; font-size:clamp(32px,5.6vw,48px); line-height:1.08; letter-spacing:-.01em; margin:0 0 18px; text-wrap:balance; }
+    article{ font-size:17px; line-height:1.7; }
+    article p{ margin:0 0 22px; }
+    article ul{ margin:0 0 22px; padding-left:22px; }
+    article li{ margin-bottom:10px; }
+    h2{ font-family:'Fraunces',serif; font-weight:600; font-size:28px; line-height:1.2; margin:52px 0 16px; }
+    h3{ font-size:18px; margin:32px 0 10px; }
+    .formula{ font-family:'JetBrains Mono',monospace; font-size:15px; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 18px; margin:0 0 22px; line-height:1.8; overflow-x:auto; }
+    .tbl-wrap{ overflow-x:auto; margin:8px 0 22px; border:1px solid var(--line); border-radius:12px; position:relative; }
+    table{ width:100%; border-collapse:collapse; font-size:14.5px; }
+    th,td{ padding:10px 14px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap; }
+    th:first-child,td:first-child{ text-align:left; }
+    th{ font-weight:600; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.06em; background:var(--surface); }
+    td{ font-family:'JetBrains Mono',monospace; }
+    td:first-child{ font-family:'Inter',sans-serif; }
+    tr:last-child td{ border-bottom:0; }
+    td.best{ color:var(--good); font-weight:700; }
+    td.neg{ color:var(--warn); }
+    .callout{ border-left:3px solid var(--accent); background:color-mix(in oklab, var(--accent) 8%, var(--surface)); border-radius:0 12px 12px 0; padding:18px 22px; margin:28px 0; font-size:15.5px; line-height:1.65; }
+    .callout p{ margin:0 0 12px; }
+    .callout p:last-child{ margin:0; }
+    .callout .tag{ font-family:'JetBrains Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--accent); display:block; margin-bottom:8px; font-weight:700; }
+    .cta{ display:block; text-decoration:none; background:var(--surface); border:1px solid var(--accent); border-radius:14px; padding:20px 22px; margin:32px 0; color:var(--ink); }
+    .cta b{ font-family:'Fraunces',serif; font-size:21px; display:block; margin-bottom:4px; }
+    .cta span{ color:var(--muted); font-size:15px; }
+    .cta:hover{ background:color-mix(in oklab, var(--accent) 8%, var(--surface)); }
+    .faq h3{ margin-top:26px; }
+    .back{ display:inline-block; margin-top:40px; color:var(--accent); }
+    @media (max-width:560px){ .wrap{ padding:28px 16px 72px; } h2{ font-size:24px; } }
+  </style>
+<link rel="stylesheet" href="/assets/responsible-use.css?v=1"><link rel="canonical" href="https://fourthandvalue.com/blog/synthetic-hold.html"><meta property="og:title" content="Fourth &amp; Value — Synthetic Hold: How to Find the True Price of Any Betting Market"><meta property="og:description" content="Fourth &amp; Value — Synthetic Hold: How to Find the True Price of Any Betting Market. Sports analysis and research from Fourth &amp; Value."><meta property="og:url" content="https://fourthandvalue.com/blog/synthetic-hold.html"><meta property="og:type" content="website"><meta name="twitter:card" content="summary"></head>
+<body>
+  <div id="nav-root"></div>
+  <script src="../nav.js?v=44"></script>
+
+  <main class="wrap">
+    <header>
+      <div class="kicker"><span class="dot"></span>Fourth &amp; Value &middot; Fundamentals &middot; Sep 29, 2026 &middot; 9 min read</div>
+      <h1>Synthetic Hold: How to Find the True Price of Any Betting Market</h1>
+    </header><!-- fv-notices:notice:start --><aside id="fv-betting-notice" class="fv-use-notice" aria-label="Betting information disclaimer"><strong>Analysis, not a guarantee.</strong> Picks and projections are uncertain; odds and player information can change. No outcome or profit is guaranteed. Any wager is your decision and responsibility. <a href="/terms.html#responsible-play">Read our limitations and responsible-play guidance</a>.</aside><!-- fv-notices:notice:end -->
+
+    <article>
+      <p>Every sportsbook charges you a price to bet. On a standard −110/−110 NFL spread, that price is a 4.55% hold, the share of every dollar wagered the book expects to keep.</p>
+      <p>But you don't have to accept any single book's price. If you have accounts at several books, the price you actually pay is set by the best number on each side, wherever it happens to sit. That combined price is called the <strong>synthetic hold</strong>, and it's one of the most useful ideas in betting that almost nobody explains.</p>
+      <p>This article covers what a synthetic market is, how to calculate synthetic hold step by step, and why it matters even if you never place an arbitrage bet.</p>
+
+      <h2>What is a synthetic market?</h2>
+      <p>A synthetic market is the market you'd see if every sportsbook were one book. For each side of a bet, you take the best price available anywhere and pair them together.</p>
+      <p>No single book actually offers that market. It exists only for a bettor who can shop across books. But for that bettor, it's the true price of the bet.</p>
+      <p>The name comes from finance, where a “synthetic” position is built from parts rather than bought directly. The idea is the same here: you assemble the best available market from pieces spread across different books.</p>
+
+      <h2>How to calculate synthetic hold</h2>
+      <p>Synthetic hold takes three steps: find the best price on each side, convert both to implied probabilities, and measure how far their sum runs past 100%.</p>
+
+      <h3>Step 1: Find the best price on each side</h3>
+      <p>Take a hypothetical Bills −3 vs. Dolphins +3 spread at three books:</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Book</th><th>Bills −3</th><th>Dolphins +3</th><th>Book's own hold</th></tr></thead>
+          <tbody>
+            <tr><td>Book A</td><td>−115</td><td class="best">−105</td><td>4.50%</td></tr>
+            <tr><td>Book B</td><td class="best">−108</td><td>−112</td><td>4.54%</td></tr>
+            <tr><td>Book C</td><td>−110</td><td>−110</td><td>4.55%</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>The best Bills price is −108 at Book B. The best Dolphins price is −105 at Book A. The synthetic market is Bills −108 / Dolphins −105.</p>
+
+      <h3>Step 2: Convert each price to implied probability</h3>
+      <div class="formula">
+        negative odds: &nbsp;p = |odds| / (|odds| + 100)<br>
+        positive odds: &nbsp;p = 100 / (odds + 100)
+      </div>
+      <p>Bills −108 gives 108 / 208 = 51.92%. Dolphins −105 gives 105 / 205 = 51.22%.</p>
+
+      <h3>Step 3: Calculate the hold</h3>
+      <p>The two probabilities add up to 103.14%. In a fair market they would sum to exactly 100%, so the extra 3.14% is the book's margin, called the overround. Hold expresses that margin as a share of total money wagered:</p>
+      <div class="formula">hold = 1 − 1 / (p₁ + p₂)</div>
+      <p>Here that's 1 − 1 / 1.0314 = <strong>3.05%</strong>.</p>
+      <p>Each book on its own holds about 4.5%. Taking the best side at each drops the price to 3.05%, roughly a third cheaper, without changing anything about the bet itself.</p>
+
+      <div class="callout">
+        <span class="tag">From our own price data</span>
+        <p>This isn't just a textbook effect. For Monday's Eagles–Bears total at 41.5, ten books were quoting both sides on our <a href="/briefing/">daily briefing</a> snapshot. Their holds ran from 3.25% to 4.75%. Best over (−109) plus best under (−104) gave a synthetic hold of <strong>3.04%</strong>, cheaper than every individual book. The best over came from the book with the <em>highest</em> hold on the board. Books don't spread their margin evenly across both sides.</p>
+        <p>Across 786 same-line NFL, MLB and NHL totals boards we captured from September 22–28, 2026, the median single-book hold was 4.50% and the median synthetic hold was 2.83%.</p>
+      </div>
+
+      <h2>From synthetic hold to fair odds</h2>
+      <p>The synthetic market also gives you a cleaner estimate of the true odds. To strip out the margin, divide each side's implied probability by their sum:</p>
+      <div class="formula">p_fair = pᵢ / (p₁ + p₂)</div>
+      <p>Bills: 51.92% / 103.14% = 50.34%. Dolphins: 51.22% / 103.14% = 49.66%. In American odds, that's about Bills −101 / Dolphins +101.</p>
+      <p>This beats de-vigging a single book. One book's line reflects that book's opinion and that book's margin. The synthetic market takes the sharpest number on each side, so its fair odds tend to sit closer to where the whole market really is.</p>
+      <p>This is the simplest way to remove the margin, and it works well for near-even markets like spreads and totals. For lopsided markets, such as big moneyline favorites or longshot props, other methods shift more of the margin onto the longshot side and are usually more accurate.</p>
+
+      <h2>When synthetic hold goes negative: arbitrage</h2>
+      <p>Books update prices at different speeds. Sometimes one book is slow to move, and the best prices on each side briefly add up to less than 100%. The synthetic hold goes negative, and on paper you can bet both sides and profit no matter who wins.</p>
+      <p>Say news breaks and Book A moves the Dolphins to +105, while Book D still has the Bills at −102. Bills −102 implies 50.50%, and Dolphins +105 implies 48.78%. Together that's 99.28%, a synthetic hold of <strong>−0.73%</strong>.</p>
+      <p>To lock in the profit, split your stake in proportion to each side's implied probability. On $1,000 total, that's $508.64 on the Bills and $491.36 on the Dolphins. Either way you collect $1,007.30, a $7.30 profit. If the Bills win by exactly 3, both bets push and you get your money back.</p>
+      <p>In practice, arbitrage is harder than the math makes it look:</p>
+      <ul>
+        <li><strong>Prices move fast.</strong> If the second price disappears before you bet it, you're stuck holding one side at a worse number.</li>
+        <li><strong>The lines must match.</strong> Bills −3 against Dolphins +3.5 isn't an arb. It's a middle, a different bet with different math.</li>
+        <li><strong>House rules differ.</strong> Books settle some situations differently, such as a player prop when the player doesn't play, so the two sides may not grade the same way.</li>
+        <li><strong>Books limit arbers.</strong> Arbitrage is legal, but sportsbooks can cut limits on accounts that bet it consistently.</li>
+      </ul>
+      <p>Our own data shows how rare and fragile these are. Only 2 of those 786 boards went negative, and in both cases one book was far out of line with everyone else, either the stalest quote on the board or minutes before first pitch.</p>
+
+      <h2>Why it matters even without an arb</h2>
+      <p>Arbs are rare. The bigger payoff from synthetic hold comes on every ordinary bet you make, because it tells you how much edge you need to win.</p>
+      <p>Suppose your model gives the Bills a 53% chance to cover. Here's that same opinion at three prices:</p>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Price</th><th>Break-even win rate</th><th>Expected value per $100 risked</th></tr></thead>
+          <tbody>
+            <tr><td>−108</td><td>51.92%</td><td class="best">+$2.07</td></tr>
+            <tr><td>−110</td><td>52.38%</td><td>+$1.18</td></tr>
+            <tr><td>−115</td><td>53.49%</td><td class="neg">−$0.91</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Same game, same opinion. At −108 it's a solid bet; at −115 it loses money. As we covered in <a href="/blog/the-edge-was-the-price.html">The Edge Was the Price</a>, the edge often lives in the number you get, not the side you pick.</p>
+      <p>This is the core idea in <em>The Logic of Sports Betting</em> by Ed Miller and Matthew Davidow: form your opinions, then bet them into the markets where synthetic hold is lowest. A low-hold market needs a smaller edge to be profitable. And the best prices often come from books that are slow to move or out of step with the rest of the market, which is exactly where mispricing lives.</p>
+
+      <h2>Where to look in NFL markets</h2>
+      <p>Synthetic hold isn't spread evenly across markets or across the week. Four places are worth watching:</p>
+      <ul>
+        <li><strong>Main spreads and totals.</strong> These are the most competitive markets in American betting. Prices cluster tightly, so arbs are rare and brief, but reduced-juice books and slow movers still create soft spots.</li>
+        <li><strong>Player props.</strong> This is where books disagree most. Individual books usually hold more on props, but because their projections differ, the best prices across books can produce a synthetic hold far below any single book's. The catch is that books often hang different numbers, such as 64.5 rushing yards at one book and 66.5 at another. Only prices at the same number can be combined.</li>
+        <li><strong>Early lines.</strong> Lines posted days before kickoff carry the most disagreement between books, before sharp money pulls them together. We dug into this in <a href="/blog/early-lines-sharp-advantage.html">Why Sharp Bettors Get In Early</a>.</li>
+        <li><strong>Breaking news.</strong> Injury reports and inactive lists, released 90 minutes before kickoff, are when books move at different speeds and synthetic hold briefly drops.</li>
+      </ul>
+
+      <h2>How Fourth &amp; Value uses synthetic hold</h2>
+      <p>We try to read the market as a whole rather than one book at a time, and the synthetic hold puts a single number on that. Our <a href="/briefing/">daily briefing</a> and Market Watch pages compare prices across books side by side, and the synthetic hold tells you how much room a bet has and how soft the market is before you place it.</p>
+
+      <a class="cta" href="/tools/synthetic-hold.html">
+        <b>Run the numbers yourself →</b>
+        <span>The Synthetic Hold Calculator takes each book's price on both sides and returns every book's hold, the best price on each side, the synthetic hold, fair odds for both sides, and stake sizing when an arb exists.</span>
+      </a>
+
+      <h3>Related reading</h3>
+      <ul>
+        <li><a href="/blog/how-books-make-money.html">How Sportsbooks Make Money (and Why We Devig)</a></li>
+        <li><a href="/blog/the-edge-was-the-price.html">The Edge Was the Price</a></li>
+        <li><a href="/blog/structural-arbitrage-explained.html">What is Structural Arbitrage?</a></li>
+        <li><a href="/blog/early-lines-sharp-advantage.html">Why Sharp Bettors Get In Early</a></li>
+      </ul>
+
+      <section class="faq">
+        <h2>Frequently asked questions</h2>
+        <h3>What is synthetic hold in sports betting?</h3>
+        <p>Synthetic hold is the hold of a market built from the best available price on each side across all sportsbooks. It measures the real cost of a bet for anyone who can shop multiple books.</p>
+        <h3>How is synthetic hold different from vig?</h3>
+        <p>Vig, or juice, is what one book charges. Synthetic hold is what the whole market charges when you take the best price on each side. It's always equal to or lower than the lowest single-book hold on the same market.</p>
+        <h3>Does a negative synthetic hold guarantee a profit?</h3>
+        <p>Only if both prices are on the same line, both books settle the bet the same way, and you get both bets placed before either price moves.</p>
+        <h3>Is arbitrage betting legal?</h3>
+        <p>Where sports betting is legal, betting both sides at different books isn't against the law. But sportsbooks can limit or close accounts they identify as arbitrage bettors.</p>
+        <h3>Do I need accounts at multiple sportsbooks?</h3>
+        <p>To take advantage of synthetic hold, yes. Every added book gives you another price to choose from, and even two or three books can cut your cost noticeably.</p>
+      </section>
+
+      <a class="back" href="./index.html">← Back to Blog</a>
+    </article>
+  </main>
+<!-- fv-notices:footer:start --><section id="fv-responsible-footer" class="fv-use-footer" aria-label="Responsible use"><p>Fourth &amp; Value provides sports analysis for informational and entertainment purposes. We do not accept wagers. You are responsible for your wagering decisions and for meeting applicable age and legal requirements. Never wager money you cannot afford to lose.</p><p><a href="/terms.html">Terms &amp; privacy</a> · <a href="/terms.html#responsible-play">Responsible play</a> · U.S. gambling support: call or text <a href="tel:+18006973738">1-800-MY-RESET</a> or <a href="https://www.ncpgambling.org/help-treatment/">find confidential help</a>.</p></section><!-- fv-notices:footer:end --></body>
+</html>
