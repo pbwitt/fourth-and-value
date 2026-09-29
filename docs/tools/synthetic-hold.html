@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Fourth &amp; Value — Synthetic Hold Calculator</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Enter two-sided prices from several sportsbooks at the same line to see each book's hold, the best price on each side, the synthetic market hold and the consensus fair price." />
+  <link rel="icon" href="../assets/logo.svg" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#0b0e13; --surface:#12161d; --surface-2:#171c25; --ink:#eef1f5; --muted:#8b93a1; --line:#232a35;
+      --accent:#6ea8fe; --good:#2dd4bf; --warn:#f0ab3d; --bad:#f87171;
+    }
+    *{box-sizing:border-box}
+    html,body{ margin:0; background:var(--bg); }
+    body{ color:var(--ink); font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
+    a{ color:var(--accent); }
+    .wrap{ max-width:980px; margin:0 auto; padding:36px 24px 80px; }
+    .kicker{ font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-bottom:14px; }
+    h1{ font-family:'Fraunces',serif; font-weight:600; font-size:clamp(30px,5vw,44px); line-height:1.1; margin:0 0 12px; }
+    .lede{ color:var(--muted); font-size:16px; line-height:1.6; margin:0 0 24px; max-width:70ch; }
+    .panel{ background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px; margin:0 0 18px; }
+    .controls{ display:flex; flex-wrap:wrap; gap:14px 18px; align-items:flex-end; }
+    .field{ display:flex; flex-direction:column; gap:6px; font-size:12.5px; color:var(--muted); }
+    input, select{ font:inherit; font-size:15px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:9px 10px; min-height:40px; }
+    input:focus-visible, select:focus-visible, button:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+    input[aria-invalid="true"]{ border-color:var(--bad); }
+    .field input{ width:130px; }
+    .field input.wide{ width:180px; }
+    button{ font:inherit; font-size:14px; font-weight:600; color:var(--ink); background:var(--surface-2); border:1px solid var(--line); border-radius:8px; padding:9px 14px; min-height:40px; cursor:pointer; }
+    button:hover{ border-color:var(--accent); }
+    button.primary{ background:var(--accent); color:#0b0e13; border-color:var(--accent); }
+    .btns{ display:flex; flex-wrap:wrap; gap:8px; margin-left:auto; }
+    .note{ font-size:13px; color:var(--muted); margin:12px 0 0; line-height:1.5; }
+    .tbl-wrap{ overflow-x:auto; position:relative; }
+    table{ width:100%; border-collapse:collapse; font-size:14px; }
+    th{ text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); font-weight:600; padding:8px 6px; border-bottom:1px solid var(--line); white-space:nowrap; }
+    td{ padding:6px; border-bottom:1px solid var(--line); vertical-align:middle; }
+    td.num, th.num{ text-align:right; font-family:'JetBrains Mono',monospace; white-space:nowrap; }
+    td input{ width:100%; min-width:84px; }
+    td.book input{ min-width:120px; }
+    td input.best{ border-color:var(--good); color:var(--good); font-weight:700; }
+    .rm{ min-height:36px; padding:6px 10px; color:var(--muted); }
+    .rm:hover{ color:var(--bad); border-color:var(--bad); }
+    .muted{ color:var(--muted); }
+    .results{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:0 0 18px; }
+    .tile{ background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:14px 16px; }
+    .tile .k{ font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+    .tile .v{ font-family:'JetBrains Mono',monospace; font-size:26px; font-weight:700; margin-top:6px; }
+    .tile .s{ font-size:13px; color:var(--muted); margin-top:4px; line-height:1.4; }
+    .tile.hero{ border-color:var(--accent); }
+    .tile.hero .v{ color:var(--accent); font-size:32px; }
+    .tile.hero.neg{ border-color:var(--warn); }
+    .tile.hero.neg .v{ color:var(--warn); }
+    .explain{ font-size:14.5px; line-height:1.65; margin:0; }
+    .arb{ display:none; border-left:3px solid var(--warn); }
+    .arb.on{ display:block; }
+    .arb h2, .panel h2{ font-size:16px; margin:0 0 10px; }
+    .arb .grid{ display:flex; flex-wrap:wrap; gap:12px 24px; align-items:flex-end; margin:10px 0; }
+    .arb .out{ font-family:'JetBrains Mono',monospace; font-size:15px; }
+    .formula{ font-family:'JetBrains Mono',monospace; font-size:13.5px; line-height:1.8; color:var(--muted); }
+    .formula b{ color:var(--ink); }
+    .sr{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+    @media (max-width:760px){
+      .wrap{ padding:24px 16px 64px; }
+      .results{ grid-template-columns:1fr 1fr; }
+      .btns{ margin-left:0; }
+      td input{ min-width:68px; padding:8px; }
+      td.book input{ min-width:96px; }
+    }
+    @media (max-width:420px){ .results{ grid-template-columns:1fr; } }
+  </style>
+<link rel="stylesheet" href="/assets/responsible-use.css?v=1"><link rel="canonical" href="https://fourthandvalue.com/tools/synthetic-hold.html"><meta property="og:title" content="Fourth &amp; Value — Synthetic Hold Calculator"><meta property="og:description" content="Fourth &amp; Value — Synthetic Hold Calculator. Sports analysis and research from Fourth &amp; Value."><meta property="og:url" content="https://fourthandvalue.com/tools/synthetic-hold.html"><meta property="og:type" content="website"><meta name="twitter:card" content="summary"></head>
+<body>
+  <div id="nav-root"></div>
+  <script src="../nav.js?v=44"></script>
+
+  <main class="wrap">
+    <div class="kicker">Fourth &amp; Value · Tools</div>
+    <h1>Synthetic Hold Calculator</h1><!-- fv-notices:notice:start --><aside id="fv-betting-notice" class="fv-use-notice" aria-label="Betting information disclaimer"><strong>Analysis, not a guarantee.</strong> Picks and projections are uncertain; odds and player information can change. No outcome or profit is guaranteed. Any wager is your decision and responsibility. <a href="/terms.html#responsible-play">Read our limitations and responsible-play guidance</a>.</aside><!-- fv-notices:notice:end -->
+    <p class="lede">Enter each book's price on both sides of the same market. The calculator finds the best price on each side, combines them into one synthetic market and shows what the whole market charges compared with any single book. New to the idea? Read <a href="/blog/synthetic-hold.html">Synthetic Hold: Price the Market, Not the Book</a>.</p>
+
+    <section class="panel" aria-label="Market setup">
+      <div class="controls">
+        <label class="field">Odds format
+          <select id="fmt">
+            <option value="american">American (−110)</option>
+            <option value="decimal">Decimal (1.91)</option>
+          </select>
+        </label>
+        <label class="field">Side A label <input id="labelA" value="Over" maxlength="24"></label>
+        <label class="field">Side B label <input id="labelB" value="Under" maxlength="24"></label>
+        <label class="field">Line (all rows) <input id="line" class="wide" value="41.5" maxlength="24"></label>
+        <div class="btns">
+          <button type="button" id="example">Load Eagles–Bears example</button>
+          <button type="button" id="clear">Clear</button>
+          <button type="button" id="share">Copy share link</button>
+        </div>
+      </div>
+      <p class="note">Every row must be priced at the <strong>same line</strong>. An over at 41.5 and an under at 42 are different bets, so remove books quoting a different number. Two-way markets only (totals, spreads, moneylines without a draw).</p>
+    </section>
+
+    <section class="panel" aria-label="Book prices">
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Book</th>
+              <th scope="col" id="thA">Over</th>
+              <th scope="col" id="thB">Under</th>
+              <th scope="col" class="num">Hold</th>
+              <th scope="col" class="num" id="thFair">Fair Over</th>
+              <th scope="col"><span class="sr">Remove</span></th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:12px"><button type="button" class="primary" id="add">+ Add book</button></div>
+      <p class="note">Best price on each side is outlined in green. “Fair” removes that book's own margin from its own pair of prices.</p>
+    </section>
+
+    <div class="results" aria-live="polite">
+      <div class="tile hero" id="tileSyn"><div class="k">Synthetic hold</div><div class="v" id="synHold">—</div><div class="s" id="synPair">Enter at least two books</div></div>
+      <div class="tile"><div class="k">Lowest single-book hold</div><div class="v" id="minHold">—</div><div class="s" id="minBook"></div></div>
+      <div class="tile"><div class="k">Median single-book hold</div><div class="v" id="medHold">—</div><div class="s" id="saved"></div></div>
+      <div class="tile"><div class="k">Consensus fair price</div><div class="v" id="fairA">—</div><div class="s" id="fairOdds"></div></div>
+    </div>
+
+    <section class="panel" aria-live="polite">
+      <p class="explain" id="explain">Enter prices above to see how the whole market compares with any single book.</p>
+    </section>
+
+    <section class="panel arb" id="arb" aria-live="polite">
+      <h2>Negative synthetic hold: stake split</h2>
+      <p class="explain">The best prices imply less than 100% combined. At <em>these exact quoted prices</em>, splitting a total stake as below returns the same amount whichever side wins. In practice, quotes go stale, books limit or void bets they consider errors, stake caps can leave one side unfilled, and settlement rules differ between books. Check every price is current before treating this as anything more than a market observation.</p>
+      <div class="grid">
+        <label class="field">Total stake ($) <input id="stake" type="number" min="0" step="1" value="100" inputmode="decimal"></label>
+        <div><div class="muted" style="font-size:12.5px" id="stakeALbl">Over</div><div class="out" id="stakeA">—</div></div>
+        <div><div class="muted" style="font-size:12.5px" id="stakeBLbl">Under</div><div class="out" id="stakeB">—</div></div>
+        <div><div class="muted" style="font-size:12.5px">Return either way</div><div class="out" id="payout">—</div></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>How it's calculated</h2>
+      <div class="formula">
+        implied(American −A) = A / (A + 100) &nbsp;·&nbsp; implied(+A) = 100 / (A + 100) &nbsp;·&nbsp; implied(decimal d) = 1 / d<br>
+        book hold = 1 − 1 / (implied A + implied B)<br>
+        <b>synthetic hold</b> = 1 − 1 / (lowest implied A across books + lowest implied B across books)<br>
+        consensus fair A = best implied A / (best implied A + best implied B)
+      </div>
+      <p class="note">Hold is a share of handle: the margin the market keeps, over time, from money bet on both sides in balanced proportions. Figures describe the prices you enter, not the probability of any outcome. Nothing is sent anywhere; the calculation runs entirely in your browser.</p>
+    </section>
+  </main>
+
+  <script>
+  (function(){
+    // Eagles @ Bears total 41.5, briefing snapshot Sep 28, 2026 2:44–2:46 PM ET.
+    var EXAMPLE = { fmt:'american', a:'Over', b:'Under', line:'41.5', rows:[
+      ['LowVig.ag','-110','-104'],['BetMGM','-110','-108'],['DraftKings','-115','-105'],['BetUS','-115','-105'],
+      ['Caesars','-113','-107'],['BetOnline.ag','-113','-107'],['FanDuel','-112','-108'],['MyBookie.ag','-110','-110'],
+      ['Fanatics','-110','-110'],['BetRivers','-109','-112']
+    ]};
+
+    var $ = function(id){ return document.getElementById(id); };
+    var tbody = $('rows'), fmt = $('fmt'), labelA = $('labelA'), labelB = $('labelB'), line = $('line');
+
+    function parseOdds(raw){
+      var s = String(raw || '').trim().replace(/[−–]/g,'-');
+      if (!s) return null;
+      var v = Number(s);
+      if (!isFinite(v)) return NaN;
+      if (fmt.value === 'decimal') return v > 1 ? 1 / v : NaN;
+      if (Math.abs(v) < 100) return NaN;
+      return v > 0 ? 100 / (v + 100) : -v / (-v + 100);
+    }
+    function pct(x, d){ return (x * 100).toFixed(d == null ? 2 : d) + '%'; }
+    function toAmerican(p){
+      var v = p >= 0.5 ? -100 * p / (1 - p) : 100 * (1 - p) / p;
+      var r = Math.round(v * 10) / 10;
+      if (Math.abs(r) < 100) r = r < 0 ? -100 : 100;
+      return (r > 0 ? '+' : '−') + Math.abs(r).toFixed(Math.abs(r) % 1 ? 1 : 0);
+    }
+    function toDecimal(p){ return (1 / p).toFixed(3); }
+    function fairOdds(p){ return fmt.value === 'decimal' ? toDecimal(p) : toAmerican(p); }
+    function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+    function median(xs){ var s = xs.slice().sort(function(a,b){return a-b;}), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m-1] + s[m]) / 2; }
+
+    function addRow(book, a, b){
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td class="book"><input aria-label="Book name" value="' + esc(book || '') + '" maxlength="30" placeholder="Book"></td>' +
+        '<td><input class="oa" aria-label="Side A price" value="' + esc(a || '') + '" inputmode="text" placeholder="' + (fmt.value === 'decimal' ? '1.91' : '-110') + '"></td>' +
+        '<td><input class="ob" aria-label="Side B price" value="' + esc(b || '') + '" inputmode="text" placeholder="' + (fmt.value === 'decimal' ? '1.91' : '-110') + '"></td>' +
+        '<td class="num hold muted">—</td><td class="num fair muted">—</td>' +
+        '<td><button type="button" class="rm" aria-label="Remove book">✕</button></td>';
+      tr.querySelector('.rm').addEventListener('click', function(){ tr.remove(); calc(); });
+      tbody.appendChild(tr);
+    }
+
+    function load(state){
+      fmt.value = state.fmt || 'american';
+      labelA.value = state.a || 'Over'; labelB.value = state.b || 'Under'; line.value = state.line || '';
+      tbody.innerHTML = '';
+      (state.rows || []).forEach(function(r){ addRow(r[0], r[1], r[2]); });
+      while (tbody.children.length < 2) addRow('', '', '');
+      calc();
+    }
+
+    function readState(){
+      return { fmt: fmt.value, a: labelA.value, b: labelB.value, line: line.value,
+        rows: Array.prototype.map.call(tbody.children, function(tr){
+          var i = tr.querySelectorAll('input'); return [i[0].value, i[1].value, i[2].value];
+        }) };
+    }
+
+    function calc(){
+      var A = labelA.value.trim() || 'Side A', B = labelB.value.trim() || 'Side B';
+      $('thA').textContent = A; $('thB').textContent = B; $('thFair').textContent = 'Fair ' + A;
+      $('stakeALbl').textContent = A; $('stakeBLbl').textContent = B;
+
+      var valid = [];
+      Array.prototype.forEach.call(tbody.children, function(tr, idx){
+        var inp = tr.querySelectorAll('input');
+        var pa = parseOdds(inp[1].value), pb = parseOdds(inp[2].value);
+        inp[1].setAttribute('aria-invalid', pa !== pa ? 'true' : 'false');
+        inp[2].setAttribute('aria-invalid', pb !== pb ? 'true' : 'false');
+        inp[1].classList.remove('best'); inp[2].classList.remove('best');
+        var holdCell = tr.querySelector('.hold'), fairCell = tr.querySelector('.fair');
+        if (pa > 0 && pb > 0){
+          var s = pa + pb;
+          holdCell.textContent = pct(1 - 1 / s); fairCell.textContent = pct(pa / s);
+          valid.push({ tr: tr, name: inp[0].value.trim() || ('Book ' + (idx + 1)), pa: pa, pb: pb, rawA: inp[1].value.trim(), rawB: inp[2].value.trim(), hold: 1 - 1 / s });
+        } else { holdCell.textContent = '—'; fairCell.textContent = '—'; }
+      });
+
+      var tile = $('tileSyn'), arb = $('arb');
+      if (valid.length < 2){
+        ['synHold','minHold','medHold','fairA'].forEach(function(id){ $(id).textContent = '—'; });
+        $('synPair').textContent = 'Enter at least two books with both prices';
+        $('minBook').textContent = ''; $('saved').textContent = ''; $('fairOdds').textContent = '';
+        $('explain').textContent = 'Enter prices above to see how the whole market compares with any single book.';
+        tile.classList.remove('neg'); arb.classList.remove('on');
+        return;
+      }
+
+      var bestA = valid.reduce(function(m, r){ return r.pa < m.pa ? r : m; });
+      var bestB = valid.reduce(function(m, r){ return r.pb < m.pb ? r : m; });
+      valid.forEach(function(r){
+        var i = r.tr.querySelectorAll('input');
+        if (r.pa === bestA.pa) i[1].classList.add('best');
+        if (r.pb === bestB.pb) i[2].classList.add('best');
+      });
+      var s = bestA.pa + bestB.pb, syn = 1 - 1 / s;
+      var minR = valid.reduce(function(m, r){ return r.hold < m.hold ? r : m; });
+      var med = median(valid.map(function(r){ return r.hold; }));
+      var fair = bestA.pa / s;
+
+      $('synHold').textContent = pct(syn);
+      $('synPair').textContent = A + ' ' + bestA.rawA + ' (' + bestA.name + ') + ' + B + ' ' + bestB.rawB + ' (' + bestB.name + ')';
+      $('minHold').textContent = pct(minR.hold); $('minBook').textContent = minR.name;
+      $('medHold').textContent = pct(med);
+      $('saved').textContent = med > 0 && syn < med ? 'Synthetic is ' + Math.round((1 - syn / med) * 100) + '% cheaper than the median book' : '';
+      $('fairA').textContent = pct(fair);
+      $('fairOdds').textContent = A + ' ' + fairOdds(fair) + ' · ' + B + ' ' + fairOdds(1 - fair) + ' (no-margin odds)';
+
+      var lineTxt = line.value.trim() ? ' at ' + line.value.trim() : '';
+      var msg;
+      if (syn < 0){
+        msg = 'The best ' + A + ' and best ' + B + lineTxt + ' imply ' + pct(s) + ' combined, below 100%, so the synthetic hold is negative. Usually this means one book is out of step with the rest of the market: a stale quote, a line about to move, or a book that is first to react to news. Check the timestamps before reading anything more into it.';
+      } else if (bestA === bestB){
+        msg = bestA.name + ' has the best price on both sides' + lineTxt + ', so the synthetic market is simply that book (' + pct(syn) + ' hold). Shopping this market adds nothing beyond using ' + bestA.name + '.';
+      } else {
+        msg = 'Taking the best ' + A + ' from ' + bestA.name + ' and the best ' + B + ' from ' + bestB.name + lineTxt + ' gives a synthetic hold of ' + pct(syn) + ', compared with ' + pct(minR.hold) + ' at the cheapest single book and ' + pct(med) + ' at the median book.';
+        var hi = valid.reduce(function(m, r){ return r.hold > m.hold ? r : m; });
+        if (hi !== minR && (hi === bestA || hi === bestB)) msg += ' Note that ' + hi.name + ' has the highest hold on the board but still posts the best ' + (hi === bestA ? A : B) + '. Books rarely spread their margin evenly across both sides.';
+      }
+      $('explain').textContent = msg;
+
+      tile.classList.toggle('neg', syn < 0);
+      arb.classList.toggle('on', syn < 0);
+      if (syn < 0){
+        var T = Math.max(0, Number($('stake').value) || 0);
+        var sa = T * bestA.pa / s, sb = T * bestB.pb / s;
+        $('stakeA').textContent = '$' + sa.toFixed(2) + ' @ ' + bestA.name;
+        $('stakeB').textContent = '$' + sb.toFixed(2) + ' @ ' + bestB.name;
+        $('payout').textContent = '$' + (T / s).toFixed(2) + ' (' + pct(1 / s - 1) + ')';
+      }
+    }
+
+    function encode(){
+      try { return btoa(unescape(encodeURIComponent(JSON.stringify(readState())))); } catch(e){ return ''; }
+    }
+    function decode(h){
+      try { var st = JSON.parse(decodeURIComponent(escape(atob(h)))); return st && Array.isArray(st.rows) ? st : null; } catch(e){ return null; }
+    }
+
+    document.addEventListener('input', function(e){ if (e.target.closest('main')) calc(); });
+    fmt.addEventListener('change', function(){
+      Array.prototype.forEach.call(tbody.querySelectorAll('.oa,.ob'), function(i){ i.placeholder = fmt.value === 'decimal' ? '1.91' : '-110'; });
+      calc();
+    });
+    $('add').addEventListener('click', function(){ addRow('', '', ''); tbody.lastElementChild.querySelector('input').focus(); });
+    $('example').addEventListener('click', function(){ load(EXAMPLE); });
+    $('clear').addEventListener('click', function(){ load({ fmt: fmt.value, a: labelA.value, b: labelB.value, line: '', rows: [] }); });
+    $('share').addEventListener('click', function(){
+      var url = location.origin + location.pathname + '#s=' + encode(), btn = this;
+      history.replaceState(null, '', url);
+      var done = function(ok){ btn.textContent = ok ? 'Link copied' : 'Link in address bar'; setTimeout(function(){ btn.textContent = 'Copy share link'; }, 1800); };
+      if (navigator.clipboard) navigator.clipboard.writeText(url).then(function(){ done(true); }, function(){ done(false); }); else done(false);
+    });
+
+    var fromHash = location.hash.indexOf('#s=') === 0 ? decode(location.hash.slice(3)) : null;
+    load(fromHash || EXAMPLE);
+  })();
+  </script>
+<!-- fv-notices:footer:start --><section id="fv-responsible-footer" class="fv-use-footer" aria-label="Responsible use"><p>Fourth &amp; Value provides sports analysis for informational and entertainment purposes. We do not accept wagers. You are responsible for your wagering decisions and for meeting applicable age and legal requirements. Never wager money you cannot afford to lose.</p><p><a href="/terms.html">Terms &amp; privacy</a> · <a href="/terms.html#responsible-play">Responsible play</a> · U.S. gambling support: call or text <a href="tel:+18006973738">1-800-MY-RESET</a> or <a href="https://www.ncpgambling.org/help-treatment/">find confidential help</a>.</p></section><!-- fv-notices:footer:end --></body>
+</html>
