@@ -236,6 +236,32 @@ class EditorialScheduleTests(unittest.TestCase):
         (articles/'b.html').write_text('published')
         self.assertEqual(sched.verify_delivery(root,now)['status'],'complete')
 
+    def test_short_edition_passes_when_every_sport_had_no_eligible_story(self):
+        td,root=self.make_root();self.addCleanup(td.cleanup)
+        now=datetime(2026,9,28,21,0,tzinfo=timezone.utc)
+        articles=root/'docs/editorial/articles';articles.mkdir()
+        (articles/'a.html').write_text('published')
+        (root/'docs/editorial/published.json').write_text(json.dumps([{'date':'2026-09-28','kind':'Analysis','url':'/editorial/articles/a.html'}]))
+        skips={'NHL':'NHL has no validated model forecasts in its feed','NBA':'NBA has no validated model forecasts in its feed',
+            'MLB':'Current matchup-specific model inputs are unavailable','NFL':'No distinct matchup with current model inputs and sufficient reporting'}
+        state={'last_writer_check':{'at':'2026-09-28T12:54:00Z','status':'completed'},'slots':{'0-nfl':{'status':'published'}},'data_skips':skips}
+        self.write_state(root,'2026-09-28',state)
+        self.assertEqual(sched.verify_delivery(root,now)['status'],'limited')
+        # A stale refresh in any sport is still a delivery failure.
+        state['data_skips']=dict(skips,NHL='NHL model inputs are missing or stale in the editorial feed')
+        self.write_state(root,'2026-09-28',state)
+        with self.assertRaisesRegex(SystemExit,'1/2'):
+            sched.verify_delivery(root,now)
+        # So is a sport the writer never evaluated, or a slot still waiting for data.
+        state['data_skips']={k:v for k,v in skips.items() if k!='MLB'}
+        self.write_state(root,'2026-09-28',state)
+        with self.assertRaisesRegex(SystemExit,'1/2'):
+            sched.verify_delivery(root,now)
+        state['data_skips']=skips;state['slots']['1-mlb']={'status':'waiting_for_data'}
+        self.write_state(root,'2026-09-28',state)
+        with self.assertRaisesRegex(SystemExit,'1/2'):
+            sched.verify_delivery(root,now)
+
     def test_before_deadline_missing_delivery_is_pending(self):
         td,root=self.make_root();self.addCleanup(td.cleanup)
         now=datetime(2026,9,26,10,0,tzinfo=timezone.utc)
