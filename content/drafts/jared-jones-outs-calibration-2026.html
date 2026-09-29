@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Our MLB Model Flagged a Pick. Our Own Audit Says Pass. | Fourth &amp; Value</title>
+  <meta name="description" content="Jared Jones over 14.5 outs shows 7.2% expected value on the MLB board. The model's own calibration table turns that into a losing bet." />
+  <link rel="icon" href="../assets/logo.svg" />
+  <link rel="canonical" href="https://fourthandvalue.com/blog/jared-jones-outs-calibration-2026.html" />
+  <link rel="stylesheet" href="../assets/site.css" />
+  <style>
+    article { max-width: 760px; margin: 0 auto; padding: 42px 22px 80px; line-height: 1.7; }
+    .eyebrow { color: var(--muted); letter-spacing: .08em; text-transform: uppercase; font-size: .78rem; }
+    h1 { font-size: clamp(2rem, 5vw, 3.5rem); line-height: 1.08; margin: 12px 0; }
+    .dek { color: var(--muted); font-size: 1.15rem; max-width: 62ch; }
+    .box { border: 1px solid var(--border); background: var(--card); border-radius: 12px; padding: 18px; margin: 28px 0; }
+    .numbers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 22px 0; }
+    .number { background: #101722; border: 1px solid var(--border); border-radius: 10px; padding: 13px; }
+    .number b { display: block; font-size: 1.45rem; color: var(--accent); }
+    .number span { color: var(--muted); font-size: .78rem; }
+    li { margin: 7px 0; }
+    table { font-size: .93rem; font-variant-numeric: tabular-nums; }
+    td, th { padding: 8px 10px; }
+    th { color: var(--muted); font-weight: 600; font-size: .82rem; }
+    .hit { color: var(--accent); }
+    .miss { color: #ffaba5; }
+    @media (max-width: 620px) { .numbers { grid-template-columns: repeat(2, 1fr); } }
+  </style>
+<meta property="og:title" content="Our MLB Model Flagged a Pick. Our Own Audit Says Pass. | Fourth &amp; Value"><meta property="og:description" content="Our MLB Model Flagged a Pick. Our Own Audit Says Pass. Sports analysis and research from Fourth &amp; Value."><meta property="og:url" content="https://fourthandvalue.com/blog/jared-jones-outs-calibration-2026.html"><meta property="og:type" content="website"><meta name="twitter:card" content="summary"></head>
+<body>
+  <div id="nav-root"></div><script src="../nav.js?v=35"></script>
+  <article>
+    <p class="eyebrow">Fourth &amp; Value · Case study · MLB, September 2026</p>
+    <h1>Our MLB model flagged a pick. Our own audit says pass.</h1>
+    <p class="dek">Jared Jones over 14.5 outs prices out at 7.2% expected value. Then you read the calibration table the model ships alongside it, and the edge goes negative.</p>
+
+    <div class="box"><strong>Pregame snapshot.</strong> Prices and model output captured Sep 21, 2026 at 23:27 UTC, before Cardinals at Pirates on Sep 22. This is an analysis of what was knowable beforehand, not a graded result.</div>
+
+    <div class="numbers">
+      <div class="number"><b>71.3%</b><span>model probability</span></div>
+      <div class="number"><b>66.6%</b><span>break-even at −199</span></div>
+      <div class="number"><b>64.1%</b><span>audit-implied hit rate</span></div>
+      <div class="number"><b>−3.8%</b><span>EV after recalibration</span></div>
+    </div>
+
+    <h2>The pick the board produced</h2>
+    <p>Jared Jones starts for Pittsburgh against St. Louis on Tuesday at PNC Park. DraftKings posted <strong>over 14.5 outs at −199</strong> — five complete innings. Our MLB model put the probability at <strong>71.3%</strong> against a break-even of 66.6%, a 4.8-point edge and 7.2% expected value per unit. It cleared the 3% threshold in <code>mlb-picks-v1</code> and came back labeled <em>Eligible experimental model pick</em>.</p>
+    <p>That is the kind of number that makes a bet look obvious. It is worth slowing down, because the same file that produced it also contains the reason not to take it.</p>
+
+    <h2>The workload case is real</h2>
+    <p>Start with what supports the over. Jones has been going deeper into games as the season has worn on, and the pitch counts say it is deliberate rather than accidental.</p>
+
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Date</th><th>Opponent</th><th>IP</th><th>Outs</th><th>Pitches</th><th>K</th><th>ER</th><th>vs 14.5</th></tr></thead>
+      <tbody>
+        <tr><td>Aug 4</td><td>Milwaukee</td><td>4.0</td><td>12</td><td>83</td><td>4</td><td>3</td><td class="miss">under</td></tr>
+        <tr><td>Aug 9</td><td>NY Mets</td><td>3.0</td><td>9</td><td>69</td><td>3</td><td>8</td><td class="miss">under</td></tr>
+        <tr><td>Aug 15</td><td>Boston</td><td>5.0</td><td>15</td><td>85</td><td>7</td><td>1</td><td class="hit">over</td></tr>
+        <tr><td>Aug 22</td><td>LA Dodgers</td><td>4.0</td><td>12</td><td>87</td><td>5</td><td>2</td><td class="miss">under</td></tr>
+        <tr><td>Aug 28</td><td>St. Louis</td><td>4.2</td><td>14</td><td>86</td><td>6</td><td>3</td><td class="miss">under</td></tr>
+        <tr><td>Sep 4</td><td>LA Angels</td><td>6.0</td><td>18</td><td>91</td><td>9</td><td>0</td><td class="hit">over</td></tr>
+        <tr><td>Sep 10</td><td>Chi. White Sox</td><td>7.0</td><td>21</td><td>90</td><td>8</td><td>0</td><td class="hit">over</td></tr>
+        <tr><td>Sep 16</td><td>Milwaukee</td><td>5.0</td><td>15</td><td>91</td><td>9</td><td>3</td><td class="hit">over</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <p>Six, seven and five innings in the last three, on 91, 90 and 91 pitches. Earlier in the year he was coming out at 73 to 85. A lengthening leash is exactly the mechanism that should move an outs line, and it is the strongest argument for the over.</p>
+    <p>The counterargument is in the same table. Across the full season he has reached five innings in only <strong>nine of 19 starts</strong>. His season line is 90.2 innings, a 4.17 ERA and 10.8 strikeouts per nine — a pitcher who misses bats but has not consistently been trusted past the fifth. And on <strong>August 28 he finished one out short of this exact number, against these exact Cardinals.</strong></p>
+
+    <h2>What the model actually computed</h2>
+    <p>The outs model is a boosted model over rolling starter and opponent features, with a fitted residual spread. For this start it projected a mean of <strong>15.86 outs</strong> with a standard deviation of <strong>3.67</strong>.</p>
+    <p>Two things follow. First, the projection clears the line by 1.36 outs — less than half an inning — on a distribution whose typical error is nearly three outs. One extra baserunner in the fifth erases the margin. Second, that mean and spread on their own imply a <strong>64.4%</strong> chance of going over 14.5. The published 71.3% comes from a calibration layer applied on top, which lifts the raw number by roughly seven points.</p>
+    <p>That layer is the thing worth auditing, because we audit it.</p>
+
+    <h2>The calibration table says this range runs hot</h2>
+    <p>Every model version ships a held-out validation block. For pitcher outs, the test partition covers Aug 22 through Sep 20 — 3,016 forecasts across 405 games — and bins predicted probability against observed hit rate. Here is the neighborhood our 71.3% lands in:</p>
+
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Predicted</th><th>Observed</th><th>Gap</th><th>n</th></tr></thead>
+      <tbody>
+        <tr><td>55.0%</td><td>45.3%</td><td class="miss">−9.7</td><td>391</td></tr>
+        <tr><td>66.8%</td><td>57.1%</td><td class="miss">−9.6</td><td>140</td></tr>
+        <tr><td><strong>71.3%</strong></td><td><strong>64.1%</strong></td><td class="miss">−7.2</td><td>interpolated</td></tr>
+        <tr><td>74.5%</td><td>68.8%</td><td class="miss">−5.7</td><td>308</td></tr>
+        <tr><td>85.0%</td><td>78.2%</td><td class="miss">−6.8</td><td>533</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <p>Across the whole upper half of the range, the model predicts high and the games come in lower. Interpolating between the two bins that bracket us gives an expected hit rate of about <strong>64.1%</strong>.</p>
+    <p>Break-even at −199 is 66.6%. So the honest estimate is <strong>2.5 points below the price</strong>, not 4.8 points above it. Expected value goes from +7.2% to <strong>−3.8%</strong> per unit. Put in odds terms: the model says fair value is −249, the recalibrated estimate says −178, and the market is asking −199. The market is sitting between the two, which is roughly where a market should sit.</p>
+
+    <h2>Two more reasons for caution</h2>
+    <ul>
+      <li><strong>This line was never validated.</strong> The outs model is audited against a fixed threshold grid of 12.5, 15.5, 17.5 and 18.5. There is no 14.5 bucket. Our stated limitation is that evaluation uses fixed grids rather than archived historical bookmaker lines, and 14.5 falls in a gap between the two tested thresholds nearest it.</li>
+      <li><strong>Two books is not a consensus.</strong> Only DraftKings (−199) and Bovada (−200) posted this prop. The 62.4% de-vigged fair probability we show is therefore one other book, not market agreement. Thin markets are where a model most wants to find an edge and where an edge is least trustworthy.</li>
+    </ul>
+    <p>The overall calibration error for pitcher outs is 0.053 against our 0.06 pass threshold. It passed. It passed narrowly, and the miss is concentrated in exactly the confidence range where this pick lives.</p>
+
+    <h2>What we would need to change our mind</h2>
+    <ul>
+      <li>A validated threshold at or near 14.5, rather than interpolation between 12.5 and 15.5.</li>
+      <li>Calibration bins in the 65–75% range that land within two or three points of observed, sustained across more than one test window.</li>
+      <li>More than two books pricing the market, so the comparison is against a consensus rather than a single counterparty.</li>
+      <li>A recency feature that distinguishes a genuine change in usage from a three-start run of good outcomes. Right now the model leans on outs and pitches over the last five starts, which cannot tell those apart.</li>
+    </ul>
+
+    <div class="box"><strong>The pick is the disagreement, not the bet.</strong> A model that flags 7.2% EV and an audit that says the same forecast historically comes in seven points light are both outputs of the same pipeline. When they conflict, the held-out evidence wins. No play on Jones over 14.5 — and the fact that the board surfaced it anyway is a threshold problem we need to fix, not a pick we need to defend.</div>
+
+    <p><a href="../mlb/">See the MLB board</a> · <a href="../mlb/validation.html">Open the model validation page</a> · <a href="./">Back to the blog</a></p>
+  </article>
+</body>
+</html>
