@@ -592,12 +592,14 @@ def run(now,limit=2,idea_id=None,publish_own=False):
             verdict=json.loads(re.sub(r'^```(?:json)?\s*|\s*```$','',response_text(review).strip()))
             state['slots'][key]['audit_reason']='Private idea audit completed' if idea else verdict.get('reason','')
             if verdict.get('pass') is not True:raise ValueError('Factual audit did not pass: '+verdict.get('reason',''))
-            if idea and (rewrite or not idea['owner_idea'] or (idea_id and not (publish_own and idea.get('write_now_publish',False) and (not idea.get('publish_on') or idea['publish_on']<=day)))):
+            # Every private desk submission needs an explicit editor Publish
+            # action. Legacy --publish-own flags and account-role changes cannot
+            # authorize a draft. Standalone daily articles have no idea row.
+            if idea:
                 ideas.save_draft(idea,article,story_now,market_snapshot=bool(packet['markets']))
                 state['slots'][key].update(status='review',words=words)
                 print('Requested draft saved privately for editor approval.',flush=True)
                 continue
-            if idea:ideas.finish(idea)
             slug=f'{day}-idea-{idea_id}' if idea_id else f'{day}-{key}';url=f'/editorial/articles/{slug}.html'
             item=dict(title=article['title'],excerpt=article['excerpt'],sport=sport,kind='Analysis',date=day,url=url,featured=True,published_at=datetime.now(timezone.utc).isoformat())
             starts=[ed.stamp(g['commence_time']) for g in packet['markets'] if g['id'] in article['market_ids']]

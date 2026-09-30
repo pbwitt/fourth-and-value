@@ -218,6 +218,10 @@ def publish_approved(now,receipt):
     catalog=json.loads(catalog_path.read_text()) if catalog_path.exists() else []
     done=[]
     for row in response.json():
+        # Defense in depth: even if a queue response is malformed, a contributor
+        # draft must carry a real editor's explicit publication authorization.
+        if row.get('status') not in ('approved','publishing'):continue
+        if row.get('requires_review') and not row.get('approved_by'):continue
         if not row.get('approved_hash') or (row.get('publish_on') and row['publish_on']>now.astimezone(ETZ).date().isoformat()):continue
         # A revoked editor cannot publish through an old queued approval.
         user=requests.get(base+'/auth/v1/admin/users/'+(row.get('approved_by') or row['user_id']),headers=api_headers(),timeout=20)

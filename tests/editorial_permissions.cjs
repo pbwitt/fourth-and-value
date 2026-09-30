@@ -46,6 +46,13 @@ const {PGlite}=require(mod),{pgcrypto}=require(mod+(path.isAbsolute(mod)?'/dist/
  assert.equal(approved.approved_by,owner);assert.equal(approved.approved_hash.length,64);
  let changed=(await db.query("update public.editorial_ideas set title='Revised title' where id=$1 returning *",[row.id])).rows[0];
  assert.equal(changed.status,'review');assert.equal(changed.approved_hash,null);assert.equal(changed.approved_by,null);
+ // Changing a reader article to opinion never changes its origin or approves it.
+ const opinion=(await db.query("update public.editorial_ideas set kind='opinion',featured=true where id=$1 returning *",[row.id])).rows[0];
+ assert.equal(opinion.status,'review');assert.equal(opinion.requires_review,true);
+ assert.equal(opinion.approved_hash,null);assert.equal(opinion.approved_by,null);
+ await as('service_role',null);
+ await rejected("update public.editorial_ideas set status='approved' where id=$1",[row.id]);
+ await as('authenticated',owner,true);
  await db.query("update public.editorial_ideas set status='approved' where id=$1",[row.id]);
  await rejected("update public.editorial_ideas set status='published' where id=$1",[row.id]);
  const own=(await db.query("insert into public.editorial_ideas(idea) values ('Owner topic') returning *")).rows[0];

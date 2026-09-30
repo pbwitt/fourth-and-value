@@ -770,3 +770,49 @@ Tests cover morning/winter timing, delayed or failed models, current history,
 manual requests, no-paid-call freshness failures and the 08:30 delivery target.
 Rollback the scheduling/handoff change as one unit if needed; preserve article
 ledgers, published articles, research archives and both spending ledgers.
+
+
+## Manual contributor publication — September 30, 2026
+
+This section supersedes earlier instructions allowing private owner ideas to
+publish directly. Paul requested manual publication of contributor articles.
+The desk now applies the same explicit publication decision to **every private
+submission**, while standalone automatic daily articles keep their existing flow.
+
+- `Write analysis draft` requests private drafting only (`publish_own: false`).
+  The desk no longer exposes any automatic-publication checkbox. Reader-origin
+  flags remain immutable in the database.
+- `Save idea`, `Save draft`, changing to Opinion, and homepage placement never
+  authorize publication. A persistent Publish panel explains missing title,
+  byline, full text (minimum 100 characters), or analysis sources. Unsaved changes
+  and active writing disable publication. Opinion opens the full article editor;
+  it requires text written/pasted by an editor. This change does **not** add an
+  AI opinion-writing mode or claim that an idea is a completed article.
+- `Publish saved article` confirms the actual saved title, byline, category,
+  placement, and earliest date. It sets the existing `approved` state with an
+  optimistic version/status check. The database fingerprints that version and
+  records the approving editor. `PUBLICATION REQUESTED` explicitly means waiting
+  for hourly delivery; this is not an instant-publication button. Editors can
+  withdraw a pending request; an in-progress claim cannot be silently cancelled.
+- `editorial_writer.py` always saves an idea-derived article as private `review`,
+  even with legacy auto-publication flags, a promoted reader, or inconsistent
+  cached ownership. Only `editorial.py --publish-approved` releases those rows.
+  It independently rejects non-approved states and reader rows missing an
+  approving editor. Existing database approval and content-change guards remain.
+- Failure messages and `NO DRAFT` labels stay separate from publication state.
+  Saving does not reset a failed writing attempt or trigger another paid request.
+  A successfully generated rewrite still requires a new publication decision.
+
+Deployment: static desk/CSS and GitHub Python workflow code only. No database
+migration, Edge Function deployment, credential change, paid call, reader-account
+permission grant, or actual contributor publication is needed for this release.
+Existing approved rows remain explicitly authorized; no queue records are edited
+by this code deployment. Signed-in production acceptance still depends on the
+owner's account; local fixture checks do not claim access to live private drafts.
+
+Checks: `node tests/editorial_manual.cjs`, existing editorial Python suite,
+`node tests/editorial_dispatch.cjs`, and `tests/editorial_permissions.cjs` verify
+manual saves, confirmation/cancellation, changed-version rejection, opinion
+conversion, reader privacy, and publication authorization. The controller checks
+also cover withdrawal and reject automatic publication for owner and reader
+requests. The permission test uses isolated PostgreSQL, not production accounts.
