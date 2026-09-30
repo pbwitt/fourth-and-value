@@ -18,7 +18,7 @@ function nflTotalsPage(kickoff,quoted){
     `CAR @ ATL,${kickoff},ATL,CAR,draftkings,43.5,-110,-105,-3.0,-115,-105,${quoted},${quoted}\n`);
   const out=path.join(dir,'index.html');
   execFileSync('python3',['scripts/nfl_build_totals_page.py','--week','4','--predictions',path.join(dir,'none.csv'),'--consensus',path.join(dir,'consensus.csv'),
-    '--edges',path.join(dir,'none.csv'),'--lines',path.join(dir,'lines.csv'),'--output',out],{cwd:repo,stdio:'pipe'});
+    '--edges',path.join(dir,'none.csv'),'--lines',path.join(dir,'lines.csv'),'--output',out],{cwd:repo,stdio:'pipe',encoding:'utf8'});
   return fs.readFileSync(out,'utf8');
 }
 
