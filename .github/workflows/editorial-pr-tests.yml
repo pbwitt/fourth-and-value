@@ -30,6 +30,10 @@ on:
       - 'supabase/functions/editorial-write-now/**'
       - 'supabase/editorial*.sql'
       - 'docs/editorial/*.js'
+      - 'docs/editorial/inbox.html'
+      - 'docs/assets/editorial.css'
+      - 'tests/editorial_manual.cjs'
+      - 'tests/editorial_rewrite_browser.cjs'
       - '.github/workflows/editorial*.yml'
       - 'config/editorial.json'
       - 'EDITORIAL_OPERATIONS.md'
@@ -53,6 +57,7 @@ jobs:
         with:
           node-version: '22'
       - run: node tests/editorial_dispatch.cjs
+      - run: node tests/editorial_manual.cjs
       - run: node tests/briefing_picks.cjs
       - run: python -m unittest discover -s tests -p 'test_analyst_review.py'
       - run: node tests/tracker_saves.cjs
@@ -60,6 +65,7 @@ jobs:
       - run: node tests/grade_bets.cjs
       - run: npm install --no-save --package-lock=false playwright@1.55.1
       - run: npx playwright install --with-deps chromium
+      - run: node tests/editorial_rewrite_browser.cjs
       - run: node tests/briefing_browser.cjs
       - run: node tests/research_browser.cjs
       - name: Test private reader permissions in isolated PostgreSQL

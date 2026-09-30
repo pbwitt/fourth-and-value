@@ -15,6 +15,22 @@ def event():
             'bookmakers':[{'key':k,'last_update':NOW.isoformat(),'markets':[{'key':'totals','outcomes':[{'name':'Over','point':p,'price':-110},{'name':'Under','point':p,'price':-110}]}]} for k,p in [('one',40.5),('two',41.5)]]}
 
 class EditorialTests(unittest.TestCase):
+    def test_contributor_needs_explicit_editor_publication_authorization(self):
+        base=dict(id='45981557-219d-4866-b015-56c1aa2c1933',status='approved',
+                  requires_review=True,approved_hash='fingerprint',approved_by='editor',
+                  user_id='reader',updated_at=NOW.isoformat(),publish_on=None,
+                  title='Contributor opinion',body='Completed opinion. '*20,byline='Contributor',
+                  sources='',kind='opinion',sport='NFL',featured=True)
+        for updates in ({'approved_by':None},{'approved_hash':None},{'status':'review'},
+                        {'status':'submitted'},{'status':'archived'}):
+            with self.subTest(updates=updates), tempfile.TemporaryDirectory() as tmp:
+                queue=Mock(ok=True,status_code=200);queue.json.return_value=[dict(base,**updates)]
+                with patch.object(m,'DOCS',Path(tmp)), patch.dict(m.os.environ,{'SUPABASE_URL':'https://example.test','SUPABASE_SERVICE_ROLE_KEY':'test'}), patch.object(m.requests,'get',return_value=queue), patch.object(m.requests,'patch') as claim:
+                    m.publish_approved(NOW,Path(tmp)/'receipt.json')
+                claim.assert_not_called()
+                self.assertFalse((Path(tmp)/'editorial/published.json').exists())
+                self.assertFalse((Path(tmp)/'editorial/articles').exists())
+
     def test_private_publication_has_stable_timestamp_for_homepage_order(self):
         row=dict(id='45981557-219d-4866-b015-56c1aa2c1933',status='publishing',
                  approved_hash='approved',approved_by='editor',user_id='reader',

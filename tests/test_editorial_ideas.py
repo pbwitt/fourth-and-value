@@ -103,7 +103,7 @@ class IdeaTests(unittest.TestCase):
             self.assertEqual(ledger['slots']['0-nfl']['status'],'review')
             self.assertNotIn('Private draft',json.dumps(ledger))
 
-    def test_owner_idea_publishes_without_draft_approval(self):
+    def test_owner_idea_also_waits_for_manual_publication(self):
         row=dict(self.row(),owner_idea=True,research_requested_at='2026-09-24T11:00:00Z')
         article={'publish':True,'title':'Private draft','excerpt':'Private summary','market_ids':[],'sections':[{'heading':'Context','text':'x'}],'sources':[]}
         response={'status':'completed','usage':{'input_tokens':1,'output_tokens':1}}
@@ -113,12 +113,30 @@ class IdeaTests(unittest.TestCase):
             packet={'markets':[{'id':'q1'}],'model_rows':[{'id':'model-q1','model_mean':5.2,'model_version':'v1','model_input_through':self.now.astimezone(w.ed.ETZ).date().isoformat()}],'data_readiness':{'ready':True}}
             with patch.dict(w.ed.CFG,{'writing_enabled':True}),patch.object(w.ed,'DOCS',docs),patch.object(w.ed,'ROOT',root),patch.object(w,'STATE',state),patch.object(w.budget,'PATH',root/'budget.json'),patch.object(w.budget,'checkpoint'),patch.object(w.ed,'render_home'),patch.object(w,'evidence',return_value=packet),patch.object(w,'compact',side_effect=lambda p:p),patch.object(w,'select_target',return_value=None),patch.object(w.reporting,'collect',return_value=[{'title':'News'}]),patch.object(w.ideas,'get',return_value=row),patch.object(w.ideas,'claim',return_value=True),patch.object(w.ideas,'save_draft') as save,patch.object(w.ideas,'finish') as finish,patch.object(w,'call_api',return_value=response),patch.object(w,'response_text',side_effect=[json.dumps(article),json.dumps({'pass':True})]),patch.object(w,'validate',return_value=600):
                 w.run(self.now)
-            save.assert_not_called();finish.assert_called_once()
-            self.assertTrue((docs/'editorial/published.json').exists())
-            self.assertTrue((docs/'editorial/articles').exists())
+            save.assert_called_once();finish.assert_not_called()
+            self.assertFalse((docs/'editorial/published.json').exists())
+            self.assertFalse((docs/'editorial/articles').exists())
             ledger=json.loads((state/'2026-09-25.json').read_text())
-            self.assertEqual(ledger['slots']['0-nfl']['status'],'published')
+            self.assertEqual(ledger['slots']['0-nfl']['status'],'review')
             self.assertNotIn('Private draft',json.dumps(ledger))
+
+    def test_reader_origin_overrides_owner_and_publish_flags(self):
+        # A contributor later promoted to editor still cannot auto-publish this
+        # reader-origin article, even with contradictory cached ownership flags.
+        row=dict(self.row(),owner_idea=True,requires_review=True,write_now_publish=True,
+                 research_requested_at='2026-09-24T11:00:00Z')
+        article={'publish':True,'title':'Reader article','excerpt':'Private summary','market_ids':['q1'],
+                 'sections':[{'heading':'Context','text':'x'}],'sources':[]}
+        response={'status':'completed','usage':{'input_tokens':1,'output_tokens':1}}
+        with TemporaryDirectory() as td:
+            root=Path(td);docs=root/'docs';state=docs/'editorial/runs';state.mkdir(parents=True)
+            packet={'markets':[{'id':'q1'}],'model_rows':[],'data_readiness':{'ready':True}}
+            with patch.dict(w.ed.CFG,{'writing_enabled':True}),patch.object(w.ed,'DOCS',docs),patch.object(w.ed,'ROOT',root),patch.object(w,'STATE',state),patch.object(w.budget,'PATH',root/'budget.json'),patch.object(w.budget,'checkpoint'),patch.object(w.ed,'render_home'),patch.object(w,'evidence',return_value=packet),patch.object(w,'compact',side_effect=lambda p:p),patch.object(w,'select_target',return_value=None),patch.object(w.reporting,'collect',return_value=[{'title':'News'}]),patch.object(w.ideas,'get',return_value=row),patch.object(w.ideas,'claim',return_value=True),patch.object(w.ideas,'save_draft') as save,patch.object(w.ideas,'finish') as finish,patch.object(w,'call_api',return_value=response),patch.object(w,'response_text',side_effect=[json.dumps(article),json.dumps({'pass':True})]),patch.object(w,'validate',return_value=600):
+                w.run(self.now,idea_id=row['id'],publish_own=True)
+            save.assert_called_once();finish.assert_not_called()
+            self.assertFalse((docs/'editorial/articles').exists())
+            self.assertFalse((docs/'editorial/published.json').exists())
+            self.assertEqual(json.loads((state/('requested-'+row['id']+'.json')).read_text())['slots']['0-nfl']['status'],'review')
 
     def test_write_now_owner_gets_private_draft_after_daily_slots_filled(self):
         row=dict(self.row(),owner_idea=True,research_requested_at='2026-09-24T11:00:00Z')

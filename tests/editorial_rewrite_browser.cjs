@@ -1,7 +1,7 @@
 const {chromium}=require(process.env.FV_PLAYWRIGHT||'playwright');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 (async()=>{
- const browser=await chromium.launch({headless:true,executablePath:process.env.FV_CHROME||'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
+ const browser=await chromium.launch({headless:true,executablePath:process.env.FV_CHROME||undefined});
  for(const width of [390,1440]){
   const page=await browser.newPage({viewport:{width,height:900}});
   await page.route('https://**/*',route=>{
@@ -18,7 +18,6 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
   await page.locator('#rewrite').click();
   assert.equal(await page.locator('#confirm-rewrite').isEnabled(),false);
   await page.locator('#rewrite-feedback').fill('Make the matchup comparison clearer.');
-  await page.evaluate(()=>document.getElementById('publish-now').checked=true);
   await page.locator('#confirm-rewrite').click();
   await page.waitForFunction(()=>document.getElementById('action-message').textContent.includes('Rewrite requested'));
   const state=await page.evaluate(()=>({updates,dispatches,row}));
@@ -27,8 +26,8 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
   assert.ok(state.updates[0].idea.includes('Make the matchup comparison clearer.'));
   assert.ok(!state.updates[0].idea.includes('Old feedback'));
   assert.equal(state.row.body,'Existing draft body.');
-  assert.equal(await page.locator('#publish-now-option').isVisible(),false);
-  assert.equal(await page.locator('#approve').isVisible(),false);
+  assert.equal(await page.locator('#publish-now-option').count(),0);
+  assert.equal(await page.locator('#approve').isEnabled(),false);
   assert.equal(await page.locator('#write-now').textContent(),'Rewrite queued');
   assert.equal(await page.locator('#write-now').isEnabled(),false);
   assert.equal(await page.locator('#save').isEnabled(),false);
@@ -58,7 +57,7 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
   assert.equal(await page.evaluate(()=>row.research_error),null);
   await page.evaluate(()=>{row.research_error='Waiting for reporting. No writing charge has been made.';row.status='submitted';row.updated_at='v'+(++revision);});
   await page.locator('#refresh').click();
-  await page.waitForFunction(()=>document.querySelector('.queue-item').textContent.includes('NEEDS ATTENTION'));
+  await page.waitForFunction(()=>document.querySelector('.queue-item').textContent.includes('LAST WRITING ATTEMPT FAILED'));
   assert.ok((await page.locator('#inbox-notice').textContent()).includes('1 need attention'));
   assert.ok((await page.locator('#action-message').textContent()).includes('Waiting for reporting'));
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);

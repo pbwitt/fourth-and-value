@@ -238,3 +238,14 @@ repeat paid calls. No model/effort or budget increase was made tonight.
 
 Keep private article content in Supabase; do not publish reader emails or
 unapproved drafts in git, public logs, or generated site evidence.
+
+
+### September 30 — manual publication in the Editorial Desk
+
+See the final section of `EDITORIAL_OPERATIONS.md`. The desk now separates idea,
+draft/review, and the explicit Publish saved article decision. All private idea
+rows return drafts, regardless of old auto-publish flags. The hourly worker only
+delivers explicitly approved versions. Standalone daily analysis is unchanged.
+Opinion has an open manual article editor; AI opinion generation is not part of
+this change. No private queue records, roles, secrets or database schema were
+changed. `tests/editorial_manual.cjs` is the offline UI-controller regression gate.

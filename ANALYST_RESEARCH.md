@@ -292,3 +292,18 @@ OpenAI references checked 2026-09-27: [model/pricing](https://developers.openai.
 and [Responses API](https://developers.openai.com/api/reference/typescript/resources/responses/methods/create).
 
 Each research run attempts at most eight batches of at most three candidates. The broad candidate pool remains available, but the runner reports `review_limit_reached` when it stops this focused review. This is separate from the shared daily spending ceiling.
+
+
+## Editorial Desk manual publication — September 30, 2026
+
+All private `editorial_ideas` submissions (reader or editor-origin) stop at
+`review` after writing. They never enter the writer's direct public-article
+branch, even if legacy `publish_own` / `write_now_publish` flags are true.
+Independent daily articles without an idea row retain their existing automation.
+The desk uses Save idea → Write analysis draft or enter opinion text → Save draft
+→ Preview → Publish saved article → explicit confirmation. Featuring, changing
+kind, and saving are not publication authorization. `approved` means publication
+requested; hourly delivery follows, subject to `publish_on`. The publisher
+requires an approved/publishing status and a stored approval fingerprint; reader
+rows also require `approved_by`, whose current editor role is rechecked.
+See `EDITORIAL_OPERATIONS.md` for rollout, regression checks and limitations.
