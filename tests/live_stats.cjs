@@ -153,6 +153,7 @@ const espnSummary={header:{competitions:[espnComp('in')]},boxscore:{players:[
   assert.equal(g({market_type:'spreads',side:'LAC',line:+9.5}).label,'Covering');
   assert.deepEqual([g({market_type:'totals',side:'over',line:44.5}).value,g({market_type:'totals',side:'over',line:44.5}).label],[40,'Needs 5']);
   assert.equal(g({market_type:'team_total',side:'over',line:20.5}).tone,undefined,'no team on a team total: score only');
+  assert.equal(L.marketSpec('NHL','team_total').game,'total','NHL team_total means the game total');
   const fin={...nfl.game,state:'final'};
   assert.equal(L.evaluate({league:'NFL',team_home:'BUF',team_away:'LAC',market_type:'spreads',side:'BUF',line:-6.5},fin,null).tone,'won');
 }

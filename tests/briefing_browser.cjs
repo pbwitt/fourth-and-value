@@ -53,7 +53,7 @@ const server=http.createServer((req,res)=>{
       assert.equal(await page.locator('#track-odds').inputValue(),'110');
       assert.match(await page.locator('#track-quote').textContent(),/7:59:00 AM ET/);
       assert.match(await page.locator('#track-review').textContent(),/Qualitative review needed/);
-      assert.match(await page.locator('#track-grading').textContent(),/automatic result grading is not connected/);
+      assert.match(await page.locator('#track-grading').textContent(),/settles this bet automatically from the final box score/);
       assert.equal(await page.evaluate(()=>window.trackerTest.writes.length),0);
       await page.locator('#pick-tracker').screenshot({path:`/tmp/fv-briefing-tracker-${width}.png`});
       assert.equal(await page.locator('#pick-tracker').evaluate(e=>e.scrollWidth>e.clientWidth+1),false);
