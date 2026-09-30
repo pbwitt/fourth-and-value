@@ -325,10 +325,11 @@ def main():
         if args.event_name!='workflow_dispatch' or not re.fullmatch(r'[0-9a-f-]{36}',args.idea_id):raise SystemExit('Invalid Write now request')
         import editorial_ideas as ideas
         row=ideas.get(args.idea_id)
-        if not row or row.get('kind')!='analysis' or row.get('sport') not in ('NFL','MLB','NBA','NHL'):raise SystemExit('Idea is unavailable or needs personal editorial work')
+        if not row or row.get('kind') not in ('analysis','opinion') or row.get('sport') not in ('NFL','MLB','NBA','NHL'):raise SystemExit('Idea is unavailable or needs a specific sport')
         if not row.get('write_now_requested_at'):raise SystemExit('Idea has no editor-authorized Write now request')
         eligible=bool(config(ROOT).get('writing_enabled') and row['status']=='submitted')
-        result.update(mode='requested-idea',writer_eligible=eligible,writer_needed=eligible,writer_reason='explicit_editor_request',refresh_briefing=eligible,refresh_mlb=eligible and row['sport']=='MLB',refresh_nfl=eligible and row['sport']=='NFL')
+        analysis=eligible and row['kind']=='analysis'
+        result.update(mode='requested-idea',writer_eligible=eligible,writer_needed=eligible,writer_reason='explicit_editor_request',refresh_briefing=analysis,refresh_mlb=analysis and row['sport']=='MLB',refresh_nfl=analysis and row['sport']=='NFL')
     print(json.dumps(result,indent=2))
     write_outputs(result,os.getenv("GITHUB_OUTPUT"))
 

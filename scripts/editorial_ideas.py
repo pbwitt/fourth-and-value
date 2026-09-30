@@ -27,7 +27,7 @@ def pending(now):
     result=[]
     for row in rows:
         if row.get('write_now_requested_at'):continue
-        if row.get('kind')!='analysis' or row.get('body','').strip():continue
+        if row.get('kind') not in ('analysis','opinion') or row.get('body','').strip():continue
         if row.get('sport') not in ed.CFG['sports']:continue
         if row.get('publish_on') and row['publish_on']>now.astimezone(ed.ETZ).date().isoformat():continue
         if not re.fullmatch(r'[0-9a-f-]{36}',row['id']):continue
@@ -80,7 +80,7 @@ def save_draft(row,article,as_of=None,market_snapshot=True):
     if as_of:body=('Market snapshot: ' if market_snapshot else 'Research checked: ')+as_of.astimezone(ed.ETZ).strftime('%B %d, %Y at %I:%M %p ET')+('. Prices may have changed.' if market_snapshot else '.')+'\n\n'+body
     links='\n'.join(source['url'] for source in article['sources'])
     saved=request('PATCH','/rest/v1/editorial_ideas',params={'id':'eq.'+row['id'],'status':'eq.researching'},
-        json={'title':article['title'],'body':body,'byline':'Fourth & Value','sources':links,'status':'review','draft_notification_sent_at':None})
+        json={'title':article['title'],'body':body,'byline':row.get('byline','').strip() or 'Fourth & Value','sources':links,'status':'review','draft_notification_sent_at':None})
     if not saved:raise RuntimeError('Private draft changed while research was running')
 
 

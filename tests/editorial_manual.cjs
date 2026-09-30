@@ -48,7 +48,10 @@ async function desk(overrides = {}) {
 }
 (async()=>{
   const {elements:e,state:s,edit,save}=await desk();
-  assert.equal(e['draft-fields'].open,true,'Opinion editor must be visible');
+  assert.equal(e['draft-fields'].open,false,'Both article types start with the same idea form');
+  assert.equal(e['write-now'].hidden,false);
+  assert.equal(e['write-now'].textContent,'Generate draft');
+  assert.equal(e.research.hidden,false);
   assert.equal(e.approve.hidden,false,'Publish action must be discoverable even with an incomplete idea');
   assert.equal(e.approve.disabled,true);
   assert.match(e['publication-help'].textContent,/complete article/);
@@ -80,11 +83,22 @@ async function desk(overrides = {}) {
   assert.match(e['action-message'].textContent,/Draft changed/);
   assert.equal(s.row.status,'review','Stale editor state cannot publish');
 
-  const reader=await desk({kind:'analysis',research_error:null});
+  for(const kind of ['analysis','opinion']){
+  const reader=await desk({kind,research_error:null});
   await reader.elements['write-now'].onclick();
   assert.equal(reader.state.dispatches.length,1);
   assert.equal(reader.state.dispatches[0].publish_own,false);
   assert.equal(reader.state.writes.some(w=>w.status==='approved'),false);
+  const rewrite=await desk({kind,status:'review',body:'Existing draft. '.repeat(12),research_error:null});
+  assert.equal(rewrite.elements.rewrite.hidden,false);
+  rewrite.elements['rewrite-feedback'].value='Make the argument clearer.';
+  await rewrite.elements['confirm-rewrite'].onclick();
+  assert.equal(rewrite.state.dispatches.length,1);
+  assert.equal(rewrite.state.dispatches[0].publish_own,false);
+  assert.equal(rewrite.state.row.kind,kind);
+  assert.equal(rewrite.state.row.body,'Existing draft. '.repeat(12));
+  assert.equal(rewrite.state.row.status,'submitted');
+  }
 
   const incomplete=await desk({status:'review',title:'Title',byline:'Author',body:'Too short',research_error:null});
   assert.equal(incomplete.elements.approve.disabled,true);

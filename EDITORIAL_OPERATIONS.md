@@ -816,3 +816,53 @@ manual saves, confirmation/cancellation, changed-version rejection, opinion
 conversion, reader privacy, and publication authorization. The controller checks
 also cover withdrawal and reject automatic publication for owner and reader
 requests. The permission test uses isolated PostgreSQL, not production accounts.
+
+
+## Uniform Analysis and Opinion generation — September 30, 2026
+
+This supersedes the manual-entry-only Opinion instructions above. Both types use
+Save idea → Generate draft → review/edit → Save draft → Preview / Request rewrite
+→ Publish saved article → confirm. Writing or pasting text remains optional.
+Opinion keeps its category throughout generation and rewrites. The editor's saved
+byline is preserved; an empty byline defaults to Fourth & Value.
+
+Opinion drafts use `scripts/editorial_opinion.py` for a supported thesis, developed
+argument and countercase. The writer retrieves relevant dated reporting from the
+existing bounded publisher collector. Two domains, a recent source, exact source
+IDs/dates/URLs, section citations and a separate factual audit are required. An
+opinion needs no betting-market/model data, so this path excludes those records
+and never invents prices, probabilities, historical statistics or individual traits.
+The submitted angle and previous draft are not factual evidence. If available
+reporting cannot support the angle, the writer fails visibly. No model, token,
+weekly-budget or paid-retry limit is increased. Opinion does not add open-web
+search or promise exhaustive historical coverage.
+
+All private submissions still stop at Review. Legacy `publish_own` requests are
+forced false by the Edge Function and SQL request guard, in addition to the
+writer's private-draft routing. The existing approved-version publisher and
+editor/reader permissions remain. No article is approved as part of rollout.
+
+### Deployment order
+
+1. Run `supabase/editorial_opinion_generation.sql` on the existing project after
+   the already-installed editorial/write-now migrations. It replaces only the
+   two trigger function bodies, preserving records, policies and grants. It is
+   idempotent; no backfill, approval or data deletion is performed.
+2. Redeploy `supabase/functions/editorial-write-now/index.ts` as the existing
+   `editorial-write-now`, retaining its secrets and authentication configuration.
+   It accepts both article types and always dispatches draft-only requests.
+3. Merge/deploy the GitHub writer, planner, UI and documentation together. The
+   browser script version is 11. Do not expose the new Opinion button before its
+   database and function checks are updated.
+4. The editor can choose Generate draft on a saved idea. The result is private;
+   generation is a paid attempt under the existing cap. Do not trigger a real
+   contributor attempt or publication merely to smoke-test this release.
+
+`/editorial/write-now-setup.html` carries synchronized copyable SQL/function code
+for administrator setup. Supabase administrator access is required; GitHub's
+service-role key is not a management credential and must not be extracted.
+
+Regression coverage: editorial Python suite (including Opinion without market
+records, missing-source no-cost gate, rewrite audit failure and planner routing),
+manual UI-controller checks, Edge Function authorization/dispatch tests, isolated
+PostgreSQL permissions, and desktop/mobile rewrite tests for both article types.
