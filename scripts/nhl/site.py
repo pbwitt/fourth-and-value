@@ -47,4 +47,8 @@ def build(state):
             body = body.replace('assets/nhl.js?v=3', 'assets/nhl-candidates.js?v=7')
             body = body.replace('<script src="../assets/nhl-candidates', '<script src="../assets/injury-context.js?v=1" defer></script><script src="../assets/nhl-candidates')
             body = body.replace('</head>', f'<link rel="stylesheet" href="{rel}/assets/nhl-candidates.css"></head>')
+        if page in ('props', 'lines', 'watch', 'candidates'):
+            body = body.replace('</head>', f'<link rel="stylesheet" href="{rel}/assets/nhl-tracker.css?v=1"></head>')
+            body = body.replace(f'<script src="{rel}/assets/nhl', f'<script src="{rel}/assets/nhl-tracker.js?v=1" defer></script><script src="{rel}/assets/nhl', 1)
+            body = body.replace('assets/nhl.js?v=3', 'assets/nhl.js?v=4').replace('assets/nhl-candidates.js?v=7', 'assets/nhl-candidates.js?v=8')
         path.write_text(body)
