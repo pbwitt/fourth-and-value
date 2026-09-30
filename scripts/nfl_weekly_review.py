@@ -292,6 +292,16 @@ def totals_metrics(archive,schedule,season,week):
         raise ValueError('Completed-week schedule still has unplayed games')
     official['game']=official.away_team+' @ '+official.home_team
     official['actual_total']=official.home_score+official.away_score
+    # Games that kicked off before the archive was frozen have no pregame market
+    # evidence; they are disclosed as excluded rather than graded in hindsight.
+    excluded=[]
+    snapshot_at=(archive.get('manifest') or {}).get('snapshot_at')
+    if snapshot_at and {'gameday','gametime'}.issubset(official.columns):
+        kickoff=pd.to_datetime(official.gameday+' '+official.gametime).dt.tz_localize('America/New_York').dt.tz_convert('UTC')
+        started=kickoff<=pd.Timestamp(snapshot_at)
+        excluded=official.loc[started,'game'].tolist()
+        official=official[~started].copy()
+        if official.empty:raise ValueError('Every completed-week game kicked off before the pregame archive was frozen')
     market=[]
     for game,group in lines.groupby('game'):
         distinct=group[['book','total_over_line']].dropna().drop_duplicates()
@@ -320,7 +330,7 @@ def totals_metrics(archive,schedule,season,week):
         games.loc[idx,'model_units']=american_profit(price) if row.model_result=='win' else (-1.0 if row.model_result=='loss' else 0.0)
     closing=dict(overs=int((games.actual_total>games.total_line).sum()),unders=int((games.actual_total<games.total_line).sum()),
         pushes=int((games.actual_total==games.total_line).sum())) if 'total_line' in games else None
-    return games,dict(games=int(len(games)),
+    return games,dict(games=int(len(games)),excluded_before_snapshot=excluded,
         archived_overs=int((games.actual_total>games.market_total).sum()),
         archived_unders=int((games.actual_total<games.market_total).sum()),
         archived_pushes=int((games.actual_total==games.market_total).sum()),
@@ -382,6 +392,8 @@ def render_article(season,completed,preview,summary,totals,prop,preview_data,out
     archive_note=('Week 3 uses the preserved legacy pregame model board. Its selections are reconstructed with the stated highest-EV rule; they are not a record of the published shortlist. Later weeks use hash-verified archives.' if legacy else 'The scorecard uses hash-verified immutable weekly pregame archives.')
     markets=sorted(summary['props']['ticket_markets'].items(),key=lambda kv:kv[1]['units'],reverse=True)
     total_rows=''.join(f'<tr><td>{html.escape(LABELS.get(m,m))}</td><td>{r["wins"]}–{r["losses"]}</td><td>{fmt_units(r["units"])}</td><td>{r["pending"]}</td></tr>' for m,r in markets)
+    excluded=summary['totals'].get('excluded_before_snapshot') or []
+    excluded_text=(f' Not graded: {html.escape(", ".join(excluded))}, which kicked off before the Week {completed} pregame archive was frozen.' if excluded else '')
     gaps=''.join(f'<li><strong>{html.escape(str(r["game"]))}</strong>: model {r["total_pred"]:.1f} vs archived median {r["market_total"]:.1f} ({r["gap"]:+.1f}). This is a research gap, not a calibrated edge.</li>' for r in preview_data['total_gaps'])
     props=''.join(f'<li><strong>{html.escape(str(r["player"]))} {html.escape(LABELS.get(r["market_std"],r["market_std"]))} {html.escape(str(r["name"]))} {r["point"]}</strong> at {html.escape(str(r["bookmaker"]))} ({int(r["price"]):+d}); saved model mean {r["mu"]:.2f}, model probability {100*r["model_prob"]:.1f}%, estimated EV {r["ev_per_100"]:+.1f}%. <em>{html.escape(str(r["model_status"]))}</em></li>' for r in preview_data['prop_watch'])
     brier=('No matched probability comparison was available.' if not prob else
@@ -389,7 +401,7 @@ def render_article(season,completed,preview,summary,totals,prop,preview_data,out
     closing_text=('Recorded closing totals were unavailable.' if not closing else
         f'Recorded closes produced {closing["overs"]} overs, {closing["unders"]} unders and {closing["pushes"]} pushes.')
     html_text=f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{html.escape(title)} | Fourth &amp; Value</title><meta name="description" content="{html.escape(desc)}"><link rel="canonical" href="https://fourthandvalue.com/blog/week-{completed}-recap-week-{preview}-preview-{season}.html"><link rel="stylesheet" href="../assets/site.css"><link rel="stylesheet" href="/assets/responsible-use.css?v=1"></head><body><div id="nav-root"></div><script src="../nav.js?v=44"></script><main style="max-width:900px;margin:auto;padding:36px 20px 80px"><p class="eyebrow">Fourth &amp; Value · Weekly market review</p><h1>{html.escape(title)}</h1><p class="lead">{html.escape(desc)}</p><p class="meta">Generated from saved pregame evidence and official completed results. Re-running the workflow does not rewrite the frozen Week {completed} inputs.</p>
-<h2>Week {completed}: the market scoreboard</h2><p>{closing_text} Against our archived market median, {summary["totals"]["archived_overs"]} games finished over, {summary["totals"]["archived_unders"]} under and {summary["totals"]["archived_pushes"]} pushed.</p><p>The raw totals model direction went <strong>{summary["totals"]["model_direction"]["wins"]}–{summary["totals"]["model_direction"]["losses"]}</strong> with {summary["totals"]["model_direction"]["pushes"]} pushes and {fmt_units(summary["totals"]["model_direction"]["units"])} across {summary["totals"]["model_direction"]["priced_games"]} games with archived same-line prices; {summary["totals"]["model_direction"]["unpriced_games"]} unpriced directions are excluded from profit/loss. Mean absolute error was {summary["totals"]["mae"]["model"]:.2f} points for the model versus {summary["totals"]["mae"]["market"]:.2f} for the archived market median{f' and {summary["totals"]["mae"]["recorded_close"]:.2f} for the recorded close' if summary["totals"]["mae"]["recorded_close"] is not None else ''}.</p><figure><img src="week-{completed}-week-{preview}-{season}/totals.svg" alt="Week {completed} final points relative to the recorded closing total" style="width:100%"><figcaption>Final points minus the recorded close. This grades a saved forecast; it does not retroactively select a strategy.</figcaption></figure>
+<h2>Week {completed}: the market scoreboard</h2><p>{closing_text} Against our archived market median, {summary["totals"]["archived_overs"]} games finished over, {summary["totals"]["archived_unders"]} under and {summary["totals"]["archived_pushes"]} pushed.{excluded_text}</p><p>The raw totals model direction went <strong>{summary["totals"]["model_direction"]["wins"]}–{summary["totals"]["model_direction"]["losses"]}</strong> with {summary["totals"]["model_direction"]["pushes"]} pushes and {fmt_units(summary["totals"]["model_direction"]["units"])} across {summary["totals"]["model_direction"]["priced_games"]} games with archived same-line prices; {summary["totals"]["model_direction"]["unpriced_games"]} unpriced directions are excluded from profit/loss. Mean absolute error was {summary["totals"]["mae"]["model"]:.2f} points for the model versus {summary["totals"]["mae"]["market"]:.2f} for the archived market median{f' and {summary["totals"]["mae"]["recorded_close"]:.2f} for the recorded close' if summary["totals"]["mae"]["recorded_close"] is not None else ''}.</p><figure><img src="week-{completed}-week-{preview}-{season}/totals.svg" alt="Week {completed} final points relative to the recorded closing total" style="width:100%"><figcaption>Final points minus the recorded close. This grades a saved forecast; it does not retroactively select a strategy.</figcaption></figure>
 <h2 id="scorecard">The model scorecard</h2><p>The deduplicated {selection_label} contained {ticket["selected"]} selections; {ticket["graded"]} were conservatively graded and {ticket["pending"]} remain unresolved. The graded set went <strong>{ticket["wins"]}–{ticket["losses"]}</strong> with {ticket["pushes"]} pushes for <strong>{fmt_units(ticket["units"])}</strong>, or {pct(ticket["roi"])} on units risked. Missing participation or missing statistics remain unresolved rather than becoming automatic unders.</p><div style="overflow:auto"><table><thead><tr><th>Market</th><th>W–L</th><th>Net units</th><th>Unresolved</th></tr></thead><tbody>{total_rows}</tbody></table></div><figure><img src="week-{completed}-week-{preview}-{season}/props.svg" alt="Week {completed} archived prop selection units by market" style="width:100%"><figcaption>One highest-EV archived offer per player, game and modeled market.</figcaption></figure>
 <h2>Probability quality, not just profit</h2><p>{brier}</p><p>A positive one-week return and a better probability score are different claims. This report keeps both because a profitable slate can still expose probability weaknesses, and vice versa.</p>
 <h2>Week {preview}: disagreement is a research question</h2><p>The new weekly refresh is frozen before the first kickoff. The largest raw totals disagreements are:</p><ul>{gaps or '<li>No complete model/market total comparisons passed the archive checks.</li>'}</ul><figure><img src="week-{completed}-week-{preview}-{season}/preview.svg" alt="Week {preview} model minus market total gaps" style="width:100%"><figcaption>Raw model minus archived median total. These gaps are not automatically betting recommendations.</figcaption></figure>
@@ -400,16 +412,25 @@ def render_article(season,completed,preview,summary,totals,prop,preview_data,out
     return path,title,desc
 
 
-def update_discovery(path,title,desc,date,root=ROOT):
+def update_discovery(path,title,desc,date,week,root=ROOT):
     blog=Path(root)/'docs/blog/index.html'
     if blog.exists():
         text=blog.read_text();href='./'+Path(path).name
         if href not in text:
             marker='<!-- editorial-managed:end -->'
-            card=f'''<li class="post" data-title="{html.escape(title)}" data-excerpt="{html.escape(desc)}"><h2><a href="{href}">{html.escape(title)}</a></h2><div class="meta">{date} · NFL weekly market review</div><p class="excerpt">{html.escape(desc)}</p></li>'''
+            card=f'''<li class="post" data-title="{html.escape(title)}" data-excerpt="{html.escape(desc)}"><h2><a href="{href}">{html.escape(title)}</a></h2><div class="meta">{pd.Timestamp(date).strftime('%b %-d, %Y')} • NFL weekly market review</div><p class="excerpt">{html.escape(desc)}</p></li>'''
             if marker not in text:raise ValueError('Blog managed marker missing')
             text=text.replace(marker,marker+card)
             blog.write_text(text)
+    # The homepage "Keep the receipts" card always points at the latest weekly review.
+    # editorial.py rebuilds docs/index.html from the template, so both are updated.
+    receipts=(f'<article class="card"><h3>How did we do?</h3><p>Our NFL Week {week} review grades the published shortlist '
+        f'and the totals model against frozen pregame prices—wins and losses alike.</p><a href="/blog/{Path(path).name}#scorecard">Read the scorecard →</a></article>')
+    for home in [Path(root)/'scripts/editorial_templates/home.html',Path(root)/'docs/index.html']:
+        if home.exists():
+            text=home.read_text()
+            updated=re.sub(r'<article class="card"><h3>How did we do\?</h3>.*?</article>',lambda _:receipts,text,count=1,flags=re.S)
+            if updated!=text:home.write_text(updated)
     sitemap=Path(root)/'docs/sitemap.xml'
     if sitemap.exists():
         text=sitemap.read_text();url='https://fourthandvalue.com/blog/'+Path(path).name
@@ -460,7 +481,7 @@ def review_week(season,completed,preview,root=ROOT):
     data_path=blog/f'week-{completed}-{season}-review-data.json'
     data_path.write_text(json.dumps(public,indent=2,allow_nan=False)+'\n')
     article,title,desc=render_article(season,completed,preview,summary,games,prop,preview_data,outdir,root)
-    update_discovery(article,title,desc,datetime.now().date().isoformat(),root)
+    update_discovery(article,title,desc,datetime.now().date().isoformat(),completed,root)
     print(json.dumps(dict(status='published',article=str(article.relative_to(root)),summary=str((review_dir/'summary.json').relative_to(root)),
         tickets=summary['props']['tickets'],totals=summary['totals']['model_direction']),indent=2))
     return summary
