@@ -1,0 +1,198 @@
+{
+  "as_of": "2026-09-30T11:09:51.769159+00:00",
+  "sport": "MLB",
+  "data_readiness": {
+    "ready": true,
+    "briefing_at": "2026-09-30T11:09:45.442956+00:00",
+    "board_at": "2026-09-30T11:07:25.308045Z",
+    "model_checked_at": "2026-09-30T11:07:28.601141Z",
+    "required_history_through": "2026-09-29",
+    "history_through": "2026-09-29",
+    "reason": "Current data checks passed"
+  },
+  "markets": [
+    {
+      "id": "total-9e23239e0075a017225697fa3bcd88b3",
+      "sport": "MLB",
+      "game": "Philadelphia Phillies @ Atlanta Braves",
+      "commence_time": "2026-09-30T18:00:00+00:00",
+      "start_label": "Wed 02:00 PM ET",
+      "median": 7.0,
+      "minimum": 7.0,
+      "maximum": 7.5,
+      "books": {
+        "fanduel": 7.5,
+        "fanatics": 7.0,
+        "draftkings": 7.0,
+        "betmgm": 7.0,
+        "williamhill_us": 7.0,
+        "mybookieag": 7.0,
+        "betonlineag": 7.0,
+        "lowvig": 7.0,
+        "betrivers": 7.0,
+        "betus": 7.0,
+        "bovada": 7.0
+      },
+      "quotes": [
+        {
+          "book": "lowvig",
+          "label": "LowVig.ag",
+          "line": 7.0,
+          "over_price": -113,
+          "under_price": -102,
+          "quoted_at": "2026-09-30T11:08:51+00:00"
+        },
+        {
+          "book": "draftkings",
+          "label": "DraftKings",
+          "line": 7.0,
+          "over_price": -114,
+          "under_price": -106,
+          "quoted_at": "2026-09-30T11:09:22+00:00"
+        },
+        {
+          "book": "bovada",
+          "label": "Bovada",
+          "line": 7.0,
+          "over_price": -120,
+          "under_price": 100,
+          "quoted_at": "2026-09-30T11:08:39+00:00"
+        },
+        {
+          "book": "fanduel",
+          "label": "FanDuel",
+          "line": 7.5,
+          "over_price": 110,
+          "under_price": -134,
+          "quoted_at": "2026-09-30T11:09:39+00:00"
+        }
+      ],
+      "previous_books": {
+        "draftkings": 7.0,
+        "fanatics": 7.0,
+        "fanduel": 7.5
+      },
+      "change_from": "2026-09-29T20:48:07.935467+00:00",
+      "change": 0.0,
+      "change_label": "+0 (3 matched books)",
+      "quote_selection": "Selected books only; range/median use all observed books"
+    }
+  ],
+  "model_rows": [
+    {
+      "id": "model-1",
+      "event_id": "9e23239e0075a017225697fa3bcd88b3",
+      "game": "Philadelphia Phillies @ Atlanta Braves",
+      "commence_time": "2026-09-30T18:00:00Z",
+      "book": "lowvig",
+      "book_label": "LowVig.ag",
+      "market": "totals",
+      "market_label": "Game total",
+      "player": "",
+      "side": "Over",
+      "line": 7.0,
+      "price": -107.0,
+      "book_probability": 0.5169082125603864,
+      "consensus_probability": 0.5108342361863488,
+      "fair_probability": 0.5,
+      "paired_books": 10,
+      "best_price": true,
+      "quoted_at": "2026-09-30T11:06:29Z",
+      "model_probability": 0.5566740115586836,
+      "model_push_probability": 0.11808822742369098,
+      "model_conditional_probability": 0.6312128138764769,
+      "model_mean": 8.74671456318776,
+      "model_mean_label": "Projected total runs",
+      "model_ev_pct": 19.50183245512377,
+      "model_edge_pp": 11.430460131609044,
+      "model_fair_price": -171,
+      "model_inputs": {
+        "home recent runs/game": 3.98,
+        "away recent runs/game": 4.38,
+        "home starter recent RA/9": 3.5,
+        "away starter recent RA/9": 4.22
+      },
+      "model_status": "Eligible experimental model pick",
+      "is_model_pick": true,
+      "model_input_through": "2026-09-29",
+      "model_version": "mlb-v1.0-ffe831160a077d5d-2026-09-29",
+      "lineup_status": "Awaiting published batting orders"
+    }
+  ],
+  "model_references": [],
+  "model_availability": [
+    {
+      "event_id": "",
+      "game": "Philadelphia Phillies @ Atlanta Braves",
+      "available": true,
+      "forecast_count": 106,
+      "eligible_pick_count": 6,
+      "statuses": [
+        "No pick: estimated value is below the 3% EV threshold",
+        "Research forecast: fewer than two paired books at this line",
+        "No pick: a better price is available at the same line",
+        "Eligible experimental model pick"
+      ]
+    }
+  ],
+  "methods": "## Feature windows\n\nAll windows also have a 370-day maximum lookback.\n\n- Team: last 40 games; runs scored/allowed, PA and K/H/HR/BB/TB rates. Bullpen RA/9 is computed from team pitching minus the starter. Bullpen workload is pitches in the previous three calendar days.\n- Pitcher: last 15 starts; last-five outs and pitches, batters faced, K/BB/H/HR rates, runs per out, and rest capped at 30 days.\n- Batter: last 60 appearances; rates per PA, last 20 starting appearances for PA context, original/published batting slot and a transparent projected-PA input.\n- Park: last 100 games at the venue, shrunk by 40 games toward nine combined runs. This is a venue scoring indicator, not an isolated park factor; home-team quality can influence it.\n- Matchup: home/away and postseason indicators; own and opponent team and starter features.\n\nSmall samples shrink toward fixed league-like priors. Missing players do not receive public league-average or 50% predictions. Teams require ten prior games, each probable starter three prior starts, and hitters 50 prior PA plus a published lineup match.\n\nThese mod",
+  "model_status": "Independent MLB forecasts available",
+  "limitations": "NFL injury adjustments are not established by this evidence. A live total is not a prop forecast. Only validated fresh model rows are included. Historical quotes are not openers.",
+  "target_game": {
+    "event_id": "9e23239e0075a017225697fa3bcd88b3",
+    "game": "Philadelphia Phillies @ Atlanta Braves",
+    "commence_time": "2026-09-30T18:00:00+00:00",
+    "selection": "qualified-selection",
+    "model_availability": {
+      "event_id": "",
+      "game": "Philadelphia Phillies @ Atlanta Braves",
+      "available": true,
+      "forecast_count": 106,
+      "eligible_pick_count": 6,
+      "statuses": [
+        "No pick: estimated value is below the 3% EV threshold",
+        "Research forecast: fewer than two paired books at this line",
+        "No pick: a better price is available at the same line",
+        "Eligible experimental model pick"
+      ]
+    }
+  },
+  "reporting": [
+    {
+      "title": "Riley flips Game 1 with 8th-inning blast on 99.9 mph pitch from Phillies' closer",
+      "url": "https://www.mlb.com/news/braves-win-nl-wild-card-series-game-1-2026",
+      "published_at": "2026-09-30",
+      "published_timestamp": "2026-09-30T00:40:00+00:00",
+      "id": "s1",
+      "retrieved_at": "2026-09-30T11:09:51.769159+00:00"
+    },
+    {
+      "title": "Phillies-Braves NL Wild Card Series Game 2 FAQ (2 ET, NBC/Peacock)",
+      "url": "https://www.mlb.com/news/phillies-vs-braves-nl-wild-card-series-game-2-starting-lineups-and-pitching-matchup",
+      "published_at": "2026-09-30",
+      "published_timestamp": "2026-09-30T00:38:25+00:00",
+      "id": "s2",
+      "retrieved_at": "2026-09-30T11:09:51.769159+00:00"
+    },
+    {
+      "title": "Inside Don Mattingly's Jhoan Duran decision that backfired in Phillies' Wild Card Series Game 1 loss",
+      "url": "https://www.cbssports.com/mlb/news/mlb-playoffs-phillies-braves-wild-card-series-jhoan-duran-save-don-mattingly/",
+      "published_at": "2026-09-29",
+      "published_timestamp": "2026-09-29T21:24:02+00:00",
+      "id": "s3",
+      "retrieved_at": "2026-09-30T11:09:51.769159+00:00"
+    }
+  ],
+  "validation_context": {
+    "input_through": "2026-09-29",
+    "training_through": "2026-07-31",
+    "calibration_through": "2026-08-30",
+    "test_start": "2026-08-31",
+    "test_end": "2026-09-29"
+  },
+  "model_data_dates": {
+    "history_through": "2026-09-29",
+    "weights_trained_through": "2026-07-31"
+  },
+  "model_required": true
+}
