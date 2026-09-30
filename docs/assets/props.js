@@ -66,7 +66,7 @@
       <dt>Paired fair probability</dt><dd>${pct(r.prob_devig)}</dd><dt>Consensus at this line</dt><dd>${pct(r.consensus_prob)}</dd>
       <dt>Books with paired quotes</dt><dd>${num(r.book_count,0)}</dd><dt>Estimated push probability</dt><dd>${pct(r.push_prob)}</dd></dl>
       <p class="meta">Missing values mean no supported estimate. Line agreement alone does not establish positive expected value.</p></details>
-      <div class="actions"><button type="button" data-copy="${index}">Copy bet</button><button type="button" data-track="${index}" ${isPast?'disabled':''}>Track bet</button></div></article>`;
+      <div class="actions"><button type="button" data-copy="${index}">Copy bet</button></div></article>`;
   }
   function render() {
     let rows=DATA.filter(r=>state.books.has(r.bookmaker)&&(!state.market||r.market_std===state.market)&&
@@ -86,6 +86,11 @@
     current=rows.slice((state.page-1)*pageSize,state.page*pageSize);
     $('count').textContent=`${rows.length.toLocaleString()} ${state.best?'distinct lines':'offers'} match your filters`;
     $('results').innerHTML=current.map(card).join('')||`<div class="empty"><h2>No ${topOnly?'qualifying picks':'matching props'}</h2><p>${topOnly?'Top Picks requires upcoming games, recent quote timestamps, player evidence, a fitted calibration curve and a positive edge.':state.books.size===0?'No sportsbooks selected. Select a book or reset filters.':'Try another player, reset your filters, or include started games to inspect this snapshot.'}</p><a href="${root}/props/">Compare all props</a></div>`;
+    // Track bet uses the shared dialog: exact line, book and price, confirmed before saving.
+    if(window.FVOfferTracker){
+      $('results').querySelectorAll('.prop-card .actions').forEach((actions,i)=>actions.append(window.FVOfferTracker.button(ticketRow(current[i]))));
+      window.FVOfferTracker.refresh();
+    }
     $('pager').hidden=pages===1; $('previous').disabled=state.page===1; $('next').disabled=state.page===pages;
     $('page-info').textContent=`Page ${state.page} of ${pages}`;
     const future=DATA.filter(upcoming);
@@ -104,26 +109,16 @@
   ['previous','next'].forEach(id=>$(id).onclick=()=>{state.page+=id==='next'?1:-1;render();$('count').scrollIntoView({block:'start'});});
   async function copy(text){try{await navigator.clipboard.writeText(text);$('feedback').textContent='Copied.';}catch{$('feedback').textContent='Copy unavailable. Select the address from your browser to share filters.';}}
   $('share').onclick=()=>copy(filteredURL().href);
-  let trackingReady;
-  const script=src=>new Promise((resolve,reject)=>{const el=document.createElement('script');el.src=src;el.onload=resolve;el.onerror=reject;document.head.append(el);});
+  // The shared offer shape used by Bet Tracker and every other sport's boards.
+  function ticketRow(r){
+    return {sport:'NFL',event_id:r.game_id,game:r.game,home_team:r.home_team,away_team:r.away_team,commence_time:r.commence_time,
+      player:r.player,market:r.market_std,market_label:r.market_label,side:r.name,line:r.point,book:r.bookmaker,book_label:r.book_label,
+      price:r.price,quoted_at:r.last_update,model_prob:r.model_prob,model_status:r.model_status};
+  }
   $('results').addEventListener('click',async e=>{
-    const btn=e.target.closest('button[data-copy],button[data-track]');if(!btn)return;
-    const r=current[Number(btn.dataset.copy??btn.dataset.track)];if(!r)return;
-    if(btn.dataset.copy!=null){await copy(`${r.player} ${r.market_label}: ${r.name} ${r.point??''} at ${odds(r.price)} (${r.book_label}). ${r.game}. Saved quote; confirm price. ${location.origin}${new URL(root+'/',location.href).pathname}props/`);return;}
-    if(!upcoming(r)){render();return;}
-    btn.disabled=true;
-    try{
-      trackingReady??=script('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2').then(()=>script(`${root}/tracking/bet-tracking.js`));
-      await trackingReady;
-      if(!await window.getCurrentUser()){location.href=`${root}/tracking/`;return;}
-      const entered=prompt('Stake amount ($):');if(entered===null)return;
-      const stake=Number(entered);if(!Number.isFinite(stake)||stake<=0){$('feedback').textContent='Enter a valid positive stake.';return;}
-      const date=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(r.commence_time));
-      if(await window.autoTrackBet({league:'NFL',game_date:date,team_home:r.home_team,team_away:r.away_team,player:r.player,
-        market_type:r.market_std,side:r.name,line:r.point,book:r.bookmaker,odds:r.price,stake_dollars:stake,
-        model_prob:r.model_prob,edge_bps:r.edge_bps}))btn.textContent='Tracked';
-    }catch{trackingReady=null;$('feedback').textContent='Tracking is unavailable. Try the Bet Tracker page.';}
-    finally{btn.disabled=false;}
+    const btn=e.target.closest('button[data-copy]');if(!btn)return;
+    const r=current[Number(btn.dataset.copy)];if(!r)return;
+    await copy(`${r.player} ${r.market_label}: ${r.name} ${r.point??''} at ${odds(r.price)} (${r.book_label}). ${r.game}. Saved quote; confirm price. ${location.origin}${new URL(root+'/',location.href).pathname}props/`);
   });
   $('filters').hidden=false;render();setInterval(render,60000);
 })();

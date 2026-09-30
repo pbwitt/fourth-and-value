@@ -24,12 +24,12 @@ class TrackerPages(unittest.TestCase):
             module.build({'season': 20262027, 'last_success_at': None})
             for name in ['props/index.html', 'totals/index.html', 'top.html', 'picks.html']:
                 text = (output / 'docs/nhl' / name).read_text()
-                board = 'nhl-candidates.js?v=8' if name == 'picks.html' else 'nhl.js?v=4'
-                self.assertEqual(text.count('nhl-tracker.js?v=1'), 1)
-                self.assertIn('nhl-tracker.css?v=1', text)
-                self.assertLess(text.index('nhl-tracker.js?v=1'), text.index(board))
+                board = 'nhl-candidates.js?v=9' if name == 'picks.html' else 'nhl.js?v=5'
+                self.assertEqual(text.count('offer-tracker.js?v=1'), 1)
+                self.assertIn('offer-tracker.css?v=1', text)
+                self.assertLess(text.index('offer-tracker.js?v=1'), text.index(board))
             for name in ['index.html', 'methods.html']:
-                self.assertNotIn('nhl-tracker.js', (output / 'docs/nhl' / name).read_text())
+                self.assertNotIn('offer-tracker.js', (output / 'docs/nhl' / name).read_text())
 
 
 if __name__ == '__main__':

@@ -44,13 +44,17 @@ def build(state):
 <div class="checks"><label><input type="checkbox" id="best" checked> Best price at each line</label><button id="reset">Reset filters</button></div>
 <p id="result-count" role="status"></p><div id="results" class="prop-grid"></div><button id="more" hidden>Show more</button>
 <section class="help section"><h2>Read the comparison</h2><p>Book probability is the break-even rate at the quoted price. Fair probability removes that book's margin using both sides. Consensus uses distinct books at the exact same line. A historical baseline is not a calibrated game prediction.</p><a href="{nba}/methods.html">NBA methods and limitations →</a></section>'''
+        # Offer boards load the shared Track bet dialog before the board script.
+        tracking = page in ('props', 'lines', 'watch')
+        tracker_css = f'<link rel="stylesheet" href="{rel}/assets/offer-tracker.css?v=1">' if tracking else ''
+        tracker_js = f'<script src="{rel}/assets/offer-tracker.js?v=1" defer></script>' if tracking else ''
         body = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title} | Fourth &amp; Value</title>
 {metadata(path, title+' | Fourth & Value', 'NBA odds, player props, game lines and market consensus from Fourth & Value.')}
-<link rel="stylesheet" href="{rel}/assets/site.css"><link rel="icon" href="{rel}/assets/logo.svg"></head>
+<link rel="stylesheet" href="{rel}/assets/site.css"><link rel="icon" href="{rel}/assets/logo.svg">{tracker_css}</head>
 <body><a class="skip-link" href="#main">Skip to content</a><div id="nav-root"></div><script src="{rel}/nav.js?v=44"></script>
 <main class="wrap" id="main" data-nba-page="{page}" data-feed="{nba}/data/latest.json">{links}<p class="eyebrow">NBA · 2026–27</p><h1>{title}</h1>
 <div class="notice" id="feed-status" role="status"><strong>NBA market snapshot</strong><p>Last successful check: {escape(str(state.get('last_success_at') or 'Not yet checked'))}. Enable JavaScript to view current quote availability.</p></div>
 {intro}<footer>Fourth &amp; Value · <a href="{rel}/terms.html">Terms &amp; privacy</a> · <a href="{rel}/videos/">Videos</a></footer></main>
-<script src="{rel}/assets/nba.js?v=1" defer></script></body></html>'''
+{tracker_js}<script src="{rel}/assets/nba.js?v=2" defer></script></body></html>'''
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(body)

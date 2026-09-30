@@ -7,9 +7,10 @@ on:
       - 'tests/test_nhl*.py'
       - 'tests/nhl_browser.cjs'
       - 'tests/nhl_tracker*.cjs'
+      - 'tests/offer_tracker.cjs'
       - 'docs/assets/nhl.js'
       - 'docs/assets/nhl-candidates.*'
-      - 'docs/assets/nhl-tracker.*'
+      - 'docs/assets/offer-tracker.*'
       - 'docs/tracking/bet-tracking.js'
       - 'docs/assets/injury-context.js'
       - 'config/nhl_analyst.json'
@@ -42,5 +43,5 @@ jobs:
       - run: npm install --no-save --package-lock=false playwright@1.55.1
       - run: npx playwright install --with-deps chromium
       - run: NHL_BUNDLED_BROWSER=1 node tests/nhl_browser.cjs
-      - run: node tests/nhl_tracker.cjs && node tests/tracker_saves.cjs
+      - run: node tests/offer_tracker.cjs && node tests/tracker_saves.cjs
       - run: node tests/nhl_tracker_browser.cjs
