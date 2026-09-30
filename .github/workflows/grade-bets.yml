@@ -1,0 +1,47 @@
+name: Grade Tracked Bets
+
+# Settles pending Bet Tracker bets from final box scores (scripts/grade_bets.cjs).
+# Every 30 minutes; a bet settles once its game is final and started 4+ hours ago.
+# Logs show counts only: this repository is public.
+on:
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Report what would settle without writing'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: grade-tracked-bets
+  cancel-in-progress: false
+
+jobs:
+  grade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check league feeds are reachable
+        run: |
+          for url in \
+            "https://api-web.nhle.com/v1/schedule/now" \
+            "https://statsapi.mlb.com/api/v1/schedule?sportId=1" \
+            "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard" \
+            "https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard"; do
+            code=$(curl -sL -o /dev/null -w '%{http_code}' --max-time 20 "$url" || true)
+            host=$(echo "$url" | cut -d/ -f3)
+            if [ "$code" = 200 ]; then echo "$host OK"; else echo "::warning::$host returned $code; bets from that feed stay pending"; fi
+          done
+      - name: Grade pending bets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/grade_bets.cjs ${{ inputs.dry_run && '--dry-run' || '' }}

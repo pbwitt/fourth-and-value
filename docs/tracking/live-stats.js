@@ -140,6 +140,9 @@
 
   function marketSpec(league, market) {
     const key = norm(market).replace(/ /g, '_');
+    // The briefing saves NHL game totals as "team_total" (the NHL grader's
+    // original name for them), so there it means both teams combined.
+    if (league === 'NHL' && key === 'team_total') return { game: 'total' };
     if (GAME_MARKETS[key]) return { game: GAME_MARKETS[key] };
     const table = MARKETS[league] || {};
     return table[key] || table[key.replace(/^player_/, '')] || table[key.replace(/^(batter|player)_/, '')] || null;
@@ -189,10 +192,11 @@
     const adj = kind === 'spread' && Number.isFinite(Number(bet.line)) ? margin + Number(bet.line) : margin;
     if (final) {
       const tone = adj === 0 ? 'push' : adj > 0 ? 'won' : 'lost';
-      return { tone, label: tone === 'push' ? 'Push' : tone === 'won' ? 'Won' : 'Lost', note: 'Final · awaiting official grade' };
+      return { margin, tone, label: tone === 'push' ? 'Push' : tone === 'won' ? 'Won' : 'Lost', note: 'Final · awaiting official grade' };
     }
     const lead = kind === 'spread' ? ['Covering', 'Not covering', 'On the number'] : ['Leading', 'Trailing', 'Tied'];
-    return adj > 0 ? { tone: 'ahead', label: lead[0] } : adj < 0 ? { tone: 'behind', label: lead[1] } : { tone: 'alive', label: lead[2] };
+    const verdict = adj > 0 ? { tone: 'ahead', label: lead[0] } : adj < 0 ? { tone: 'behind', label: lead[1] } : { tone: 'alive', label: lead[2] };
+    return { margin, ...verdict };
   }
 
   function timeLabel(iso) {

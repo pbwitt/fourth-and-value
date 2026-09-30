@@ -80,9 +80,8 @@ else:
     print(result.stderr)
     sys.exit(1)
 
-# 3. Grade NFL bets
-print("\n[NFL 3/7] Grading NFL bets...")
-run_script('scripts/grade_bets_nfl.py', 'NFL Bet Grading')
+# Tracked NFL bets are graded automatically by the Grade Tracked Bets
+# workflow (scripts/grade_bets.cjs), not by this refresh.
 
 # 4. Train all NFL models
 print("\n[NFL 4/7] Training EPA model...")
@@ -162,9 +161,8 @@ else:
     print(result.stderr)
     sys.exit(1)
 
-# 2.75. Grade NHL bets (after fresh data is available)
-print("\n[NHL 2.75/6] Grading NHL bets...")
-run_script('scripts/grade_bets_nhl.py', 'NHL Bet Grading')
+# Tracked NHL bets are graded automatically by the Grade Tracked Bets
+# workflow (scripts/grade_bets.cjs), not by this refresh.
 
 # 2. Train NHL models
 print("\n[NHL 3/6] Training NHL models...")

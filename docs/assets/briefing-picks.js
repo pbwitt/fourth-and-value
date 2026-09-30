@@ -406,7 +406,7 @@
       $('track-bet-description').textContent=`${row.sport} · ${row.game} · ${betLabel(row)} · ${row.book_label||row.book}`;
       $('track-quote').textContent=`${row.card_snapshot_at?'Historical edition quote':'Saved quote'}: ${odds(row.price)} at ${time(row.quoted_at)}. Enter the price of the bet you actually placed.`;
       $('track-review').textContent=`Review status: ${displayReview(row)}.`;
-      $('track-grading').textContent=row.sport==='MLB'||(row.sport==='NFL'&&['h2h','spreads','totals'].includes(row.market))||(row.sport==='NHL'&&['h2h','spreads'].includes(row.market))?'This market can be logged, but automatic result grading is not connected yet. The bet will be saved as pending.':'';
+      $('track-grading').textContent='Bet Tracker settles this bet automatically from the final box score, usually a few hours after the game ends.';
       $('track-odds').value=row.price;dialog.showModal();$('track-stake').focus();
     });
     $('track-cancel').addEventListener('click',()=>{if(!saving)dialog.close();});
