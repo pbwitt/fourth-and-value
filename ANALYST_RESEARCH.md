@@ -251,9 +251,11 @@ It proves candidate-policy behavior, not predictive improvement or profitability
 Original dataset hashes are recorded. NHL preseason/empty slates make no picks.
 
 Bet Tracker retains executed price and stake, but does not yet save a structured
-review/candidate ID or human intervention timestamp. NFL game research markets,
-MLB and NHL moneyline/puck-line tracker grading are not fully connected and remain
-pending. Do not claim intervention ROI without unambiguous identity joins and
+review/candidate ID or human intervention timestamp. The Grade Tracked Bets
+workflow (`scripts/grade_bets.cjs`, every 30 minutes) settles pending NFL, MLB, NHL
+and NBA tracker bets, props and game markets, from final box scores once a game
+started 4+ hours ago; unmatched players, unsupported markets and postponed games
+stay pending. Do not claim intervention ROI without unambiguous identity joins and
 complete outcomes. No private tracker records are read or written by this runner.
 
 ## Release, monitoring and rollback
