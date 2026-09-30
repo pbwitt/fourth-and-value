@@ -198,6 +198,74 @@
     .status-lost { background: rgba(255, 107, 107, 0.2); color: #ff6b6b; }
     .status-push { background: rgba(255, 193, 7, 0.2); color: #FFC107; }
 
+    /* Live stats: display-only progress for today's pending bets. Tones follow
+       the verdict from live-stats.js; bet status itself is never changed. */
+    .tone-won, .tone-ahead { --tone: #66BB6A; }
+    .tone-lost, .tone-behind { --tone: #ff6b6b; }
+    .tone-behind { --tone: #FFB74D; }
+    .tone-push { --tone: #FFC107; }
+    .tone-alive { --tone: #4FC3F7; }
+    .tone-pre, .tone-off, .tone-missing, .tone-error, .tone-none { --tone: #888; }
+    .status-live { background: rgba(79, 195, 247, 0.15); color: #4FC3F7; }
+    .live-dot {
+      display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+      background: #ff5252; margin-right: 0.35rem; vertical-align: 1px;
+      animation: live-pulse 1.6s ease-in-out infinite;
+    }
+    @keyframes live-pulse { 50% { opacity: 0.35; } }
+    @media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } .live-bump { animation: none !important; } }
+    .live-bar { display: block; height: 6px; background: #2a2a2a; border-radius: 3px; overflow: hidden; }
+    .live-bar i { display: block; height: 100%; background: var(--tone); border-radius: 3px; transition: width 0.6s ease; }
+    .live-verdict { color: var(--tone); font-weight: 700; white-space: nowrap; }
+    .live-bump { animation: live-bump 1.2s ease-out; }
+    @keyframes live-bump { 0% { background: rgba(79, 195, 247, 0.35); } 100% { background: transparent; } }
+    .live-chip { display: inline-flex; align-items: center; gap: 0.3rem; font-weight: 700; color: var(--tone); white-space: nowrap; }
+    .live-chip .live-bar { display: inline-block; width: 48px; height: 4px; }
+    .live-note { color: #777; font-size: 0.75rem; }
+
+    .live-panel {
+      background: #141a1f;
+      border: 1px solid #1f3542;
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    .live-panel[hidden], .live-pill[hidden] { display: none; }
+    .live-panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin-bottom: 0.5rem; }
+    .live-panel-title { font-weight: 800; letter-spacing: 0.04em; font-size: 0.85rem; text-transform: uppercase; }
+    .live-game { padding: 0.6rem 0; border-top: 1px solid #1f2a31; }
+    .live-game:first-of-type { border-top: none; }
+    .live-game-head { color: #bbb; font-size: 0.8rem; font-weight: 600; margin-bottom: 0.35rem; }
+    .live-game-head b { color: #fff; }
+    .live-line {
+      display: grid;
+      grid-template-columns: minmax(140px, 1.3fr) minmax(110px, 1fr) 60px minmax(120px, 1.4fr) minmax(110px, 1fr) auto;
+      align-items: center;
+      gap: 0.9rem;
+      padding: 0.3rem 0.4rem;
+      margin: 0 -0.4rem;
+      border-radius: 6px;
+      font-size: 0.875rem;
+    }
+    .live-line .live-player { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .live-line .live-pick { color: #4FC3F7; white-space: nowrap; }
+    .live-line .live-value { font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; }
+    .live-line .live-stake { color: #999; font-size: 0.8rem; text-align: right; white-space: nowrap; }
+
+    /* Mobile card band */
+    .live-band { margin-top: 0.6rem; padding: 0.55rem 0.65rem; background: #141a1f; border-radius: 8px; }
+    .live-band-row { display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem; margin-bottom: 0.35rem; }
+    .live-band-value { font-size: 1.15rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+    .live-band-value small { color: #999; font-weight: 500; font-size: 0.8rem; }
+    .live-band-sub { color: #999; font-size: 0.75rem; margin-top: 0.35rem; }
+    .live-band.compact { color: #999; font-size: 0.8rem; }
+    .live-pill {
+      position: sticky; top: 8px; z-index: 50; display: none;
+      margin: 0 auto 0.75rem; width: max-content; max-width: 100%;
+      background: #0f1c24; border: 1px solid #4FC3F7; color: #fff;
+      border-radius: 999px; padding: 0.45rem 0.95rem; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+    }
+
     /* Add Bet Form */
     .add-bet-section {
       background: #1a1a1a;
@@ -300,6 +368,8 @@
       .add-bet-section .btn { width: 100%; padding: 0.9rem; font-size: 1rem; }
 
       .table-container { display: none; }
+      .live-panel { display: none; }
+      .live-pill:not([hidden]) { display: block; }
       .bet-cards { display: block; margin-bottom: 2rem; }
       .bet-day { margin-bottom: 1.25rem; }
       .bet-day-head {
@@ -386,6 +456,8 @@
         <span id="accountEmail"></span>
         <button onclick="handleSignOut()">Sign out</button>
       </div>
+      <!-- Mobile: jumps to live bets; stays in view while scrolling -->
+      <button class="live-pill" id="livePill" hidden></button>
 
       <!-- Stats Dashboard -->
       <div class="stats-grid">
@@ -474,6 +546,9 @@
         <button class="btn" onclick="addBet()">Add Bet</button>
       </div>
 
+      <!-- Live progress for today's pending bets (desktop; mobile shows it on each card) -->
+      <section class="live-panel" id="livePanel" aria-live="polite" hidden></section>
+
       <!-- Bet Log Table -->
       <div class="table-container">
         <table>
@@ -521,6 +596,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="bet-tracking.js?v=3"></script>
+  <script src="live-feeds.js?v=1"></script>
+  <script src="live-stats.js?v=1"></script>
   <script>
     let betsData = [];
 
@@ -601,6 +678,7 @@
       betsData = data;
       renderBets();
       updateStats();
+      liveTracker.setBets(betsData);
     }
 
     function renderBets() {
@@ -625,7 +703,7 @@
           <td>${text(bet.odds)}</td>
           <td>${text(bet.book)}</td>
           <td>$${text(bet.stake_dollars ?? 0)}</td>
-          <td><span class="status-badge status-${text(bet.status || 'pending')}">${text(bet.status || 'pending')}</span></td>
+          <td>${liveChipHtml(bet) || `<span class="status-badge status-${text(bet.status || 'pending')}">${text(bet.status || 'pending')}</span>`}</td>
           <td>${text(bet.actual_result)}</td>
           <td>${bet.payout != null ? '$' + text(bet.payout) : '-'}</td>
           <td><button onclick="deleteBet('${bet.id}')" style="background:#d32f2f;color:white;border:none;padding:0.3rem 0.6rem;border-radius:3px;cursor:pointer;font-size:0.8rem;">Delete</button></td>
@@ -728,7 +806,9 @@
         <article class="bet-card">
           <div class="bet-card-top">
             <span class="bet-card-meta">${esc(meta)}</span>
-            <span class="status-badge status-${esc(status)}">${esc(status)}</span>
+            ${liveViews.get(bet.id)?.status==='live'
+              ? '<span class="status-badge status-live"><span class="live-dot"></span>Live</span>'
+              : `<span class="status-badge status-${esc(status)}">${esc(status)}</span>`}
           </div>
           <div class="bet-card-main">
             <div>
@@ -737,6 +817,7 @@
             </div>
             <div class="bet-card-odds"><strong>${esc(fmtOdds(bet.odds))}</strong><span>${esc(bet.book||'')}</span></div>
           </div>
+          ${liveBandHtml(bet)}
           <div class="bet-card-foot">
             <span>Stake ${esc(money(bet.stake_dollars))}${outcome?' · '+outcome:''}${bet.actual_result!=null&&bet.actual_result!==''?' · Result '+esc(bet.actual_result):''}</span>
             <span class="bet-card-actions">
@@ -848,8 +929,16 @@
         // Footer line
         ctx.fillStyle='#262626'; ctx.fillRect(inner,y+97,right-inner,1);
         ctx.font=`500 13px ${FONT}`; ctx.fillStyle='#bbb';
-        ctx.fillText('Stake '+money(bet.stake_dollars),inner,y+117);
-        const pl=betPL(bet), win=toWin(bet);
+        const stakeText='Stake '+money(bet.stake_dollars);
+        ctx.fillText(stakeText,inner,y+117);
+        const pl=betPL(bet), win=toWin(bet), live=pl==null?liveShareText(bet):null;
+        if (live) {
+          const x=inner+ctx.measureText(stakeText+'  ·  ').width;
+          ctx.fillStyle='#4FC3F7'; ctx.font=`700 13px ${FONT}`;
+          ctx.fillText(fitText(ctx,live,right-x-(win!=null?140:0)),x,y+117);
+          ctx.font=`500 13px ${FONT}`; ctx.fillStyle='#bbb';
+          ctx.fillText('·',inner+ctx.measureText(stakeText+' ').width,y+117);
+        }
         ctx.textAlign='right';
         if (pl!=null) {
           ctx.font=`700 13px ${FONT}`;
@@ -932,6 +1021,145 @@
     document.getElementById('shareSheet').addEventListener('click', e=>{
       if (e.target.id==='shareSheet') closeShareSheet();
     });
+
+
+    // ---- Live stats -----------------------------------------------------------
+    // Display-only progress for today's pending bets (docs/tracking/live-stats.js).
+    // Status and payouts still come from the official graders.
+
+    let liveViews=new Map(), liveMeta=null, liveSeen=new Map(), liveBumped=new Set();
+
+    const liveTracker=FVLiveStats.createLiveTracker({
+      fetchJSON: async url=>{ const r=await fetch(url); if (!r.ok) throw Error('HTTP '+r.status); return r.json(); },
+      proxy: async body=>{ const {data,error}=await supabaseClient.functions.invoke('live-stats',{body}); if (error) throw error; return data; },
+      onUpdate: (views,meta)=>{
+        liveBumped=new Set();
+        views.forEach((v,id)=>{
+          if (v.value!=null && liveSeen.has(id) && liveSeen.get(id)!==v.value) liveBumped.add(id);
+          if (v.value!=null) liveSeen.set(id,v.value);
+        });
+        liveViews=views; liveMeta=meta;
+        renderBets(); renderLivePanel();
+        liveBumped=new Set();
+      },
+    });
+    document.addEventListener('visibilitychange',()=>document.hidden?liveTracker.pause():liveTracker.resume());
+
+    const liveNum=n=>Number.isInteger(n)?String(n):Number(n).toFixed(1);
+    const teamTag=t=>t.abbrev||t.short||t.name;
+
+    function liveGameLine(g) {
+      if (!g) return '';
+      const score=g.state==='pre'||g.state==='off'
+        ? `${teamTag(g.away)} @ ${teamTag(g.home)}`
+        : `${teamTag(g.away)} ${g.away.score??0} @ ${teamTag(g.home)} ${g.home.score??0}`;
+      const when=g.state==='pre' ? new Date(g.start).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : g.detail;
+      return when ? `${score} · ${when}` : score;
+    }
+
+    // "3 / 3.5 SOG", "40 / 44.5", or null when there is no running number.
+    function liveFigure(v) {
+      if (v.value==null) return null;
+      return {value:liveNum(v.value), rest:[v.line!=null?'/ '+v.line:'', v.unit||''].filter(Boolean).join(' ')};
+    }
+
+    function liveBandHtml(bet) {
+      const v=liveViews.get(bet.id);
+      if (!v) return '';
+      const tone='tone-'+(v.tone||'none'), fig=liveFigure(v);
+      const game=liveGameLine(v.game);
+      if (!['live','final'].includes(v.status) || (!fig && !v.label)) {
+        const text=[v.status==='pre'||v.status==='off'?'':game, v.label].filter(Boolean).join(' · ');
+        return text?`<div class="live-band compact ${tone}">${esc(text)}</div>`:'';
+      }
+      if (!fig && v.kind!=='game') return `<div class="live-band compact ${tone}">${esc([game,v.label].filter(Boolean).join(' · '))}</div>`;
+      const sub=[fig?game:'', v.pace!=null?`on pace for ${liveNum(v.pace)}`:'', v.note||(v.status==='live'?'live, unofficial':'')].filter(Boolean).join(' · ');
+      const bump=liveBumped.has(bet.id)?' live-bump':'';
+      return `
+          <div class="live-band full ${tone}${bump}">
+            <div class="live-band-row">
+              <span class="live-band-value">${fig?`${esc(fig.value)} <small>${esc(fig.rest)}</small>`:esc(game)}</span>
+              <span class="live-verdict">${esc(v.label||'')}</span>
+            </div>
+            ${v.progress!=null?`<div class="live-bar"><i style="width:${Math.round(v.progress*100)}%"></i></div>`:''}
+            ${sub?`<div class="live-band-sub">${esc(sub)}</div>`:''}
+          </div>`;
+    }
+
+    function liveChipHtml(bet) {
+      const v=liveViews.get(bet.id);
+      if (!v || !['live','final'].includes(v.status)) return '';
+      const fig=liveFigure(v), tone='tone-'+(v.tone||'none');
+      const title=[liveGameLine(v.game),v.label,v.note].filter(Boolean).join(' · ');
+      const dot=v.status==='live'?'<span class="live-dot"></span>':'';
+      const text=fig?`${fig.value}${v.line!=null?'/'+v.line:''}`:(v.label||'Live');
+      const bar=v.progress!=null?`<span class="live-bar"><i style="width:${Math.round(v.progress*100)}%"></i></span>`:'';
+      return `<span class="live-chip ${tone}${liveBumped.has(bet.id)?' live-bump':''}" title="${esc(title)}">${dot}${esc(text)}${bar}</span>`;
+    }
+
+    function liveShareText(bet) {
+      const v=liveViews.get(bet.id), fig=v&&liveFigure(v);
+      if (!v || !['live','final'].includes(v.status)) return null;
+      const now=fig?`${fig.value} ${fig.rest}`.trim():liveGameLine(v.game);
+      return [v.status==='live'?'LIVE':'', now, fig?v.game?.detail:''].filter(Boolean).join(' · ');
+    }
+
+    function liveAgo() {
+      if (!liveMeta) return '';
+      const s=Math.max(0,Math.round((Date.now()-liveMeta.at)/1000));
+      return s<10?'just now':s<60?`${s}s ago`:`${Math.round(s/60)}m ago`;
+    }
+
+    const LIVE_ORDER={live:0,final:1,pre:2,off:3};
+
+    function renderLivePanel() {
+      const panel=document.getElementById('livePanel'), pill=document.getElementById('livePill');
+      const rows=betsData.filter(b=>liveViews.has(b.id)).map(b=>({bet:b,view:liveViews.get(b.id)}));
+      if (!rows.length) { panel.hidden=true; pill.hidden=true; return; }
+
+      const groups=new Map();
+      rows.forEach(r=>{
+        const key=r.view.gameKey||'unmatched';
+        if (!groups.has(key)) groups.set(key,{game:r.view.game,rows:[]});
+        groups.get(key).rows.push(r);
+      });
+      const ordered=[...groups.values()].sort((a,b)=>
+        (a.game?LIVE_ORDER[a.game.state]:9)-(b.game?LIVE_ORDER[b.game.state]:9) ||
+        String(a.game?.start||'').localeCompare(String(b.game?.start||'')));
+
+      const liveCount=rows.filter(r=>r.view.status==='live').length;
+      panel.innerHTML=`
+        <div class="live-panel-head">
+          <span class="live-panel-title">${liveCount?'<span class="live-dot"></span>Live now':'Today’s open bets'}</span>
+          <span class="live-note"><span id="liveUpdated">Updated ${esc(liveAgo())}</span> · Live stats are unofficial; bets are graded from final official stats${liveMeta?.errors?' · some feeds unavailable':''}</span>
+        </div>
+        ${ordered.map(g=>`
+          <div class="live-game">
+            <div class="live-game-head">${g.game?`<b>${esc(g.game.league)}</b> · ${esc(liveGameLine(g.game))}`:'Not matched to a game'}</div>
+            ${g.rows.map(({bet,view})=>{
+              const fig=liveFigure(view), win=toWin(bet), tone='tone-'+(view.tone||'none');
+              return `
+            <div class="live-line ${tone}${liveBumped.has(bet.id)?' live-bump':''}">
+              <span class="live-player" title="${esc(bet.player||'Game market')}">${esc(bet.player||'Game market')}</span>
+              <span class="live-pick">${esc(pickLabel(bet))}</span>
+              <span class="live-value">${fig?esc(fig.value):'–'}</span>
+              <span>${view.progress!=null?`<span class="live-bar"><i style="width:${Math.round(view.progress*100)}%"></i></span>`:''}</span>
+              <span class="live-verdict">${esc(view.pace!=null?`${view.label} · pace ${liveNum(view.pace)}`:(view.label||''))}</span>
+              <span class="live-stake">${esc(money(bet.stake_dollars))}${win!=null?' → '+esc(money(win)):''}</span>
+            </div>`;}).join('')}
+          </div>`).join('')}`;
+      panel.hidden=false;
+
+      const tally=t=>rows.filter(r=>['live','final'].includes(r.view.status)&&r.view.tone===t).length;
+      const bits=[liveCount?`${liveCount} live`:'', tally('won')?`${tally('won')} hit`:'', tally('lost')?`${tally('lost')} dead`:''].filter(Boolean);
+      pill.hidden=!liveCount;
+      pill.innerHTML=`<span class="live-dot"></span>${esc(bits.join(' · '))}`;
+    }
+
+    document.getElementById('livePill').addEventListener('click',()=>{
+      document.querySelector('.bet-card .live-band.full')?.closest('.bet-card')?.scrollIntoView({behavior:'smooth',block:'center'});
+    });
+    setInterval(()=>{ const el=document.getElementById('liveUpdated'); if (el) el.textContent='Updated '+liveAgo(); },15000);
 
     function updateStats() {
       // Pending tickets are exposure, not realized losses.

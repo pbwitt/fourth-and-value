@@ -16,6 +16,9 @@ on:
       - 'docs/tracking/bet-tracking.js'
       - 'docs/tracking/index.html'
       - 'tests/tracker_saves.cjs'
+      - 'docs/tracking/live-*.js'
+      - 'tests/live_stats.cjs'
+      - 'supabase/functions/live-stats/**'
       - 'tests/briefing_picks.cjs'
       - 'tests/briefing_browser.cjs'
       - 'tests/test_editorial*.py'
@@ -50,6 +53,7 @@ jobs:
       - run: node tests/briefing_picks.cjs
       - run: python -m unittest discover -s tests -p 'test_analyst_review.py'
       - run: node tests/tracker_saves.cjs
+      - run: node tests/live_stats.cjs
       - run: npm install --no-save --package-lock=false playwright@1.55.1
       - run: npx playwright install --with-deps chromium
       - run: node tests/briefing_browser.cjs
