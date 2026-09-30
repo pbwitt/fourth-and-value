@@ -34,56 +34,56 @@ const server=http.createServer((req,res)=>{
       generated_at:now.toISOString(),session:'morning',source_snapshot_id:'snapshot',status:'ready',review_status:'not_requested',eligible_count:1,candidates:[candidate],sources:[]};
     await p.route('**/nhl/data/latest.json',route=>route.fulfill({json:fixture}));
     await p.route('**/nhl/data/candidates.json',route=>route.fulfill({json:board}));
-    const open=async()=>{await p.locator('[data-nhl-ticket]').first().click();await p.waitForSelector('#nhl-bet-tracker[open]');};
-    const fill=async()=>{await p.locator('#nhl-track-odds').fill('-120');await p.locator('#nhl-track-stake').fill('25');await p.locator('#nhl-track-confirm').check();};
-    const save=async()=>p.locator('#nhl-track-save').click();
-    const saved=async()=>p.waitForFunction(()=>document.getElementById('nhl-track-feedback').textContent.startsWith('Saved to'));
-    await p.goto(base+'/nhl/props/');await p.waitForSelector('[data-nhl-ticket]');
-    assert.equal(await p.locator('[data-nhl-ticket]').count(),1,'best-price filter still applies');
+    const open=async()=>{await p.locator('[data-fv-ticket]').first().click();await p.waitForSelector('#fv-bet-tracker[open]');};
+    const fill=async()=>{await p.locator('#fv-track-odds').fill('-120');await p.locator('#fv-track-stake').fill('25');await p.locator('#fv-track-confirm').check();};
+    const save=async()=>p.locator('#fv-track-save').click();
+    const saved=async()=>p.waitForFunction(()=>document.getElementById('fv-track-feedback').textContent.startsWith('Saved to'));
+    await p.goto(base+'/nhl/props/');await p.waitForSelector('[data-fv-ticket]');
+    assert.equal(await p.locator('[data-fv-ticket]').count(),1,'best-price filter still applies');
     await p.locator('#book').selectOption('caesars');await open();
-    assert.match(await p.locator('#nhl-track-description').textContent(),/Caesars/);
-    assert.equal(await p.locator('#nhl-track-odds').inputValue(),'-110');await fill();
-    await p.evaluate(()=>{db.user=null;});await save();await p.waitForSelector('#nhl-track-signin:not([hidden])');
-    assert.equal(await p.evaluate(()=>db.rows.length),0);assert.equal(await p.locator('#nhl-track-stake').inputValue(),'25');
+    assert.match(await p.locator('#fv-track-description').textContent(),/Caesars/);
+    assert.equal(await p.locator('#fv-track-odds').inputValue(),'-110');await fill();
+    await p.evaluate(()=>{db.user=null;});await save();await p.waitForSelector('#fv-track-signin:not([hidden])');
+    assert.equal(await p.evaluate(()=>db.rows.length),0);assert.equal(await p.locator('#fv-track-stake').inputValue(),'25');
     await p.evaluate(()=>{db.user={id:'test-owner'};db.error=true;});await save();
-    await p.waitForFunction(()=>document.getElementById('nhl-track-feedback').textContent.includes('could not be saved'));
+    await p.waitForFunction(()=>document.getElementById('fv-track-feedback').textContent.includes('could not be saved'));
     const firstID=await p.evaluate(()=>db.attempts[0].id);
     await p.evaluate(()=>{db.error=null;db.delay=250;});await save();await saved();
     const ticket=await p.evaluate(()=>db.rows[0]);assert.equal(ticket.id,firstID);assert.equal(ticket.user_id,'test-owner');
     assert.equal(ticket.market_type,'sog');assert.equal(ticket.line,3.5);assert.equal(ticket.book,'caesars');assert.equal(ticket.odds,-120);assert.equal(ticket.stake_dollars,25);
-    assert(await p.locator('#nhl-track-save').isDisabled());
+    assert(await p.locator('#fv-track-save').isDisabled());
     for(const width of [390,1440]){
       await p.setViewportSize({width,height:900});assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
-      assert.equal(await p.locator('#nhl-bet-tracker').evaluate(el=>el.scrollWidth>el.clientWidth+1),false);
-      await p.screenshot({path:`/tmp/fv-nhl-tracker-${width}.png`,fullPage:true});
+      assert.equal(await p.locator('#fv-bet-tracker').evaluate(el=>el.scrollWidth>el.clientWidth+1),false);
+      await p.screenshot({path:`/tmp/fv-offer-tracker-nhl-${width}.png`,fullPage:true});
     }
-    await p.locator('#nhl-track-close').click();assert(await p.locator('[data-nhl-ticket]').isDisabled());
-    await p.locator('#search').fill('absent');assert.equal(await p.locator('[data-nhl-ticket]').count(),0);
-    await p.locator('#search').fill('');assert(await p.locator('[data-nhl-ticket]').isDisabled(),'saved state survives filtering');
+    await p.locator('#fv-track-close').click();assert(await p.locator('[data-fv-ticket]').isDisabled());
+    await p.locator('#search').fill('absent');assert.equal(await p.locator('[data-fv-ticket]').count(),0);
+    await p.locator('#search').fill('');assert(await p.locator('[data-fv-ticket]').isDisabled(),'saved state survives filtering');
     // All seven supported market payloads reach the actual save helper from their rendered cards.
     for(const [market,type,side,line] of [['player_goals','goals','Over',.5],['player_assists','assists','Under',1.5],['player_points','points','Over',1.5],
       ['totals','team_total','Under',6],['spreads','spreads','Toronto Maple Leafs',-1.5],['h2h','h2h','Montreal Canadiens',null]]){
       fixture.rows=[{...row,market,market_label:market,side,line,player:market.startsWith('player_')?row.player:''}];
-      await p.goto(base+(market.startsWith('player_')?'/nhl/props/':'/nhl/totals/'));await p.waitForSelector('[data-nhl-ticket]');
+      await p.goto(base+(market.startsWith('player_')?'/nhl/props/':'/nhl/totals/'));await p.waitForSelector('[data-fv-ticket]');
       await open();await fill();await save();await saved();const result=await p.evaluate(()=>db.rows[0]);
       assert.equal(result.market_type,type);assert.equal(result.line,line);assert.equal(result.side,['Over','Under'].includes(side)?side.toLowerCase():side);
     }
-    fixture.rows=[row];await p.goto(base+'/nhl/top.html');await p.waitForSelector('[data-nhl-ticket]');await open();await fill();await save();await saved();
-    await p.goto(base+'/nhl/picks.html');await p.waitForSelector('[data-nhl-ticket]');await open();await fill();await save();await saved();
-    await p.locator('#nhl-track-close').click();assert.match(await p.locator('[data-candidate]').textContent(),/Recorded status: watch/);
+    fixture.rows=[row];await p.goto(base+'/nhl/top.html');await p.waitForSelector('[data-fv-ticket]');await open();await fill();await save();await saved();
+    await p.goto(base+'/nhl/picks.html');await p.waitForSelector('[data-fv-ticket]');await open();await fill();await save();await saved();
+    await p.locator('#fv-track-close').click();assert.match(await p.locator('[data-candidate]').textContent(),/Recorded status: watch/);
     assert.equal(await p.locator('form[data-review]').count(),1,'analyst preparation remains separate');
     // Expired research quotes can be logged as actual wagers without enabling shadow selection.
     board.candidates=[{...candidate,quoted_at:new Date(+now-31*60e3).toISOString(),model_data_checked_at:new Date(+now-37*3600e3).toISOString()}];
-    await p.reload();await p.waitForSelector('[data-nhl-ticket]');assert(await p.locator('option[value=select]').evaluate(el=>el.disabled));
+    await p.reload();await p.waitForSelector('[data-fv-ticket]');assert(await p.locator('option[value=select]').evaluate(el=>el.disabled));
     await open();await fill();await save();await saved();assert.equal(await p.evaluate(()=>db.rows[0].model_prob),null);
     // Page reload must not destroy an open tracking form.
-    await p.clock.install();await p.goto(base+'/nhl/props/');await p.waitForSelector('[data-nhl-ticket]');await open();
-    await p.clock.fastForward(301000);assert(await p.locator('#nhl-bet-tracker').evaluate(el=>el.open));
+    await p.clock.install();await p.goto(base+'/nhl/props/');await p.waitForSelector('[data-fv-ticket]');await open();
+    await p.clock.fastForward(301000);assert(await p.locator('#fv-bet-tracker').evaluate(el=>el.open));
     await p.clock.resume();
     fixture.status='feed_error';await p.goto(base+'/nhl/totals/');await p.waitForFunction(()=>document.getElementById('feed-status').textContent.includes('failed'));
-    assert.equal(await p.locator('[data-nhl-ticket]').count(),0);
+    assert.equal(await p.locator('[data-fv-ticket]').count(),0);
     fixture.status='ready';board.source_snapshot_id='changed';await p.goto(base+'/nhl/picks.html');await p.waitForFunction(()=>document.getElementById('feed-status').textContent.includes('snapshot changed'));
-    assert.equal(await p.locator('[data-nhl-ticket]').count(),0);
+    assert.equal(await p.locator('[data-fv-ticket]').count(),0);
     assert.deepEqual(errors,[]);console.log('PASS: NHL props, lines, Market Watch and candidates; auth, retries, exact saves, filtering, expired/failed states and responsive dialog.');
   }finally{await browser.close();server.close();}
 })().catch(error=>{console.error(error);server.close();process.exitCode=1;});

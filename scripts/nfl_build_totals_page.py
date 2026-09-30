@@ -2,9 +2,31 @@
 Build NFL Totals page with consensus edges
 Matches NHL totals page structure
 """
+import json
 import pandas as pd
 import os
 from datetime import datetime
+from html import escape
+
+
+def track_offers(line):
+    """Exact per-book offers for the shared Track bet dialog (docs/assets/offer-tracker.js)."""
+    value = lambda key: line.get(key) if pd.notna(line.get(key)) else None
+    base = {'sport': 'NFL', 'event_id': f"{line['game']}|{line['commence_time']}", 'game': line['game'],
+            'home_team': line['home_team'], 'away_team': line['away_team'], 'commence_time': line['commence_time'],
+            'player': '', 'book': line['book'], 'book_label': line['book']}
+    offers = []
+    total, spread = value('total_over_line'), value('spread_home_line')
+    for side, price in [('Over', value('total_over_price')), ('Under', value('total_under_price'))]:
+        if total is not None and price is not None:
+            offers.append({**base, 'market': 'totals', 'market_label': 'Game total', 'side': side, 'line': float(total),
+                           'price': int(price), 'quoted_at': value('totals_last_update')})
+    for side, point, price in [(line['home_team'], spread, value('spread_home_price')),
+                               (line['away_team'], None if spread is None else -spread, value('spread_away_price'))]:
+        if point is not None and price is not None:
+            offers.append({**base, 'market': 'spreads', 'market_label': 'Spread', 'side': side, 'line': float(point),
+                           'price': int(price), 'quoted_at': value('spreads_last_update')})
+    return offers
 
 def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, output_path, week,
                       team_totals_path=None, priced_path=None, injury_signal_path=None):
@@ -166,6 +188,7 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
       .matchup {{ font-size: 18px; }}
     }}
   </style>
+  <link rel="stylesheet" href="../../assets/offer-tracker.css?v=1">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -451,6 +474,7 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
                 <th scope="col">Spread</th>
                 <th scope="col" class="num">Fav</th>
                 <th scope="col" class="num">Dog</th>
+                <th scope="col">Track</th>
               </tr>
             </thead>
             <tbody>
@@ -468,6 +492,7 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
                 <td>{spread_str}</td>
                 <td class="num">&mdash;</td>
                 <td class="num">&mdash;</td>
+                <td></td>
               </tr>
 """
 
@@ -485,7 +510,7 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
                     spread_away_odds = f"{int(line['spread_away_price']):+d}" if pd.notna(line.get('spread_away_price')) else '&mdash;'
 
                     html += f"""
-              <tr>
+              <tr data-offers="{escape(json.dumps(track_offers(line)), quote=True)}">
                 <td>{line['book']}</td>
                 <td class="num">{total_str}</td>
                 <td{over_cls}>{over_odds}</td>
@@ -493,6 +518,7 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
                 <td>{spread_str}</td>
                 <td class="num">{spread_home_odds}</td>
                 <td class="num">{spread_away_odds}</td>
+                <td class="track-cell"></td>
               </tr>
 """
 
@@ -546,115 +572,18 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
     </footer>
   </main>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="../../tracking/bet-tracking.js"></script>
+  <script src="../../assets/offer-tracker.js?v=1"></script>
   <script>
-  // Add Track buttons to NFL totals page
-  document.addEventListener('DOMContentLoaded', function() {{
-    const isAuthenticated = sessionStorage.getItem('betTrackingAuth') === 'true';
-
-    if (!isAuthenticated) return;
-
-    // Find all book lines tables
-    const tables = document.querySelectorAll('.book-lines-table');
-
-    tables.forEach(table => {{
-      // Add Track header
-      const headerRow = table.querySelector('thead tr');
-      if (headerRow && !headerRow.querySelector('.track-header')) {{
-        const th = document.createElement('th');
-        th.className = 'track-header';
-        th.textContent = 'Track';
-        headerRow.appendChild(th);
-      }}
-
-      // Find parent game card to get team info
-      const gameCard = table.closest('.game-card');
-      if (!gameCard) return;
-
-      const matchup = gameCard.querySelector('.matchup')?.textContent || '';
-      const [awayTeam, homeTeam] = matchup.split(' @ ').map(s => s.trim());
-
-      // Add Track buttons to each book line row (skip consensus row)
-      const rows = table.querySelectorAll('tbody tr:not(.consensus-row)');
-      rows.forEach(row => {{
-        if (row.querySelector('.track-cell')) return; // Already added
-
-        const cells = row.querySelectorAll('td');
-        if (cells.length < 7) return;
-
-        const book = cells[0].textContent.trim();
-        const totalLine = parseFloat(cells[1].textContent) || 0;
-        const overPrice = cells[2].textContent.trim();
-        const underPrice = cells[3].textContent.trim();
-
-        // Create track cell with O/U buttons
-        const trackCell = document.createElement('td');
-        trackCell.className = 'track-cell';
-        trackCell.style.cssText = 'display:flex; gap:0.25rem;';
-
-        // Over button
-        const overBtn = document.createElement('button');
-        overBtn.textContent = 'O';
-        overBtn.style.cssText = 'min-height:32px;padding:4px 10px;background:var(--accent);color:#10241c;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;';
-        overBtn.onclick = () => window.trackNFLTotal(homeTeam, awayTeam, book, totalLine, overPrice, 'over');
-
-        // Under button
-        const underBtn = document.createElement('button');
-        underBtn.textContent = 'U';
-        underBtn.style.cssText = 'min-height:32px;padding:4px 10px;background:var(--accent);color:#10241c;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;';
-        underBtn.onclick = () => window.trackNFLTotal(homeTeam, awayTeam, book, totalLine, underPrice, 'under');
-
-        trackCell.appendChild(overBtn);
-        trackCell.appendChild(underBtn);
-        row.appendChild(trackCell);
-      }});
-    }});
+  // Track bet buttons for each sportsbook's exact total and spread quotes.
+  document.querySelectorAll('tr[data-offers]').forEach(row => {{
+    const cell = row.querySelector('.track-cell');
+    if (!cell || !window.FVOfferTracker) return;
+    for (const offer of JSON.parse(row.dataset.offers)) {{
+      const label = offer.market === 'totals' ? `${{offer.side}} ${{offer.line}}` : `${{offer.side}} ${{offer.line > 0 ? '+' : ''}}${{offer.line}}`;
+      cell.append(window.FVOfferTracker.button(offer, label));
+    }}
   }});
-
-  // Track NFL Team Total function
-  window.trackNFLTotal = function(homeTeam, awayTeam, book, line, odds, side) {{
-    const stake = prompt('Enter stake amount ($):', '100');
-    if (!stake || isNaN(parseFloat(stake))) {{
-      alert('Invalid stake amount');
-      return;
-    }}
-
-    // Parse odds (remove + or -)
-    const oddsNum = parseInt(odds.replace('+', '').replace('-', ''));
-    const oddsStr = odds.includes('-') ? `-${{oddsNum}}` : oddsNum.toString();
-
-    const today = new Date().toISOString().split('T')[0];
-
-    const bet = {{
-      bet_id: 'bet_' + Date.now(),
-      timestamp: new Date().toISOString(),
-      league: 'NFL',
-      game_date: today,
-      team_home: homeTeam,
-      team_away: awayTeam,
-      player: '',
-      market_type: 'team_total',
-      side: side,
-      line: line,
-      book: book,
-      odds: oddsStr,
-      stake_dollars: parseFloat(stake).toFixed(2),
-      status: 'pending',
-      actual_result: '',
-      payout: '',
-      graded_timestamp: '',
-      model_prob: '',
-      edge_bps: ''
-    }};
-
-    // Auto-track bet via GitHub API
-    if (window.autoTrackBet) {{
-      autoTrackBet(bet);
-    }} else {{
-      alert('Error: Auto-tracking unavailable. Please refresh the page and try again.');
-    }}
-  }};
+  window.FVOfferTracker?.refresh();
   </script>
 
   <script>
