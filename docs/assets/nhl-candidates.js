@@ -64,6 +64,7 @@
     const selected=rows.filter(r=>(r.game+' '+r.player).toLowerCase().includes(q)&&(!filter||(r.qualitative_review?.status||'unreviewed')===filter));
     $('candidate-summary').textContent=`${selected.length} research candidates · ${board.eligible_count||0} offers passed the quantitative screen before duplicate-offer removal.`;
     $('candidates').innerHTML=selected.map(card).join('')||'<p class="empty">No current candidates match this screen. An empty shortlist is a valid result; Market Watch may still contain price comparisons.</p>';
+    window.FVNHLTracker?.attach($('candidates'),selected);
     document.querySelectorAll('form[data-review]').forEach(form=>form.addEventListener('submit',event=>{
       event.preventDefault();const r=rows.find(r=>r.candidate_id===form.dataset.review),values=new FormData(form);
       const result={board_id:board.board_id,candidate_id:r.candidate_id,offer_id:r.offer_id,forecast_id:r.forecast_id,recorded_at:new Date().toISOString()};
