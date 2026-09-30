@@ -1,24 +1,6 @@
--- Run once after editorial.sql. Existing private ideas/drafts are preserved.
+-- Upgrade existing editorial desks after editorial_write_now.sql.
+-- Replaces only the two existing trigger functions; preserves rows, roles and policies.
 begin;
-alter table public.editorial_ideas add column if not exists research_error text;
-alter table public.editorial_ideas add column if not exists requires_review boolean not null default false;
-alter table public.editorial_ideas add column if not exists approved_by uuid references auth.users(id);
-alter table public.editorial_ideas add column if not exists research_requested_at timestamptz;
-alter table public.editorial_ideas add column if not exists notification_sent_at timestamptz;
-alter table public.editorial_ideas add column if not exists draft_notification_sent_at timestamptz;
--- Backfill the trusted approving account for already-approved legacy drafts.
-update public.editorial_ideas set approved_by=user_id where status in ('approved','publishing','published') and approved_by is null;
-drop policy if exists "editor owns ideas" on public.editorial_ideas;
-drop policy if exists "read own ideas or editor inbox" on public.editorial_ideas;
-create policy "read own ideas or editor inbox" on public.editorial_ideas for select to authenticated
- using(user_id=auth.uid() or (auth.jwt()->'app_metadata'->>'fv_editor')='true');
-drop policy if exists "submit own idea" on public.editorial_ideas;
-create policy "submit own idea" on public.editorial_ideas for insert to authenticated
- with check(user_id=auth.uid());
-drop policy if exists "edit ideas as editor" on public.editorial_ideas;
-create policy "edit ideas as editor" on public.editorial_ideas for update to authenticated
- using((auth.jwt()->'app_metadata'->>'fv_editor')='true')
- with check((auth.jwt()->'app_metadata'->>'fv_editor')='true');
 create or replace function public.guard_editorial_approval() returns trigger language plpgsql
 set search_path=public,extensions as $$
 declare changed boolean; content_hash text;
@@ -71,6 +53,23 @@ begin
      raise exception 'Only the publisher can mark an approved draft published.';
    end if;
    if new.status not in ('approved','publishing','published') then new.approved_hash=null; new.approved_by=null; end if;
+ end if;
+ return new;
+end $$;
+
+create or replace function public.guard_editorial_write_request() returns trigger
+language plpgsql set search_path=public,extensions as $$
+begin
+ if TG_OP='INSERT' then
+   new.write_now_requested_at=null; new.write_now_publish=false;
+ elsif (new.write_now_requested_at,new.write_now_publish) is distinct from (old.write_now_requested_at,old.write_now_publish) then
+   if coalesce(auth.jwt()->'app_metadata'->>'fv_editor','false')<>'true' or old.status<>'submitted' or new.status<>'submitted' or old.kind not in ('analysis','opinion') then
+     raise exception 'Only an editor may request writing for a submitted Analysis or Opinion idea.';
+   end if;
+   if old.write_now_requested_at>now()-interval '1 minute' then raise exception 'Writing was just requested; wait before retrying.'; end if;
+   new.write_now_requested_at=now();
+   -- Generation never authorizes publication, including legacy owner requests.
+   new.write_now_publish=false;
  end if;
  return new;
 end $$;

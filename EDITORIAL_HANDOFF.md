@@ -249,3 +249,14 @@ delivers explicitly approved versions. Standalone daily analysis is unchanged.
 Opinion has an open manual article editor; AI opinion generation is not part of
 this change. No private queue records, roles, secrets or database schema were
 changed. `tests/editorial_manual.cjs` is the offline UI-controller regression gate.
+
+
+### September 30 — uniform Opinion/Analysis generation follow-up
+
+Paul requested the same generation interface for Opinion as Analysis. The follow-up
+adds shared Generate draft / Request rewrite controls and sourced Opinion drafting,
+with manual publication for every private submission. See the final section of
+`EDITORIAL_OPERATIONS.md` for the required Supabase trigger-function migration,
+Edge Function update, rollout order and checks. Backend activation is required;
+GitHub deployment alone is not evidence that Opinion generation works live.
+No real contributor writing attempt or publication is authorized by the rollout.

@@ -300,10 +300,30 @@ All private `editorial_ideas` submissions (reader or editor-origin) stop at
 `review` after writing. They never enter the writer's direct public-article
 branch, even if legacy `publish_own` / `write_now_publish` flags are true.
 Independent daily articles without an idea row retain their existing automation.
-The desk uses Save idea → Write analysis draft or enter opinion text → Save draft
+The desk uses Save idea → Generate draft (Analysis or Opinion) → review/edit → Save draft
 → Preview → Publish saved article → explicit confirmation. Featuring, changing
 kind, and saving are not publication authorization. `approved` means publication
 requested; hourly delivery follows, subject to `publish_on`. The publisher
 requires an approved/publishing status and a stored approval fingerprint; reader
 rows also require `approved_by`, whose current editor role is rechecked.
 See `EDITORIAL_OPERATIONS.md` for rollout, regression checks and limitations.
+
+
+## Uniform Opinion generation — September 30, 2026
+
+Both article types use the same editor-authorized drafting and rewrite controls.
+Opinion uses dated reporting from at least two source domains, a source/citation
+validator and the separate factual audit. It does not depend on betting-board or
+model freshness; its evidence excludes market prices and forecasts. Missing
+reporting stops before spending. Unsupported historical or current claims remain
+blocked. Drafts preserve article type and the editor's saved byline. Failed
+rewrites preserve the previous draft; all successful drafts require manual
+publication. The existing model, input/output limits, spending cap, no-paid-retry
+rules, reader isolation and publication fingerprint checks still apply.
+
+Explicit Opinion requests skip sports-model and briefing refreshes and go directly
+to reporting collection. Editor-origin Opinion ideas and reader ideas accepted for
+research can use available daily drafting slots; they never become standalone
+public daily articles. Reader submissions alone do not authorize a paid request.
+Activation requires `supabase/editorial_opinion_generation.sql` plus redeploying
+`editorial-write-now`. See `EDITORIAL_OPERATIONS.md` for the release sequence.

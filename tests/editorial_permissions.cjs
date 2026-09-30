@@ -17,6 +17,8 @@ const {PGlite}=require(mod),{pgcrypto}=require(mod+(path.isAbsolute(mod)?'/dist/
  await db.exec(fs.readFileSync(path.join(root,'supabase/editorial.sql'),'utf8'));
  await db.exec(fs.readFileSync(path.join(root,'supabase/editorial_submissions.sql'),'utf8'));
  await db.exec(fs.readFileSync(path.join(root,'supabase/editorial_write_now.sql'),'utf8'));
+ await db.exec(fs.readFileSync(path.join(root,'supabase/editorial_opinion_generation.sql'),'utf8'));
+ await db.exec(fs.readFileSync(path.join(root,'supabase/editorial_opinion_generation.sql'),'utf8'));
  const reader='11111111-1111-1111-1111-111111111111',other='22222222-2222-2222-2222-222222222222',owner='33333333-3333-3333-3333-333333333333';
  async function as(role,id,editor=false){await db.exec('reset role');await db.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({role,sub:id,app_metadata:{fv_editor:editor}})]);await db.exec('set role '+role);}
  async function rejected(sql,params=[]){let failed=false;try{await db.query(sql,params);}catch{failed=true;}assert.ok(failed,'Expected rejection: '+sql);}
@@ -55,6 +57,18 @@ const {PGlite}=require(mod),{pgcrypto}=require(mod+(path.isAbsolute(mod)?'/dist/
  await as('authenticated',owner,true);
  await db.query("update public.editorial_ideas set status='approved' where id=$1",[row.id]);
  await rejected("update public.editorial_ideas set status='published' where id=$1",[row.id]);
+ // Both article types can request drafting, while only editors authorize it.
+ for(const kind of ['analysis','opinion']){
+  const candidate=(await db.query("insert into public.editorial_ideas(idea,kind,sport) values ('Draft this idea',$1,'NFL') returning *",[kind])).rows[0];
+  await as('authenticated',other);
+  assert.equal((await db.query("update public.editorial_ideas set research_requested_at=now(),write_now_requested_at=now() where id=$1 returning id",[candidate.id])).rows.length,0);
+  await as('service_role',null);
+  await rejected("update public.editorial_ideas set research_requested_at=now(),write_now_requested_at=now() where id=$1",[candidate.id]);
+  await as('authenticated',owner,true);
+  const generated=(await db.query("update public.editorial_ideas set research_requested_at=now(),write_now_requested_at=now(),write_now_publish=true where id=$1 returning *",[candidate.id])).rows[0];
+  assert.equal(generated.kind,kind);assert.equal(generated.write_now_publish,false);
+  assert.equal(generated.status,'submitted');assert.equal(generated.approved_hash,null);
+ }
  const own=(await db.query("insert into public.editorial_ideas(idea) values ('Owner topic') returning *")).rows[0];
  assert.equal(own.requires_review,false);
  assert.equal((await db.query("update public.editorial_ideas set idea='Edited topic' where id=$1 returning status",[own.id])).rows[0].status,'submitted');

@@ -2,18 +2,29 @@ const {chromium}=require(process.env.FV_PLAYWRIGHT||'playwright');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 (async()=>{
  const browser=await chromium.launch({headless:true,executablePath:process.env.FV_CHROME||undefined});
- for(const width of [390,1440]){
+ for(const kind of ['analysis','opinion'])for(const width of [390,1440]){
   const page=await browser.newPage({viewport:{width,height:900}});
   await page.route('https://**/*',route=>{
    const u=new URL(route.request().url());
    if(u.origin!=='https://fourthandvalue.com')return route.fulfill({body:'',contentType:'application/javascript'});
    if(u.pathname==='/tracking/bet-tracking.js')return route.fulfill({contentType:'application/javascript',body:`
     window.updates=[];window.dispatches=[];window.revision=0;window.failDispatch=false;
-    window.row={id:'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',user_id:'owner',requires_review:false,status:'review',kind:'analysis',sport:'NFL',idea:'Analyze the Falcons matchup.\\n\\nChanges for the next draft:\\nOld feedback',title:'Existing draft title',body:'Existing draft body.',byline:'Fourth & Value',sources:'https://www.nfl.com/news/example',updated_at:'v0'};
+    window.row={id:'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',user_id:'owner',requires_review:false,status:'review',kind:'${kind}',sport:'NFL',idea:'Analyze the Falcons matchup.\\n\\nChanges for the next draft:\\nOld feedback',title:'Existing draft title',body:'Existing draft body.',byline:'Fourth & Value',sources:'https://www.nfl.com/news/example',updated_at:'v0'};
     window.supabaseClient={auth:{getUser:async()=>({data:{user:{id:'owner',app_metadata:{fv_editor:true}}}}),onAuthStateChange:()=>{}},functions:{invoke:async(name,input)=>{window.dispatches.push(input.body);window.row={...window.row,write_now_requested_at:new Date().toISOString(),updated_at:'v'+(++window.revision)};if(window.failDispatch)return {error:{message:'Dispatch failed'}};return {data:{message:'Requested'}};}},from:()=>({change:null,select(){if(this.change){window.updates.push(this.change);window.row={...window.row,...this.change,updated_at:'v'+(++window.revision)};return Promise.resolve({data:[window.row]});}return this},update(x){this.change=x;return this},eq(){return this},order(){return this},limit:async()=>({data:[window.row]})})};`});
    try{return route.fulfill({body:fs.readFileSync(path.join(__dirname,'../docs',u.pathname)),contentType:u.pathname.endsWith('.js')?'application/javascript':u.pathname.endsWith('.css')?'text/css':'text/html'});}catch{return route.fulfill({status:404,body:'Not found'});}
   });
   await page.goto('https://fourthandvalue.com/editorial/inbox.html');await page.locator('.queue-item').click();
+  // Both types expose the same generation action and return a private review draft.
+  await page.evaluate(()=>{row.status='submitted';row.body='';row.title='';row.updated_at='v'+(++revision);});
+  await page.locator('#refresh').click();
+  assert.equal(await page.locator('#write-now').textContent(),'Generate draft');
+  assert.equal(await page.locator('#write-now').isVisible(),true);
+  await page.locator('#write-now').click();
+  await page.waitForFunction(()=>dispatches.length===1&&document.getElementById('write-now').disabled);
+  assert.equal(await page.evaluate(()=>dispatches[0].publish_own),false);
+  assert.equal(await page.locator('#approve').isEnabled(),false);
+  await page.evaluate(()=>{row.status='review';row.title='Existing draft title';row.body='Existing draft body.';row.updated_at='v'+(++revision);window.dispatches=[];window.updates=[];});
+  await page.locator('#refresh').click();
   assert.equal(await page.locator('#rewrite').isVisible(),true);
   await page.locator('#rewrite').click();
   assert.equal(await page.locator('#confirm-rewrite').isEnabled(),false);

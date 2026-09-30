@@ -40,13 +40,15 @@ class IdeaTests(unittest.TestCase):
             ledger=json.loads((state/('requested-'+row['id']+'.json')).read_text())
             self.assertEqual(ledger['slots']['0-nfl']['status'],'waiting_for_data')
 
-    def test_readers_require_research_acceptance_and_opinion_never_auto_writes(self):
+    def test_readers_require_research_acceptance_for_both_article_types(self):
         external=self.row(requires_review=True)
         with patch.object(ideas,'configured',return_value=True),patch.object(ideas,'request',return_value=[external]),patch.object(ideas,'is_editor',return_value=False):
             self.assertEqual(ideas.pending(self.now),[])
             external['research_requested_at']='2026-09-24T11:00:00Z'
             self.assertEqual(len(ideas.pending(self.now)),1)
             external['kind']='opinion'
+            self.assertEqual(len(ideas.pending(self.now)),1)
+            external['research_requested_at']=None
             self.assertEqual(ideas.pending(self.now),[])
     def test_owner_idea_needs_only_topic_and_sport(self):
         with patch.object(ideas,'configured',return_value=True),patch.object(ideas,'request',return_value=[self.row()]),patch.object(ideas,'is_editor',return_value=True):
