@@ -57,7 +57,7 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
   assert.equal(await page.evaluate(()=>row.research_error),null);
   await page.evaluate(()=>{row.research_error='Waiting for reporting. No writing charge has been made.';row.status='submitted';row.updated_at='v'+(++revision);});
   await page.locator('#refresh').click();
-  await page.waitForFunction(()=>document.querySelector('.queue-item').textContent.includes('NEEDS ATTENTION'));
+  await page.waitForFunction(()=>document.querySelector('.queue-item').textContent.includes('LAST WRITING ATTEMPT FAILED'));
   assert.ok((await page.locator('#inbox-notice').textContent()).includes('1 need attention'));
   assert.ok((await page.locator('#action-message').textContent()).includes('Waiting for reporting'));
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
