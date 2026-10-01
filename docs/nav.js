@@ -1,4 +1,4 @@
-// docs/nav.js (v=40) — site navigation and footer social links
+// docs/nav.js (v=46) — site navigation and footer social links
 (function () {
   // --- Find script & compute base (works locally and deployed) ---
   const scriptEl =
@@ -23,7 +23,7 @@
   :root{
     --nav-h:64px; --nav-bg:#0b0b0b; --nav-fg:#ffffff; --nav-fg-dim:#cbd5e1; --nav-border:#27324a;
   }
-  @media (max-width:1400px){ :root{ --nav-h:56px; } }
+  @media (max-width:1180px){ :root{ --nav-h:56px; } }
 
   .fv-nav{position:sticky;top:0;z-index:9999;width:100%;background:var(--nav-bg);color:var(--nav-fg);border-bottom:1px solid var(--nav-border);}
   .fv-nav-inner{max-width:1520px;margin:0 auto;padding:0 12px;height:var(--nav-h);display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:12px;}
@@ -32,7 +32,7 @@
   .fv-logo{display:flex;align-items:center;gap:10px;min-width:0;text-decoration:none;}
   .fv-logo img{height:60px!important;max-height:60px;width:auto;display:block;object-fit:contain;margin-top:2px;}
   .fv-logo .fv-brand{font-weight:700;letter-spacing:.2px;white-space:nowrap;color:var(--nav-fg);}
-  @media (max-width:1400px){
+  @media (max-width:1180px){
     .fv-logo img{height:40px!important;max-height:40px;margin-top:0;}
     .fv-logo .fv-brand{font-size:15px;}
   }
@@ -54,7 +54,7 @@
     min-width:160px;padding:6px;box-shadow:0 4px 12px rgba(0,0,0,0.4);
   }
   .fv-sport-dropdown.open .fv-sport-menu{display:block;}
-  .fv-sport-menu a{display:block;padding:10px 12px;color:var(--nav-fg-dim);text-decoration:none;border-radius:6px;font-size:14px;}
+  .fv-sport-menu a{display:block;padding:10px 12px;color:var(--nav-fg-dim);text-decoration:none;border-radius:6px;font-size:14px;white-space:nowrap;}
   .fv-sport-menu a:hover{background:rgba(255,255,255,0.08);color:var(--nav-fg);}
   .fv-sport-menu a[aria-current="page"]{background:rgba(34,197,94,0.15);color:#22c55e;font-weight:600;}
 
@@ -66,7 +66,7 @@
   .fv-burger span{display:block;width:22px;height:2px;background:currentColor;margin:3px 0;transition:transform .2s,opacity .2s;}
 
   /* Mobile menu */
-  @media (max-width:1400px){
+  @media (max-width:1180px){
     .fv-burger{display:flex;}
     .fv-links{
       position:absolute;left:0;right:0;top:var(--nav-h);
@@ -92,7 +92,7 @@
   .fv-nav.menu-open .fv-burger span:nth-child(3){transform:translateY(-8px) rotate(-45deg);}
 
   /* Utility: hide on mobile */
-  @media (max-width:1400px){
+  @media (max-width:1180px){
     .hide-mobile{display:none!important;}
   }
   `;
@@ -179,6 +179,7 @@
         { href: `${base}/nhl/totals/index.html`, label: 'Game Lines' },
         { href: `${base}/nhl/picks.html`, label: 'Top Picks' },
         { href: `${base}/nhl/top.html`, label: 'Market Watch' },
+        { href: `${base}/markets/nhl/`, label: 'Market Results' },
         { href: `${base}/nhl/methods.html`, label: 'NHL Methods' },
       ]
     },
@@ -207,11 +208,17 @@
       ]
     },
     { type: 'link', href: `${base}/markets/`, label: 'Market Results' },
-    { type: 'link', href: `${base}/learn/`, label: 'Learn' },
-    { type: 'link', href: `${base}/research/`, label: 'Research' },
-    { type: 'link', href: `${base}/editorial/`, label: 'Editorial' },
-    { type: 'link', href: `${base}/blog/`, label: 'Blog' },
-    { type: 'link', href: `${base}/videos/`, label: 'Videos' },
+    {
+      // Everything to read or watch, in one place.
+      type: 'dropdown', label: 'Reading Room', className: 'reading-room',
+      items: [
+        { href: `${base}/blog/`, label: 'Latest' },
+        { href: `${base}/editorial/`, label: 'Opinion' },
+        { href: `${base}/research/`, label: 'Research & Methods' },
+        { href: `${base}/videos/`, label: 'Videos' },
+        { href: `${base}/learn/`, label: 'Learn' },
+      ]
+    },
     { type: 'link', href: `${base}/tracking/`, label: '📊 Bet Tracker' },
   ];
 
