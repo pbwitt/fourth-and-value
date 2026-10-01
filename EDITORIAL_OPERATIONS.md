@@ -172,6 +172,29 @@ Timeouts or missing usage retain the full reservation. When the next reservation
 would cross $9, generation stops; price/homepage refreshes continue. This can yield
 fewer than fourteen weekly articles. Actual costs are tracked, not promised.
 
+### Writer model trial (October 2–9, 2026)
+
+`writer.shadow` in `config/editorial.json` runs a dated comparison of GPT-6.1 Sol
+(`gpt-6.1-sol`, $2/M input, $10/M output list; budgeted at $2.50/$10) against the
+published Astra writer. For each daily story that reaches the paid write step, Sol
+receives the identical write request built from the same in-memory evidence. Its draft
+goes through the same automated checks and the same Astra audit. Sol drafts are
+**never published**. They run only after every real story in the edition has finished.
+Any Sol failure is recorded, and none can change the edition.
+
+Each comparison has its own reservation in the same $9 rolling ledger
+(`<date>-<slot>-shadow`): Sol write plus Astra audit, about $0.08 per story, and about
+$1 over the trial. It is reserved before the story's checkpoint, so it is durable
+before any paid call. It is settled at zero when no comparison call was made.
+Requested ideas, rewrites and opinion pieces are not shadowed.
+
+Per-story summaries are added to the daily run ledger as `slots.<slot>.shadow`. Full drafts
+from both models, with no publisher excerpts, are written to `reports/editorial-trial/`,
+which is outside the public site. Run `python scripts/editorial_model_trial.py` to
+build `report.md` (pass rates, failure reasons, words, writing cost) and
+`blind-review.html` (A/B pairs with an answer key). The trial ends automatically after
+the `until` date. Switching the production writer is a separate, explicit change.
+
 CI checkpoints include completed public articles from earlier slots so a later crash
 cannot publish only their catalog metadata. The final publication commit includes
 settled budget, pages, catalogs, evidence and daily ledgers. Inspect

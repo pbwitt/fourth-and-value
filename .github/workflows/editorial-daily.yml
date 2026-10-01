@@ -197,6 +197,8 @@ jobs:
           git config user.name 'Fourth & Value Editorial'
           git config user.email 'actions@github.com'
           git add docs/index.html docs/briefing/ docs/editorial/articles/ docs/editorial/published.json docs/editorial/evidence/ docs/editorial/runs/ docs/editorial/budget.json docs/editorial/index.html docs/blog/index.html docs/sitemap.xml
+          # Unpublished model-comparison drafts (not part of the public site).
+          if [ -d reports/editorial-trial ]; then git add reports/editorial-trial/; fi
           if ! git diff --cached --quiet; then
             git commit -m 'Editorial: publish briefing and approved articles'
             for attempt in 1 2 3; do
