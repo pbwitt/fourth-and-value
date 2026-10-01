@@ -39,7 +39,7 @@ THROUGH NFL WEEK 3:
 
 Explore it: https://fourthandvalue.com/markets/
 Launch post: https://fourthandvalue.com/blog/market-results-launch.html
-Update: NHL Market Results is now live too: https://fourthandvalue.com/markets/nhl/
+Update: now called Market Analytics, with NHL live too: https://fourthandvalue.com/markets/?sport=nhl
 
 Prices come from our saved pregame snapshot, not the closing line; each page lists when they were captured. Narration is AI-generated.
 

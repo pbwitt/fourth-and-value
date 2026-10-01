@@ -1,4 +1,4 @@
-// docs/nav.js (v=46) — site navigation and footer social links
+// docs/nav.js (v=47) — site navigation and footer social links
 (function () {
   // --- Find script & compute base (works locally and deployed) ---
   const scriptEl =
@@ -165,7 +165,7 @@
         { href: `${base}/props/top.html`, label: 'Top Picks' },
         { href: `${base}/props/arbitrage.html`, label: 'Pricing checks' },
         { href: `${base}/nfl/totals/index.html`, label: 'Game Totals' },
-        { href: `${base}/markets/nfl/`, label: 'Market Results' },
+        { href: `${base}/markets/?sport=nfl`, label: 'Market Analytics' },
         { href: `${base}/methods.html`, label: 'NFL Methods' },
       ]
     },
@@ -179,7 +179,7 @@
         { href: `${base}/nhl/totals/index.html`, label: 'Game Lines' },
         { href: `${base}/nhl/picks.html`, label: 'Top Picks' },
         { href: `${base}/nhl/top.html`, label: 'Market Watch' },
-        { href: `${base}/markets/nhl/`, label: 'Market Results' },
+        { href: `${base}/markets/?sport=nhl`, label: 'Market Analytics' },
         { href: `${base}/nhl/methods.html`, label: 'NHL Methods' },
       ]
     },
@@ -207,7 +207,7 @@
         { href: `${base}/mlb/methods.html`, label: 'MLB Methods' },
       ]
     },
-    { type: 'link', href: `${base}/markets/`, label: 'Market Results' },
+    { type: 'link', href: `${base}/markets/`, label: 'Market Analytics' },
     {
       // Everything to read or watch, in one place.
       type: 'dropdown', label: 'Reading Room', className: 'reading-room',
@@ -227,7 +227,9 @@
   // Helper to check if current page matches
   function isCurrentPage(href) {
     const normalized = href.replace(/\/index\.html$/, '/');
-    return here === new URL(normalized, location.origin).pathname;
+    const url = new URL(normalized, location.origin);
+    // A link with a query (Market Analytics for one sport) matches only that query.
+    return here === url.pathname && (!url.search || url.search === location.search);
   }
 
   // Helper to check if dropdown contains current page

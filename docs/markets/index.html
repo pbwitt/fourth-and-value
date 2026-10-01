@@ -1,35 +1,112 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Betting Market Results: Are Overs or Unders Hitting? | Fourth &amp; Value</title>
-<meta name="description" content="How sportsbook lines are holding up this season. NFL and NHL player props and game lines, graded against what the books' own prices implied. No models, no picks.">
+<title>Market Analytics: Are Overs or Unders Hitting? NFL and NHL | Fourth &amp; Value</title>
+<meta name="description" content="Are overs or unders hitting? Every NFL and NHL player prop and game line we track, graded against the sportsbooks' own no-vig prices, by market, by week and lately. No models, no picks.">
 <link rel="canonical" href="https://fourthandvalue.com/markets/">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Betting market results: are overs or unders hitting?">
+<meta property="og:title" content="Market Analytics: are overs or unders hitting?">
 <meta property="og:description" content="NFL and NHL player props and game lines, graded against what the books' own prices implied.">
 <meta property="og:url" content="https://fourthandvalue.com/markets/">
 <meta name="twitter:card" content="summary">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "Dataset", "name": "Betting market analytics: NFL and NHL props and game lines, 2026-27", "description": "Every NFL and NHL player prop and game line tracked by Fourth & Value, priced at the average of each sportsbook's no-vig probability at the main line and graded against official results.", "url": "https://fourthandvalue.com/markets/", "creator": {"@type": "Organization", "name": "Fourth & Value", "url": "https://fourthandvalue.com/"}, "temporalCoverage": "2026-09/2027-06", "keywords": ["NFL player props", "NHL player props", "over under", "betting market", "sportsbook lines"], "distribution": [{"@type": "DataDownload", "encodingFormat": "application/json", "contentUrl": "https://fourthandvalue.com/markets/data/nfl.json"}, {"@type": "DataDownload", "encodingFormat": "application/json", "contentUrl": "https://fourthandvalue.com/markets/data/nhl.json"}]}</script>
 <link rel="icon" href="../assets/logo.svg">
-<link rel="stylesheet" href="markets.css?v=2">
+<link rel="stylesheet" href="markets.css?v=3">
 <link rel="stylesheet" href="/assets/responsible-use.css?v=1"></head><body>
 <div id="nav-root"></div>
-<script src="../nav.js?v=46"></script>
-<main>
-<div class="eyebrow">Market Results</div>
+<script src="../nav.js?v=47"></script>
+<main id="markets" data-root="data/">
+<div class="eyebrow">Market Analytics</div>
 <h1>Are overs or unders hitting?</h1><!-- fv-notices:notice:start --><aside id="fv-betting-notice" class="fv-use-notice" aria-label="Betting information disclaimer"><strong>Analysis, not a guarantee.</strong> Picks and projections are uncertain; odds and player information can change. No outcome or profit is guaranteed. Any wager is your decision and responsibility. <a href="/terms.html#responsible-play">Read our limitations and responsible-play guidance</a>.</aside><!-- fv-notices:notice:end -->
-<p class="dek">How sportsbook lines are holding up this season. We grade every player prop and game line we track against what the books’ own prices implied, by market, by week and lately. No models and no picks: just the market and what happened.</p>
-<div class="sports">
-  <a class="sport" href="nfl/"><h2>NFL</h2><p><!-- market-summary:nfl:start -->Through Week 3 · 47 games · 1,857 graded lines across 11 markets. Furthest from its prices: rushing yards, unders 134–115.<!-- market-summary:nfl:end --></p><span class="go">See every NFL market →</span></a>
-  <a class="sport" href="nhl/"><h2>NHL</h2><p><!-- market-summary:nhl:start -->Through Sep 30 · 8 games · 443 graded lines across 7 markets. Furthest from its prices: points, unders 95–41.<!-- market-summary:nhl:end --></p><span class="go">NHL market results →</span></a>
+<p class="dek">Market Analytics grades every player prop and game line we track against what the sportsbooks’ own prices implied. See where overs or unders are running ahead of the market, this season or lately, and whether it is more than chance. No models and no picks: just the market and what happened.</p>
+
+<nav class="sports" data-sports aria-label="Choose a sport">
+  <a class="sport" href="?sport=nfl" data-sport-link="nfl"><h2>NFL 🏈</h2><p><!-- market-status:nfl:start -->Through Week 3 · 47 games · 1,857 graded lines across 11 markets. Furthest from its prices: rushing yards, unders 134–115.<!-- market-status:nfl:end --></p><span class="go">See every NFL market →</span></a>
+  <a class="sport" href="?sport=nhl" data-sport-link="nhl"><h2>NHL 🏒</h2><p><!-- market-status:nhl:start -->Through Sep 30 · 8 games · 443 graded lines across 7 markets. Furthest from its prices: points, unders 95–41.<!-- market-status:nhl:end --></p><span class="go">See every NHL market →</span></a>
+</nav>
+<p class="pick" data-pick-prompt hidden>Pick a sport to see every market it covers.</p>
+
+<div id="dashboard" data-dashboard>
+<p class="meta" data-status></p>
+<p class="timing" data-timing hidden></p>
+
+<div class="toolbar">
+  <nav class="seg" aria-label="Sport" data-sports><a href="?sport=nfl" data-sport-link="nfl">NFL</a><a href="?sport=nhl" data-sport-link="nhl">NHL</a></nav>
+  <div class="seg" data-windows role="group" aria-label="Time window"></div>
 </div>
+
 <section>
-  <h2>How it works</h2>
-  <ul>
-    <li><b>What the market expected.</b> For each bet we take the line most sportsbooks offer and average each book’s price with its margin removed. If the books price an over at 55%, the market expects it to win 55 times in 100.</li>
-    <li><b>What happened.</b> Results come from official box scores. Pushes are counted separately.</li>
-    <li><b>Is it more than chance?</b> Every chart shows the range that luck alone usually produces, so a hot streak in a small sample isn’t mistaken for a trend.</li>
-    <li><b>When prices are captured.</b> These are the last prices we saved before games, not closing lines. Each sport page says when.</li>
-  </ul>
+  <h2>Every market at a glance</h2>
+  <p>Each row is one market. The hollow ring is the share of overs the books’ prices implied; the dot is the share that actually went over. The number on the right is the gap in bets: <b>+5</b> means five more overs than the prices implied.</p>
+  <div class="legend"><span><i class="ring"></i>Prices implied</span><span><i class="over"></i>More overs than expected</span><span><i class="under"></i>More unders than expected</span></div>
+  <figure><div data-chart="board"></div>
+    <figcaption>Bold gaps are outside the range chance usually produces. With a dozen markets, expect about one to look unusual by chance alone. Select a market for its charts.</figcaption></figure>
+  <details class="table-view" data-for="nfl"><summary>Table view: every NFL market this season</summary><!-- market-table:nfl:start --><div class="table-wrap"><table><thead><tr><th>Market</th><th>Lines</th><th>Overs–unders</th><th>Over rate</th><th>Prices implied</th><th>Vs. expected</th></tr></thead><tbody><tr><td>Game total</td><td>15</td><td>7–8</td><td>46.7%</td><td>50.2%</td><td>−0.5</td></tr><tr><td>Spread (favorites vs. underdogs)</td><td>15</td><td>6–9</td><td>40.0%</td><td>50.0%</td><td>−1.5</td></tr><tr><td>Passing yards</td><td>92</td><td>48–44</td><td>52.2%</td><td>50.0%</td><td>+2.0</td></tr><tr><td>Pass attempts</td><td>92</td><td>42–50</td><td>45.7%</td><td>50.1%</td><td>−4.1</td></tr><tr><td>Completions</td><td>92</td><td>49–43</td><td>53.3%</td><td>50.4%</td><td>+2.6</td></tr><tr><td>Passing TDs</td><td>92</td><td>47–45</td><td>51.1%</td><td>48.0%</td><td>+2.8</td></tr><tr><td>Interceptions</td><td>92</td><td>47–45</td><td>51.1%</td><td>47.9%</td><td>+2.9</td></tr><tr><td>Rushing yards</td><td>249</td><td>115–134</td><td>46.2%</td><td>49.8%</td><td>−8.9</td></tr><tr><td>Rush attempts</td><td>160</td><td>77–83</td><td>48.1%</td><td>50.2%</td><td>−3.3</td></tr><tr><td>Receptions</td><td>476</td><td>235–241</td><td>49.4%</td><td>49.2%</td><td>+1.0</td></tr><tr><td>Receiving yards</td><td>482</td><td>240–242</td><td>49.8%</td><td>50.1%</td><td>−1.4</td></tr></tbody></table></div><!-- market-table:nfl:end --></details>
+  <details class="table-view" data-for="nhl"><summary>Table view: every NHL market this season</summary><!-- market-table:nhl:start --><div class="table-wrap"><table><thead><tr><th>Market</th><th>Lines</th><th>Overs–unders</th><th>Over rate</th><th>Prices implied</th><th>Vs. expected</th></tr></thead><tbody><tr><td>Game total</td><td>8</td><td>4–4</td><td>50.0%</td><td>51.3%</td><td>−0.1</td></tr><tr><td>Puck line (favorites vs. underdogs)</td><td>8</td><td>3–5</td><td>37.5%</td><td>37.8%</td><td>−0.0</td></tr><tr><td>Moneyline (favorites vs. underdogs)</td><td>8</td><td>4–4</td><td>50.0%</td><td>58.7%</td><td>−0.7</td></tr><tr><td>Shots on goal</td><td>139</td><td>60–79</td><td>43.2%</td><td>48.9%</td><td>−7.9</td></tr><tr><td>Points</td><td>136</td><td>41–95</td><td>30.1%</td><td>45.6%</td><td>−21.1</td></tr><tr><td>Goals</td><td>51</td><td>12–39</td><td>23.5%</td><td>29.8%</td><td>−3.2</td></tr><tr><td>Assists</td><td>93</td><td>24–69</td><td>25.8%</td><td>34.2%</td><td>−7.8</td></tr></tbody></table></div><!-- market-table:nhl:end --></details>
 </section>
+
+<section id="detail">
+  <div class="chips" data-chips aria-label="Choose a market"></div>
+  <h2 data-title></h2>
+  <p class="headline" data-headline></p>
+  <p class="empty" data-empty hidden></p>
+  <div data-body>
+    <div class="scoreboard" data-tiles></div>
+    <figure>
+      <h3>Is it more than chance?</h3>
+      <p class="lede">Running count of <span data-term="a">over</span>s minus what the prices implied, in kickoff order.</p>
+      <div data-chart="tally"></div>
+      <figcaption>The shaded band is where the count stays 9 times out of 10 if the books’ prices were exactly right. A line that leaves the band is unusual; one that wanders inside it is noise.</figcaption>
+    </figure>
+    <figure data-fig="periods">
+      <h3>Week by week</h3>
+      <p class="lede">The same comparison, one row per week.</p>
+      <div data-chart="periods"></div>
+    </figure>
+    <figure>
+      <h3>How far results landed from the line</h3>
+      <div data-chart="hist"></div>
+      <figcaption data-cap="hist"></figcaption>
+    </figure>
+    <figure data-fig="lines">
+      <h3>By line</h3>
+      <p class="lede">Do low lines and high lines behave differently?</p>
+      <div data-chart="lines"></div>
+      <figcaption>Small groups swing a lot; check the count under each label.</figcaption>
+    </figure>
+    <figure>
+      <h3>Biggest misses either way</h3>
+      <div data-chart="misses"></div>
+      <figcaption>The five largest finishes over and under the line in this window. Hover or tap a row for the game.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<details class="method" data-for="nfl">
+  <summary>How the NFL page works</summary>
+  <ul>
+    <li><b>What the prices implied.</b> For each player and stat we use the main line: the line offered by the most books in our pregame snapshot (ties go to the line nearest the median). Each book’s over and under prices are converted to a no-vig probability, then averaged across books.</li>
+    <li><b>Results.</b> Official statistics from nflverse. A player with no recorded passing, rushing or receiving usage is left out, as books usually void those bets. Pushes are shown but do not count toward rates.</li>
+    <li><b>Chance range.</b> If every line’s no-vig probability were exactly right, the running count would stay inside the shaded band 90% of the time. “About 1 time in N” uses the same normal approximation. The band treats each bet as independent. Props from the same game tend to move together (a high-scoring game pushes many overs at once), so real swings run wider than the band shows.</li>
+    <li><b>Units.</b> One unit on every main line at the average price across books, vig included. It shows how far results ran from the prices; it is not a strategy.</li>
+    <li><b>Prices captured.</b> These are the last pregame prices we saved, not necessarily closing lines:<ul data-captures></ul></li>
+    <li><b>Not graded yet.</b> Anytime, first and last touchdown scorers, longest rush and reception, and moneylines. Game lines begin in Week 3, when our weekly archive started saving them.</li>
+    <li>This page describes the market. It does not use our models and is not a pick list; for those, see <a href="../props/top.html">Top Picks</a>.</li>
+  </ul>
+</details>
+<details class="method" data-for="nhl">
+  <summary>How the NHL page works</summary>
+  <ul>
+    <li><b>What the prices implied.</b> For each skater and stat we use the main line: the line offered by the most books in our last pregame snapshot (ties go to the line nearest the median). Each book’s over and under prices are converted to a no-vig probability, then averaged across books.</li>
+    <li><b>Results.</b> Official NHL game and skater statistics, including overtime; a shootout counts as one goal for the winner on game lines, as books grade them. A skater with no official appearance is void and left out. Pushes are shown but do not count toward rates.</li>
+    <li><b>Chance range.</b> If every line’s no-vig probability were exactly right, the running count would stay inside the shaded band 90% of the time. The band treats each bet as independent. Props from the same game tend to move together (a high-scoring game pushes many overs at once), so real swings run wider than the band shows.</li>
+    <li><b>Prices captured.</b> The last snapshot we saved before each game, normally our morning refresh of the game day. These are not closing lines.</li>
+    <li><b>Units.</b> One unit on every main line at the average price across books, vig included. It shows how far results ran from the prices; it is not a strategy.</li>
+    <li>This page describes the market. It does not use our models and is not a pick list; for those, see <a href="../nhl/picks.html">NHL Top Picks</a>.</li>
+  </ul>
+</details>
+</div>
 </main>
+<div class="tip" role="tooltip"></div>
+<script src="markets.js?v=3"></script>
 <!-- fv-notices:footer:start --><section id="fv-responsible-footer" class="fv-use-footer" aria-label="Responsible use"><p>Fourth &amp; Value provides sports analysis for informational and entertainment purposes. We do not accept wagers. You are responsible for your wagering decisions and for meeting applicable age and legal requirements. Never wager money you cannot afford to lose.</p><p><a href="/terms.html">Terms &amp; privacy</a> · <a href="/terms.html#responsible-play">Responsible play</a> · U.S. gambling support: call or text <a href="tel:+18006973738">1-800-MY-RESET</a> or <a href="https://www.ncpgambling.org/help-treatment/">find confidential help</a>.</p></section><!-- fv-notices:footer:end --></body></html>

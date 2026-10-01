@@ -684,7 +684,7 @@ def build_html(rows, date_str):
     populateFilters();
     renderTable();
   </script>
-  <script src="../../nav.js?v=46"></script>
+  <script src="../../nav.js?v=47"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../../tracking/bet-tracking.js"></script>
   <script>
