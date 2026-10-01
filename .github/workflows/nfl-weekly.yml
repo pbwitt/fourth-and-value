@@ -119,7 +119,7 @@ jobs:
         continue-on-error: true
         env:
           NFL_SEASON: ${{ steps.week.outputs.season }}
-        run: python scripts/build_market_results.py --season "$NFL_SEASON"
+        run: python scripts/build_market_results.py --season "$NFL_SEASON" --sport nfl
 
       - name: Verify historical Week 2 benchmark
         if: steps.weekly_snapshot.outcome == 'success'
