@@ -9,8 +9,11 @@
     under: '#d95926', gray: '#5b6472', mint: '#7ce2bd', band: 'rgba(184,197,214,.12)'};
   const TERMS = {
     ou: {A: 'Overs', B: 'Unders', a: 'over', b: 'under', rate: 'Over rate'},
-    side: {A: 'Favorites', B: 'Underdogs', a: 'favorite cover', b: 'underdog cover', rate: 'Favorite cover rate'},
+    side: {A: 'Favorites', B: 'Underdogs', a: 'favorite cover', b: 'underdog cover', rate: 'Favorite cover rate',
+      beat: 'covered', missed: 'missed the spread', vs: 'the spread'},
   };
+  // A market can rename its sides (a moneyline is won, not covered); vs: null means there is no line to beat.
+  const terms = m => ({...TERMS[m.kind], ...(m.terms || {})});
   const $ = sel => root.querySelector(sel);
   const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
   const pct = v => v == null ? '–' : (100 * v).toFixed(1) + '%';
@@ -174,7 +177,7 @@
     const last = data.periods[data.periods.length - 1];
     const games = data.periods.reduce((n, p) => n + (p.games || 0), 0);
     const updated = new Date(data.generated_at).toLocaleDateString('en-US', {month: 'short', day: 'numeric'});
-    el.textContent = `Through ${last.label} · ${games} games · ${total.toLocaleString()} graded lines · Updated ${updated}`;
+    el.textContent = `Through ${data.through || last.label} · ${games} games · ${total.toLocaleString()} graded lines · Updated ${updated}`;
     const caps = $('[data-captures]');
     if (caps) caps.innerHTML = data.periods.map(p => `<li>${esc(p.label)}: ${esc(p.captured || 'pregame snapshot')}</li>`).join('');
   }
@@ -184,19 +187,19 @@
     let group = null;
     for (const m of data.markets) {
       if (m.group !== group) { group = m.group; items.push({group}); }
-      const list = inWindow(rows[m.key]), s = summarize(list), T = TERMS[m.kind];
+      const list = inWindow(rows[m.key]), s = summarize(list), T = terms(m);
       const noun = m.group === 'Game lines' ? 'game' : 'line';
       items.push({key: m.key, label: m.label, sub: plural(s.rows, noun), s, selected: m.key === state.market,
         tip: s.n ? `${m.label} ${when(list)}: ${T.A.toLowerCase()} ${s.a}–${s.b} (${pct(s.rate)}). Prices implied ${pct(s.exp)}, ` +
           `so ${signed(s.gap)} ${T.a}s vs. expected; chance range ±${(1.645 * s.sd).toFixed(1)}. Click for charts.`
           : `${m.label}: no settled lines ${when()}.`});
     }
-    dumbbell($('[data-chart=board]'), items, {axis: 'Share of lines that went over (spreads: share the favorite covered)',
-      axisShort: 'Share over (spreads: favorite covered)', buttons: true});
+    dumbbell($('[data-chart=board]'), items, {axis: data.notes.board_axis || 'Share of lines that went over (spreads: share the favorite covered)',
+      axisShort: data.notes.board_axis_short || 'Share over (spreads: favorite covered)', buttons: true});
   }
 
   function detail() {
-    const m = data.markets.find(x => x.key === state.market), T = TERMS[m.kind];
+    const m = data.markets.find(x => x.key === state.market), T = terms(m);
     const list = inWindow(rows[m.key]), s = summarize(list);
     $('[data-chips]').innerHTML = chips();
     $('[data-title]').textContent = m.label;
@@ -231,7 +234,7 @@
   }
 
   function headline(m, s, list) {
-    const T = TERMS[m.kind];
+    const T = terms(m);
     if (!s.n) return `Every settled ${m.label.toLowerCase()} line ${when(list)} landed exactly on the number.`;
     const lead = s.a === s.b ? `${T.A} and ${T.B.toLowerCase()} are even at ${s.a}–${s.b}`
       : s.a > s.b ? `${T.A} lead ${s.a}–${s.b}` : `${T.B} lead ${s.b}–${s.a}`;
@@ -239,9 +242,9 @@
   }
 
   function tiles(m, s) {
-    const T = TERMS[m.kind], tone = v => v > 0 ? 'pos' : v < 0 ? 'neg' : '';
+    const T = terms(m), tone = v => v > 0 ? 'pos' : v < 0 ? 'neg' : '';
     const pushes = s.push ? ` · ${s.push} push${s.push === 1 ? '' : 'es'}` : '';
-    const median = m.kind === 'side' ? `Favorite’s median margin vs. the spread`
+    const median = m.kind === 'side' ? (T.vs ? `Favorite’s median margin vs. ${T.vs}` : `Favorite’s median final margin, in ${m.unit}`)
       : `Median result vs. the line, in ${m.unit}`;
     $('[data-tiles]').innerHTML = [
       [esc(`${s.a}–${s.b}`), `${T.A}–${T.B.toLowerCase()}${pushes}`, ''],
@@ -308,7 +311,7 @@
 
   // Running count of results above what the prices implied, inside the band chance usually stays in.
   function tally(el, list, m) {
-    const T = TERMS[m.kind], W = width(el), narrow = W < 560, H = narrow ? 240 : 280;
+    const T = terms(m), W = width(el), narrow = W < 560, H = narrow ? 240 : 280;
     const pad = {l: 40, r: narrow ? 46 : 58, t: 30, b: 26};
     const seq = list.filter(r => r.actual !== r.line);
     if (seq.length < 2) { el.innerHTML = '<p class="sub">Not enough settled lines in this window to draw a trend.</p>'; return; }
@@ -364,7 +367,7 @@
   }
 
   function periods(m, list) {
-    const T = TERMS[m.kind], ps = windowPeriods().filter(p => list.some(r => r.period === p.key));
+    const T = terms(m), ps = windowPeriods().filter(p => list.some(r => r.period === p.key));
     const fig = $('[data-fig=periods]');
     fig.hidden = ps.length < 2;
     if (fig.hidden) return;
@@ -373,12 +376,12 @@
       return {label: p.label, sub: plural(s.rows, m.group === 'Game lines' ? 'game' : 'line'), s,
         tip: s.n ? `${m.label}, ${p.label}: ${T.A.toLowerCase()} ${s.a}–${s.b} (${pct(s.rate)}); prices implied ${pct(s.exp)}.` : `${p.label}: no settled lines.`};
     });
-    dumbbell($('[data-chart=periods]'), items, {axis: m.kind === 'side' ? 'Share the favorite covered' : 'Share that went over'});
+    dumbbell($('[data-chart=periods]'), items, {axis: m.kind === 'side' ? `Share the favorite ${T.beat}` : 'Share that went over'});
   }
 
   // Distribution of result minus line; colour shows the side that won.
   function histogram(el, list, m) {
-    const T = TERMS[m.kind], W = width(el), narrow = W < 560, H = narrow ? 220 : 250;
+    const T = terms(m), W = width(el), narrow = W < 560, H = narrow ? 220 : 250;
     const pad = {l: 36, r: 12, t: 30, b: 46};
     const diffs = list.map(r => r.actual - r.line), nz = diffs.filter(d => d !== 0).sort((x, y) => x - y);
     const pushes = diffs.length - nz.length;
@@ -409,7 +412,7 @@
       const lo = (i - k) * bin, hi = lo + bin, over = i >= k;
       const edgeBin = i === 0 || i === 2 * k - 1;
       const range = edgeBin ? `${fmt(Math.abs(over ? lo : hi))} or more` : `${fmt(Math.abs(over ? lo : hi))} to ${fmt(Math.abs(over ? hi : lo))}`;
-      const what = m.kind === 'side' ? `Favorite ${over ? 'covered' : 'missed the spread'} by ${range} points`
+      const what = m.kind === 'side' ? `Favorite ${over ? T.beat : T.missed} by ${range} ${unit}`
         : `Finished ${range} ${unit} ${over ? 'over' : 'under'} the line`;
       const tip = `${what}: ${c} of ${diffs.length} (${pct(c / diffs.length)})`;
       body += `<g tabindex="0" data-tip="${esc(tip)}"><rect class="hit" x="${X(lo)}" y="${pad.t}" width="${bw}" height="${H - pad.t - pad.b}" fill="transparent"/>` +
@@ -422,19 +425,21 @@
     const med = quantile([...diffs].sort((x, y) => x - y), 0.5), xm = Math.max(x0, Math.min(x1, X(med)));
     body += `<line x1="${xm}" x2="${xm}" y1="${pad.t - 10}" y2="${H - pad.b}" stroke="${C.mint}" stroke-dasharray="4 3" pointer-events="none"/>`;
     body += txt(xm + (med >= 0 ? 5 : -5), pad.t - 14, `median ${signed(med)}`, {fill: C.mint, size: 11.5, anchor: med >= 0 ? 'start' : 'end'});
-    const axis = m.kind === 'side' ? 'Favorite’s margin minus the spread (right = favorite covered)'
+    const axis = m.kind === 'side' ? (T.vs ? `Favorite’s margin minus ${T.vs} (right = favorite ${T.beat})`
+      : `Favorite’s final margin in ${unit} (right = favorite ${T.beat})`)
       : `${unit[0].toUpperCase() + unit.slice(1)} minus the line (right = over, left = under)`;
     body += txt((x0 + x1) / 2, H - 8, axis, {fill: C.muted, size: 12, anchor: 'middle'});
     el.innerHTML = svg(W, H, axis, body);
     const sorted = [...diffs].sort((x, y) => x - y), q1 = quantile(sorted, 0.25), q3 = quantile(sorted, 0.75);
     $('[data-cap=hist]').textContent = m.kind === 'side'
-      ? `Half of these favorites finished between ${signed(q1)} and ${signed(q3)} points of the spread.`
+      ? (T.vs ? `Half of these favorites finished between ${signed(q1)} and ${signed(q3)} ${unit} of ${T.vs}.`
+        : `Half of these favorites had a final margin between ${signed(q1)} and ${signed(q3)} ${unit}.`)
       : `Half of all results landed between ${signed(q1)} and ${signed(q3)} ${unit} of the line. ` +
         `Lines sit near the middle result, not the average: big games pull the average up without changing who wins the bet.`;
   }
 
   function byLine(m, list) {
-    const T = TERMS[m.kind], fig = $('[data-fig=lines]');
+    const T = terms(m), fig = $('[data-fig=lines]');
     let buckets = m.buckets;
     if (!buckets) {
       const counts = {};
@@ -449,12 +454,12 @@
           : `No settled lines at ${label}.`};
     }).filter(i => i.s.rows);
     fig.hidden = items.length < 2;
-    if (!fig.hidden) dumbbell($('[data-chart=lines]'), items, {axis: m.kind === 'side' ? 'Share the favorite covered' : 'Share that went over'});
+    if (!fig.hidden) dumbbell($('[data-chart=lines]'), items, {axis: m.kind === 'side' ? `Share the favorite ${T.beat}` : 'Share that went over'});
   }
 
   // Largest finishes on each side of the line, like the blog's per-player charts.
   function misses(el, list, m) {
-    const d = list.map(r => ({...r, d: r.actual - r.line})).filter(r => r.d !== 0).sort((a, b) => b.d - a.d);
+    const T = terms(m), d = list.map(r => ({...r, d: r.actual - r.line})).filter(r => r.d !== 0).sort((a, b) => b.d - a.d);
     const n = Math.min(5, Math.floor(d.length / 2));
     if (n < 1) { el.innerHTML = ''; return; }
     const pick = [...d.slice(0, n), null, ...d.slice(-n)];
@@ -471,7 +476,8 @@
         ? (r.actual > 0 ? `won by ${fmt(r.actual)}` : r.actual < 0 ? `lost by ${fmt(-r.actual)}` : 'tied')
         : `${fmt(r.actual)} on ${fmt(r.line)}`;
       const tip = m.kind === 'side'
-        ? `${r.label} (${r.game}, ${per ? per.label : ''}): favorite ${right}; ${over ? 'covered' : 'did not cover'} by ${fmt(Math.abs(r.d))}.`
+        ? `${r.label} (${r.game}, ${per ? per.label : ''}): favorite ${right}` +
+          (T.vs ? `; ${over ? 'covered' : 'did not cover'} by ${fmt(Math.abs(r.d))}.` : '.')
         : `${r.label} (${r.game}, ${per ? per.label : ''}): ${fmt(r.actual)} ${m.unit} on a ${fmt(r.line)} line (${signed(r.d)}).`;
       let g = `<rect class="hit" x="0" y="${y}" width="${W}" height="${rowH}" rx="5" fill="transparent"/>`;
       g += txt(L, cy + 4, fit(narrow ? short(r.label) : r.label, L - 6, 13), {anchor: 'end', size: 13});

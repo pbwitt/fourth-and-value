@@ -61,6 +61,12 @@ jobs:
         run: |
           python scripts/nhl/analyst.py
           python scripts/nhl/v2/decisions.py grade --cached-history --output artifacts/nhl/analyst/evaluation.json
+      - name: Grade NHL market results
+        id: market_results
+        if: steps.refresh.outcome == 'success' && steps.validate.outcome == 'success'
+        continue-on-error: true
+        # Rebuilt from the committed run archive: last pregame snapshot per game vs. official results.
+        run: python scripts/build_market_results.py --sport nhl
       - name: Archive odds and model inputs for later review
         if: always()
         uses: actions/upload-artifact@v4
@@ -85,7 +91,7 @@ jobs:
         run: |
           git config user.name 'GitHub Actions Bot'
           git config user.email 'actions@github.com'
-          git add docs/nhl/ artifacts/nhl/
+          git add docs/nhl/ artifacts/nhl/ docs/markets/
           if git diff --cached --quiet; then exit 0; fi
           git commit -m 'NHL: refresh market snapshot and pages'
           for attempt in 1 2 3; do
@@ -107,6 +113,11 @@ jobs:
       - name: Report upstream odds failures
         if: steps.refresh.outcome == 'failure'
         run: exit 1
+      - name: Report market results failures after publishing
+        if: steps.market_results.outcome == 'failure'
+        run: |
+          echo '::error::NHL market results were not rebuilt; the page keeps its previous data.'
+          exit 1
       - name: Report independent-model failures after publishing explicit status
         if: steps.refresh.outcome == 'success'
         run: |

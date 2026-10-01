@@ -9,14 +9,18 @@ season and recent-window views, so it never needs a model or a pick.
 
 NFL sources are the frozen weekly pregame archives graded with nflverse
 statistics. Weeks 1-2 predate the immutable archive and are read from their
-one-off audit folders. NHL output is a placeholder until its first settled
-night; the NHL ledger is not built yet.
+one-off audit folders. NHL rows are rebuilt from the committed refresh archive
+(artifacts/nhl/runs): each game's quotes come from the last snapshot saved before
+puck drop, graded with the official NHL statistics pages archived alongside them.
 """
 import argparse
+from collections import defaultdict
+import gzip
 import json
 from html import escape
 import sys
-from datetime import datetime, timezone
+import unicodedata
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
@@ -28,6 +32,7 @@ from nfl_weekly_review import STATS, TEAM_NAMES, grade_props  # noqa: E402
 
 PAGES = ROOT / 'docs/markets'
 OUT = PAGES / 'data'
+NHL_ARCHIVE = ROOT / 'artifacts/nhl'
 
 # Display order is the order readers scan the board: game lines, then by unit.
 NFL_MARKETS = [
@@ -57,8 +62,10 @@ NFL_MARKETS = [
 
 NHL_MARKETS = [
     dict(key='totals', label='Game total', group='Game lines', kind='ou', unit='goals', bin=1),
-    dict(key='spreads', label='Puck line', group='Game lines', kind='side', unit='goals', bin=1),
-    dict(key='h2h', label='Moneyline', group='Game lines', kind='side', unit='games', bin=1),
+    dict(key='spreads', label='Puck line', group='Game lines', kind='side', unit='goals', bin=1,
+         terms=dict(vs='the puck line')),
+    dict(key='h2h', label='Moneyline', group='Game lines', kind='side', unit='goals', bin=1,
+         terms=dict(a='favorite win', b='underdog win', rate='Favorite win rate', beat='won', missed='lost', vs=None)),
     dict(key='player_shots_on_goal', label='Shots on goal', group='Skaters', kind='ou', unit='shots', bin=1),
     dict(key='player_points', label='Points', group='Skaters', kind='ou', unit='points', bin=1),
     dict(key='player_goals', label='Goals', group='Skaters', kind='ou', unit='goals', bin=1),
@@ -225,15 +232,179 @@ def build_nfl(season, stats_path, schedule_path):
                                       'are not graded yet. Game lines begin in Week 3, when the weekly archive started saving them.'))
 
 
-def build_nhl(season):
-    return package('nhl', season, NHL_MARKETS, [], [],
-                   windows=[dict(key='season', label='Season'), dict(key='d30', label='Last 30 days', days=30),
-                            dict(key='d7', label='Last 7 days', days=7)],
-                   notes=dict(source='Last pregame snapshot of our sportsbook feed; results from NHL official box scores.',
-                              timing='Prices come from our morning snapshot (about 7 to 8:30 AM ET), roughly 10 to 11 hours before '
-                                     'a 7 PM puck drop. Lines often move before games start, especially after starting goalies are '
-                                     'confirmed, so this compares results with the morning market, not the closing line.',
-                              empty='NHL results are not graded yet. They will appear here once grading starts.'))
+NHL_TIMING = ('Prices come from the last snapshot we saved before each game, normally our morning refresh of the '
+              'game day (about 7 to 8:30 AM ET).{lead} Lines often move before games start, especially after starting '
+              'goalies are confirmed, so this compares results with that snapshot, not the closing line.')
+
+
+def nhl_runs(root=NHL_ARCHIVE / 'runs'):
+    """Archived refresh runs in capture order; a snapshot archived twice is read once."""
+    runs = {}
+    for path in sorted(Path(root).glob('*.json.gz')):
+        with gzip.open(path, 'rt') as f:
+            run = json.load(f)
+        runs.setdefault(run['snapshot']['snapshot_id'], run)
+    return sorted(runs.values(), key=lambda r: pd.Timestamp(r['snapshot']['checked_at']))
+
+
+def nhl_results(runs, season, archive=NHL_ARCHIVE):
+    """Official games and skater lines from the newest run's archived NHL statistics pages."""
+    from nhl.v2.data import digest, normalize
+    for run in reversed(runs):
+        manifest = next((m for m in run.get('history_manifests') or [] if m['season'] == season), None)
+        if manifest:
+            break
+    else:
+        return {}, {}
+    stored = {ref['source']: ref['path'] for ref in run['input_objects']}
+    teams, skaters = [], []
+    for page in manifest['pages']:
+        with gzip.open(Path(archive) / stored[f"data/nhl/v2/history/{page['path']}"], 'rt') as f:
+            raw = json.load(f)
+        if digest(raw['payload']) != page['sha256']:
+            raise ValueError(f"Archived NHL page does not match its manifest: {page['path']}")
+        (teams if '/team/' in raw['source_url'] else skaters).extend(raw['payload']['data'])
+    games, players = normalize(teams, skaters, season)
+    if digest([games, players]) != manifest['data_sha256']:
+        raise ValueError(f'Archived NHL results do not reproduce the {season} manifest')
+    return {g['game_id']: g for g in games}, {(p['game_id'], p['player_id']): p for p in players}
+
+
+def nhl_pregame_quotes(runs):
+    """game id -> (captured_at, quotes) from the last snapshot saved before that game's puck drop."""
+    chosen = {}
+    for run in runs:
+        snap = run['snapshot']
+        at = pd.Timestamp(snap['checked_at'])
+        by_game = defaultdict(list)
+        for q in snap.get('rows', []):
+            if not q.get('nhl_game_id') or q.get('price') is None or pd.Timestamp(q['commence_time']) <= at:
+                continue
+            if q.get('quoted_at') and pd.Timestamp(q['quoted_at']) >= pd.Timestamp(q['commence_time']):
+                continue
+            by_game[q['nhl_game_id']].append(q)
+        for gid, quotes in by_game.items():
+            chosen[gid] = (at, quotes)
+    return chosen
+
+
+def fold(name):
+    """Compare skater names without case, accents or punctuation."""
+    plain = unicodedata.normalize('NFKD', name).encode('ascii', 'ignore').decode()
+    return ' '.join(''.join(c if c.isalnum() else ' ' for c in plain.lower()).split())
+
+
+def nhl_pairs(quotes, side_a, side_b, line_b=lambda line: line):
+    """Book-level quotes -> one row per book and line with both prices, as pair_sides() does for NFL."""
+    d = pd.DataFrame(quotes, columns=['market', 'player_id', 'player', 'book', 'side', 'line', 'price'])
+    d['player_id'] = d.player_id.fillna(0).astype(int)
+    keys = ['market', 'player_id', 'book', 'point']
+    a = d[d.side.eq(side_a)].assign(point=d.line).rename(columns={'price': 'over_price'})
+    b = d[d.side.eq(side_b)].assign(point=d.line.map(line_b)).rename(columns={'price': 'under_price'})
+    both = a.merge(b[keys + ['under_price']], on=keys, how='inner').drop_duplicates(keys, keep='last')
+    both = both.rename(columns={'book': 'bookmaker'})
+    both['p_over'] = [no_vig(x, y) for x, y in zip(both.over_price, both.under_price)]
+    return both
+
+
+def nhl_game_rows(gid, quotes, game, players, label, t):
+    """Main-line rows for one settled game: skater props, total, puck line and moneyline."""
+    rows, game_name = [], f"{label[game['away_id']]} @ {label[game['home_id']]}"
+    home, away = quotes[0]['home_team'], quotes[0]['away_team']
+    keys = {m['key'] for m in NHL_MARKETS}
+    # The feed leaves player_id empty when a name is ambiguous league-wide (two Sebastian Ahos) or new
+    # (rookies); a name that is unique in this game's official box score identifies the skater.
+    named = defaultdict(list)
+    for (game_id, pid), p in players.items():
+        if game_id == gid:
+            named[fold(p['player'])].append(pid)
+    ou = []
+    for q in quotes:
+        if q['market'] not in keys or q['side'] not in ('Over', 'Under'):
+            continue
+        if q['market'] != 'totals' and not q.get('player_id'):
+            match = named.get(fold(q['player']), [])
+            if len(match) != 1:
+                continue
+            q = dict(q, player_id=match[0])
+        ou.append(q)
+    if ou:
+        for (market, pid), group in nhl_pairs(ou, 'Over', 'Under').groupby(['market', 'player_id'], sort=True):
+            if market == 'totals':
+                actual, who = game['home_score'] + game['away_score'], game_name
+            else:
+                player = players.get((gid, pid))
+                if player is None:  # No official appearance: the bet is void, not a zero.
+                    continue
+                stat = {'player_shots_on_goal': 'shots', 'player_goals': 'goals', 'player_assists': 'assists',
+                        'player_points': 'points'}[market]
+                actual, who = player[stat], group.player.iloc[0]
+            line = main_line(group)
+            if line:
+                rows.append(dict(market=market, t=t, label=who, game=game_name, actual=float(actual), **line))
+    margin = game['home_score'] - game['away_score']
+    for market in ('spreads', 'h2h'):
+        sides = [q for q in quotes if q['market'] == market and q['side'] in (home, away)]
+        if not sides:
+            continue
+        flip = (lambda line: -line) if market == 'spreads' else (lambda line: line)
+        paired = nhl_pairs([dict(q, line=q['line'] if market == 'spreads' else 0.0) for q in sides], home, away, flip)
+        line = main_line(paired)
+        if not line or (market == 'spreads' and line['line'] == 0):
+            continue
+        # Express both from the favorite's side: line = goals laid (0 on the moneyline), actual = its final margin.
+        home_fav = line['line'] < 0 if market == 'spreads' else line['p_over'] >= 0.5
+        fav = label[game['home_id'] if home_fav else game['away_id']]
+        side = (dict(p_over=line['p_over'], dec_over=line['dec_over'], dec_under=line['dec_under']) if home_fav else
+                dict(p_over=1 - line['p_over'], dec_over=line['dec_under'], dec_under=line['dec_over']))
+        laid = abs(line['line'])
+        rows.append(dict(market=market, t=t, label=f'{fav} -{laid:g}' if market == 'spreads' else fav, game=game_name,
+                         actual=float(margin if home_fav else -margin), line=laid, books=line['books'], **side))
+    return rows
+
+
+def build_nhl(season, runs_root=NHL_ARCHIVE / 'runs', archive=NHL_ARCHIVE):
+    runs = nhl_runs(runs_root)
+    games, players = nhl_results(runs, int(f'{season}{season + 1}'), archive) if runs else ({}, {})
+    quotes = nhl_pregame_quotes(runs)
+    label = {g[f'{s}_id']: g[f'{s}_team'] for g in games.values() for s in ('home', 'away')}
+    label.update({p['team_id']: p['team_abbrev'] for p in players.values() if p.get('team_abbrev')})
+    rows, leads, by_week, opener = [], [], defaultdict(list), None
+    for gid in sorted(set(games) & set(quotes), key=lambda g: (quotes[g][1][0]['commence_time'], g)):
+        at, game_quotes = quotes[gid]
+        start = pd.Timestamp(game_quotes[0]['commence_time'])
+        day = start.tz_convert('America/New_York').date()
+        opener = opener or day - timedelta(days=day.weekday())
+        week = (day - opener).days // 7 + 1
+        game_rows = nhl_game_rows(gid, game_quotes, games[gid], players, label, int(start.timestamp()))
+        if not game_rows:
+            continue
+        lead = (start - at).total_seconds() / 3600
+        leads.append(lead)
+        by_week[week].append((day, lead))
+        rows += [dict(r, period=week) for r in game_rows]
+    periods = []
+    for week, played in sorted(by_week.items()):
+        monday = opener + timedelta(days=7 * (week - 1))
+        hours = sorted(lead for _, lead in played)
+        periods.append(dict(key=week, label=f'Week of {monday:%b} {monday.day}', short=f'{monday:%b} {monday.day}',
+                            games=len(played), captured=f'median {np.median(hours):.1f} hours before puck drop '
+                                                        f'(range {hours[0]:.1f} to {hours[-1]:.1f})'))
+    lead = (f' For the games graded so far that was a median of {np.median(leads):.1f} hours before puck drop '
+            f'(range {min(leads):.1f} to {max(leads):.1f}).') if leads else ''
+    last = max((day for played in by_week.values() for day, _ in played), default=None)
+    payload = package('nhl', season, NHL_MARKETS, rows, periods,
+                      windows=[dict(key='season', label='Season'), dict(key='d30', label='Last 30 days', days=30),
+                               dict(key='d7', label='Last 7 days', days=7)],
+                      notes=dict(source='Last pregame snapshot of our sportsbook feed; results from NHL official statistics.',
+                                 timing=NHL_TIMING.format(lead=lead),
+                                 board_axis='Share of lines that went over (puck line and moneyline: share the favorite '
+                                            'covered or won)',
+                                 board_axis_short='Share over (game lines: favorite covered or won)',
+                                 empty='NHL results are not graded yet. They will appear here once grading starts.'))
+    if last:
+        payload['through'] = f'{last:%b} {last.day}'
+    return payload
 
 
 def package(sport, season, markets, rows, periods, windows, notes):
@@ -282,7 +453,8 @@ def status_text(payload, summary):
     if not total:
         return payload['notes'].get('empty', 'No graded lines yet.')
     games = sum(p.get('games', 0) for p in payload['periods'])
-    return f"Through {payload['periods'][-1]['label']} · {games} games · {total:,} graded lines"
+    through = payload.get('through') or payload['periods'][-1]['label']
+    return f"Through {through} · {games} games · {total:,} graded lines"
 
 
 def table_html(summary):
@@ -353,10 +525,14 @@ def main():
     parser.add_argument('--season', type=int, default=2026)
     parser.add_argument('--stats', default=None, help='nflverse weekly player stats parquet')
     parser.add_argument('--schedule', default=None, help='nflverse games/schedule CSV')
+    parser.add_argument('--sport', choices=['nfl', 'nhl', 'all'], default='all',
+                        help='Each sport workflow rebuilds only its own page')
     args = parser.parse_args()
     stats = args.stats or ROOT / f'data/weekly_player_stats_{args.season}.parquet'
     schedule = args.schedule or ROOT / f'data/schedule_{args.season}.csv'
-    for payload in (build_nfl(args.season, stats, schedule), build_nhl(args.season)):
+    builders = dict(nfl=lambda: build_nfl(args.season, stats, schedule), nhl=lambda: build_nhl(args.season))
+    for sport in (builders if args.sport == 'all' else [args.sport]):
+        payload = builders[sport]()
         write(payload)
         publish_static(payload)
 
