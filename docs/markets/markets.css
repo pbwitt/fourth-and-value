@@ -1,0 +1,80 @@
+/* Market Results — shared by every sport page. Palette matches the blog charts. */
+:root{color-scheme:dark;--ink:#e7eef9;--muted:#b8c5d6;--edge:#314159;--mint:#7ce2bd;--over:#3987e5;--under:#d95926;--panel:#0f141c;--tile:#101b24;--page:#0b0e13}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);font:16px/1.65 system-ui,sans-serif}
+a{color:#9bc4ff;text-underline-offset:3px}
+main{max-width:980px;margin:auto;padding:34px 24px 80px}
+.eyebrow{font-size:.76rem;letter-spacing:.13em;text-transform:uppercase;color:var(--mint);font-weight:700}
+h1{font:600 clamp(2rem,5vw,3.1rem)/1.08 Georgia,serif;letter-spacing:-.02em;margin:14px 0 16px}
+h2{font:600 1.7rem/1.2 Georgia,serif;margin:0 0 8px}
+h3{font:600 1.15rem/1.3 Georgia,serif;margin:0 0 2px}
+p{margin:0 0 14px}
+.dek{font:1.2rem/1.55 Georgia,serif;color:var(--muted);max-width:740px}
+.meta,figcaption,.sub{font-size:.85rem;color:var(--muted)}
+.timing{font-size:.85rem;line-height:1.55;color:var(--muted);max-width:760px;border-left:3px solid #f4c885;padding:2px 0 2px 12px;margin-top:-4px}
+section{margin-top:34px}
+
+/* Sticky controls: sport and time window stay reachable while reading charts. */
+.toolbar{position:sticky;top:var(--nav-h,64px);z-index:20;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:space-between;margin:22px -24px 0;padding:10px 24px;background:rgba(11,14,19,.92);backdrop-filter:blur(6px);border-bottom:1px solid var(--edge)}
+.seg{display:inline-flex;border:1px solid var(--edge);border-radius:10px;overflow:hidden}
+.seg a,.seg button{display:inline-flex;align-items:center;min-height:40px;padding:6px 14px;border:0;background:transparent;color:var(--muted);font:inherit;font-size:.92rem;text-decoration:none;cursor:pointer}
+.seg>*+*{border-left:1px solid var(--edge)}
+.seg [aria-current=page],.seg [aria-pressed=true]{background:#1c2939;color:var(--ink);box-shadow:inset 0 -2px 0 var(--mint)}
+.seg a:hover,.seg button:hover{color:var(--ink)}
+
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:.84rem;color:var(--muted);margin:4px 0 0}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:50%}
+.legend .ring{border:2px solid var(--muted);background:var(--page)}
+.legend .over{background:var(--over)}.legend .under{background:var(--under)}
+
+figure{margin:16px 0 0;padding:16px 16px 12px;background:var(--panel);border:1px solid var(--edge);border-radius:10px}
+figure svg{display:block;font-family:system-ui,sans-serif;overflow:visible}
+figure .lede{font-size:.9rem;color:var(--muted);margin:0 0 6px}
+figcaption{line-height:1.55;margin-top:10px}
+[data-tip]{cursor:default;outline:none}
+[data-key]{cursor:pointer}
+g[data-tip]:hover>rect.hit,g[data-tip]:focus>rect.hit{fill:rgba(255,255,255,.045)}
+g[data-tip]:focus-visible>rect.hit{stroke:#93c5fd;stroke-width:2}
+.tip{position:fixed;pointer-events:none;background:#1a2230;border:1px solid var(--edge);color:var(--ink);font-size:.82rem;line-height:1.45;padding:8px 11px;border-radius:7px;max-width:290px;opacity:0;transition:opacity .1s;z-index:10001}
+
+/* Market picker */
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 20px}
+.chips button{min-height:38px;padding:6px 13px;border:1px solid var(--edge);border-radius:999px;background:transparent;color:var(--muted);font:inherit;font-size:.88rem;cursor:pointer}
+.chips button:hover{color:var(--ink);border-color:#4a5d7a}
+.chips button[aria-pressed=true]{background:#13261f;border-color:var(--mint);color:var(--ink)}
+.chips .group{align-self:center;font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--mint);margin-left:10px}
+.chips .group:first-child{margin-left:0}
+.headline{font:1.15rem/1.55 Georgia,serif;max-width:780px}
+
+.scoreboard{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0 6px}
+.score{padding:14px 16px;background:var(--tile);border:1px solid var(--edge);border-radius:12px}
+.score b{display:block;font-size:1.7rem;line-height:1.25;font-variant-numeric:tabular-nums}
+.score span{display:block;font-size:.8rem;color:var(--muted);line-height:1.4;margin-top:3px}
+.score .pos{color:#7fb3f5}.score .neg{color:#f08a5d}
+.score b.pair{font-size:1.15rem;line-height:1.5;white-space:nowrap}
+.score b.pair i{font-style:normal;font-weight:400;color:var(--muted);font-size:.82rem;display:inline-block;min-width:5.6em}
+
+.empty{padding:26px;border:1px dashed var(--edge);border-radius:10px;color:var(--muted);text-align:center}
+.method{margin-top:40px;border-top:1px solid var(--edge);padding-top:16px;font-size:.92rem;color:var(--muted)}
+.method summary{cursor:pointer;color:#9bc4ff;font-size:1rem}
+.method li{margin:8px 0}
+
+@media(max-width:700px){
+  .scoreboard{grid-template-columns:1fr 1fr}
+}
+@media(max-width:560px){
+  main{padding:24px 16px 64px}
+  .toolbar{margin:18px -16px 0;padding:8px 16px;flex-wrap:nowrap;gap:8px;overflow-x:auto}
+  .seg{flex:0 0 auto}
+  .seg a,.seg button{min-height:38px;padding:6px 9px;font-size:.84rem;white-space:nowrap}
+  figure{padding:12px 10px 10px;margin-left:-6px;margin-right:-6px}
+  .chips{flex-wrap:nowrap;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch}
+  .chips button{flex:0 0 auto}
+  .chips .group{display:none}
+  .score{padding:12px}
+  .score b{font-size:1.35rem}
+  .score b.pair{font-size:1rem}
+  .score b.pair i{min-width:5.2em}
+  h2{font-size:1.45rem}
+}
