@@ -1,6 +1,8 @@
 // Render the Market Results walkthrough: the live pages in a phone frame with captions.
 // Frames are captured one at a time so motion is smooth regardless of machine speed,
-// then encoded with ffmpeg. Usage:
+// then encoded with ffmpeg. When docs/videos/market-results/timeline.json exists
+// (from scripts/narrate_editorial_video.py), each caption beat holds until its
+// narration ends and the narration is mixed in. Usage:
 //   NODE_PATH=$(npm root -g) node scripts/render_market_results_video.cjs
 const fs = require('node:fs');
 const path = require('node:path');
@@ -12,6 +14,10 @@ const root = path.resolve(__dirname, '../docs');
 const out = path.join(root, 'videos', 'market-results');
 const frames = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'fv-frames-'));
 const FPS = 30;
+// The video quotes Weeks 1-3 numbers, so it always renders from that frozen snapshot.
+const SNAPSHOT = path.join(out, 'nfl-weeks-1-3.json');
+const timelinePath = path.join(out, 'timeline.json');
+const narration = fs.existsSync(timelinePath) ? JSON.parse(fs.readFileSync(timelinePath, 'utf8')).scenes : null;
 const types = {'.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png'};
 const server = http.createServer((req, res) => {
   let file = path.resolve(root, '.' + decodeURIComponent(req.url.split('?')[0]));
@@ -45,6 +51,9 @@ const BEATS = [
   let n = 0;
   try {
     const page = await browser.newPage({viewport: {width: 1080, height: 1920}, deviceScaleFactor: 1});
+    await page.route('**/markets/data/nfl.json', route => route.fulfill({contentType: 'application/json', body: fs.readFileSync(SNAPSHOT)}));
+    if (narration && narration.length !== BEATS.length) throw new Error(`Narration has ${narration.length} scenes; the video has ${BEATS.length} beats`);
+    const starts = [];
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
     await page.goto(`${base}/videos/market-results/render.html`);
@@ -61,10 +70,18 @@ const BEATS = [
       const from = await d('scrollY'), steps = Math.round(seconds * FPS);
       for (let i = 1; i <= steps; i++) { await d('setScroll', from + (y - from) * ease(i / steps)); await shot(); }
     };
+    // Hold the current frame until the previous beat's narration has finished.
+    const finishBeat = async i => {
+      if (!narration || i < 0) return;
+      const need = Math.ceil((narration[i].speech_duration + 0.45) * FPS) - (n - starts[i]);
+      if (need > 0) await hold(need / FPS);
+    };
     const beat = async (i, fade = true) => {
+      await finishBeat(i - 1);
       await d('progress', i / (BEATS.length - 1));
       if (fade) for (let f = 6; f >= 0; f--) { await d('opacity', f / 6); await shot(); }
       await d('caption', ...BEATS[i]);
+      starts[i] = n;
       if (fade) for (let f = 1; f <= 6; f++) { await d('opacity', f / 6); await shot(); }
     };
     const tap = async (sel, after) => {
@@ -80,7 +97,7 @@ const BEATS = [
     const NAV = 112; // sticky nav + toolbar height inside the 430px-wide page
 
     await d('load', `${base}/markets/`);
-    await d('caption', ...BEATS[0]); await d('progress', 0);
+    await d('caption', ...BEATS[0]); await d('progress', 0); starts[0] = n;
     await hold(3.6);
     await beat(1); await hold(2.8);
     await tap('a.sport[href="nfl/"]', async () => {});
@@ -113,14 +130,28 @@ const BEATS = [
     await beat(9);
     await d('load', `${base}/markets/`);
     await hold(3.6);
+    await finishBeat(BEATS.length - 1);
+    await hold(0.6);
     await page.screenshot({path: path.join(out, 'poster.png')});
+    fs.writeFileSync(path.join(frames, 'starts.json'), JSON.stringify(starts));
     if (errors.length) throw new Error(errors.join('\n'));
   } finally { await browser.close(); server.close(); }
 
   const mp4 = path.join(out, 'market-results.mp4');
-  execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(FPS), '-i', path.join(frames, '%05d.jpg'),
-    '-c:v', 'libx264', '-preset', 'slow', '-crf', '22', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', mp4]);
-  const info = {width: 1080, height: 1920, duration: +(n / FPS).toFixed(2), bytes: fs.statSync(mp4).size};
+  const video = ['-framerate', String(FPS), '-i', path.join(frames, '%05d.jpg')];
+  const encode = ['-c:v', 'libx264', '-preset', 'slow', '-crf', '22', '-pix_fmt', 'yuv420p', '-movflags', '+faststart'];
+  if (narration) {
+    // Each scene's narration starts just after its caption appears.
+    const starts = JSON.parse(fs.readFileSync(path.join(frames, 'starts.json'), 'utf8'));
+    const inputs = narration.flatMap(s => ['-i', path.join(out, s.audio)]);
+    const delays = narration.map((s, i) => `[${i + 1}:a]adelay=${Math.round((starts[i] / FPS + 0.15) * 1000)}:all=1[a${i}]`);
+    const mix = `${delays.join(';')};${narration.map((s, i) => `[a${i}]`).join('')}amix=inputs=${narration.length}:normalize=0:dropout_transition=0[aout]`;
+    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', ...video, ...inputs, '-filter_complex', mix,
+      '-map', '0:v', '-map', '[aout]', ...encode, '-c:a', 'aac', '-b:a', '160k', '-t', (n / FPS).toFixed(3), mp4]);
+  } else {
+    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', ...video, ...encode, mp4]);
+  }
+  const info = {width: 1080, height: 1920, duration: +(n / FPS).toFixed(2), bytes: fs.statSync(mp4).size, narrated: !!narration};
   fs.writeFileSync(path.join(out, 'render-info.json'), JSON.stringify(info, null, 2) + '\n');
   fs.rmSync(frames, {recursive: true, force: true});
   console.log('Rendered', info);
