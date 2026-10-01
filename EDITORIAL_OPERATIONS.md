@@ -158,9 +158,16 @@ Pirates prose is unchanged. A market-briefing lead fills an empty homepage safel
 `docs/editorial/budget.json` enforces **$9 over a rolling seven days for this writer**.
 This new policy excludes the already incurred six-story launch cost, other OpenAI
 jobs, Odds API charges and taxes. It is not an organization-wide billing limit.
-Prices are pinned to the official Astra pricing checked September 22: $12.50/M input
-as a conservative allowance including cache writes, $50/M output. Recheck these rates
-before changing models or if OpenAI pricing changes.
+Since October 1 the writer is **GPT-6.1 Sol** (`writer.model`, `gpt-6.1-sol`) and the
+separate factual audit stays on **GPT-6 Astra** (`writer.audit_model`, `gpt-6-astra`), so
+the stronger model remains the gate before publication. Rates are per model in
+`editorial_budget.RATES`: Sol $2.50/M input (conservative allowance including cache
+writes; list $2) and $10/M output; Astra $12.50/M input (list $10) and $50/M output,
+as checked September 22. A typical story now costs about $0.08 (Sol write about $0.02 plus
+Astra audit about $0.05), compared with about $0.17 when Astra wrote and audited. Reservations and
+settlement use each call's own model rate. To move the audit to Sol as well, set
+`writer.audit_model` to `gpt-6.1-sol`. Recheck these rates before changing models or if
+OpenAI pricing changes.
 
 Each story allows one write (18,000 input UTF-8 bytes + framing allowance; 3,200
 output tokens) and one audit (24,000 input bytes + framing; 1,000 output tokens).
@@ -171,29 +178,6 @@ usage replaces the reservation using conservative rates without cached discounts
 Timeouts or missing usage retain the full reservation. When the next reservation
 would cross $9, generation stops; price/homepage refreshes continue. This can yield
 fewer than fourteen weekly articles. Actual costs are tracked, not promised.
-
-### Writer model trial (October 2–9, 2026)
-
-`writer.shadow` in `config/editorial.json` runs a dated comparison of GPT-6.1 Sol
-(`gpt-6.1-sol`, $2/M input, $10/M output list; budgeted at $2.50/$10) against the
-published Astra writer. For each daily story that reaches the paid write step, Sol
-receives the identical write request built from the same in-memory evidence. Its draft
-goes through the same automated checks and the same Astra audit. Sol drafts are
-**never published**. They run only after every real story in the edition has finished.
-Any Sol failure is recorded, and none can change the edition.
-
-Each comparison has its own reservation in the same $9 rolling ledger
-(`<date>-<slot>-shadow`): Sol write plus Astra audit, about $0.08 per story, and about
-$1 over the trial. It is reserved before the story's checkpoint, so it is durable
-before any paid call. It is settled at zero when no comparison call was made.
-Requested ideas, rewrites and opinion pieces are not shadowed.
-
-Per-story summaries are added to the daily run ledger as `slots.<slot>.shadow`. Full drafts
-from both models, with no publisher excerpts, are written to `reports/editorial-trial/`,
-which is outside the public site. Run `python scripts/editorial_model_trial.py` to
-build `report.md` (pass rates, failure reasons, words, writing cost) and
-`blind-review.html` (A/B pairs with an answer key). The trial ends automatically after
-the `until` date. Switching the production writer is a separate, explicit change.
 
 CI checkpoints include completed public articles from earlier slots so a later crash
 cannot publish only their catalog metadata. The final publication commit includes
