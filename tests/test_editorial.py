@@ -58,6 +58,16 @@ class EditorialTests(unittest.TestCase):
         self.assertFalse(m.featured_now(a,NOW+timedelta(days=4)))
         a['kind']='Opinion'
         self.assertFalse(m.featured_now(a,NOW))
+    def test_featured_blog_keeps_a_homepage_slide(self):
+        story=lambda i,url:{'title':f'S{i}','url':url,'featured':True}
+        fallback={'url':'/briefing/'}
+        articles=[story(i,f'/editorial/articles/{i}.html') for i in range(4)]
+        blog=story(9,'/blog/feature.html')
+        slides=m.home_slides(articles+[blog],fallback)
+        self.assertEqual([s['url'] for s in slides],[articles[0]['url'],articles[1]['url'],blog['url']])
+        self.assertEqual(m.home_slides([blog]+articles,fallback)[0],blog)
+        self.assertEqual(m.home_slides(articles,fallback),articles[:3])
+        self.assertEqual(m.home_slides([],fallback),[fallback])
     def test_started_and_stale_quotes_excluded(self):
         e=event();e['commence_time']=(NOW-timedelta(seconds=1)).isoformat()
         self.assertEqual(m.summarize_events('NFL',[e],NOW,{}),[])

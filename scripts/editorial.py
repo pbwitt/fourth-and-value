@@ -165,17 +165,24 @@ def featured_now(article,now):
     expiry=stamp(article['featured_until']) if article.get('featured_until') else stamp(article['date']+'T00:00:00+00:00')+timedelta(days=3)
     return now<expiry
 
+def home_slides(current,fallback):
+    # The homepage slider rotates the newest featured pieces: morning analysis
+    # and one-off blog features share it. The newest featured blog piece keeps
+    # a slide for its featured window even when new articles fill the others.
+    eligible=[a for a in current if a.get('featured')]
+    slides=(eligible or current)[:3] or [fallback]
+    blog=next((a for a in eligible if a['url'].startswith('/blog/')),None)
+    if blog and blog not in slides:slides=slides[:2]+[blog]
+    return slides
+
 def render_home(data,now):
     catalog=list(CFG['articles'])
     published=DOCS/'editorial/published.json'
     if published.exists():catalog+=json.loads(published.read_text())
     catalog.sort(key=lambda a:(a['date'],a.get('published_at','')),reverse=True)
     current=[a for a in catalog if featured_now(a,now)]
-    eligible=[a for a in current if a.get('featured')]
     fallback=dict(title='The daily market briefing',excerpt='Compare current prices across the leagues and follow what changes next.',sport='Sports',kind='Market watch',url='/briefing/',date=now.astimezone(ETZ).date().isoformat())
-    # The homepage slider rotates the newest featured pieces: morning analysis
-    # and one-off blog features share it.
-    slides=(eligible or current)[:3] or [fallback]
+    slides=home_slides(current,fallback)
     lead=slides[0];shown={a['url'] for a in slides}
     ctx=context(data,now)
     ctx.update(lead=lead,slides=slides,features=[a for a in current if a['url'] not in shown][:6],opinions=[a for a in catalog if a['kind']=='Opinion'][:2])
