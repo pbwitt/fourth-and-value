@@ -38,7 +38,8 @@ class BudgetTests(unittest.TestCase):
             self.assertEqual(budget.reserve('a',NOW,.8,path=p,legacy=(old,)),'budget_exhausted')
             self.assertEqual(budget.reserve('a',NOW,.5,path=p,legacy=(old,)),'reserved')
             budget.settle('a',dict(input_tokens=1000,output_tokens=100),path=p,search_calls=1)
-            self.assertAlmostEqual(budget.usage_summary(NOW,path=p,legacy=(old,))['charged_or_reserved_usd'],2.0275)
+            rate_in,rate_out=budget.RATES[budget.MODEL]
+            self.assertAlmostEqual(budget.usage_summary(NOW,path=p,legacy=(old,))['charged_or_reserved_usd'],2+1000*rate_in+100*rate_out+.01)
 
     def test_concurrent_reservations_cannot_each_spend_full_balance(self):
         with tempfile.TemporaryDirectory() as td:
@@ -53,7 +54,8 @@ class BudgetTests(unittest.TestCase):
             p=Path(td)/'daily.json'
             with self.assertRaises(ValueError):budget.reserve('bad',NOW,.1,path=p,legacy=(),cap=3)
             budget.reserve('a',NOW,.1,path=p,legacy=())
-            budget.settle('a',dict(input_tokens=20000,output_tokens=0),path=p)
+            # Far above the $0.10 reservation at any configured model's rate.
+            budget.settle('a',dict(input_tokens=200000,output_tokens=0),path=p)
             self.assertEqual(budget.reserve('b',NOW,.1,path=p,legacy=()),'budget_halted')
 
 if __name__=='__main__':unittest.main()
