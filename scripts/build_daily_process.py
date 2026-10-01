@@ -12,7 +12,7 @@ WORKFLOWS={
  'editorial-daily.yml':('Editorial articles and maintenance','Primary article run starts after the morning sports refreshes; target two articles by 8:30 a.m. Recovery needs fresh morning models. Hourly checks handle approved posts, freshness and eligible morning catch-up; they are not hourly article production.'),
  'nfl-weekly.yml':('NFL data and models','Refresh statistics, player estimates, scoring projections and available prices; publish before research and editorial writing. Explicit manual editorial requests can also refresh NFL.'),
  'mlb-daily.yml':('MLB data and models','Refresh history/training cache, prices, lineups and forecasts. Morning refresh is coordinated by Morning Picks Edition.'),
- 'nhl-daily.yml':('NHL data and models','Refresh regular-season statistics and prices, run inference, publish all qualifying candidates. After a validated refresh, regrade NHL Market Results from saved pregame snapshots (descriptive only; not an input to picks). Later refresh can capture newly posted props.'),
+ 'nhl-daily.yml':('NHL data and models','Refresh regular-season statistics and prices, run inference, publish all qualifying candidates. After a validated refresh, regrade NHL Market Analytics from saved pregame snapshots (descriptive only; not an input to picks). Later refresh can capture newly posted props.'),
  'editorial-watchdog.yml':('Article recovery monitor','Checks missing article delivery during the morning writing window, with an extra check after the 8:30 a.m. target; no paid writing without fresh model inputs.'),
  'analyst-daily.yml':('Top Picks discovery and review','Runs once after the morning feeds finish, or as an explicit operator test. No automatic intraday research.')}
 

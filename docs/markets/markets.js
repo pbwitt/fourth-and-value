@@ -1,10 +1,14 @@
 // docs/markets/markets.js — Market Results: what the market expected versus what happened.
-// Every sport page renders from docs/markets/data/<sport>.json (scripts/build_market_results.py).
+// One page for every sport, rendered from docs/markets/data/<sport>.json (scripts/build_market_results.py).
+// Readers pick a sport (?sport=); there is no default. It switches in place; /markets/<sport>/ redirect here.
 (() => {
   'use strict';
   const root = document.getElementById('markets');
   if (!root) return;
-  const sport = root.dataset.sport;
+  const sports = [...new Set([...root.querySelectorAll('[data-sport-link]')].map(a => a.dataset.sportLink))];
+  const asked = new URLSearchParams(location.search).get('sport');
+  let sport = sports.includes(asked) ? asked : root.dataset.sport || null;
+  const dataRoot = root.dataset.root || '../data/';
   const C = {ink: '#e7eef9', muted: '#b8c5d6', edge: '#314159', page: '#0f141c', over: '#3987e5',
     under: '#d95926', gray: '#5b6472', mint: '#7ce2bd', band: 'rgba(184,197,214,.12)'};
   const TERMS = {
@@ -24,30 +28,69 @@
   const fmt = v => Number.isInteger(v) ? String(v) : String(+v.toFixed(1));
   const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
   const state = {market: null, win: 'season'};
-  let data, rows = {}, latest = 0, lastWidth = 0, resizeTimer;
+  let data, rows = {}, latest = 0, lastWidth = 0, resizeTimer, wired = false, firstLoad = true, reveal = false;
 
-  fetch(`../data/${sport}.json`, {cache: 'no-cache'})
-    .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-    .then(init)
-    .catch(() => { $('[data-status]').textContent = 'Market results are unavailable right now. Please try again later.'; });
+  // Sport cards and the toolbar switch both load in place; modified clicks still open the link.
+  root.addEventListener('click', e => {
+    const a = e.target.closest('[data-sport-link]');
+    if (!a || e.metaKey || e.ctrlKey || e.shiftKey) return;
+    e.preventDefault();
+    // A card sits above the charts; on a phone the stacked cards push them off screen.
+    reveal = a.classList.contains('sport');
+    if (a.dataset.sportLink !== sport) load(a.dataset.sportLink); else showDashboard();
+  });
+  if (sport) load(sport);
+  else { $('[data-dashboard]').hidden = true; $('[data-pick-prompt]').hidden = false; }
+
+  function load(next) {
+    sport = next;
+    $('[data-dashboard]').hidden = false;
+    $('[data-pick-prompt]').hidden = true;
+    // Show only this sport's notes, tables and links; without JavaScript every sport's stay visible.
+    root.querySelectorAll('[data-for]').forEach(el => { el.hidden = el.dataset.for !== sport; });
+    root.querySelectorAll('[data-sport-link]').forEach(a => {
+      if (a.dataset.sportLink === sport) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    });
+    fetch(`${dataRoot}${sport}.json`, {cache: 'no-cache'})
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(payload => { if (payload.sport === sport) init(payload); })
+      .catch(() => { $('[data-status]').textContent = 'Market data is unavailable right now. Please try again later.'; });
+  }
 
   function init(payload) {
     data = payload;
+    rows = {};
+    latest = 0;
     for (const m of data.markets) {
       rows[m.key] = (data.rows[m.key] || []).map(a => ({period: a[0], t: a[1], label: a[2], game: a[3], line: a[4],
         p: a[5], actual: a[6], books: a[7], dA: a[8], dB: a[9]}));
       for (const r of rows[m.key]) latest = Math.max(latest, r.t || 0);
     }
-    // Deep links: #m=<market>&w=<window>, or a bare #<market>.
-    const raw = location.hash.slice(1), hash = new URLSearchParams(raw), known = k => data.markets.some(m => m.key === k);
+    // Deep links on first load: #m=<market>&w=<window>, or a bare #<market>. A sport switch starts fresh.
+    const raw = firstLoad ? location.hash.slice(1) : '', hash = new URLSearchParams(raw), known = k => data.markets.some(m => m.key === k);
+    if (!data.windows.some(w => w.key === state.win)) state.win = data.windows[0].key;
     if (data.windows.some(w => w.key === hash.get('w'))) state.win = hash.get('w');
     state.market = known(hash.get('m')) ? hash.get('m') : known(raw) ? raw : defaultMarket();
-    controls();
+    firstLoad = false;
+    windowButtons();
+    if (!wired) {
+      controls();
+      new ResizeObserver(() => {
+        const w = root.clientWidth;
+        if (Math.abs(w - lastWidth) > 4) { clearTimeout(resizeTimer); resizeTimer = setTimeout(renderAll, 120); }
+      }).observe(root);
+      wired = true;
+    }
     renderAll();
-    new ResizeObserver(() => {
-      const w = root.clientWidth;
-      if (Math.abs(w - lastWidth) > 4) { clearTimeout(resizeTimer); resizeTimer = setTimeout(renderAll, 120); }
-    }).observe(root);
+    showDashboard();
+  }
+
+  function showDashboard() {
+    if (!reveal) return;
+    reveal = false;
+    const nav = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-h')) || 64;
+    const top = $('[data-dashboard]').getBoundingClientRect().top + window.scrollY - nav - 8;
+    if (top > window.scrollY + window.innerHeight * 0.5 || top < window.scrollY) window.scrollTo({top, behavior: 'smooth'});
   }
 
   // The market furthest from what its prices implied is the most useful place to start reading.
@@ -128,9 +171,12 @@
   }
 
   // ---------- page furniture ----------
+  function windowButtons() {
+    $('[data-windows]').innerHTML = data.windows.map(w => `<button type="button" data-win="${w.key}">${esc(w.label)}</button>`).join('');
+  }
+
   function controls() {
     const box = $('[data-windows]');
-    box.innerHTML = data.windows.map(w => `<button type="button" data-win="${w.key}">${esc(w.label)}</button>`).join('');
     box.addEventListener('click', e => {
       const b = e.target.closest('[data-win]');
       if (b) { state.win = b.dataset.win; renderAll(); }
@@ -162,7 +208,7 @@
 
   function renderAll() {
     lastWidth = root.clientWidth;
-    try { history.replaceState(null, '', `#m=${state.market}&w=${state.win}`); } catch (e) { /* embedded frames may refuse */ }
+    try { history.replaceState(null, '', `${location.pathname}?sport=${sport}#m=${state.market}&w=${state.win}`); } catch (e) { /* embedded frames may refuse */ }
     root.querySelectorAll('[data-win]').forEach(b => b.setAttribute('aria-pressed', b.dataset.win === state.win));
     status();
     board();

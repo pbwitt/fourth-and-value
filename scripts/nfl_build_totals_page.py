@@ -193,7 +193,7 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
   <div id="nav-root"></div>
-  <script src="../../nav.js?v=46"></script>
+  <script src="../../nav.js?v=47"></script>
 
   <main id="main" class="wrap">
     <p class="eyebrow">NFL &middot; Week {week}</p>

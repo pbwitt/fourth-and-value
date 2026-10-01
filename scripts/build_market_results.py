@@ -501,23 +501,16 @@ def replace_between(html, name, content):
     return html[:i + len(start)] + content + html[j:]
 
 
-def publish_static(payload):
-    """Write crawlable numbers into the sport page and the landing page; touch files only when text changes."""
+def publish_static(payload, page=PAGES / 'index.html'):
+    """Write this sport's crawlable summary and table into the shared page; touch it only when text changes."""
     summary = season_summary(payload)
     sport = payload['sport']
-    edits = {PAGES / sport / 'index.html': [('market-status', escape(status_text(payload, summary))),
-                                            ('market-table', table_html(summary))],
-             PAGES / 'index.html': [(f'market-summary:{sport}', hub_text(payload, summary))]}
-    for path, items in edits.items():
-        if not path.exists():
-            continue
-        old = path.read_text()
-        new = old
-        for name, content in items:
-            new = replace_between(new, name, content)
-        if new != old:
-            path.write_text(new)
-            print(f'{path.relative_to(ROOT)}: static summary updated')
+    old = page.read_text()
+    new = replace_between(old, f'market-status:{sport}', hub_text(payload, summary))
+    new = replace_between(new, f'market-table:{sport}', table_html(summary))
+    if new != old:
+        page.write_text(new)
+        print(f'{page.relative_to(ROOT)}: {sport} static summary updated')
 
 
 def main():

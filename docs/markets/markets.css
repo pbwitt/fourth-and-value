@@ -1,4 +1,4 @@
-/* Market Results — shared by every sport page. Palette matches the blog charts. */
+/* Market Analytics — one page for every sport. Palette matches the blog charts. */
 :root{color-scheme:dark;--ink:#e7eef9;--muted:#b8c5d6;--edge:#314159;--mint:#7ce2bd;--over:#3987e5;--under:#d95926;--panel:#0f141c;--tile:#101b24;--page:#0b0e13}
 *{box-sizing:border-box}
 body{margin:0;background:var(--page);color:var(--ink);font:16px/1.65 system-ui,sans-serif}
@@ -62,12 +62,6 @@ g[data-tip]:focus-visible>rect.hit{stroke:#93c5fd;stroke-width:2}
 .table-wrap th,.table-wrap td{padding:8px 10px;border-bottom:1px solid var(--edge);text-align:right;white-space:nowrap}
 .table-wrap th:first-child,.table-wrap td:first-child{text-align:left}
 .table-wrap th{color:var(--mint);font-weight:600;font-size:.82rem}
-.sports{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:22px 0}
-.sport{display:block;padding:20px;background:var(--tile);border:1px solid var(--edge);border-radius:12px;color:var(--ink);text-decoration:none}
-.sport:hover,.sport:focus-visible{border-color:var(--mint)}
-.sport h2{font-size:1.45rem;margin:0 0 6px}
-.sport p{margin:0;color:var(--muted);font-size:.92rem}
-.sport .go{display:inline-block;margin-top:12px;color:var(--mint);font-weight:600;font-size:.9rem}
 .empty{padding:26px;border:1px dashed var(--edge);border-radius:10px;color:var(--muted);text-align:center}
 .method{margin-top:40px;border-top:1px solid var(--edge);padding-top:16px;font-size:.92rem;color:var(--muted)}
 .method summary{cursor:pointer;color:#9bc4ff;font-size:1rem}
@@ -91,3 +85,15 @@ g[data-tip]:focus-visible>rect.hit{stroke:#93c5fd;stroke-width:2}
   .score b.pair i{min-width:5.2em}
   h2{font-size:1.45rem}
 }
+
+/* Sport picker: the first choice on the page; the selected sport stays highlighted. */
+.sports{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:22px 0 8px}
+.sport{display:block;padding:20px;background:var(--tile);border:1px solid var(--edge);border-radius:12px;color:var(--ink);text-decoration:none}
+.sport:hover,.sport:focus-visible{border-color:var(--mint)}
+.sport[aria-current=page]{border-color:var(--mint);background:#13261f;box-shadow:inset 0 -3px 0 var(--mint)}
+.sport h2{font-size:1.45rem;margin:0 0 6px}
+.sport p{margin:0;color:var(--muted);font-size:.92rem}
+.sport .go{display:inline-block;margin-top:12px;color:var(--mint);font-weight:600;font-size:.9rem}
+.sport[aria-current=page] .go{color:var(--ink)}
+.pick{color:var(--muted);font-size:.95rem;margin-top:10px}
+#dashboard{margin-top:18px}

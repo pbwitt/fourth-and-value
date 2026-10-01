@@ -737,7 +737,7 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path)
     initFilters();
     renderGames();
   </script>
-  <script src="../../nav.js?v=46"></script>
+  <script src="../../nav.js?v=47"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="../../tracking/bet-tracking.js"></script>
   <script>

@@ -101,7 +101,7 @@ const BEATS = [
     await hold(3.6);
     await beat(1); await hold(2.8);
     await tap('a.sport[href="nfl/"]', async () => {});
-    await d('load', `${base}/markets/nfl/#m=rush_yds&w=season`);
+    await d('load', `${base}/markets/?sport=nfl#m=rush_yds&w=season`);
     await beat(2, false);
     await scrollTo(await d('targetY', 'figure:has([data-chart=board])', NAV));
     await hold(4.6);
