@@ -130,6 +130,19 @@ class WeeklyReviewTests(unittest.TestCase):
             self.assertEqual(summary['model_direction']['unpriced_games'],1)
             self.assertEqual(summary['model_direction']['priced_games'],0)
 
+    def test_game_started_before_snapshot_is_excluded_not_graded(self):
+        archive={'manifest':dict(snapshot_at='2026-09-26T13:06:13+00:00'),
+                 'predictions':pd.DataFrame([dict(game='ATL @ GB',total_pred=46),dict(game='LAC @ BUF',total_pred=50)]),
+                 'lines':pd.DataFrame([dict(game='LAC @ BUF',book='a',total_over_line=48,total_over_price=-110,total_under_price=-110)])}
+        schedule=pd.DataFrame([
+            dict(season=2026,week=3,game_type='REG',gameday='2026-09-24',gametime='20:15',away_team='ATL',home_team='GB',home_score=14,away_score=35,total_line=43.5),
+            dict(season=2026,week=3,game_type='REG',gameday='2026-09-27',gametime='13:00',away_team='LAC',home_team='BUF',home_score=27,away_score=24,total_line=48.5)])
+        games,summary=review.totals_metrics(archive,schedule,2026,3)
+        self.assertEqual(games.game.tolist(),['LAC @ BUF'])
+        self.assertEqual(summary['excluded_before_snapshot'],['ATL @ GB'])
+        schedule.loc[1,'gameday']='2026-09-25'
+        with self.assertRaises(ValueError):review.totals_metrics(archive,schedule,2026,3)
+
     def test_week2_published_benchmark_still_reconciles(self):
         checks=review.verify_week2()
         self.assertTrue(all(checks.values()))
