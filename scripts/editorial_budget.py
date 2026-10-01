@@ -7,24 +7,33 @@ import subprocess
 import editorial as ed
 
 PATH=ed.DOCS/'editorial/budget.json'
-INPUT_RATE=12.5/1000000 # Includes the higher cache-write rate; standard Astra pricing.
-OUTPUT_RATE=50/1000000
+# Per-token (input, output) rates. Input includes the higher cache-write rate
+# (1.25x list); output is list price. Astra was checked September 22; GPT-6.1 Sol
+# ($2/$10 per million list) is used only for the shadow comparison drafts.
+RATES={'gpt-6-astra':(12.5/1000000,50/1000000),'gpt-6.1-sol':(2.5/1000000,10/1000000)}
+INPUT_RATE,OUTPUT_RATE=RATES['gpt-6-astra']
 LIMITS={'write':(18000,3200),'audit':(24000,1000)}
+ASTRA='gpt-6-astra'
 
 def bounds(payload,phase):
-    if payload.get('tools') or payload.get('model')!='gpt-6-astra' or payload.get('service_tier')!='default':raise ValueError('Unbudgeted model, tool or service tier')
+    if payload.get('tools') or payload.get('model') not in RATES or payload.get('service_tier')!='default':raise ValueError('Unbudgeted model, tool or service tier')
     encoded=sum(len(payload[k].encode('utf-8')) for k in ('instructions','input'))
     cap,output=LIMITS[phase]
     if encoded>cap or payload['max_output_tokens']>output:raise ValueError('Request exceeds budgeted size')
+    inp,out=RATES[payload['model']]
     # Byte count upper-bounds the byte-based tokenizer; reserve extra framing space.
-    return round(((encoded+1024)*INPUT_RATE+output*OUTPUT_RATE)*1.10,6)
+    return round(((encoded+1024)*inp+output*out)*1.10,6)
 
-def maximum():
-    return round(sum(((cap+1024)*INPUT_RATE+out*OUTPUT_RATE)*1.10 for cap,out in LIMITS.values()),6)
+def maximum(models=None):
+    """Largest write+audit charge; models maps a phase to a non-default model."""
+    models=models or {}
+    return round(sum(((cap+1024)*RATES[models.get(phase,ASTRA)][0]+out*RATES[models.get(phase,ASTRA)][1])*1.10
+                     for phase,(cap,out) in LIMITS.items()),6)
 
-def cost(usage):
+def cost(usage,model=ASTRA):
     # No cached-input discount assumed. Exact invoice may be lower.
-    return round(usage['input_tokens']*INPUT_RATE+usage['output_tokens']*OUTPUT_RATE,6)
+    inp,out=RATES[model]
+    return round(usage['input_tokens']*inp+usage['output_tokens']*out,6)
 
 def read():
     return json.loads(PATH.read_text()) if PATH.exists() else {'version':2,'entries':[]}
@@ -32,13 +41,13 @@ def read():
 def used(data,now):
     return sum(e['charge_usd'] for e in data['entries'] if ed.stamp(e['at'])>=now-timedelta(days=7))
 
-def reserve(key,now,cap):
+def reserve(key,now,cap,amount=None):
     data=read()
     prior=next((e for e in data['entries'] if e['key']==key),None)
     # An operator may verify a legacy pre-request failure. Preserve that record;
     # a paid or uncertain attempt can never be released through this exception.
     if prior and not (prior.get('verified_pre_request_failure') and prior.get('status')=='settled' and prior.get('charge_usd')==0):return False
-    amount=maximum()
+    amount=maximum() if amount is None else amount
     if used(data,now)+amount>cap:return False
     if prior:
         history=prior.setdefault('prior_attempts',[])
@@ -51,7 +60,8 @@ def reserve(key,now,cap):
 def settle(key,usages,complete):
     data=read();entry=next(e for e in data['entries'] if e['key']==key)
     if complete:
-        entry.update(status='settled',charge_usd=round(sum(cost(u) for u in usages),6))
+        # A usage is a response usage (Astra) or a (usage, model) pair.
+        entry.update(status='settled',charge_usd=round(sum(cost(*u) if isinstance(u,tuple) else cost(u) for u in usages),6))
     else:entry['status']='uncertain-reservation-retained'
     ed.write_json(PATH,data)
 

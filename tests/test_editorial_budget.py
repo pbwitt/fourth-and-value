@@ -36,6 +36,25 @@ class BudgetTests(unittest.TestCase):
         self.assertFalse(sources.trusted('https://espn.com.evil.test/news'))
         self.assertFalse(sources.trusted('http://espn.com/news'))
         self.assertEqual(sources.text_content('<script type="application/ld+json">{"articleBody":"Real reporting"}</script>'),'Real reporting')
+    def test_sol_writes_astra_audits_and_each_is_charged_at_its_rate(self):
+        self.assertEqual((w.ed.CFG['writer']['model'],w.audit_model(w.ed.CFG['writer'])),('gpt-6.1-sol','gpt-6-astra'))
+        root=Path(self.temp.name);docs=root/'docs';state=root/'runs'
+        (docs/'editorial').mkdir(parents=True)
+        w.ed.write_json(state/'2026-09-22.json',{'allocation':[['MLB','news-market']],'slots':{}})
+        reporting=[{'id':s,'title':'Report','url':url,'published_at':'2026-09-22','excerpt':'Private source excerpt'} for s,url in [('a','https://mlb.com/news/a'),('b','https://www.espn.com/mlb/b')]]
+        article={'publish':True,'title':'A substantive market analysis headline','excerpt':'A substantial original summary of the matchup and market.','sections':[{'heading':'Context','text':'Analysis '*150,'source_ids':['a','b']} for _ in range(4)],'sources':[{k:v for k,v in r.items() if k!='excerpt'} for r in reporting],'market_ids':['game','model-game']}
+        def response(value):return {'status':'completed','usage':{'input_tokens':1000,'output_tokens':800},'output':[{'content':[{'type':'output_text','text':json.dumps(value)}]}]}
+        packet={'sport':'MLB','data_readiness':{'ready':True},'markets':[{'id':'game','event_id':'game','game':'Away @ Home','commence_time':'2026-09-23T00:00:00Z'}],'model_rows':[{'id':'model-game','event_id':'game','game':'Away @ Home','model_mean':5.2,'model_version':'v1','model_input_through':'2026-09-21'}]}
+        class FixedDate(datetime):
+            @classmethod
+            def now(cls,tz=None):return datetime(2026,9,22,12,tzinfo=timezone.utc)
+        with patch.object(w,'datetime',FixedDate),patch.object(w.ed,'DOCS',docs),patch.object(w.ed,'ROOT',root),patch.object(w,'STATE',state),patch.object(w,'evidence',return_value=packet),patch.object(w.reporting,'collect',return_value=reporting),patch.object(b,'checkpoint'),patch.object(w.ed,'render_home'),patch.object(w,'call_api',side_effect=[response(article),response({'pass':True})]) as api:
+            w.run(self.now,1)
+        self.assertEqual([c.args[0]['model'] for c in api.call_args_list],['gpt-6.1-sol','gpt-6-astra'])
+        (entry,)=b.read()['entries']
+        self.assertEqual(entry['status'],'settled')
+        self.assertAlmostEqual(entry['charge_usd'],(1000*2.5+800*10+1000*12.5+800*50)/1e6)
+        self.assertLess(b.maximum({'write':'gpt-6.1-sol'}),b.maximum())
     def test_full_publish_and_repeat_without_new_spend(self):
         root=Path(self.temp.name);docs=root/'docs';state=root/'runs'
         (docs/'editorial').mkdir(parents=True)

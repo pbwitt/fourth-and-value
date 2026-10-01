@@ -158,9 +158,16 @@ Pirates prose is unchanged. A market-briefing lead fills an empty homepage safel
 `docs/editorial/budget.json` enforces **$9 over a rolling seven days for this writer**.
 This new policy excludes the already incurred six-story launch cost, other OpenAI
 jobs, Odds API charges and taxes. It is not an organization-wide billing limit.
-Prices are pinned to the official Astra pricing checked September 22: $12.50/M input
-as a conservative allowance including cache writes, $50/M output. Recheck these rates
-before changing models or if OpenAI pricing changes.
+Since October 1 the writer is **GPT-6.1 Sol** (`writer.model`, `gpt-6.1-sol`) and the
+separate factual audit stays on **GPT-6 Astra** (`writer.audit_model`, `gpt-6-astra`), so
+the stronger model remains the gate before publication. Rates are per model in
+`editorial_budget.RATES`: Sol $2.50/M input (conservative allowance including cache
+writes; list $2) and $10/M output; Astra $12.50/M input (list $10) and $50/M output,
+as checked September 22. A typical story now costs about $0.08 (Sol write about $0.02 plus
+Astra audit about $0.05), compared with about $0.17 when Astra wrote and audited. Reservations and
+settlement use each call's own model rate. To move the audit to Sol as well, set
+`writer.audit_model` to `gpt-6.1-sol`. Recheck these rates before changing models or if
+OpenAI pricing changes.
 
 Each story allows one write (18,000 input UTF-8 bytes + framing allowance; 3,200
 output tokens) and one audit (24,000 input bytes + framing; 1,000 output tokens).
