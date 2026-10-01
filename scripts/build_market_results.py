@@ -14,6 +14,7 @@ night; the NHL ledger is not built yet.
 """
 import argparse
 import json
+from html import escape
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -25,7 +26,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from nfl_weekly_review import STATS, TEAM_NAMES, grade_props  # noqa: E402
 
-OUT = ROOT / 'docs/markets/data'
+PAGES = ROOT / 'docs/markets'
+OUT = PAGES / 'data'
 
 # Display order is the order readers scan the board: game lines, then by unit.
 NFL_MARKETS = [
@@ -260,6 +262,92 @@ def write(payload):
     print(f'{path.relative_to(ROOT)}: {sum(counts.values())} rows {counts}')
 
 
+def season_summary(payload):
+    """Season totals per market, for the static HTML that search engines and no-JS readers see."""
+    out = []
+    for m in payload['markets']:
+        rows = payload['rows'][m['key']]
+        settled = [r for r in rows if r[6] != r[4]]
+        a = sum(1 for r in settled if r[6] > r[4])
+        expected = sum(r[5] for r in settled)
+        spread = sum(r[5] * (1 - r[5]) for r in settled) ** 0.5
+        out.append(dict(market=m, lines=len(rows), a=a, b=len(settled) - a, push=len(rows) - len(settled),
+                        rate=a / len(settled) if settled else None, implied=expected / len(settled) if settled else None,
+                        gap=a - expected, z=(a - expected) / spread if spread else 0.0))
+    return out
+
+
+def status_text(payload, summary):
+    total = sum(s['lines'] for s in summary)
+    if not total:
+        return payload['notes'].get('empty', 'No graded lines yet.')
+    games = sum(p.get('games', 0) for p in payload['periods'])
+    return f"Through {payload['periods'][-1]['label']} · {games} games · {total:,} graded lines"
+
+
+def table_html(summary):
+    if not any(s['lines'] for s in summary):
+        return '<p class="sub">No graded markets yet.</p>'
+    pct = lambda v: f'{100 * v:.1f}%'
+    body = ''
+    for s in summary:
+        if not s['lines']:
+            continue
+        m = s['market']
+        label = f"{m['label']} (favorites vs. underdogs)" if m['kind'] == 'side' else m['label']
+        gap = f"{s['gap']:+.1f}".replace('-', '−')
+        body += (f"<tr><td>{escape(label)}</td><td>{s['lines']:,}</td><td>{s['a']}–{s['b']}</td>"
+                 f"<td>{pct(s['rate'])}</td><td>{pct(s['implied'])}</td><td>{gap}</td></tr>")
+    return ('<div class="table-wrap"><table><thead><tr><th>Market</th><th>Lines</th><th>Overs–unders</th>'
+            '<th>Over rate</th><th>Prices implied</th><th>Vs. expected</th></tr></thead><tbody>'
+            + body + '</tbody></table></div>')
+
+
+def hub_text(payload, summary):
+    live = [s for s in summary if s['lines']]
+    if not live:
+        return escape(payload['notes'].get('empty', 'Not graded yet.'))
+    markets = len(live)
+    text = f"{status_text(payload, summary)} across {markets} markets."
+    notable = max((s for s in live if s['a'] + s['b'] >= 20), key=lambda s: abs(s['z']), default=None)
+    if notable:
+        m = notable['market']
+        if m['kind'] == 'side':
+            lead = 'favorites' if notable['a'] >= notable['b'] else 'underdogs'
+        else:
+            lead = 'overs' if notable['a'] >= notable['b'] else 'unders'
+        hi, lo = max(notable['a'], notable['b']), min(notable['a'], notable['b'])
+        text += f" Furthest from its prices: {m['label'].lower()}, {lead} {hi}–{lo}."
+    return escape(text)
+
+
+def replace_between(html, name, content):
+    start, end = f'<!-- {name}:start -->', f'<!-- {name}:end -->'
+    i, j = html.find(start), html.find(end)
+    if i < 0 or j < 0:
+        raise ValueError(f'Missing {name} markers')
+    return html[:i + len(start)] + content + html[j:]
+
+
+def publish_static(payload):
+    """Write crawlable numbers into the sport page and the landing page; touch files only when text changes."""
+    summary = season_summary(payload)
+    sport = payload['sport']
+    edits = {PAGES / sport / 'index.html': [('market-status', escape(status_text(payload, summary))),
+                                            ('market-table', table_html(summary))],
+             PAGES / 'index.html': [(f'market-summary:{sport}', hub_text(payload, summary))]}
+    for path, items in edits.items():
+        if not path.exists():
+            continue
+        old = path.read_text()
+        new = old
+        for name, content in items:
+            new = replace_between(new, name, content)
+        if new != old:
+            path.write_text(new)
+            print(f'{path.relative_to(ROOT)}: static summary updated')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('--season', type=int, default=2026)
@@ -268,8 +356,9 @@ def main():
     args = parser.parse_args()
     stats = args.stats or ROOT / f'data/weekly_player_stats_{args.season}.parquet'
     schedule = args.schedule or ROOT / f'data/schedule_{args.season}.csv'
-    write(build_nfl(args.season, stats, schedule))
-    write(build_nhl(args.season))
+    for payload in (build_nfl(args.season, stats, schedule), build_nhl(args.season)):
+        write(payload)
+        publish_static(payload)
 
 
 if __name__ == '__main__':

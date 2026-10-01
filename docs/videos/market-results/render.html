@@ -1,0 +1,69 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Fourth &amp; Value video renderer</title>
+<meta name="robots" content="noindex">
+<style>
+body{margin:0;width:1080px;height:1920px;background:#0b0e13;color:#e7eef9;font-family:system-ui,sans-serif;overflow:hidden;position:relative}
+.top{position:absolute;left:84px;right:84px;top:92px;height:300px}
+.eyebrow{font-size:26px;letter-spacing:.16em;text-transform:uppercase;color:#7ce2bd;font-weight:700}
+.head{font:600 66px/1.08 Georgia,serif;letter-spacing:-.015em;margin-top:22px}
+.sub{font:31px/1.42 Georgia,serif;color:#b8c5d6;margin-top:18px}
+.phone{position:absolute;left:84px;top:430px;width:912px;height:1330px;border:3px solid #314159;border-radius:40px;overflow:hidden;background:#0b0e13}
+iframe{position:absolute;left:0;top:0;width:430px;height:627px;border:0;transform:scale(2.1209);transform-origin:0 0}
+.tap{position:absolute;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;border:6px solid #7ce2bd;background:rgba(124,226,189,.18);opacity:0;pointer-events:none}
+.foot{position:absolute;left:84px;right:84px;bottom:74px;display:flex;justify-content:space-between;align-items:center;font-size:28px;color:#b8c5d6;white-space:nowrap}
+.foot b{color:#e7eef9;font-weight:700}
+.bar{position:absolute;left:0;bottom:0;height:8px;background:#7ce2bd;width:0}
+</style>
+<div class="top"><div class="eyebrow" id="eyebrow"></div><div class="head" id="head"></div><div class="sub" id="sub"></div></div>
+<div class="phone"><iframe id="site" title="Fourth & Value Market Results"></iframe><div class="tap" id="tap"></div></div>
+<div class="foot"><span><b>Fourth &amp; Value</b> · Market Results</span><span>fourthandvalue.com/markets</span></div>
+<div class="bar" id="bar"></div>
+<script>
+// Frame-by-frame director: the renderer calls these between screenshots, so every
+// movement is tweened in frames rather than real time.
+const S = 2.1209, frame = document.getElementById('site'), tapEl = document.getElementById('tap');
+const win = () => frame.contentWindow, doc = () => frame.contentDocument;
+window.director = {
+  load(url) {
+    return new Promise(resolve => {
+      frame.onload = () => {
+        const w = win();
+        // Route the page's smooth scrolls to the director so they render frame by frame.
+        w.scrollTo = (a, b) => { w.__target = typeof a === 'object' ? a.top : b; };
+        doc().documentElement.style.scrollBehavior = 'auto';
+        const css = doc().createElement('style');
+        css.textContent = '.tip{display:none!important}*{caret-color:transparent}';
+        doc().head.appendChild(css);
+        setTimeout(resolve, 700);
+      };
+      frame.src = url;
+    });
+  },
+  caption(eyebrow, head, sub) {
+    document.getElementById('eyebrow').textContent = eyebrow;
+    document.getElementById('head').textContent = head;
+    document.getElementById('sub').textContent = sub;
+  },
+  opacity(v) { document.querySelector('.top').style.opacity = v; },
+  progress(v) { document.getElementById('bar').style.width = (v * 100) + '%'; },
+  scrollY() { return win().scrollY; },
+  setScroll(y) { win().document.scrollingElement.scrollTop = y; },
+  pending() { const t = win().__target; win().__target = undefined; return t; },
+  // Page y for an element, leaving room for the sticky nav and toolbar.
+  targetY(sel, offset = 0) {
+    const el = doc().querySelector(sel);
+    return Math.max(0, el.getBoundingClientRect().top + win().scrollY - offset);
+  },
+  point(sel) {
+    const r = doc().querySelector(sel).getBoundingClientRect();
+    return {x: (r.left + Math.min(r.width / 2, 120)) * S, y: (r.top + r.height / 2) * S};
+  },
+  tap(p, t) {
+    tapEl.style.left = p.x + 'px'; tapEl.style.top = p.y + 'px';
+    tapEl.style.opacity = t < 1 ? String(Math.sin(Math.PI * t)) : '0';
+    tapEl.style.transform = `scale(${0.7 + 0.5 * t})`;
+  },
+  click(sel) { doc().querySelector(sel).dispatchEvent(new MouseEvent('click', {bubbles: true})); },
+};
+window.videoReady = true;
+</script>
+</html>
