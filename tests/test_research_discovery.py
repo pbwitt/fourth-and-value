@@ -123,7 +123,7 @@ class DiscoveryRunTests(unittest.TestCase):
             self.assertEqual(result['status'],'completed');self.assertEqual(len(result['candidates']),1)
             self.assertEqual(result['candidates'][0]['price'],offer['price']);self.assertIsNone(result['candidates'][0]['model_prob'])
             self.assertEqual(result['candidates'][0]['original_forecast']['model_prob'],offer['model_prob'])
-            self.assertEqual(result['budget']['charged_or_reserved_usd'],.0275)
+            self.assertEqual(result['budget']['charged_or_reserved_usd'],round(1000*discovery.astra.INPUT_RATE+100*discovery.astra.OUTPUT_RATE+.01,6))
             checkpoint.assert_called_once();call.assert_called_once()
             self.assertEqual(len(list((p/'requests').glob('*.json'))),1)
             again=discovery.run(f,NOW,CONFIG,archive=p,clock=lambda:NOW,public=p/'discovery.json',execute=True)

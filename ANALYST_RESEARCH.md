@@ -208,7 +208,13 @@ The exception expires automatically at Eastern midnight; September 28 resumes
 $2.75 without a deployment or manual reset. Increasing `daily_budget_usd` alone
 cannot bypass the normal cap. This is a testing allowance, not a spending target.
 
-Use gpt-6-astra, default tier, low reasoning. Reviews have no tools, at most
+Use gpt-6.1-sol (GPT-6.1 Sol), default tier, low reasoning. GPT-6 Astra (`gpt-6-astra`)
+was used through October 1, 2026; reviews and ledger entries record the model used.
+Rates in `scripts/nhl/v2/astra.py` (`RATES`) are conservative: Sol $2.50/M input
+(list $2 plus the cache-write premium) and $10/M output. Reservations
+(`astra.bounds`, discovery bounds) and `research_budget.settle` use the same
+model's rates, so a normal call cannot trigger the overrun halt. The change lowers
+cost; review rules, batch limits and the daily allowance are unchanged. Reviews have no tools, at most
 26,000 serialized request bytes and 4,200 output tokens. Discovery uses an
 isolated web-search request with one built-in tool call, no response history,
 at most 12,000 request bytes and 1,600 output tokens. Conservative search
@@ -287,7 +293,7 @@ Do not revert the entire change in a way that re-enables the old weekly-funded
 runner. Preserve both daily and legacy ledgers and all archives. Never reset a
 ledger to regain spending or retry an unknown billable request.
 
-OpenAI references checked 2026-09-27: [model/pricing](https://developers.openai.com/api/docs/models/gpt-6-astra),
+OpenAI references checked 2026-09-27 (Sol pricing checked 2026-10-01): [Astra model/pricing](https://developers.openai.com/api/docs/models/gpt-6-astra), [Sol model/pricing](https://developers.openai.com/api/docs/models/gpt-6.1-sol),
 [web search](https://developers.openai.com/api/docs/guides/tools-web-search),
 and [Responses API](https://developers.openai.com/api/reference/typescript/resources/responses/methods/create).
 

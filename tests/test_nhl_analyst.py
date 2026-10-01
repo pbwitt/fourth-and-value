@@ -149,9 +149,10 @@ class EvidenceAndAstraTests(unittest.TestCase):
 
     def test_payload_has_no_tools_or_substitute_model_and_budget_includes_schema(self):
         p = astra.payload(board(), [source()], NOW, CONFIG)
-        self.assertEqual(p['model'], 'gpt-6-astra')
+        self.assertEqual(p['model'], 'gpt-6.1-sol')
         self.assertFalse(p['store']); self.assertNotIn('tools', p)
-        self.assertGreater(astra.bounds(p, CONFIG), .2)
+        # The reservation covers every serialized byte, including schema and instructions.
+        self.assertGreater(astra.bounds(p, CONFIG), len(json.dumps(p, ensure_ascii=False).encode())*astra.INPUT_RATE)
         for bad in [dict(p, model='other'), dict(p, max_output_tokens=9000), dict(p, tools=[{'type': 'web_search'}]),
                     dict(p, text={'huge_schema': 'a'*26000})]:
             with self.assertRaises(ValueError):

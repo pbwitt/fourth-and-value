@@ -14,6 +14,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from nhl.v2.data import ROOT, iso, stamp
+from nhl.v2.astra import MODEL, RATES
 
 CAP = 2.75
 PATH = ROOT/'artifacts/analyst/daily-budget.json'
@@ -111,14 +112,16 @@ def reserve(key, now, amount, *, path=PATH, legacy=None, cap=CAP, config=None):
     return 'reserved'
 
 
-def settle(key, usage=None, *, path=PATH, search_calls=0):
+def settle(key, usage=None, *, path=PATH, search_calls=0, model=MODEL):
     with locked(path):
         ledger = read(path, ())
         entry = next(e for e in ledger['entries'] if e['key'] == key)
         valid = usage and all(type(usage.get(k)) is int and usage[k] >= 0 for k in ('input_tokens', 'output_tokens'))
         if valid:
             # Overcounts cached input intentionally; conservative billing, no credit assumptions.
-            charge = round(usage['input_tokens']*12.5/1e6+usage['output_tokens']*50/1e6+search_calls*.01, 6)
+            # Same model rates as the reservation, so a normal call cannot look like an overrun.
+            rate_in, rate_out = RATES[model]
+            charge = round(usage['input_tokens']*rate_in+usage['output_tokens']*rate_out+search_calls*.01, 6)
             entry.update(status='settled', usage=usage, search_calls=search_calls, charge_usd=charge)
             if charge > entry['reserved_usd']+1e-6:
                 entry['status'] = 'reservation_overrun_stop'

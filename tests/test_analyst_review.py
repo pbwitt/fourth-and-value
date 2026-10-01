@@ -183,7 +183,7 @@ class ResearchTests(unittest.TestCase):
     def test_payload_model_explanation_and_hard_bounds(self):
         b=board('NFL'); p=astra.payload(b,[source(b)],NOW,CONFIG,instructions=analyst.INSTRUCTIONS,
             schema=analyst.SCHEMA,prompt_version=analyst.PROMPT_VERSION,extra_fields=('probability_basis','model_limitations'))
-        self.assertEqual(p['model'],'gpt-6-astra'); self.assertNotIn('tools',p)
+        self.assertEqual(p['model'],'gpt-6.1-sol'); self.assertNotIn('tools',p)
         self.assertIn('NOT current market consensus',p['instructions'])
         self.assertIn('historical game outcomes',p['instructions'])
         self.assertEqual(analyst.PROMPT_VERSION,'sports-research-6')
