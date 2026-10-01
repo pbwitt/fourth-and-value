@@ -20,8 +20,8 @@
 
   // ---- Matching ------------------------------------------------------------
 
-  // Common abbreviations that differ from the feed's own (the manual entry
-  // form takes 2-3 letter codes).
+  // Common abbreviations that differ from the feed's own (older manual
+  // entries were typed as 2-3 letter codes).
   const ALIASES = {
     NHL: { tb: 'tbl', nj: 'njd', la: 'lak', sj: 'sjs', mon: 'mtl', clb: 'cbj', was: 'wsh', veg: 'vgk', lv: 'vgk' },
     MLB: { was: 'wsh', chw: 'cws', kcr: 'kc', sdp: 'sd', sfg: 'sf', tbr: 'tb', az: 'ari', oak: 'ath', cha: 'cws', chn: 'chc' },
