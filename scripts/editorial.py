@@ -143,6 +143,26 @@ def market_cards(games):
             note=f"{g['start_label']} · {len(g['books'])} books observed",url='/nfl/totals/' if g['sport']=='NFL' else f"/{g['sport'].lower()}/totals/"))
     return selected
 
+def american(price):
+    return f'{price:+d}' if isinstance(price,int) else f'{price:+g}'
+
+def edge_quote(g,side):
+    # Lowest total with the best Over price, or highest total with the best Under price.
+    quotes=g.get('quotes',[])
+    if not quotes:return None
+    line=min(q['line'] for q in quotes) if side=='over' else max(q['line'] for q in quotes)
+    q=max((q for q in quotes if q['line']==line),key=lambda q:(q[f'{side}_price'],q['label']))
+    return dict(label=q['label'],line=q['line'],over=american(q['over_price']),under=american(q['under_price']))
+
+def pulled_label(games):
+    times=sorted(stamp(q['quoted_at']).astimezone(ETZ) for g in games for q in g.get('quotes',[]))
+    if not times:return ''
+    clock=lambda t:t.strftime('%I:%M %p').lstrip('0')
+    first,last=clock(times[0]),clock(times[-1])
+    day=f"{times[0]:%b} {times[0].day}" if times[0].date()==times[-1].date() else None
+    if day:return f'Book prices pulled {day}, '+(first if first==last else f'{first}–{last}')+' ET'
+    return f"Book prices pulled {times[0]:%b} {times[0].day} {first} – {times[-1]:%b} {times[-1].day} {last} ET"
+
 def context(data,now):
     # Even a non-refresh render must not revive stale or already-started quotes.
     games=[]
@@ -150,15 +170,14 @@ def context(data,now):
     if fresh:
         for g in data.get('games',[]):
             if stamp(g['commence_time'])>now and all(timedelta(0)<=now-stamp(q['quoted_at'])<=timedelta(hours=6) for q in g.get('quotes',[])):
-                games.append(g)
+                games.append(dict(g,low=edge_quote(g,'over'),high=edge_quote(g,'under')))
     news=[n for n in data.get('news',[]) if timedelta(0)<=now-stamp(n['published_at'])<=timedelta(hours=36)]
     cards=market_cards(games)
-    moved=sum(bool(g.get('change')) for g in games)
     divided=sum(g['maximum']>g['minimum'] for g in games)
     date=stamp(data['generated_at']).astimezone(ETZ) if data.get('generated_at') else now.astimezone(ETZ)
     return dict(date_label=date.strftime('%A, %B %d'),snapshot_label='Prices checked '+date.strftime('%b %d at %I:%M %p ET')+(' · refresh pending' if not fresh else ''),
-        summary=f"{len(games)} upcoming games checked · {moved} with a changed matched-book median · {divided} with different totals across books." if games else 'No upcoming games currently have fresh, comparable totals. The next scheduled price check will update this board.',
-        cards=cards,games=games,news=news[:10],coverage=data.get('coverage',{}))
+        summary=f"{len(games)} upcoming games checked · {divided} with different totals across books." if games else 'No upcoming games currently have fresh, comparable totals. The next scheduled price check will update this board.',
+        cards=cards,games=games,pulled_label=pulled_label(games),sports=sorted({g['sport'] for g in games}),news=news[:10],coverage=data.get('coverage',{}))
 
 def featured_now(article,now):
     if article['kind']=='Opinion':return False

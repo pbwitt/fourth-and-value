@@ -97,6 +97,17 @@ class EditorialTests(unittest.TestCase):
         self.assertIn('up 1',cards[0]['text'])
         self.assertIn('one · Over 40.5 (-110)',cards[0]['prices'][0])
         self.assertIn('two · Under 41.5 (-110)',cards[0]['prices'][1])
+    def test_rundown_names_lowest_and_highest_line_books(self):
+        e=event()
+        e['bookmakers'].append({'key':'three','title':'Three','last_update':NOW.isoformat(),'markets':[{'key':'totals','outcomes':[{'name':'Over','point':40.5,'price':-105},{'name':'Under','point':40.5,'price':-115}]}]})
+        g=m.summarize_events('NFL',[e],NOW,{})
+        c=m.context({'generated_at':NOW.isoformat(),'games':g},NOW)
+        row=c['games'][0]
+        self.assertEqual((row['low']['label'],row['low']['line'],row['low']['over']),('Three',40.5,'-105'))
+        self.assertEqual((row['high']['label'],row['high']['line'],row['high']['under']),('two',41.5,'-110'))
+        self.assertIn('Book prices pulled Sep 22, 8:00 AM ET',c['pulled_label'])
+        html=m.ENV.get_template('briefing.html').render(**c,title='t',url='/',evidence_url='/',live_picks=False)
+        self.assertNotIn('matched books',html);self.assertIn('Lowest line',html)
     def test_equal_lines_are_not_labeled_disagreement(self):
         e=event()
         for book in e['bookmakers']:
