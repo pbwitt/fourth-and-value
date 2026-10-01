@@ -33,7 +33,7 @@ def write_with_nav(out_path: str, title: str, main_html: str,
 </head>
 <body>
   <div id="nav-root"></div>
-  <script src="{rel}/nav.js?v=44"></script>
+  <script src="{rel}/nav.js?v=46"></script>
   {main_html}
 </body>
 </html>"""
