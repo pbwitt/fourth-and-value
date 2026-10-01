@@ -231,7 +231,7 @@ def build_nhl(season):
                               timing='Prices come from our morning snapshot (about 7 to 8:30 AM ET), roughly 10 to 11 hours before '
                                      'a 7 PM puck drop. Lines often move before games start, especially after starting goalies are '
                                      'confirmed, so this compares results with the morning market, not the closing line.',
-                              empty='The 2026-27 regular season opens tonight. Results appear the morning after the first games settle.'))
+                              empty='NHL results are not graded yet. They will appear here once grading starts.'))
 
 
 def package(sport, season, markets, rows, periods, windows, notes):
@@ -247,10 +247,16 @@ def package(sport, season, markets, rows, periods, windows, notes):
 
 
 def write(payload):
+    """Write the page data, leaving the file untouched when only the build time would change."""
     OUT.mkdir(parents=True, exist_ok=True)
     path = OUT / f'{payload["sport"]}.json'
-    path.write_text(json.dumps(payload, separators=(',', ':'), allow_nan=False) + '\n')
     counts = {k: len(v) for k, v in payload['rows'].items()}
+    if path.exists():
+        old = json.loads(path.read_text())
+        if {**old, 'generated_at': None} == {**payload, 'generated_at': None}:
+            print(f'{path.relative_to(ROOT)}: unchanged ({sum(counts.values())} rows)')
+            return
+    path.write_text(json.dumps(payload, separators=(',', ':'), allow_nan=False) + '\n')
     print(f'{path.relative_to(ROOT)}: {sum(counts.values())} rows {counts}')
 
 
