@@ -35,9 +35,10 @@
         p: a[5], actual: a[6], books: a[7], dA: a[8], dB: a[9]}));
       for (const r of rows[m.key]) latest = Math.max(latest, r.t || 0);
     }
-    const hash = new URLSearchParams(location.hash.slice(1));
+    // Deep links: #m=<market>&w=<window>, or a bare #<market>.
+    const raw = location.hash.slice(1), hash = new URLSearchParams(raw), known = k => data.markets.some(m => m.key === k);
     if (data.windows.some(w => w.key === hash.get('w'))) state.win = hash.get('w');
-    state.market = data.markets.some(m => m.key === hash.get('m')) ? hash.get('m') : defaultMarket();
+    state.market = known(hash.get('m')) ? hash.get('m') : known(raw) ? raw : defaultMarket();
     controls();
     renderAll();
     new ResizeObserver(() => {
@@ -158,7 +159,7 @@
 
   function renderAll() {
     lastWidth = root.clientWidth;
-    history.replaceState(null, '', `#m=${state.market}&w=${state.win}`);
+    try { history.replaceState(null, '', `#m=${state.market}&w=${state.win}`); } catch (e) { /* embedded frames may refuse */ }
     root.querySelectorAll('[data-win]').forEach(b => b.setAttribute('aria-pressed', b.dataset.win === state.win));
     status();
     board();
