@@ -136,5 +136,6 @@
     });
     updateButtons();
   }
-  global.FVOfferTracker={attach,button,open,refresh:updateButtons,isOpen:()=>!!dialog?.open};
+  // The ledger helpers are shared with Bet Tracker's manual entry form (docs/tracking/manual-bet.js).
+  global.FVOfferTracker={attach,button,open,refresh:updateButtons,isOpen:()=>!!dialog?.open,ticketData,manualGrade,leagues};
 })(typeof window==='undefined'?globalThis:window);

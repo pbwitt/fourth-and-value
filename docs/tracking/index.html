@@ -295,6 +295,13 @@
       color: #fff;
       font-size: 0.875rem;
     }
+    .mb-intro { color: #999; font-size: 0.85rem; margin-bottom: 1rem; }
+    .form-group.mb-wide { grid-column: span 2; }
+    .form-group select:disabled { opacity: 0.6; }
+    .mb-check { min-height: 1.3em; font-size: 0.85rem; margin-bottom: 0.9rem; color: #999; }
+    .mb-check.ok { color: #81c784; }
+    .mb-check.warn { color: #ffb74d; }
+    .mb-feedback { margin-left: 0.8rem; font-size: 0.85rem; color: #ccc; }
     .btn {
       padding: 0.75rem 1.5rem;
       background: #4FC3F7;
@@ -487,63 +494,68 @@
         </div>
       </div>
 
-      <!-- Add Bet Form -->
+      <!-- Add Bet Form (docs/tracking/manual-bet.js) -->
       <div class="add-bet-section">
-        <h3 style="margin-bottom: 1rem; color: #4FC3F7;">Log New Bet</h3>
-        <div class="form-grid">
-          <div class="form-group">
-            <label>League</label>
-            <select id="league">
-              <option value="NHL">NHL</option>
-              <option value="NFL">NFL</option>
-              <option value="MLB">MLB</option>
-            </select>
+        <h3 style="margin-bottom: 0.4rem; color: #4FC3F7;">Log New Bet</h3>
+        <p class="mb-intro">Pick the league, date and game; teams and markets fill in from the official schedule so the bet grades automatically.</p>
+        <form id="mb-form" novalidate>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="mb-league">League</label>
+              <select id="mb-league">
+                <option value="MLB">MLB</option>
+                <option value="NFL">NFL</option>
+                <option value="NHL">NHL</option>
+                <option value="NBA">NBA</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="mb-date">Game date</label>
+              <input type="date" id="mb-date" />
+            </div>
+            <div class="form-group mb-wide">
+              <label for="mb-game">Game</label>
+              <select id="mb-game"></select>
+            </div>
+            <div class="form-group mb-wide">
+              <label for="mb-market">Market</label>
+              <select id="mb-market"></select>
+            </div>
+            <div class="form-group mb-wide" id="mb-player-group" hidden>
+              <label for="mb-player">Player</label>
+              <input type="text" id="mb-player" list="mb-players" autocomplete="off" placeholder="Start typing a name" />
+              <datalist id="mb-players"></datalist>
+            </div>
+            <div class="form-group">
+              <label for="mb-side">Pick</label>
+              <select id="mb-side"></select>
+            </div>
+            <div class="form-group" id="mb-line-group">
+              <label for="mb-line" id="mb-line-label">Line</label>
+              <input type="number" step="0.5" id="mb-line" inputmode="decimal" placeholder="e.g., 8.5" />
+            </div>
+            <div class="form-group">
+              <label for="mb-book">Book</label>
+              <input type="text" id="mb-book" list="mb-books" placeholder="e.g., DraftKings" />
+              <datalist id="mb-books">
+                <option value="DraftKings"></option><option value="FanDuel"></option><option value="BetMGM"></option>
+                <option value="Caesars"></option><option value="ESPN BET"></option><option value="Fanatics"></option>
+                <option value="BetRivers"></option><option value="bet365"></option><option value="Hard Rock Bet"></option>
+              </datalist>
+            </div>
+            <div class="form-group">
+              <label for="mb-odds">Odds (American)</label>
+              <input type="number" step="1" id="mb-odds" inputmode="numeric" placeholder="e.g., -110" />
+            </div>
+            <div class="form-group">
+              <label for="mb-stake">Stake ($)</label>
+              <input type="number" step="0.01" min="0.01" id="mb-stake" inputmode="decimal" placeholder="e.g., 100" />
+            </div>
           </div>
-          <div class="form-group">
-            <label>Game Date</label>
-            <input type="date" id="gameDate" />
-          </div>
-          <div class="form-group">
-            <label>Home Team</label>
-            <input type="text" id="teamHome" placeholder="e.g., TOR" />
-          </div>
-          <div class="form-group">
-            <label>Away Team</label>
-            <input type="text" id="teamAway" placeholder="e.g., BOS" />
-          </div>
-          <div class="form-group">
-            <label>Player (leave empty for team totals)</label>
-            <input type="text" id="player" placeholder="e.g., Connor McDavid" />
-          </div>
-          <div class="form-group">
-            <label>Market</label>
-            <input type="text" id="marketType" placeholder="e.g., goals, rush_yds" />
-          </div>
-          <div class="form-group">
-            <label>Side</label>
-            <select id="side">
-              <option value="over">Over</option>
-              <option value="under">Under</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Line</label>
-            <input type="number" step="0.5" id="line" placeholder="e.g., 2.5" />
-          </div>
-          <div class="form-group">
-            <label>Book</label>
-            <input type="text" id="book" placeholder="e.g., DraftKings" />
-          </div>
-          <div class="form-group">
-            <label>Odds (American)</label>
-            <input type="number" id="odds" placeholder="e.g., -110" />
-          </div>
-          <div class="form-group">
-            <label>Stake ($)</label>
-            <input type="number" step="0.01" id="stake" placeholder="e.g., 100" />
-          </div>
-        </div>
-        <button class="btn" onclick="addBet()">Add Bet</button>
+          <p id="mb-check" class="mb-check" aria-live="polite"></p>
+          <button class="btn" id="mb-save" type="submit">Add Bet</button>
+          <span id="mb-feedback" class="mb-feedback" role="status" aria-live="polite"></span>
+        </form>
       </div>
 
       <!-- Live progress for today's pending bets (desktop; mobile shows it on each card) -->
@@ -598,6 +610,8 @@
   <script src="bet-tracking.js?v=3"></script>
   <script src="live-feeds.js?v=1"></script>
   <script src="live-stats.js?v=2"></script>
+  <script src="../assets/offer-tracker.js?v=2"></script>
+  <script src="manual-bet.js?v=1"></script>
   <script>
     let betsData = [];
 
@@ -1029,9 +1043,11 @@
 
     let liveViews=new Map(), liveMeta=null, liveSeen=new Map(), liveBumped=new Set();
 
+    const liveFetchJSON=async url=>{ const r=await fetch(url); if (!r.ok) throw Error('HTTP '+r.status); return r.json(); };
+    const liveProxy=async body=>{ const {data,error}=await supabaseClient.functions.invoke('live-stats',{body}); if (error) throw error; return data; };
     const liveTracker=FVLiveStats.createLiveTracker({
-      fetchJSON: async url=>{ const r=await fetch(url); if (!r.ok) throw Error('HTTP '+r.status); return r.json(); },
-      proxy: async body=>{ const {data,error}=await supabaseClient.functions.invoke('live-stats',{body}); if (error) throw error; return data; },
+      fetchJSON: liveFetchJSON,
+      proxy: liveProxy,
       onUpdate: (views,meta)=>{
         liveBumped=new Set();
         views.forEach((v,id)=>{
@@ -1195,67 +1211,7 @@
       loadBets();
     }
 
-    async function addBet() {
-      const gameDate = document.getElementById('gameDate').value;
-      const teamHome = document.getElementById('teamHome').value.trim();
-      const teamAway = document.getElementById('teamAway').value.trim();
-      const line = document.getElementById('line').value.trim();
-      const odds = document.getElementById('odds').value.trim();
-      const stake = document.getElementById('stake').value.trim();
-      const book = document.getElementById('book').value.trim();
-
-      if (!gameDate || !teamHome || !teamAway || !line || !odds || !stake) {
-        alert('Please fill in all required fields: Game Date, Teams, Line, Odds, and Stake');
-        return;
-      }
-      if (!/^[A-Z]{2,3}$/.test(teamHome) || !/^[A-Z]{2,3}$/.test(teamAway)) {
-        alert('Team abbreviations must be 2-3 uppercase letters (e.g., TOR, BOS, MTL)');
-        return;
-      }
-      if (isNaN(parseFloat(line))) {
-        alert('Line must be a number (e.g., 0.5, 1.5, 6.5)');
-        return;
-      }
-      if (!/^[+-]?\d+$/.test(odds)) {
-        alert('Odds must be in American format (e.g., -110, +150)');
-        return;
-      }
-      if (isNaN(parseFloat(stake)) || parseFloat(stake) <= 0) {
-        alert('Stake must be a positive number');
-        return;
-      }
-      if (!book) {
-        alert('Please specify the sportsbook');
-        return;
-      }
-
-      const bet = {
-        league: document.getElementById('league').value,
-        game_date: gameDate,
-        team_home: teamHome.toUpperCase(),
-        team_away: teamAway.toUpperCase(),
-        player: document.getElementById('player').value.trim(),
-        market_type: document.getElementById('marketType').value.toLowerCase(),
-        side: document.getElementById('side').value.toLowerCase(),
-        line: parseFloat(line),
-        book: book,
-        odds: odds,
-        stake_dollars: parseFloat(stake).toFixed(2),
-      };
-
-      const success = await autoTrackBet(bet);
-
-      if (success) {
-        document.getElementById('player').value = '';
-        document.getElementById('marketType').value = '';
-        document.getElementById('line').value = '';
-        document.getElementById('odds').value = '';
-        document.getElementById('stake').value = '';
-        document.getElementById('book').value = '';
-
-        loadBets();
-      }
-    }
+    FVManualBet.mount({ fetchJSON: liveFetchJSON, proxy: liveProxy, onSaved: loadBets });
   </script>
   <script src="../nav.js?v=47"></script>
 <!-- fv-notices:footer:start --><section id="fv-responsible-footer" class="fv-use-footer" aria-label="Responsible use"><p>Fourth &amp; Value provides sports analysis for informational and entertainment purposes. We do not accept wagers. You are responsible for your wagering decisions and for meeting applicable age and legal requirements. Never wager money you cannot afford to lose.</p><p><a href="/terms.html">Terms &amp; privacy</a> · <a href="/terms.html#responsible-play">Responsible play</a> · U.S. gambling support: call or text <a href="tel:+18006973738">1-800-MY-RESET</a> or <a href="https://www.ncpgambling.org/help-treatment/">find confidential help</a>.</p></section><!-- fv-notices:footer:end --></body>
