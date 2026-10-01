@@ -216,6 +216,9 @@ def build_nfl(season, stats_path, schedule_path):
                    windows=[dict(key='season', label='Season'), dict(key='last2', label='Last 2 weeks', last=2),
                             dict(key='last1', label='Last week', last=1)],
                    notes=dict(source='Frozen pregame snapshots of our sportsbook feed; results from nflverse official statistics.',
+                              timing='Prices come from one saved snapshot per week, taken from a few hours to several days before '
+                                     'kickoff (each week’s time is listed under How this page works). Lines often move before games '
+                                     'start, so this compares results with the market when we saved it, not the closing line.',
                               not_yet='Anytime, first and last touchdown scorers, longest rush and reception, and moneylines '
                                       'are not graded yet. Game lines begin in Week 3, when the weekly archive started saving them.'))
 
@@ -225,6 +228,9 @@ def build_nhl(season):
                    windows=[dict(key='season', label='Season'), dict(key='d30', label='Last 30 days', days=30),
                             dict(key='d7', label='Last 7 days', days=7)],
                    notes=dict(source='Last pregame snapshot of our sportsbook feed; results from NHL official box scores.',
+                              timing='Prices come from our morning snapshot (about 7 to 8:30 AM ET), roughly 10 to 11 hours before '
+                                     'a 7 PM puck drop. Lines often move before games start, especially after starting goalies are '
+                                     'confirmed, so this compares results with the morning market, not the closing line.',
                               empty='The 2026-27 regular season opens tonight. Results appear the morning after the first games settle.'))
 
 

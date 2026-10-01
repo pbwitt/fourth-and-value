@@ -168,7 +168,8 @@
 
   function status() {
     const total = Object.values(rows).reduce((n, list) => n + list.length, 0);
-    const el = $('[data-status]');
+    const el = $('[data-status]'), timing = $('[data-timing]');
+    if (timing && data.notes.timing) { timing.textContent = data.notes.timing; timing.hidden = false; }
     if (!total) { el.textContent = data.notes.empty || 'No settled lines yet.'; return; }
     const last = data.periods[data.periods.length - 1];
     const games = data.periods.reduce((n, p) => n + (p.games || 0), 0);
