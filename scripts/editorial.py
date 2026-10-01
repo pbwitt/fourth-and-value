@@ -173,9 +173,12 @@ def render_home(data,now):
     current=[a for a in catalog if featured_now(a,now)]
     eligible=[a for a in current if a.get('featured')]
     fallback=dict(title='The daily market briefing',excerpt='Compare current prices across the leagues and follow what changes next.',sport='Sports',kind='Market watch',url='/briefing/',date=now.astimezone(ETZ).date().isoformat())
-    lead=next(iter(eligible or current),fallback)
+    # The homepage slider rotates the newest featured pieces: morning analysis
+    # and one-off blog features share it.
+    slides=(eligible or current)[:3] or [fallback]
+    lead=slides[0];shown={a['url'] for a in slides}
     ctx=context(data,now)
-    ctx.update(lead=lead,features=[a for a in current if a['url']!=lead['url']][:6],opinions=[a for a in catalog if a['kind']=='Opinion'][:2])
+    ctx.update(lead=lead,slides=slides,features=[a for a in current if a['url'] not in shown][:6],opinions=[a for a in catalog if a['kind']=='Opinion'][:2])
     (DOCS/'index.html').write_text(ENV.get_template('home.html').render(**ctx)+'\n')
     # Opinion remains a distinct, permanent archive; approved analysis also
     # appears in the existing blog without rebuilding any authored article.
