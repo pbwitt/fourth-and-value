@@ -1,0 +1,67 @@
+name: Narrate Market Results video
+
+# One-time, owner-started job: generate the walkthrough narration with the stored
+# OpenAI key (about $0.01), re-render the video timed to it, and publish.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: video-market-results
+  cancel-in-progress: false
+
+jobs:
+  narrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install renderer
+        run: |
+          pip install requests python-dotenv
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          npm install --no-save --package-lock=false playwright@1.55.1
+          npx playwright install --with-deps chromium
+      - name: Generate narration
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        # Starting this workflow is the owner's approval of narration.json.
+        run: python scripts/narrate_editorial_video.py docs/videos/market-results/narration.json --approved
+      - name: Render narrated video
+        run: node scripts/render_market_results_video.cjs
+      - name: Update the videos page
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          info = json.loads(Path('docs/videos/market-results/render-info.json').read_text())
+          assert info.get('narrated'), 'Render did not include narration'
+          length = f"{int(info['duration'] // 60)}:{int(round(info['duration'] % 60)):02d}"
+          page = Path('docs/videos/index.html'); html = page.read_text()
+          html = html.replace('New feature · Walkthrough · 0:51', f'New feature · Walkthrough · {length}')
+          html = html.replace('Recorded from the live page · Captions, no narration.', 'Recorded from the live page · AI-generated narration.')
+          html = html.replace('market-results/market-results.mp4?v=1', 'market-results/market-results.mp4?v=2')
+          page.write_text(html)
+          PY
+      - name: Publish
+        run: |
+          git config user.name 'Fourth & Value Video'
+          git config user.email 'actions@github.com'
+          git add docs/videos/market-results/ docs/videos/index.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Video: narrate the Market Results walkthrough'
+          for attempt in 1 2 3; do
+            if git pull --rebase origin main && git push origin HEAD:main; then exit 0; fi
+            sleep 5
+          done
+          exit 1
