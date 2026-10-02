@@ -33,7 +33,7 @@ class DataOrdering(unittest.TestCase):
                'rows':[dict(game,market='h2h',side='Home'),dict(game,market='totals',side='Over'),
                        dict(game,market='player_shots_on_goal',market_label='Shots on goal',player='Skater',projected_mean=2.1,side='Under')]}
         adapted=w.nhl_board(board)
-        self.assertTrue(adapted['experimental_model'])
+        self.assertEqual(adapted['model_checked_at'],board['model_prediction_at'])
         self.assertTrue(w.data_readiness('NHL',adapted,self.briefing,self.now)['ready'])
         self.assertFalse(w.data_readiness('NHL',board,self.briefing,self.now)['ready'])
         games=[r for r in adapted['rows'] if r['market']=='game_projection']
@@ -45,10 +45,7 @@ class DataOrdering(unittest.TestCase):
         self.assertEqual(len(w.qualified_models(packet,self.now)),2)
         self.assertEqual(w.qualified_models(dict(packet,sport='MLB'),self.now),[])
         for broken in ({'model_error':'failed'},{'history_error':'failed'},{'model_prediction_at':None}):
-            self.assertNotIn('experimental_model',w.nhl_board(dict(board,**broken)))
-    def test_experimental_model_must_be_disclosed(self):
-        article={'publish':True,'sections':[{'heading':'Context','text':'Our projection favors the under.'}]}
-        with self.assertRaisesRegex(ValueError,'Experimental model status'):w.validate(article,{},{'experimental_model':True},self.now)
+            self.assertNotIn('model_checked_at',w.nhl_board(dict(board,**broken)))
     def test_automatic_articles_require_post_start_models_but_manual_requests_do_not(self):
         self.board['model_checked_at']='2026-09-23T10:45:00Z'  # 6:45 ET; within 90 minutes.
         with patch.dict('os.environ',{'EDITORIAL_REQUIRE_MORNING_MODELS':'true'}):

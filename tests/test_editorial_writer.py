@@ -27,6 +27,13 @@ class WriterGuards(unittest.TestCase):
         self.assertEqual({s for s,_ in next_slots},{'NBA','NHL'})
     def test_valid(self):
         self.assertEqual(w.validate(self.article,self.response,self.packet,self.now),600)
+    def test_any_cited_model_must_be_called_experimental(self):
+        self.packet['model_references']=[{'id':'m1','model_mean':2.1}]
+        self.assertEqual(w.validate(self.article,self.response,self.packet,self.now),600)  # market-only article
+        self.article['market_ids']=['q1','m1']
+        with self.assertRaisesRegex(ValueError,'Experimental model status'):w.validate(self.article,self.response,self.packet,self.now)
+        self.article['sections'][0]['text']='Our experimental '+'word '*148
+        self.assertEqual(w.validate(self.article,self.response,self.packet,self.now),600)
     def test_invented_market_rejected(self):
         self.article['market_ids']=['fake']
         with self.assertRaises(ValueError):w.validate(self.article,self.response,self.packet,self.now)

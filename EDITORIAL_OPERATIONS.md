@@ -152,10 +152,13 @@ NHL articles (from October 2, 2026) use the experimental NHL forecast. Its
 `model_prediction_at` counts as the model check, and its history may trail by two
 days because it is refreshed each evening before late games finish. Each NHL game
 contributes one projected-regulation-goals reference (both teams named) plus player
-projections; no current EV is supplied. The writer must say the forecast is
-experimental and not validated against betting prices, and publication validation
-rejects an NHL article whose text never says "experimental". NBA has no forecast and
-stays excluded.
+projections; no current EV is supplied. NBA has no forecast and stays excluded.
+
+Every Fourth & Value model is treated as experimental (owner decision, October 2,
+2026). In any sport, an article that cites one of our model records must call it
+experimental and say it has not been validated against betting prices; it may never
+call it an edge, value or a recommendation. Publication validation rejects an
+article that cites a model record but never says "experimental".
 
 New previews leave the homepage when a referenced quoted game starts; otherwise
 analysis expires from the homepage after three days. The blog retains the articles.
