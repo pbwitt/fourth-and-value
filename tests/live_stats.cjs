@@ -103,6 +103,8 @@ const espnSummary={header:{competitions:[espnComp('in')]},boxscore:{players:[
   assert.equal(L.findPlayer('Austin Matthews',nhl).name,'A. Matthews','initial + last name');
   assert.equal(L.findPlayer('Mitch Marner',nhl),null);
   assert.equal(L.findPlayer('Adam Matthews',[...nhl,{name:'A. Matthews',stats:{}}]),null,'ambiguous initials are no match');
+  assert.equal(L.findPlayer('J.T. Miller',[{name:'J. Miller',stats:{}},{name:'A. Fox',stats:{}}]).name,'J. Miller','double initials match the NHL initial form');
+  assert.equal(L.findPlayer('T.J. Oshie',[{name:'J. Oshie',stats:{}}]),null,'only the first initial counts');
   const nfl=run(feeds.boxPlan('NFL','x'),[espnSummary]).players;
   assert.equal(L.findPlayer('Tre Harris',nfl).name,"Tre' Harris");
   assert.equal(L.findPlayer('Derwin James',nfl).name,'Derwin James Jr.');
@@ -130,7 +132,7 @@ const espnSummary={header:{competitions:[espnComp('in')]},boxscore:{players:[
   v=L.evaluate(bet({line:3}),game,box);assert.equal(v.label,'Needs 1','whole-number over needs to clear the line');
   v=L.evaluate(bet({side:'under',line:2.5}),game,box);assert.deepEqual([v.tone,v.label],['lost','Dead']);
   v=L.evaluate(bet({side:'under',line:4.5}),game,box);assert.deepEqual([v.tone,v.label],['alive','1 to spare']);
-  v=L.evaluate(bet({side:'under',line:3.5}),game,box);assert.equal(v.label,'Holding');
+  v=L.evaluate(bet({side:'under',line:3.5}),game,box);assert.equal(v.label,'None to spare');
   v=L.evaluate(bet({market_type:'player_goals',side:'Yes',line:null}),game,box);assert.deepEqual([v.line,v.tone],[0.5,'won'],'anytime props');
   v=L.evaluate(bet({player:'Nobody Here'}),game,box);assert.deepEqual([v.tone,v.label],['missing','Not in the box score yet']);
   v=L.evaluate(bet({market_type:'faceoffs'}),game,box);assert.equal(v.kind,'unsupported');
