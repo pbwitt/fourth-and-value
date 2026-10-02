@@ -636,6 +636,16 @@ def run(now,limit=2,idea_id=None,publish_own=False):
                 except (RuntimeError,requests.RequestException):pass
             state['slots'][key].update(status='skipped',reason=('Private idea research did not complete; inspect the private queue. No automatic paid retry.' if idea else str(exc)[:350]) if not isinstance(exc,requests.RequestException) else 'Network failure; no automatic paid retry')
             print(f'{sport}: '+state['slots'][key]['reason'],flush=True)
+            if isinstance(article,dict) and article.get('publish') is not True:
+                # The writer's explanation goes only to the editor-only diagnostics
+                # table; logs and the public ledger never show it.
+                ed.write_json(statepath,state)
+                try:
+                    import editorial_diagnostics as diagnostics
+                    diagnostics.store_writer_note(key,cfg['model'],article.get('reason'),now=story_now)
+                    print('Writer explanation saved to the private diagnostics report.',flush=True)
+                except Exception:
+                    print('Writer explanation could not be saved privately.',flush=True)
             if any(code in str(exc) for code in ('credit_balance_exhausted','insufficient_quota','invalid_api_key','OPENAI_API_KEY is missing')):
                 state['funding_required']=True
                 ed.write_json(statepath,state)

@@ -63,6 +63,15 @@ class DiagnosticTests(unittest.TestCase):
             diag.store_report(report)
         payload=post.call_args.kwargs['json'];self.assertEqual(payload['id'],'123-2-finish')
         self.assertNotIn('secret',json.dumps(payload))
+    def test_writer_note_is_private_and_attached_to_its_slot(self):
+        self.write('docs/editorial/runs/2026-09-26.json',{'allocation':[['NFL','matchup:e1']],'slots':{'0-nfl':{'status':'skipped','reason':'No publishable angle'}}})
+        with patch.dict(os.environ,{'SUPABASE_URL':'https://example.supabase.co','SUPABASE_SERVICE_ROLE_KEY':'secret','GITHUB_RUN_ID':'123'}),patch.object(diag.requests,'post',return_value=Mock(ok=True,status_code=201)) as post:
+            diag.store_writer_note('0-nfl','gpt-6.1-sol','Repeats yesterday\'s angle',self.root,self.now)
+        payload=post.call_args.kwargs['json'];self.assertEqual(payload['id'],'123-1-writer-0-nfl')
+        self.assertIn('editorial_pipeline_reports',post.call_args.args[0])
+        article=payload['report']['articles'][0]
+        self.assertEqual((article['writer_model'],article['writer_reason']),('gpt-6.1-sol',"Repeats yesterday's angle"))
+        self.assertEqual(article['reason'],'See the workflow checks for details')
     def test_missing_schema_has_actionable_error_without_response_body(self):
         with patch.dict(os.environ,{'SUPABASE_URL':'https://example.supabase.co','SUPABASE_SERVICE_ROLE_KEY':'secret'}),patch.object(diag.requests,'post',return_value=Mock(ok=False,status_code=404)):
             with self.assertRaisesRegex(RuntimeError,'one-time'):diag.store_report(diag.build_report(self.root,self.now))

@@ -111,6 +111,10 @@ def normalized(row):
         r.pop(key,None)
     nfl = r['sport'] == 'NFL'
     if r['sport']=='NHL' and r.get('offer_id') and r.get('forecast_id'):
+        # NHL shortlist rows already carry identity. Discovery-origin rows are copied
+        # from the offer feed, which has offer/forecast IDs but no candidate_id.
+        if not r.get('candidate_id'):
+            r['candidate_id']=digest(r['review_key'])[:24]
         return r
     r.update(candidate_id=digest(r['review_key'])[:24],
         offer_id=digest([r['review_bet_key'], r['price'], r['quoted_at']])[:24],

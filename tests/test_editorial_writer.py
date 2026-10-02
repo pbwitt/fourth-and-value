@@ -94,6 +94,18 @@ class WriterGuards(unittest.TestCase):
                 state=w.load(Path(directory)/'2026-09-22.json',{})
                 self.assertTrue(state['funding_required'])
                 self.assertEqual(len(state['slots']),1)
+    def test_declined_story_reason_stays_private(self):
+        from tempfile import TemporaryDirectory
+        from unittest.mock import patch
+        declined={'status':'completed','usage':{'input_tokens':10,'output_tokens':5},'output':[{'type':'message','content':[{'type':'output_text','text':'{"publish":false,"reason":"PRIVATE EXPLANATION"}'}]}]}
+        with TemporaryDirectory() as directory:
+            with patch.object(w,'require_model'),patch.object(w,'discover_matchup',return_value={'event_id':'q1','angle':'matchup:q1','reporting':[{'url':'https://mlb.com/news/example','excerpt':'test'}]}),patch.object(w,'STATE',Path(directory)),patch.object(w,'call_api',return_value=declined),patch.object(w,'evidence',return_value={'data_readiness':{'ready':True},'markets':[{'id':'total-q1','event_id':'q1','game':'Away @ Home'}]}),patch.object(w.reporting,'collect',return_value=[{'url':'https://mlb.com/news/example','excerpt':'test'}]),patch.object(w.budget,'PATH',Path(directory)/'budget.json'),patch.object(w.budget,'checkpoint'),patch.object(w.ed,'render_home'),patch.object(w.ed,'ROOT',Path(directory)),patch('editorial_diagnostics.store_writer_note') as note,patch('builtins.print') as out:
+                w.run(self.now)
+            ledger=''.join(p.read_text() for p in Path(directory).glob('*.json'))
+            self.assertIn('No publishable angle',ledger)
+            self.assertNotIn('PRIVATE EXPLANATION',ledger)
+            self.assertNotIn('PRIVATE EXPLANATION',str(out.call_args_list))
+            self.assertEqual(note.call_args.args[1:],(w.ed.CFG['writer']['model'],'PRIVATE EXPLANATION'))
     def test_rerun_does_not_make_paid_calls(self):
         from tempfile import TemporaryDirectory
         from unittest.mock import patch

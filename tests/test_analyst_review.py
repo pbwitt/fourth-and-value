@@ -78,6 +78,17 @@ class ScreeningTests(unittest.TestCase):
         f['NFL']['rows'][0]['model_prob'] = None
         self.assertEqual(analyst.selected(f, NOW)['selected'], [])
 
+    def test_nhl_discovery_rows_receive_candidate_identity(self):
+        shortlisted = dict(sport='NHL', offer_id='o1', forecast_id='f1', candidate_id='c'*24, review_key='["a"]')
+        self.assertEqual(analyst.normalized(shortlisted)['candidate_id'], 'c'*24)
+        # Independent discovery copies an offer-feed row: offer/forecast IDs, no candidate_id.
+        discovered = dict(sport='NHL', offer_id='o2', forecast_id='f2', review_key='["b"]',
+            discovery_origin='independent_research')
+        row = analyst.normalized(discovered)
+        self.assertEqual(len(row['candidate_id']), 24)
+        self.assertNotIn('candidate_id', discovered)
+        self.assertNotEqual(row['candidate_id'], analyst.normalized(dict(discovered, review_key='["c"]'))['candidate_id'])
+
     def test_stale_failed_started_and_future_quotes_not_reviewed(self):
         f = feeds(); f['MLB']['model_checked_at'] = iso(NOW-timedelta(minutes=91))
         f['NFL']['rows'][0]['commence_time'] = iso(NOW)
