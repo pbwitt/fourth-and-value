@@ -87,9 +87,17 @@ const boxscore={teams:{
     assert.match(await p.locator('#mb-feedback').textContent(),/Enter the line/);
     assert.equal(await p.evaluate(()=>db.rows.length),2);
 
+    // A player prop saves the player's team from the box score, and the bet list shows it beside the name.
+    await p.locator('#mb-line').fill('1.5');await p.locator('#mb-odds').fill('+120');await p.locator('#mb-stake').fill('10');
+    await p.locator('#mb-save').click();
+    await p.waitForFunction(()=>db.rows.length===3);
+    row=await p.evaluate(()=>db.rows.at(-1));assert.deepEqual([row.player,row.player_team],['Fernando Tatis Jr.','SD']);
+    await p.waitForFunction(()=>document.querySelector('.bet-card-player .team-tag')?.textContent==='SD');
+    assert.equal(await p.locator('#betsTableBody .team-tag').first().textContent(),'SD');
+
     for(const width of [390,1440]){await p.setViewportSize({width,height:900});
       assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,`no overflow at ${width}`);}
     assert.deepEqual(errors,[]);
-    console.log('PASS: manual form fills games and markets from the schedule, previews grading and saves offer-identical rows.');
+    console.log('PASS: manual form fills games and markets from the schedule, previews grading, saves offer-identical rows and shows player teams.');
   }finally{await browser.close();server.close();}
 })().catch(error=>{console.error(error);server.close();process.exitCode=1;});

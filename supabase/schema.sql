@@ -20,6 +20,7 @@ create table if not exists public.bets (
   team_home text,
   team_away text,
   player text,
+  player_team text,                   -- the player's team code (e.g. NYR); null until known
   market_type text,
   side text,
   line numeric,
@@ -33,6 +34,10 @@ create table if not exists public.bets (
   model_prob numeric,
   edge_bps numeric
 );
+
+-- Added after launch: run this line on an existing database. Until it runs,
+-- the site and grader save bets without the player's team.
+alter table public.bets add column if not exists player_team text;
 
 create index if not exists bets_user_id_idx on public.bets(user_id);
 create index if not exists bets_status_idx on public.bets(status);

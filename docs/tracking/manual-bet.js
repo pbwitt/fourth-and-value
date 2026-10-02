@@ -63,7 +63,8 @@
   const needsPlayer = kind => kind === 'prop' || kind === 'yesno';
 
   // Form values -> the ledger row saveTrackedBet() stores. Throws a reader-facing message.
-  function buildTicket({ league, date, game, market, side, line, player, book, odds, stake }) {
+  // `box` is the game's box score when loaded; it supplies the player's team.
+  function buildTicket({ league, date, game, market, side, line, player, book, odds, stake, box }) {
     if (!game) throw Error('Choose the game.');
     const kind = kindOf(market);
     if (!offers.leagues[league]?.markets[market]) throw Error('Choose a market.');
@@ -82,7 +83,10 @@
       line: needsLine(kind) ? Number(lineText) : null, player: needsPlayer(kind) ? player : null };
     // The grader looks the game up on the schedule date the reader picked, so
     // keep that date rather than re-deriving it from the start time.
-    return { ...offers.ticketData(row, odds, stake), game_date: date };
+    const ticket = { ...offers.ticketData(row, odds, stake), game_date: date };
+    const found = row.player && box?.game?.id === game.id ? live.findPlayer(row.player, box.players) : null;
+    if (found && game[found.side]) ticket.player_team = teamCode(game[found.side]);
+    return ticket;
   }
 
   // Would the grader settle this bet on its own? Same matching as scripts/grade_bets.cjs.
@@ -213,7 +217,7 @@
 
     const values = () => ({ league: $('league').value, date: $('date').value, game: game(), market: $('market').value,
       side: $('side').value, line: $('line').value, player: $('player').value, book: $('book').value,
-      odds: $('odds').value, stake: $('stake').value });
+      odds: $('odds').value, stake: $('stake').value, box });
 
     async function save(event) {
       event.preventDefault();

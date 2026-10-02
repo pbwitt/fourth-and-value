@@ -12,6 +12,7 @@ const game=(o={})=>({id:'776001',league:'MLB',start:'2026-09-30T23:10:00Z',state
 const sd=game(),games=[game({id:'776002',away:team('BOS','Boston Red Sox','Red Sox',2),home:team('NYY','New York Yankees','Yankees',9)}),sd];
 const form=o=>({league:'MLB',date:'2026-09-30',game:sd,market:'totals',side:'under',line:'7.5',player:'',book:'DraftKings',odds:'-110',stake:'25',...o});
 const now=Date.parse('2026-10-01T12:00:00Z');
+const otherGame=()=>game({id:'776009'});
 
 // The bet that prompted this form: Cubs @ Padres under 7.5 settles as a win on 5 runs.
 let t=M.buildTicket(form());
@@ -35,6 +36,14 @@ const box={game:sd,players:[{name:'Fernando Tatis Jr.',side:'home',played:true,s
 t=M.buildTicket(form({market:'batter_hits',side:'over',line:'1.5',player:'Fernando Tatis Jr.'}));
 assert.equal(t.market_type,'batter_hits');assert.equal(gradeBet(t,sd,box,now).update.status,'won');
 assert(M.gradeCheck(t,sd,games,box,now).ok);
+assert.equal(t.player_team,undefined,'no box score, no team');
+t=M.buildTicket(form({market:'batter_hits',side:'over',line:'1.5',player:'Fernando Tatis Jr.',box}));
+assert.equal(t.player_team,'SD','the loaded box score gives the player team');
+assert.equal(gradeBet(t,sd,box,now).update.player_team,undefined,'a saved team is kept');
+assert.equal(M.buildTicket(form({market:'batter_hits',side:'over',line:'1.5',player:'Manny Machado',box})).player_team,undefined);
+assert.equal(M.buildTicket(form({box})).player_team,undefined,'game markets have no player team');
+assert.equal(M.buildTicket(form({market:'batter_hits',side:'over',line:'1.5',player:'Fernando Tatis Jr.',game:otherGame(),box})).player_team,undefined,
+  'another game\'s box score is ignored');
 assert.equal(M.gradeCheck({...t,player:'Fernando Tatis Sr'},sd,games,box,now).ok,true,'suffixes are ignored by the matcher');
 assert.equal(M.gradeCheck({...t,player:'Manny Machado'},sd,games,box,now).ok,false,'a name missing from a final box score is flagged');
 

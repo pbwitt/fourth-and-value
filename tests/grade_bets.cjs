@@ -1,7 +1,7 @@
 // Automatic bet grading: settles only final games after the correction window,
 // pays out like the old graders, and leaves anything uncertain pending.
 const assert=require('node:assert/strict');
-const {gradeBet,gradeAll,payout}=require('../scripts/grade_bets.cjs');
+const {gradeBet,gradeAll,backfillTeams,payout}=require('../scripts/grade_bets.cjs');
 
 const start='2026-09-29T23:00:00Z',t0=Date.parse(start),H=3600e3;
 const team=(abbrev,common,place,score)=>({abbrev,commonName:{default:common},name:{default:common},placeName:{default:place},score});
@@ -28,7 +28,12 @@ const bet=o=>({id:'x',league:'NHL',game_date:'2026-09-29',team_home:'Toronto Map
 
   const later=t0+5*H;
   let [r]=await gradeAll({bets:[bet()],...source(),now:later});
-  assert.deepEqual(r.update,{status:'won',actual_result:3,payout:46.74,graded_timestamp:new Date(later).toISOString()});
+  assert.deepEqual(r.update,{status:'won',actual_result:3,payout:46.74,graded_timestamp:new Date(later).toISOString(),player_team:'TOR'});
+
+  // The player's team comes from the box score side; a saved team and game markets are left alone.
+  [r]=await gradeAll({bets:[bet({player:'Nick Suzuki',side:'under'})],...source(),now:later});assert.equal(r.update.player_team,'MTL');
+  [r]=await gradeAll({bets:[bet({player_team:'TOR'})],...source(),now:later});assert.equal('player_team' in r.update,false);
+  [r]=await gradeAll({bets:[bet({player:null,market_type:'h2h',side:'TOR',line:null})],...source(),now:later});assert.equal('player_team' in r.update,false);
 
   [r]=await gradeAll({bets:[bet({line:3})],...source(),now:later});assert.equal(r.update.status,'push');assert.equal(r.update.payout,25);
   [r]=await gradeAll({bets:[bet({side:'under'})],...source(),now:later});assert.equal(r.update.status,'lost');assert.equal(r.update.payout,0);
@@ -62,5 +67,15 @@ const bet=o=>({id:'x',league:'NHL',game_date:'2026-09-29',team_home:'Toronto Map
   const s=source();const many=await gradeAll({bets:[bet({id:1}),bet({id:2,market_type:'points'}),bet({id:3,player:null,market_type:'h2h',side:'TOR'})],...s,now:later});
   assert(many.every(x=>x.update));assert.equal(s.calls.length,2,'one scoreboard and one box score');
 
-  console.log('PASS: automatic grading settles final games once, pays like the ledger, and leaves uncertainty pending.');
+  // Backfill: settled bets of any age get the team from the final box score; uncertainty adds nothing.
+  const b=source();
+  const filled=await backfillTeams({bets:[bet({id:1,game_date:'2025-01-02'}),bet({id:2,player:'Nick Suzuki',game_date:'2025-01-02'}),
+    bet({id:3,player:'Mitch Marner',game_date:'2025-01-02'}),bet({id:4,league:'CFB'}),bet({id:5,player:null})],...b});
+  assert.deepEqual(filled.map(x=>x.team||x.skip),['TOR','MTL','player not found','league not supported','no player or date']);
+  assert.equal(b.calls.length,2,'one scoreboard and one box score');
+  [r]=await backfillTeams({bets:[bet()],...source('LIVE')});assert.equal(r.skip,'not final');
+  [r]=await backfillTeams({bets:[bet({team_home:'Boston Bruins',team_away:'New York Rangers'})],...source()});assert.equal(r.skip,'game not found');
+  [r]=await backfillTeams({bets:[bet({league:'MLB',team_home:'NYY',team_away:'BOS'})],...source()});assert.equal(r.skip,'feed unavailable');
+
+  console.log('PASS: automatic grading settles final games once, pays like the ledger, and leaves uncertainty pending; player teams come from the box score.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
