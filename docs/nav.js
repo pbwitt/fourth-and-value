@@ -179,6 +179,7 @@
         { href: `${base}/nhl/totals/index.html`, label: 'Game Lines' },
         { href: `${base}/nhl/picks.html`, label: 'Top Picks' },
         { href: `${base}/nhl/top.html`, label: 'Market Watch' },
+        { href: `${base}/nhl/arbitrage.html`, label: 'Arbitrage' },
         { href: `${base}/markets/?sport=nhl`, label: 'Market Analytics' },
         { href: `${base}/nhl/methods.html`, label: 'NHL Methods' },
       ]
