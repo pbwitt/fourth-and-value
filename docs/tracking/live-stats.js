@@ -60,7 +60,7 @@
   }
 
   function nameParts(name) {
-    const initialForm = /^([a-z])\.\s*(.+)$/i.exec(String(name).trim());   // NHL: "J. Staal"
+    const initialForm = /^([a-z])\.\s*(?![a-z]\.)(.+)$/i.exec(String(name).trim());   // NHL: "J. Staal"
     if (initialForm) return { full: null, initial: initialForm[1].toLowerCase(), last: squash(initialForm[2]) };
     const tokens = norm(name).split(' ').filter(Boolean);
     return { full: tokens.join(''), initial: (tokens[0] || '')[0] || '', last: tokens.slice(1).join('') };
@@ -167,7 +167,7 @@
     }
     if (value > line) return moves ? { tone: 'behind', label: 'Over the line' } : { tone: 'lost', label: 'Dead' };
     const spare = (Number.isInteger(line) ? line - 1 : Math.floor(line)) - value;
-    return { tone: 'alive', label: spare > 0 ? `${fmt(spare)} to spare` : 'Holding' };
+    return { tone: 'alive', label: spare > 0 ? `${fmt(spare)} to spare` : 'None to spare' };
   }
 
   function sideOf(bet, game) {
