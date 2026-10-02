@@ -71,6 +71,7 @@
     if (!data.windows.some(w => w.key === state.win)) state.win = data.windows[0].key;
     if (data.windows.some(w => w.key === hash.get('w'))) state.win = hash.get('w');
     state.market = known(hash.get('m')) ? hash.get('m') : known(raw) ? raw : defaultMarket();
+    const chart = firstLoad ? hash.get('c') : null;
     firstLoad = false;
     windowButtons();
     if (!wired) {
@@ -82,7 +83,7 @@
       wired = true;
     }
     renderAll();
-    showDashboard();
+    if (chart) scrollToChart(chart); else showDashboard();
   }
 
   function showDashboard() {
@@ -176,6 +177,7 @@
   }
 
   function controls() {
+    shareButtons();
     const box = $('[data-windows]');
     box.addEventListener('click', e => {
       const b = e.target.closest('[data-win]');
@@ -533,6 +535,183 @@
       y += rowH;
     }
     el.innerHTML = svg(W, H, `${m.label}: biggest results either side of the line`, body);
+  }
+
+  // ---------- share: a branded image of one chart, plus a link straight to it ----------
+  // Like the Bet Tracker, the image is drawn on this device; nothing is uploaded.
+  const SHARE_W = 900, SHARE_SCALE = 2, FONT = 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
+  const figureFor = key => $(`[data-chart="${key}"]`) && $(`[data-chart="${key}"]`).closest('figure');
+
+  function shareButtons() {
+    root.querySelectorAll('figure').forEach(fig => {
+      const chart = fig.querySelector('[data-chart]');
+      if (!chart || fig.querySelector('.share-chart')) return;
+      fig.id = 'chart-' + chart.dataset.chart;
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'share-chart'; b.dataset.shareChart = chart.dataset.chart;
+      b.setAttribute('aria-label', 'Share this chart');
+      b.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M18 16a3 3 0 0 0-2.4 1.2l-6.7-3.4a3 3 0 0 0 0-1.6l6.7-3.4A3 3 0 1 0 15 7l-6.7 3.4a3 3 0 1 0 0 3.2L15 17a3 3 0 1 0 3-1Z"/></svg>Share';
+      fig.prepend(b);
+    });
+    root.addEventListener('click', e => {
+      const b = e.target.closest('[data-share-chart]');
+      if (b) openShare(b.dataset.shareChart);
+    });
+  }
+
+  function scrollToChart(key) {
+    const fig = figureFor(key);
+    if (!fig || fig.hidden || fig.closest('[hidden]')) return;
+    requestAnimationFrame(() => {
+      const bar = $('.toolbar'), stuck = (parseFloat(getComputedStyle(bar).top) || 0) + bar.offsetHeight;
+      window.scrollTo({top: fig.getBoundingClientRect().top + window.scrollY - stuck - 12});
+    });
+  }
+
+  function chartLink(key) {
+    const hash = key === 'board' ? `w=${state.win}&c=${key}` : `m=${state.market}&w=${state.win}&c=${key}`;
+    return `${location.origin}${location.pathname}?sport=${sport}#${hash}`;
+  }
+
+  function wrap(ctx, text, maxW) {
+    const lines = [];
+    let line = '';
+    for (const word of String(text).split(/\s+/).filter(Boolean)) {
+      const next = line ? line + ' ' + word : word;
+      if (ctx.measureText(next).width > maxW && line) { lines.push(line); line = word; } else line = next;
+    }
+    if (line) lines.push(line);
+    return lines;
+  }
+
+  function chartImage(svgEl) {
+    const clone = svgEl.cloneNode(true);
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    clone.setAttribute('font-family', FONT);
+    const src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(clone));
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
+  }
+
+  async function drawShare(key) {
+    const fig = figureFor(key), svgEl = fig && fig.querySelector('[data-chart] svg');
+    if (!svgEl) throw new Error('No chart to share');
+    const img = await chartImage(svgEl);
+    const m = data.markets.find(x => x.key === state.market);
+    const win = (data.windows.find(w => w.key === state.win) || {}).label || '';
+    const title = key === 'board' ? 'Every market at a glance' : (fig.querySelector('h3') || {}).textContent || '';
+    const context = [sport.toUpperCase(), key === 'board' ? null : m && m.label, win].filter(Boolean).join(' · ');
+    const lede = (fig.querySelector('.lede') || {}).textContent || '';
+    const caption = (fig.querySelector('figcaption') || {}).textContent || '';
+    const status = ($('[data-status]') || {}).textContent || '';
+    const PAD = 40, inner = SHARE_W - PAD * 2;
+    const measure = document.createElement('canvas').getContext('2d');
+    measure.font = `600 30px Georgia,serif`; const titleLines = wrap(measure, title, inner);
+    measure.font = `400 15px ${FONT}`; const ledeLines = lede ? wrap(measure, lede, inner) : [];
+    const capLines = caption ? wrap(measure, caption, inner) : [];
+    const chartW = inner - 32, chartH = img.height * chartW / img.width;
+    const H = 96 + titleLines.length * 36 + 30 + ledeLines.length * 22 + 18 + chartH + 32 + capLines.length * 22 + 70;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = SHARE_W * SHARE_SCALE; canvas.height = H * SHARE_SCALE;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(SHARE_SCALE, SHARE_SCALE);
+    ctx.fillStyle = '#0b0e13'; ctx.fillRect(0, 0, SHARE_W, H);
+    ctx.fillStyle = C.mint; ctx.fillRect(0, 0, SHARE_W, 5);
+    ctx.textBaseline = 'alphabetic';
+    ctx.font = `800 13px ${FONT}`; ctx.fillStyle = C.mint; ctx.textAlign = 'left';
+    ctx.fillText('FOURTH & VALUE', PAD, 42);
+    ctx.font = `600 13px ${FONT}`; ctx.fillStyle = '#8b93a1'; ctx.textAlign = 'right';
+    ctx.fillText('MARKET ANALYTICS', SHARE_W - PAD, 42);
+    ctx.textAlign = 'left';
+    let y = 86;
+    ctx.font = `600 30px Georgia,serif`; ctx.fillStyle = C.ink;
+    for (const l of titleLines) { ctx.fillText(l, PAD, y); y += 36; }
+    ctx.font = `600 15px ${FONT}`; ctx.fillStyle = C.mint;
+    ctx.fillText(context, PAD, y - 6); y += 24;
+    ctx.font = `400 15px ${FONT}`; ctx.fillStyle = C.muted;
+    for (const l of ledeLines) { ctx.fillText(l, PAD, y); y += 22; }
+    y += 4;
+    ctx.fillStyle = C.page; ctx.strokeStyle = C.edge; ctx.lineWidth = 1;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(PAD, y, inner, chartH + 32, 10); else ctx.rect(PAD, y, inner, chartH + 32);
+    ctx.fill(); ctx.stroke();
+    ctx.drawImage(img, PAD + 16, y + 16, chartW, chartH);
+    y += chartH + 32 + 30;
+    ctx.font = `400 15px ${FONT}`; ctx.fillStyle = C.muted;
+    for (const l of capLines) { ctx.fillText(l, PAD, y); y += 22; }
+    ctx.font = `500 12.5px ${FONT}`; ctx.fillStyle = '#8b93a1';
+    ctx.fillText(status, PAD, H - 44);
+    ctx.fillStyle = '#6b7380'; ctx.textAlign = 'center';
+    ctx.fillText('fourthandvalue.com/markets  ·  Analysis, not a guarantee. Bet responsibly.', SHARE_W / 2, H - 18);
+    return {canvas, title: `${title} · ${context}`};
+  }
+
+  let sheet, shareState = {};
+  function shareSheet() {
+    if (sheet) return sheet;
+    sheet = document.createElement('div');
+    sheet.className = 'share-sheet';
+    sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'true'); sheet.setAttribute('aria-label', 'Share chart');
+    sheet.innerHTML = '<div class="share-inner"><img alt="Chart image to share"><div class="share-actions">' +
+      '<button type="button" class="primary" data-act="share">Share</button>' +
+      '<button type="button" data-act="copy">Copy link</button>' +
+      '<a data-act="save" download>Save image</a>' +
+      '<button type="button" data-act="close">Close</button></div>' +
+      '<p class="share-hint">The link opens this exact chart. On a phone you can also press and hold the image.</p></div>';
+    document.body.appendChild(sheet);
+    sheet.addEventListener('click', async e => {
+      if (e.target === sheet) return closeShare();
+      const act = e.target.closest('[data-act]');
+      if (!act) return;
+      if (act.dataset.act === 'close') closeShare();
+      if (act.dataset.act === 'copy') {
+        try { await navigator.clipboard.writeText(shareState.url); act.textContent = 'Link copied'; }
+        catch (err) { window.prompt('Copy this link:', shareState.url); }
+      }
+      if (act.dataset.act === 'share') {
+        try {
+          const files = shareState.file && navigator.canShare && navigator.canShare({files: [shareState.file]}) ? [shareState.file] : undefined;
+          await navigator.share({title: shareState.title, text: `${shareState.title} — Fourth & Value`, url: shareState.url, ...(files ? {files} : {})});
+        } catch (err) { if (err && err.name !== 'AbortError') alert('Sharing isn’t available here. Use Copy link or Save image.'); }
+      }
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && sheet.classList.contains('open')) closeShare(); });
+    return sheet;
+  }
+
+  async function openShare(key) {
+    const el = shareSheet(), url = chartLink(key);
+    shareState = {url, title: 'Fourth & Value Market Analytics'};
+    el.querySelector('[data-act=copy]').textContent = 'Copy link';
+    el.querySelector('[data-act=share]').hidden = !navigator.share;
+    try {
+      const {canvas, title} = await drawShare(key);
+      shareState.title = title;
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+      if (shareState.objectUrl) URL.revokeObjectURL(shareState.objectUrl);
+      shareState.objectUrl = URL.createObjectURL(blob);
+      const name = `fourth-and-value-${sport}-${key === 'board' ? 'markets' : state.market + '-' + key}.png`;
+      shareState.file = new File([blob], name, {type: 'image/png'});
+      el.querySelector('img').src = shareState.objectUrl;
+      const save = el.querySelector('[data-act=save]');
+      save.href = shareState.objectUrl; save.download = name;
+    } catch (err) {
+      // The link still works when this browser cannot draw the image.
+      el.querySelector('img').removeAttribute('src');
+      el.querySelector('[data-act=save]').removeAttribute('href');
+    }
+    el.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeShare() {
+    sheet.classList.remove('open');
+    document.body.style.overflow = '';
   }
 
   // ---------- tooltip (shared with the blog chart behaviour) ----------

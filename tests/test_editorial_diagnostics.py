@@ -72,6 +72,14 @@ class DiagnosticTests(unittest.TestCase):
         article=payload['report']['articles'][0]
         self.assertEqual((article['writer_model'],article['writer_reason']),('gpt-6.1-sol',"Repeats yesterday's angle"))
         self.assertEqual(article['reason'],'See the workflow checks for details')
+    def test_requested_story_note_does_not_relabel_the_daily_slot(self):
+        self.write('docs/editorial/runs/2026-09-26.json',{'allocation':[['NFL','matchup:e1']],'slots':{'0-nfl':{'status':'skipped','reason':'No publishable angle'}}})
+        with patch.dict(os.environ,{'SUPABASE_URL':'https://example.supabase.co','SUPABASE_SERVICE_ROLE_KEY':'secret','GITHUB_RUN_ID':'124'}),patch.object(diag.requests,'post',return_value=Mock(ok=True,status_code=201)) as post:
+            diag.store_writer_note('0-nfl','gpt-6.1-sol','Request needs a narrower angle',self.root,self.now,requested=True)
+        payload=post.call_args.kwargs['json'];self.assertEqual(payload['id'],'124-1-writer-requested-0-nfl')
+        daily,requested=payload['report']['articles']
+        self.assertNotIn('writer_reason',daily)
+        self.assertEqual((requested['slot'],requested['sport'],requested['writer_reason']),('requested-0-nfl','NFL','Request needs a narrower angle'))
     def test_missing_schema_has_actionable_error_without_response_body(self):
         with patch.dict(os.environ,{'SUPABASE_URL':'https://example.supabase.co','SUPABASE_SERVICE_ROLE_KEY':'secret'}),patch.object(diag.requests,'post',return_value=Mock(ok=False,status_code=404)):
             with self.assertRaisesRegex(RuntimeError,'one-time'):diag.store_report(diag.build_report(self.root,self.now))

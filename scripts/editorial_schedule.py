@@ -114,8 +114,10 @@ def current_morning_models(root,now):
     ready=[]
     for sport in ('NFL','MLB','NBA','NHL'):
         board=load(Path(root)/f'docs/{sport.lower()}/data/latest.json',{})
-        checked=stamp(board.get('model_checked_at'))
-        age=age_hours(board.get('model_checked_at'),now)
+        # NHL's experimental forecasts record their check as model_prediction_at.
+        at=board.get('model_checked_at') or (board.get('model_prediction_at') if sport=='NHL' and not board.get('history_error') else None)
+        checked=stamp(at)
+        age=age_hours(at,now)
         if board.get('status')=='ready' and not board.get('model_error') and checked and morning_start(now)<=checked<=now and age is not None and 0<=age<=1.5:
             ready.append(sport)
     return ready

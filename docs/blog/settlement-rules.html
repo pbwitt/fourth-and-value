@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Fourth &amp; Value — Same Bet, Different Rules: How House Rules Decide What You’re Actually Betting</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Two sportsbooks can list the same NHL bet and grade it differently. Shootout goals, overtime, regulation-only markets and scratched players, with examples, and why it matters for comparing prices." />
+  <link rel="icon" href="../assets/logo.svg" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "FAQPage",
+ "mainEntity": [
+  {
+   "@type": "Question",
+   "name": "What are sportsbook settlement rules?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "They are the house rules that decide how a bet is graded: which periods count, how overtime and shootouts are treated, and what happens if a player does not play or a game is postponed."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Does a shootout goal count toward an NHL total?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Under standard full-game rules, the shootout winner is credited with one goal and that final score grades the total and puck line. A game tied 2–2 that is decided in a shootout is graded as 3–2, a total of five."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Do shootout goals count for NHL player props?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Under standard rules, no. Player props count regulation and overtime statistics. A goal scored in the shootout does not count toward a player’s goals or points."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "What happens to a player prop if the player does not play?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Under standard rules the bet is void and your stake is returned. Some books have extra rules, such as voiding props when a player leaves injured early, so check your book."
+   }
+  }
+ ]
+}
+  </script>
+  <style>
+    :root{
+      --bg:#0b0e13; --surface:#12161d; --ink:#eef1f5; --muted:#8b93a1; --line:#232a35;
+      --accent:#6ea8fe; --good:#2dd4bf; --warn:#f0ab3d;
+    }
+    *{box-sizing:border-box}
+    html,body{ margin:0; background:var(--bg); }
+    body{ color:var(--ink); font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
+    a{ color:var(--accent); }
+    .wrap{ max-width:720px; margin:0 auto; padding:40px 24px 96px; }
+    .kicker{ font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); display:flex; align-items:center; gap:10px; margin-bottom:22px; }
+    .kicker .dot{ width:6px; height:6px; border-radius:50%; background:var(--accent); }
+    h1{ font-family:'Fraunces',serif; font-weight:600; font-size:clamp(32px,5.6vw,48px); line-height:1.08; letter-spacing:-.01em; margin:0 0 18px; text-wrap:balance; }
+    article{ font-size:17px; line-height:1.7; }
+    article p{ margin:0 0 22px; }
+    article ul{ margin:0 0 22px; padding-left:22px; }
+    article li{ margin-bottom:10px; }
+    h2{ font-family:'Fraunces',serif; font-weight:600; font-size:28px; line-height:1.2; margin:52px 0 16px; }
+    h3{ font-size:18px; margin:32px 0 10px; }
+    .formula{ font-family:'JetBrains Mono',monospace; font-size:15px; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 18px; margin:0 0 22px; line-height:1.8; overflow-x:auto; }
+    .tbl-wrap{ overflow-x:auto; margin:8px 0 22px; border:1px solid var(--line); border-radius:12px; position:relative; }
+    table{ width:100%; border-collapse:collapse; font-size:14.5px; }
+    th,td{ padding:10px 14px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap; }
+    th:first-child,td:first-child{ text-align:left; }
+    th{ font-weight:600; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.06em; background:var(--surface); }
+    td{ font-family:'JetBrains Mono',monospace; }
+    td:first-child{ font-family:'Inter',sans-serif; }
+    tr:last-child td{ border-bottom:0; }
+    td.best{ color:var(--good); font-weight:700; }
+    td.neg{ color:var(--warn); }
+    .callout{ border-left:3px solid var(--accent); background:color-mix(in oklab, var(--accent) 8%, var(--surface)); border-radius:0 12px 12px 0; padding:18px 22px; margin:28px 0; font-size:15.5px; line-height:1.65; }
+    .callout p{ margin:0 0 12px; }
+    .callout p:last-child{ margin:0; }
+    .callout .tag{ font-family:'JetBrains Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--accent); display:block; margin-bottom:8px; font-weight:700; }
+    .cta{ display:block; text-decoration:none; background:var(--surface); border:1px solid var(--accent); border-radius:14px; padding:20px 22px; margin:32px 0; color:var(--ink); }
+    .cta b{ font-family:'Fraunces',serif; font-size:21px; display:block; margin-bottom:4px; }
+    .cta span{ color:var(--muted); font-size:15px; }
+    .cta:hover{ background:color-mix(in oklab, var(--accent) 8%, var(--surface)); }
+    .faq h3{ margin-top:26px; }
+    .back{ display:inline-block; margin-top:40px; color:var(--accent); }
+    @media (max-width:560px){ .wrap{ padding:28px 16px 72px; } h2{ font-size:24px; } }
+  </style>
+<link rel="stylesheet" href="/assets/responsible-use.css?v=1"><link rel="canonical" href="https://fourthandvalue.com/blog/settlement-rules.html"><meta property="og:title" content="Fourth &amp; Value — Same Bet, Different Rules: How House Rules Decide What You’re Actually Betting"><meta property="og:description" content="Two sportsbooks can list the same NHL bet and grade it differently. Shootout goals, overtime, regulation-only markets and scratched players, with examples, and why it matters for comparing prices."><meta property="og:url" content="https://fourthandvalue.com/blog/settlement-rules.html"><meta property="og:type" content="article"><meta name="twitter:card" content="summary"></head>
+<body>
+  <div id="nav-root"></div>
+  <script src="../nav.js?v=47"></script>
+
+  <main class="wrap">
+    <header>
+      <div class="kicker"><span class="dot"></span>Fourth &amp; Value &middot; Learning &middot; Oct 2, 2026 &middot; 7 min read</div>
+      <h1>Same Bet, Different Rules: How House Rules Decide What You’re Actually Betting</h1>
+    </header><!-- fv-notices:notice:start --><aside id="fv-betting-notice" class="fv-use-notice" aria-label="Betting information disclaimer"><strong>Analysis, not a guarantee.</strong> Picks and projections are uncertain; odds and player information can change. No outcome or profit is guaranteed. Any wager is your decision and responsibility. <a href="/terms.html#responsible-play">Read our limitations and responsible-play guidance</a>.</aside><!-- fv-notices:notice:end -->
+
+    <article>
+      <p>Two sportsbooks list “Red Wings moneyline.” Two sportsbooks list “Moritz Seider under 0.5 points.” Same team, same player, same line. It is natural to assume they are the same bet at two different prices.</p>
+      <p>They might not be. Every sportsbook publishes <strong>house rules</strong> that decide how a bet is graded: which periods count, what happens in overtime and the shootout, and what happens if a player never takes the ice. Those rules are part of the bet. Change them, and you have changed what you are betting on, even if the market name looks identical.</p>
+      <p>Hockey is where this bites hardest, because it has three ways to finish a game: regulation, overtime and the shootout. Here are five examples, and why they matter every time you compare prices.</p>
+
+      <h2>1. The shootout goal that decides your total</h2>
+      <p>Rangers and Red Wings are tied 2–2 after overtime. Detroit wins the shootout.</p>
+      <p>Under the standard full-game rules used by major U.S. books, the shootout winner is credited with <strong>one goal</strong>. The official final score is 3–2, and that is the score that grades your total.</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Your bet</th><th>Graded on 3–2 (total 5)</th></tr></thead>
+        <tbody>
+          <tr><td>Over 4.5</td><td class="best">Wins</td></tr>
+          <tr><td>Under 5.5</td><td class="best">Wins</td></tr>
+          <tr><td>Over 5.5</td><td class="neg">Loses</td></tr>
+        </tbody>
+      </table></div>
+      <p>No sixth goal was scored in open play, and five goals were never on the scoreboard during the game. The shootout still added one. If you were sweating an over 4.5 at 2–2 going into the shootout, you were going to win either way.</p>
+
+      <h2>2. Why −1.5 can never cover after regulation</h2>
+      <p>Overtime ends on the first goal, and a shootout win counts as one goal. So any NHL game decided after regulation is graded as a <strong>one-goal game</strong>.</p>
+      <p>That means a puck-line favorite at −1.5 can never cover once the game goes past 60 minutes, and the +1.5 underdog always cashes. A tied game late in the third is quietly one of the best things that can happen to a +1.5 bet, even if that team goes on to lose.</p>
+
+      <h2>3. Moneyline or “60-minute” line? Read the market name</h2>
+      <p>The standard NHL moneyline includes overtime and the shootout. Many books also offer a <strong>regulation-only</strong> market, often labeled “60 minutes,” “regulation” or “3-way,” where the tie after 60 minutes is its own outcome.</p>
+      <p>Those are very different bets. A team that wins in overtime cashes a full-game moneyline and <em>loses</em> a regulation bet on that team. So a regulation price will always look longer, say +150 instead of −130. That is not a better price on the same bet. It is a different bet that loses on every tie.</p>
+      <div class="callout"><span class="tag">The “sure thing” that wasn’t</span>
+        <p>Suppose you bet the Rangers full-game moneyline at one book and the Red Wings regulation-only line at another, thinking you have covered both sides. The game goes to overtime and Detroit wins.</p>
+        <p>Your Rangers bet loses. Your Detroit regulation bet also loses, because the game was tied after 60 minutes. Both tickets lose. Mismatched rules are how apparent arbitrage turns into a double loss.</p>
+      </div>
+
+      <h2>4. Player props: overtime counts, the shootout does not</h2>
+      <p>Under standard rules, player props count statistics from regulation and overtime, but <strong>not</strong> the shootout.</p>
+      <ul>
+        <li>A player scores the overtime winner: it counts toward that player’s goals and points props.</li>
+        <li>A player scores the deciding shootout goal: it does not count. The player’s goals prop is graded as if that attempt never happened, even though it added a goal to the team’s final score in example 1.</li>
+      </ul>
+      <p>The same game can therefore count a goal for the team total and not for any player. That is not a sportsbook error. It is two different rules applied to two different markets.</p>
+
+      <h2>5. The player who never plays</h2>
+      <p>You bet a defenseman under 0.5 points. He is a late scratch.</p>
+      <p>If a scratch were graded as zero points, every under would win whenever a player sat out. Instead, standard rules <strong>void</strong> the bet and return your stake: the player must take part for the bet to stand. Some books add more detail, such as voiding props when a player leaves injured early in the game, while others let those bets stand. If you bet props regularly, that clause is worth looking up at your book.</p>
+
+      <h2>Why this matters even if you never read the fine print</h2>
+      <p>Comparing prices only works when the bets are the same. When we remove a book’s margin to estimate a fair probability, or combine several books into a market estimate, mixing rules would quietly compare different bets:</p>
+      <ul>
+        <li>A regulation-only price would look like a bargain next to full-game moneylines.</li>
+        <li>A book that grades a scratched player differently would shift the “consensus” on every prop.</li>
+        <li>An arbitrage calculator would show guaranteed profit where none exists, as in the callout above.</li>
+      </ul>
+      <p>That is why Fourth &amp; Value only combines prices from books whose rules match. When no other book’s version of that exact line qualifies, our boards say <strong>“Paired prices unavailable”</strong> rather than compare unlike bets. We would rather show a blank than a misleading number.</p>
+      <p>The rules we rely on, and links to each book’s published rules, are on our <a href="/nhl/methods.html#settlement-rules">NHL methods page</a>.</p>
+
+      <h2>A quick checklist before you bet</h2>
+      <ul>
+        <li><strong>Does it include overtime and the shootout?</strong> Look for “regulation,” “60 minutes” or “3-way” in the market name.</li>
+        <li><strong>How is a shootout graded?</strong> Standard: one goal to the winner for totals and puck lines.</li>
+        <li><strong>Do shootout stats count for props?</strong> Standard: no.</li>
+        <li><strong>What if the player does not play, or leaves early?</strong> Standard: void if the player does not play. Early-exit rules vary.</li>
+        <li><strong>What about postponements?</strong> Books set their own deadline for a rescheduled game before bets are voided.</li>
+        <li><strong>Which state are you in?</strong> House rules can differ by jurisdiction.</li>
+      </ul>
+
+      <a class="cta" href="/blog/synthetic-hold.html"><b>Next: synthetic hold</b><span>Once the bets match, here is how to find the true price across every book.</span></a>
+
+      <h3>Related reading</h3>
+      <ul>
+        <li><a href="/blog/how-books-make-money.html">How Sportsbooks Make Money (and Why We Devig)</a></li>
+        <li><a href="/blog/synthetic-hold.html">Synthetic Hold: How to Find the True Price of Any Betting Market</a></li>
+        <li><a href="/blog/structural-arbitrage-explained.html">What is Structural Arbitrage?</a></li>
+        <li><a href="/nhl/methods.html">NHL methods</a></li>
+      </ul>
+
+      <section class="faq">
+        <h2>Frequently asked questions</h2>
+        <h3>What are sportsbook settlement rules?</h3>
+        <p>They are the house rules that decide how a bet is graded: which periods count, how overtime and shootouts are treated, and what happens if a player does not play or a game is postponed.</p>
+        <h3>Does a shootout goal count toward an NHL total?</h3>
+        <p>Under standard full-game rules, the shootout winner is credited with one goal and that final score grades the total and puck line. A game tied 2–2 that is decided in a shootout is graded as 3–2, a total of five.</p>
+        <h3>Do shootout goals count for NHL player props?</h3>
+        <p>Under standard rules, no. Player props count regulation and overtime statistics. A goal scored in the shootout does not count toward a player’s goals or points.</p>
+        <h3>What happens to a player prop if the player does not play?</h3>
+        <p>Under standard rules the bet is void and your stake is returned. Some books have extra rules, such as voiding props when a player leaves injured early, so check your book.</p>
+      </section>
+
+      <a class="back" href="./index.html">← Back to Blog</a>
+    </article>
+  </main>
+<!-- fv-notices:footer:start --><section id="fv-responsible-footer" class="fv-use-footer" aria-label="Responsible use"><p>Fourth &amp; Value provides sports analysis for informational and entertainment purposes. We do not accept wagers. You are responsible for your wagering decisions and for meeting applicable age and legal requirements. Never wager money you cannot afford to lose.</p><p><a href="/terms.html">Terms &amp; privacy</a> · <a href="/terms.html#responsible-play">Responsible play</a> · U.S. gambling support: call or text <a href="tel:+18006973738">1-800-MY-RESET</a> or <a href="https://www.ncpgambling.org/help-treatment/">find confidential help</a>.</p></section><!-- fv-notices:footer:end --></body>
+</html>

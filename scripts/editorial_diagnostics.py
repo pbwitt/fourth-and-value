@@ -137,13 +137,17 @@ def store_report(report):
     if not r.ok:raise RuntimeError(f'Diagnostics storage failed (HTTP {r.status_code})')
 
 
-def store_writer_note(slot,model,reason,root=ROOT,now=None):
+def store_writer_note(slot,model,reason,root=ROOT,now=None,requested=False):
     """Private only: the writer's own explanation for declining a story.
-    The public run ledger keeps the generic 'No publishable angle'."""
-    report=build_report(root,now,phase='writer-'+slot)
-    for article in report['articles']:
-        if article['slot']==slot:
-            article.update(writer_model=model,writer_reason=str(reason or 'No explanation returned')[:600])
+    The public run ledger keeps the generic 'No publishable angle'.
+    A requested story gets its own card; it never shares a daily slot's."""
+    note=dict(writer_model=model,writer_reason=str(reason or 'No explanation returned')[:600])
+    report=build_report(root,now,phase=('writer-requested-' if requested else 'writer-')+slot)
+    if requested:
+        report['articles'].append(dict(slot='requested-'+slot,sport=slot.split('-')[-1].upper(),status='skipped',
+            title='Requested story ('+slot.split('-')[-1].upper()+')',url=None,reason=None,review='not_recorded',**note))
+    for article in report['articles'] if not requested else ():
+        if article['slot']==slot:article.update(note)
     store_report(report)
 
 

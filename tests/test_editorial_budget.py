@@ -42,7 +42,7 @@ class BudgetTests(unittest.TestCase):
         (docs/'editorial').mkdir(parents=True)
         w.ed.write_json(state/'2026-09-22.json',{'allocation':[['MLB','news-market']],'slots':{}})
         reporting=[{'id':s,'title':'Report','url':url,'published_at':'2026-09-22','excerpt':'Private source excerpt'} for s,url in [('a','https://mlb.com/news/a'),('b','https://www.espn.com/mlb/b')]]
-        article={'publish':True,'title':'A substantive market analysis headline','excerpt':'A substantial original summary of the matchup and market.','sections':[{'heading':'Context','text':'Analysis '*150,'source_ids':['a','b']} for _ in range(4)],'sources':[{k:v for k,v in r.items() if k!='excerpt'} for r in reporting],'market_ids':['game','model-game']}
+        article={'publish':True,'title':'A substantive market analysis headline','excerpt':'A substantial original summary of the matchup and market.','sections':[{'heading':'Context','text':'Experimental '+'Analysis '*149,'source_ids':['a','b']} for _ in range(4)],'sources':[{k:v for k,v in r.items() if k!='excerpt'} for r in reporting],'market_ids':['game','model-game']}
         def response(value):return {'status':'completed','usage':{'input_tokens':1000,'output_tokens':800},'output':[{'content':[{'type':'output_text','text':json.dumps(value)}]}]}
         packet={'sport':'MLB','data_readiness':{'ready':True},'markets':[{'id':'game','event_id':'game','game':'Away @ Home','commence_time':'2026-09-23T00:00:00Z'}],'model_rows':[{'id':'model-game','event_id':'game','game':'Away @ Home','model_mean':5.2,'model_version':'v1','model_input_through':'2026-09-21'}]}
         class FixedDate(datetime):
@@ -60,7 +60,7 @@ class BudgetTests(unittest.TestCase):
         (docs/'editorial').mkdir(parents=True)
         w.ed.write_json(state/'2026-09-22.json',{'allocation':[['MLB','news-market']],'slots':{}})
         reporting=[{'id':s,'title':'Report','url':url,'published_at':'2026-09-22','excerpt':'Private source excerpt'} for s,url in [('a','https://mlb.com/news/a'),('b','https://www.espn.com/mlb/b')]]
-        article={'publish':True,'title':'A substantive market analysis headline','excerpt':'A substantial original summary of the matchup and market.', 'sections':[{'heading':'Context','text':'Analysis '*150,'source_ids':['a','b']} for _ in range(4)],'sources':[{k:v for k,v in r.items() if k!='excerpt'} for r in reporting],'market_ids':['game','model-game']}
+        article={'publish':True,'title':'A substantive market analysis headline','excerpt':'A substantial original summary of the matchup and market.', 'sections':[{'heading':'Context','text':'Experimental '+'Analysis '*149,'source_ids':['a','b']} for _ in range(4)],'sources':[{k:v for k,v in r.items() if k!='excerpt'} for r in reporting],'market_ids':['game','model-game']}
         def response(value):return {'status':'completed','usage':{'input_tokens':1000,'output_tokens':800},'output':[{'content':[{'type':'output_text','text':json.dumps(value)}]}]}
         packet={'sport':'MLB','data_readiness':{'ready':True},'markets':[{'id':'game','event_id':'game','game':'Away @ Home','commence_time':'2026-09-23T00:00:00Z'}],'model_rows':[{'id':'model-game','event_id':'game','game':'Away @ Home','model_mean':5.2,'model_version':'v1','model_input_through':'2026-09-21'}]}
         class FixedDate(datetime):
