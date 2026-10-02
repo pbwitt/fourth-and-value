@@ -1,8 +1,11 @@
 """Current-season NHL pages; no embedded historical betting cards."""
 from html import escape
+import re
 from pathlib import Path
 from nhl.refresh import ROOT
 from site_metadata import metadata
+from nba.pipeline import save_json
+from nhl.v2.arbitrage import report, render
 
 
 def build(state):
@@ -10,6 +13,7 @@ def build(state):
     label = season[:4] + '–' + season[-2:]
     pages = [('index.html', 'NHL Overview', 'overview'), ('props/index.html', 'Player Props', 'props'),
              ('totals/index.html', 'Game Lines', 'lines'), ('picks.html', 'Top Picks', 'candidates'), ('top.html', 'Market Watch', 'watch'),
+             ('arbitrage.html', 'Arbitrage', 'arbitrage'),
              ('methods.html', 'NHL Methods', 'methods')]
     for filename, title, page in pages:
         path = ROOT / 'docs/nhl' / filename
@@ -28,6 +32,10 @@ def build(state):
             intro = (Path(__file__).parent / 'v2/methods.html').read_text()
         elif page == 'candidates':
             intro = (Path(__file__).parent / 'v2/candidates.html').read_text()
+        elif page == 'arbitrage':
+            arb = report(state)
+            save_json(ROOT / 'docs/nhl/data/arbitrage.json', arb)
+            intro = render(arb)
         else:
             lead = {'props':'Compare shots on goal, goals, assists and points. Props appear as books post them near puck drop.',
                     'lines':'Regular-season totals, puck lines and moneylines. Historical scoring references are labeled separately.',
@@ -43,6 +51,10 @@ def build(state):
 <div class="notice" id="feed-status" role="status"><strong>NHL regular-season market snapshot</strong><p>Last successful check: {escape(str(state.get('last_success_at') or 'Not yet checked'))}. Enable JavaScript to view current quote availability.</p></div>
 <p class="muted" id="history-status"></p><p class="muted" id="model-status"></p>{intro}<footer>Fourth &amp; Value · <a href="{rel}/terms.html">Terms &amp; privacy</a> · <a href="{rel}/videos/">Videos</a></footer></main><script src="{rel}/assets/nhl.js?v=3" defer></script></body></html>'''
         path.parent.mkdir(parents=True, exist_ok=True)
+        if page == 'arbitrage':
+            # Server-rendered from the same snapshot; no feed script to overwrite it.
+            body = body.replace(f'<script src="{rel}/assets/nhl.js?v=3" defer></script>', '')
+            body = re.sub(r'<div class="notice" id="feed-status".*?</div>\n<p class="muted" id="history-status"></p><p class="muted" id="model-status"></p>', '', body, flags=re.S)
         if page == 'candidates':
             body = body.replace('assets/nhl.js?v=3', 'assets/nhl-candidates.js?v=7')
             body = body.replace('<script src="../assets/nhl-candidates', '<script src="../assets/injury-context.js?v=1" defer></script><script src="../assets/nhl-candidates')
