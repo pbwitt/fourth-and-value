@@ -132,6 +132,24 @@
       color: #4FC3F7;
     }
 
+    /* Filters + download: the stats, table and cards all follow them */
+    .bet-filters { background:#1a1a1a; border:1px solid #2a2a2a; border-radius:8px; padding:0.9rem 1rem; margin-bottom:1rem; }
+    .filter-row { display:flex; flex-wrap:wrap; gap:0.6rem 0.9rem; align-items:flex-end; }
+    .filter-row label { display:flex; flex-direction:column; gap:0.25rem; color:#999; font-size:0.78rem; }
+    .filter-row label[hidden] { display:none; }
+    .filter-row select, .filter-row input { background:#0f0f0f; color:#eee; border:1px solid #3a3a3a; border-radius:6px; padding:0.45rem 0.55rem; font:inherit; font-size:0.9rem; min-height:38px; }
+    .filter-btn { min-height:38px; padding:0.45rem 0.9rem; border-radius:6px; border:1px solid #3a3a3a; background:none; color:#ccc; font:inherit; font-size:0.9rem; cursor:pointer; }
+    .filter-btn:hover { border-color:#4FC3F7; color:#4FC3F7; }
+    .filter-btn.primary { background:#4FC3F7; border-color:#4FC3F7; color:#000; font-weight:600; }
+    .filter-actions { display:flex; gap:0.5rem; margin-left:auto; }
+    .filter-count { color:#999; font-size:0.82rem; margin:0.6rem 0 0; }
+    @media (max-width: 640px) {
+      .filter-row label { flex:1 1 44%; }
+      .filter-row select, .filter-row input { width:100%; }
+      .filter-actions { width:100%; margin-left:0; }
+      .filter-actions .filter-btn { flex:1; }
+    }
+
     /* Stats Dashboard */
     .stats-grid {
       display: grid;
@@ -466,6 +484,28 @@
       <!-- Mobile: jumps to live bets; stays in view while scrolling -->
       <button class="live-pill" id="livePill" hidden></button>
 
+      <!-- Filters apply to the stats, table and cards; Download exports what is shown -->
+      <section class="bet-filters" aria-label="Filter and download bets">
+        <div class="filter-row">
+          <label>Date
+            <select id="f-date">
+              <option value="all">All time</option><option value="today">Today</option>
+              <option value="7">Last 7 days</option><option value="30">Last 30 days</option>
+              <option value="month">This month</option><option value="custom">Custom range</option>
+            </select>
+          </label>
+          <label class="f-custom" hidden>From <input type="date" id="f-from"></label>
+          <label class="f-custom" hidden>To <input type="date" id="f-to"></label>
+          <label>Sport <select id="f-sport"><option value="">All sports</option></select></label>
+          <label>Market <select id="f-market"><option value="">All markets</option></select></label>
+          <div class="filter-actions">
+            <button type="button" class="filter-btn" id="f-reset">Reset</button>
+            <button type="button" class="filter-btn primary" id="f-download">Download CSV</button>
+          </div>
+        </div>
+        <p class="filter-count" id="f-count" role="status"></p>
+      </section>
+
       <!-- Stats Dashboard -->
       <div class="stats-grid">
         <div class="stat-card">
@@ -690,6 +730,7 @@
       }
 
       betsData = data;
+      refreshFilterOptions();
       renderBets();
       updateStats();
       liveTracker.setBets(betsData);
@@ -700,12 +741,13 @@
       const text=value=>String(value??'-').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
       renderBetCards();
 
-      if (betsData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="14" style="text-align:center; color:#999;">No bets logged yet</td></tr>';
+      const list = visibleBets();
+      if (list.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="14" style="text-align:center; color:#999;">${betsData.length ? 'No bets match these filters' : 'No bets logged yet'}</td></tr>`;
         return;
       }
 
-      tbody.innerHTML = betsData.map((bet) => `
+      tbody.innerHTML = list.map((bet) => `
         <tr>
           <td>${text(bet.game_date)}</td>
           <td>${text(bet.league)}</td>
@@ -785,7 +827,7 @@
 
     function betsByDate() {
       const groups=new Map();
-      betsData.forEach(bet=>{
+      visibleBets().forEach(bet=>{
         const key=bet.game_date||'';
         if (!groups.has(key)) groups.set(key,[]);
         groups.get(key).push(bet);
@@ -795,8 +837,8 @@
 
     function renderBetCards() {
       const el=document.getElementById('betCards');
-      if (!betsData.length) {
-        el.innerHTML='<div class="bet-cards-empty">No bets logged yet</div>';
+      if (!visibleBets().length) {
+        el.innerHTML=`<div class="bet-cards-empty">${betsData.length?'No bets match these filters':'No bets logged yet'}</div>`;
         return;
       }
       el.innerHTML=betsByDate().map(([date,bets])=>`
@@ -852,7 +894,7 @@
         return;
       }
       const date=btn.dataset.shareDate;
-      openShareSheet(betsData.filter(b=>(b.game_date||'')===date), date);
+      openShareSheet(visibleBets().filter(b=>(b.game_date||'')===date), date);
     });
 
     // Canvas helpers (roundRect drawn by hand for older Safari).
@@ -1179,7 +1221,7 @@
 
     function updateStats() {
       // Pending tickets are exposure, not realized losses.
-      const {totalBets,totalStaked,totalReturned,profitLoss,roi,winRate}=betTrackerSummary(betsData);
+      const {totalBets,totalStaked,totalReturned,profitLoss,roi,winRate}=betTrackerSummary(visibleBets());
 
       document.getElementById('totalBets').textContent = totalBets;
       document.getElementById('totalStaked').textContent = '$' + totalStaked.toFixed(2);
@@ -1195,6 +1237,111 @@
       plEl.textContent = (profitLoss >= 0 ? '+' : '') + '$' + profitLoss.toFixed(2);
       plEl.className = 'stat-value ' + (profitLoss > 0 ? 'positive' : profitLoss < 0 ? 'negative' : '');
     }
+
+    // ---- Filters + CSV download ---------------------------------------------
+    const FILTER_KEY='fv-bet-filters';
+    const filters={date:'all',from:'',to:'',sport:'',market:''};
+    try { Object.assign(filters, JSON.parse(localStorage.getItem(FILTER_KEY)||'{}')); } catch (e) { /* private mode */ }
+
+    const isoDay=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    function dateBounds() {
+      const today=new Date(), back=n=>{ const d=new Date(today); d.setDate(d.getDate()-n+1); return isoDay(d); };
+      if (filters.date==='today') return [isoDay(today), isoDay(today)];
+      if (filters.date==='7') return [back(7), isoDay(today)];
+      if (filters.date==='30') return [back(30), isoDay(today)];
+      if (filters.date==='month') return [isoDay(new Date(today.getFullYear(), today.getMonth(), 1)), isoDay(today)];
+      if (filters.date==='custom') return [filters.from||'', filters.to||''];
+      return ['', ''];
+    }
+    const sportOf=bet=>String(bet.league||'').toUpperCase();
+
+    function visibleBets() {
+      const [from,to]=dateBounds();
+      return betsData.filter(bet=>{
+        const day=bet.game_date||'';
+        if ((from || to) && !day) return false;
+        if (from && day<from) return false;
+        if (to && day>to) return false;
+        if (filters.sport && sportOf(bet)!==filters.sport) return false;
+        if (filters.market && fmtMarket(bet.market_type)!==filters.market) return false;
+        return true;
+      });
+    }
+
+    function refreshFilterOptions() {
+      const fill=(id, label, values)=>{
+        const el=document.getElementById(id), keep=id==='f-sport'?filters.sport:filters.market;
+        el.innerHTML=`<option value="">${label}</option>`+values.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+        el.value=values.includes(keep)?keep:'';
+      };
+      fill('f-sport', 'All sports', [...new Set(betsData.map(sportOf).filter(Boolean))].sort());
+      fill('f-market', 'All markets', [...new Set(betsData.map(b=>fmtMarket(b.market_type)).filter(Boolean))].sort());
+      filters.sport=document.getElementById('f-sport').value;
+      filters.market=document.getElementById('f-market').value;
+      document.getElementById('f-date').value=filters.date;
+      document.getElementById('f-from').value=filters.from;
+      document.getElementById('f-to').value=filters.to;
+      syncFilterUi();
+    }
+
+    function syncFilterUi() {
+      document.querySelectorAll('.f-custom').forEach(el=>{ el.hidden=filters.date!=='custom'; });
+      const n=visibleBets().length;
+      const narrowed=filters.date!=='all'||filters.sport||filters.market;
+      document.getElementById('f-count').textContent=narrowed
+        ? `Showing ${n} of ${betsData.length} bets. Stats below reflect these filters.`
+        : `${betsData.length} bet${betsData.length===1?'':'s'}`;
+      document.getElementById('f-download').disabled=!n;
+    }
+
+    function applyFilters() {
+      try { localStorage.setItem(FILTER_KEY, JSON.stringify(filters)); } catch (e) { /* ignore */ }
+      syncFilterUi();
+      renderBets();
+      updateStats();
+    }
+
+    document.getElementById('f-date').addEventListener('change', e=>{ filters.date=e.target.value; applyFilters(); });
+    document.getElementById('f-from').addEventListener('change', e=>{ filters.from=e.target.value; applyFilters(); });
+    document.getElementById('f-to').addEventListener('change', e=>{ filters.to=e.target.value; applyFilters(); });
+    document.getElementById('f-sport').addEventListener('change', e=>{ filters.sport=e.target.value; applyFilters(); });
+    document.getElementById('f-market').addEventListener('change', e=>{ filters.market=e.target.value; applyFilters(); });
+    document.getElementById('f-reset').addEventListener('click', ()=>{
+      Object.assign(filters, {date:'all',from:'',to:'',sport:'',market:''});
+      refreshFilterOptions(); applyFilters();
+    });
+
+    // Spreadsheet-safe CSV of exactly the bets shown. Text that a spreadsheet could read as a
+    // formula is prefixed with an apostrophe; plain numbers such as -110 stay numbers.
+    function csvCell(value) {
+      if (value==null) return '';
+      let t=String(value);
+      if (/^[=+\-@\t\r]/.test(t) && !/^[+-]?\d+(\.\d+)?$/.test(t)) t="'"+t;
+      return /[",\n\r]/.test(t) ? `"${t.replace(/"/g,'""')}"` : t;
+    }
+
+    function downloadBetsCsv() {
+      const list=visibleBets();
+      if (!list.length) return;
+      const head=['Date','Sport','Game','Player','Market','Side','Line','Odds','Book','Stake','Status','Result','Payout','Profit/Loss'];
+      const rows=list.map(b=>{
+        const pl=betPL(b);
+        return [b.game_date, sportOf(b), gameLabel(b), b.player||'Game market', fmtMarket(b.market_type), b.side, b.line,
+          b.odds, b.book, b.stake_dollars!=null?Number(b.stake_dollars).toFixed(2):'', b.status||'pending', b.actual_result,
+          b.payout!=null?Number(b.payout).toFixed(2):'', pl!=null?pl.toFixed(2):''];
+      });
+      const csv='\ufeff'+[head,...rows].map(r=>r.map(csvCell).join(',')).join('\r\n')+'\r\n';
+      const [from,to]=dateBounds();
+      const range=filters.date==='all'?'':(from||'start')+'-to-'+(to||isoDay(new Date()));
+      const parts=[filters.sport, filters.market, range].filter(Boolean)
+        .map(v=>String(v).toLowerCase().replace(/[^a-z0-9]+/g,'-'));
+      const name=`fourth-and-value-bets-${parts.length?parts.join('-'):'all-'+isoDay(new Date())}.csv`;
+      const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+      const a=document.createElement('a'); a.href=url; a.download=name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 1000);
+    }
+    document.getElementById('f-download').addEventListener('click', downloadBetsCsv);
 
     async function deleteBet(betId) {
       if (!confirm('Are you sure you want to delete this bet?')) {
