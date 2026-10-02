@@ -570,6 +570,10 @@ its own delivery check, including missing editions. Reports include GitHub stage
 outcomes, per-sport odds/model freshness, selected and blocked articles, factual
 review results, source-fallback provenance and the next eligible trigger. No private
 idea text, draft bodies, publisher excerpts, model responses or secrets are stored.
+One exception: when the writer declines a story (`publish=false`), its one-line
+explanation (up to 600 characters) is saved as a `writer-<slot>` snapshot and shown on
+that slot's card. The public run ledger and the Actions log keep only "No publishable
+angle", because this repository and its logs are public.
 An unknown or stale observation must not be displayed as a passing current check.
 Earlier runs cannot retrospectively prove whether a fallback was used.
 

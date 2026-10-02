@@ -137,6 +137,16 @@ def store_report(report):
     if not r.ok:raise RuntimeError(f'Diagnostics storage failed (HTTP {r.status_code})')
 
 
+def store_writer_note(slot,model,reason,root=ROOT,now=None):
+    """Private only: the writer's own explanation for declining a story.
+    The public run ledger keeps the generic 'No publishable angle'."""
+    report=build_report(root,now,phase='writer-'+slot)
+    for article in report['articles']:
+        if article['slot']==slot:
+            article.update(writer_model=model,writer_reason=str(reason or 'No explanation returned')[:600])
+    store_report(report)
+
+
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--phase',default='finish',choices=['start','finish','watchdog']);parser.add_argument('--store',action='store_true')
     args=parser.parse_args();report=build_report(run=github_run(),phase=args.phase)
