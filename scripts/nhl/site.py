@@ -8,6 +8,34 @@ from nba.pipeline import save_json
 from nhl.v2.arbitrage import report, render
 
 
+def settlement_rules():
+    """Publish the sportsbook rules the pipeline relies on, from the same config it reads."""
+    import json
+    cfg = json.loads((Path(__file__).resolve().parents[2] / 'config/nhl_settlement.json').read_text())
+    books, profiles, names = cfg.get('books', {}), cfg.get('profiles', {}), cfg.get('display_names', {})
+    def cell(profile):
+        return escape(profiles.get(profile, {}).get('label', profile)) if profile else 'Not verified'
+    from datetime import date
+    try: checked = date.fromisoformat(cfg['checked_at']).strftime('%B %-d, %Y')
+    except (KeyError, ValueError): checked = 'recently'
+    definitions = ''.join(f"<li><strong>{escape(p['label'])}:</strong> {escape(p['description'])}</li>" for p in profiles.values())
+    rows = ''.join(
+        f"<tr><td>{escape(names.get(book, book))}</td><td>{cell(rule.get('game'))}</td><td>{cell(rule.get('player'))}</td>"
+        f"<td><a href=\"{escape(rule['source'])}\" rel=\"nofollow noopener\">Published rules</a></td></tr>"
+        for book, rule in books.items())
+    pending = ''.join(f"<li>{escape(book.title())}: {escape(note)}</li>" for book, note in cfg.get('pending', {}).items())
+    return (f'<section class="panel" id="settlement-rules"><h2>Sportsbook rules we rely on</h2>'
+            f'<p>Two prices are only comparable when the books grade the bet the same way. This is our reading of each '
+            f'book&rsquo;s published hockey rules, last checked {checked}. It covers standard '
+            f'full-game markets only. Rules can differ by state and by market name, so confirm them with your sportsbook before betting.</p>'
+            f'<ul>{definitions}</ul>'
+            f'<div class="table-wrap"><table><thead><tr><th>Sportsbook</th><th>Game bets</th><th>Player props</th><th>Source</th></tr></thead>'
+            f'<tbody>{rows}</tbody></table></div>'
+            f'<p>&ldquo;Not verified&rdquo; and any sportsbook not listed: its prices still appear on our boards, but they are not '
+            f'combined with other books into a market estimate and cannot become a model pick.</p>'
+            + (f'<p>Being checked:</p><ul>{pending}</ul>' if pending else '') + '</section>')
+
+
 def build(state):
     season = str(state['season'])
     label = season[:4] + '–' + season[-2:]
@@ -29,7 +57,7 @@ def build(state):
 <section class="panel"><h2>Ready for the regular season</h2><p>Only games confirmed as regular-season fixtures by the NHL schedule enter these boards. Preseason and playoff markets are excluded. Player props are checked within 48 hours of puck drop.</p><p>Independent forecasts use game-level history and chronological validation. Analyst context, uncertainty and model status accompany eligible offers. Recommendations remain disabled until executable-price evidence supports them.</p><a href="methods.html">How to read the NHL numbers →</a></section>
 <section class="section"><h2>Upcoming regular-season games</h2><p class="muted">Official NHL schedule, next 45 days. Odds may appear closer to game day.</p><div id="schedule" class="grid"></div></section>'''
         elif page == 'methods':
-            intro = (Path(__file__).parent / 'v2/methods.html').read_text()
+            intro = (Path(__file__).parent / 'v2/methods.html').read_text() + settlement_rules()
         elif page == 'candidates':
             intro = (Path(__file__).parent / 'v2/candidates.html').read_text()
         elif page == 'arbitrage':
