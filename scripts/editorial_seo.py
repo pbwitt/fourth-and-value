@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 
 BASE='https://fourthandvalue.com'
+from site_metadata import SOCIAL_CARD, seo_description, seo_title
 
 def metadata(item):
     url=BASE+item['url'];title=item['title'];excerpt=item['excerpt']
@@ -20,16 +21,17 @@ def metadata(item):
     image=item.get('image')
     if image and (image.startswith('/') or image.startswith(BASE+'/')):schema['image']=BASE+image if image.startswith('/') else image
     esc=lambda s:html.escape(str(s),quote=True)
-    tags=[f'<title>{esc(title)} | Fourth &amp; Value</title>',f'<meta name="description" content="{esc(excerpt)}">',
+    tags=[f'<title>{esc(seo_title(title))}</title>',f'<meta name="description" content="{esc(seo_description(excerpt))}">',
         f'<link rel="canonical" href="{esc(url)}">','<meta name="author" content="Fourth &amp; Value">',
         '<meta name="robots" content="index,follow,max-image-preview:large">']
     values={'og:title':title,'og:description':excerpt,'og:url':url,'og:type':'article','og:site_name':'Fourth & Value',
         'article:published_time':published,'article:modified_time':modified,'article:section':item.get('sport','Sports')}
-    if 'image' in schema:values['og:image']=schema['image']
+    # Shared links always carry branding: the story's own card, else the default card.
+    values['og:image']=schema.get('image',SOCIAL_CARD)
     tags += [f'<meta property="{key}" content="{esc(value)}">' for key,value in values.items()]
-    tags += [f'<meta name="twitter:card" content="{"summary_large_image" if "image" in schema else "summary"}">',
+    tags += ['<meta name="twitter:card" content="summary_large_image">',
         f'<meta name="twitter:title" content="{esc(title)}">',f'<meta name="twitter:description" content="{esc(excerpt)}">']
-    if 'image' in schema:tags.append(f'<meta name="twitter:image" content="{esc(schema["image"])}">')
+    tags.append(f'<meta name="twitter:image" content="{esc(values["og:image"])}">')
     encoded=json.dumps(schema,ensure_ascii=False).replace('&','\\u0026').replace('<','\\u003c').replace('>','\\u003e')
     tags.append('<script type="application/ld+json">'+encoded+'</script>')
     return '\n'.join(tags)

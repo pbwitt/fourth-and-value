@@ -33,6 +33,7 @@ def settlement_rules():
             f'<tbody>{rows}</tbody></table></div>'
             f'<p>&ldquo;Not verified&rdquo; and any sportsbook not listed: its prices still appear on our boards, but they are not '
             f'combined with other books into a market estimate and cannot become a model pick.</p>'
+            f'<p>Why it matters, with examples: <a href="/blog/settlement-rules.html">Same bet, different rules</a>.</p>'
             + (f'<p>Being checked:</p><ul>{pending}</ul>' if pending else '') + '</section>')
 
 
