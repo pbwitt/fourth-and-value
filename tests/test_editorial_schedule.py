@@ -130,6 +130,16 @@ class EditorialScheduleTests(unittest.TestCase):
         self.write_model(root,'2026-09-27T11:20:00Z',model_error='feed failure')
         self.assertFalse(sched.plan(root,now,event_name='schedule')['writer_eligible'])
 
+    def test_nhl_experimental_prediction_time_counts_as_its_model_check(self):
+        td,root=self.make_root();self.addCleanup(td.cleanup)
+        now=datetime(2026,9,27,11,47,tzinfo=timezone.utc)
+        self.write_model(root,None,sport='NHL',model_prediction_at='2026-09-27T11:20:00Z')
+        self.assertEqual(sched.current_morning_models(root,now),['NHL'])
+        self.write_model(root,None,sport='NHL',model_prediction_at='2026-09-27T11:20:00Z',history_error='failed')
+        self.assertEqual(sched.current_morning_models(root,now),[])
+        self.write_model(root,None,sport='NBA',model_prediction_at='2026-09-27T11:20:00Z')
+        self.assertEqual(sched.current_morning_models(root,now),[])
+
     def test_automatic_writing_closes_at_noon_even_with_fresh_models(self):
         td,root=self.make_root();self.addCleanup(td.cleanup)
         now=datetime(2026,9,27,16,7,tzinfo=timezone.utc)

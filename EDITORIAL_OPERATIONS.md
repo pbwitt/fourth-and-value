@@ -148,6 +148,15 @@ must be at most six hours old and carry no stale quote or EV. Feature packets re
 model status and data cutoff dates; no validation result is inferred from missing
 data. NBA/NHL research-only estimates must not be presented as established edges.
 
+NHL articles (from October 2, 2026) use the experimental NHL forecast. Its
+`model_prediction_at` counts as the model check, and its history may trail by two
+days because it is refreshed each evening before late games finish. Each NHL game
+contributes one projected-regulation-goals reference (both teams named) plus player
+projections; no current EV is supplied. The writer must say the forecast is
+experimental and not validated against betting prices, and publication validation
+rejects an NHL article whose text never says "experimental". NBA has no forecast and
+stays excluded.
+
 New previews leave the homepage when a referenced quoted game starts; otherwise
 analysis expires from the homepage after three days. The blog retains the articles.
 Opinions stay separate and are never generated in the owner's voice. Existing
