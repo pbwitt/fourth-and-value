@@ -642,7 +642,7 @@ def run(now,limit=2,idea_id=None,publish_own=False):
                 ed.write_json(statepath,state)
                 try:
                     import editorial_diagnostics as diagnostics
-                    diagnostics.store_writer_note(key,cfg['model'],article.get('reason'),now=story_now)
+                    diagnostics.store_writer_note(key,cfg['model'],article.get('reason'),now=story_now,requested=bool(idea_id))
                     print('Writer explanation saved to the private diagnostics report.',flush=True)
                 except Exception:
                     print('Writer explanation could not be saved privately.',flush=True)
