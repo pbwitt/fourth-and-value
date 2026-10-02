@@ -37,7 +37,10 @@ requirement, not a per-task request: any change that adds or edits a public page
 ## Shareable features
 
 12. Share buttons send the branded image only (no link, which would add a second
-    preview card); Copy link is separate. Deep links open the exact view shared.
+    preview card); Copy link is separate. Social-network buttons (X, Facebook,
+    LinkedIn, Reddit, Bluesky, Threads) post text plus a link back to the exact view,
+    tagged `utm_source=<network>&utm_medium=social`; the platform shows the page's
+    branded preview card. Deep links open the exact view shared.
 
 ## Checking
 

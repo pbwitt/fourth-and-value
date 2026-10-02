@@ -580,9 +580,28 @@
     });
   }
 
-  function chartLink(key) {
+  function chartLink(key, source) {
     const hash = key === 'table' ? 'c=table' : key === 'board' ? `w=${state.win}&c=${key}` : `m=${state.market}&w=${state.win}&c=${key}`;
-    return `${location.origin}${location.pathname}?sport=${sport}#${hash}`;
+    const tags = source ? `&utm_source=${source}&utm_medium=social&utm_campaign=market_analytics` : '';
+    return `${location.origin}${location.pathname}?sport=${sport}${tags}#${hash}`;
+  }
+
+  // Social posts carry text plus a link back to the exact chart; the platform shows the page's preview card.
+  const SOCIAL = [
+    ['x', 'X', (t, u) => `https://twitter.com/intent/tweet?text=${encodeURIComponent(t)}&url=${encodeURIComponent(u)}`],
+    ['facebook', 'Facebook', (t, u) => `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(u)}`],
+    ['linkedin', 'LinkedIn', (t, u) => `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(u)}`],
+    ['reddit', 'Reddit', (t, u) => `https://www.reddit.com/submit?url=${encodeURIComponent(u)}&title=${encodeURIComponent(t)}`],
+    ['bluesky', 'Bluesky', (t, u) => `https://bsky.app/intent/compose?text=${encodeURIComponent(t + ' ' + u)}`],
+    ['threads', 'Threads', (t, u) => `https://www.threads.net/intent/post?text=${encodeURIComponent(t + ' ' + u)}`],
+  ];
+
+  function socialText(key) {
+    const m = data.markets.find(x => x.key === state.market), S = sport.toUpperCase();
+    if (key === 'table') return `Every ${S} market this season, graded against the books’ own prices`;
+    if (key === 'board') return `Are ${S} overs or unders hitting? Every market vs. what the books’ prices implied`;
+    const lead = (($('[data-headline]') || {}).textContent || '').split(/(?<=\.)\s/)[0];
+    return `${S} ${m ? m.label.toLowerCase() : ''}: ${lead || 'graded against the books’ own prices'}`.slice(0, 220);
   }
 
   function wrap(ctx, text, maxW) {
@@ -718,10 +737,18 @@
       '<button type="button" data-act="copy">Copy link</button>' +
       '<a data-act="save" download>Save image</a>' +
       '<button type="button" data-act="close">Close</button></div>' +
-      '<p class="share-hint">Share sends the image. Copy link opens this exact chart. On a phone you can also press and hold the image.</p></div>';
+      '<div class="share-social"><span>Post with a link</span>' +
+      SOCIAL.map(([id, name]) => `<button type="button" data-social="${id}">${name}</button>`).join('') + '</div>' +
+      '<p class="share-hint">Share sends the image only. Posting to a social network includes a link back to this chart. On a phone you can also press and hold the image.</p></div>';
     document.body.appendChild(sheet);
     sheet.addEventListener('click', async e => {
       if (e.target === sheet) return closeShare();
+      const social = e.target.closest('[data-social]');
+      if (social) {
+        const [id, , intent] = SOCIAL.find(s => s[0] === social.dataset.social);
+        window.open(intent(socialText(shareState.key), chartLink(shareState.key, id)), '_blank', 'noopener,width=620,height=680');
+        return;
+      }
       const act = e.target.closest('[data-act]');
       if (!act) return;
       if (act.dataset.act === 'close') closeShare();
@@ -743,7 +770,7 @@
 
   async function openShare(key) {
     const el = shareSheet(), url = chartLink(key);
-    shareState = {url, title: 'Fourth & Value Market Analytics'};
+    shareState = {url, key, title: 'Fourth & Value Market Analytics'};
     el.querySelector('[data-act=copy]').textContent = 'Copy link';
     el.querySelector('[data-act=share]').hidden = !navigator.share;
     try {
