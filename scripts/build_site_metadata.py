@@ -3,7 +3,7 @@
 import re
 from pathlib import Path
 from html import escape, unescape
-from site_metadata import SITE, DOCS, metadata
+from site_metadata import SITE, DOCS, metadata, social_tags
 
 DESCRIPTIONS={
     'methods.html':'How Fourth & Value estimates NFL probabilities, compares sportsbook prices and evaluates model limitations.',
@@ -29,6 +29,11 @@ def main():
             html=html.replace('</head>',f'<link rel="canonical" href="{canonical}"></head>')
         if not re.search(r'property=["\']og:title',html):
             html=html.replace('</head>',f'<meta property="og:title" content="{escape(title,quote=True)}"><meta property="og:description" content="{escape(desc,quote=True)}"><meta property="og:url" content="{canonical}"><meta property="og:type" content="website"><meta name="twitter:card" content="summary"></head>')
+        if not re.search(r'property=["\']og:image["\']',html):
+            html=re.sub(r'<meta name=["\']twitter:card["\'][^>]*>','',html)
+            html=html.replace('</head>',social_tags()+'</head>',1)
+        else:
+            html=re.sub(r'(<meta name=["\']twitter:card["\'] content=["\'])summary(["\'])',r'\1summary_large_image\2',html)
         path.write_text(html)
         if not re.search(r'name=["\']robots["\'][^>]*noindex',html) and 'http-equiv="refresh"' not in html:
             urls.append(canonical)
