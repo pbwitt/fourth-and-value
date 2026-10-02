@@ -718,7 +718,7 @@
       '<button type="button" data-act="copy">Copy link</button>' +
       '<a data-act="save" download>Save image</a>' +
       '<button type="button" data-act="close">Close</button></div>' +
-      '<p class="share-hint">The link opens this exact chart. On a phone you can also press and hold the image.</p></div>';
+      '<p class="share-hint">Share sends the image. Copy link opens this exact chart. On a phone you can also press and hold the image.</p></div>';
     document.body.appendChild(sheet);
     sheet.addEventListener('click', async e => {
       if (e.target === sheet) return closeShare();
@@ -731,8 +731,9 @@
       }
       if (act.dataset.act === 'share') {
         try {
-          const files = shareState.file && navigator.canShare && navigator.canShare({files: [shareState.file]}) ? [shareState.file] : undefined;
-          await navigator.share({title: shareState.title, text: `${shareState.title} — Fourth & Value`, url: shareState.url, ...(files ? {files} : {})});
+          // Image only, like the Bet Tracker: a link here would add a second preview image in most apps.
+          const canFile = shareState.file && navigator.canShare && navigator.canShare({files: [shareState.file]});
+          await navigator.share(canFile ? {files: [shareState.file]} : {title: shareState.title, url: shareState.url});
         } catch (err) { if (err && err.name !== 'AbortError') alert('Sharing isn’t available here. Use Copy link or Save image.'); }
       }
     });
