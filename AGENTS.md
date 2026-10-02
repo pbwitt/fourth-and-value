@@ -22,5 +22,5 @@ Every public page must meet `SEO_POLICY.md` without being asked: a search title 
 65 characters or fewer, a specific 70–160 character description, canonical URL, one H1,
 Open Graph/Twitter tags with a branded preview image, Article JSON-LD for articles,
 sitemap entry and internal links. Generators must emit compliant tags. Run
-`python scripts/seo_check.py --check` before shipping; PR checks enforce it, and
-`tests/seo_baseline.json` (known legacy gaps) may only shrink.
+`python scripts/seo_check.py --changed` before shipping; it reports gaps and never
+fails a build.

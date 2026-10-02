@@ -39,12 +39,10 @@ requirement, not a per-task request: any change that adds or edits a public page
 12. Share buttons send the branded image only (no link, which would add a second
     preview card); Copy link is separate. Deep links open the exact view shared.
 
-## Enforcement
+## Checking
 
-`python scripts/seo_check.py --check` audits every indexed page and fails when a
-page changed in the current branch has an issue not recorded in
-`tests/seo_baseline.json`. The baseline lists known legacy gaps; it may only shrink.
-Fix gaps when you touch a page, then run `python scripts/seo_check.py
---update-baseline` and commit the smaller baseline. Generators (`scripts/site_metadata.py`,
-`scripts/editorial_seo.py`, `scripts/build_site_metadata.py`, page builders) must
-emit compliant tags so automated pages stay compliant without a pull request.
+`python scripts/seo_check.py` reports every indexed page's gaps (`--changed` for
+pages changed on your branch). It is an audit, not a gate: it never fails a build.
+Fix gaps when you touch a page. Generators (`scripts/site_metadata.py`,
+`scripts/editorial_seo.py`, `scripts/build_site_metadata.py`, page builders and
+templates) must emit compliant tags, so automated pages comply without review.

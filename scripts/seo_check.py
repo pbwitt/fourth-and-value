@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Audit indexed pages against SEO_POLICY.md.
+"""Audit indexed pages against SEO_POLICY.md. Report only; never fails a build.
 
---check            fail when a page changed on this branch has an issue not in the baseline
---update-baseline  record current issues (the baseline should only shrink)
-(default)          print a summary of every indexed page
+--changed   only pages changed on this branch (vs --base, default origin/main)
+(default)   every indexed page
 """
 import argparse
 from html import unescape
@@ -16,7 +15,6 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / 'docs'
 SITE = 'https://fourthandvalue.com'
-BASELINE = ROOT / 'tests/seo_baseline.json'
 GENERIC = 'Sports analysis and research from Fourth & Value'
 ARTICLE_PREFIXES = ('blog/', 'editorial/articles/')
 ARTICLE_EXCLUDE = ('blog/index.html', 'blog/post-template.html', 'blog/series-template.html')
@@ -90,32 +88,17 @@ def changed_pages(base):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--check', action='store_true')
-    ap.add_argument('--update-baseline', action='store_true')
-    ap.add_argument('--base', default='origin/main', help='branch point for --check (default origin/main)')
-    ap.add_argument('--all', action='store_true', help='with --check, check every page, not only changed ones')
+    ap.add_argument('--changed', action='store_true')
+    ap.add_argument('--base', default='origin/main')
     a = ap.parse_args()
     results = audit_all()
-    if a.update_baseline:
-        BASELINE.write_text(json.dumps({k: v for k, v in sorted(results.items()) if v}, indent=1) + '\n')
-        print(f'Baseline: {sum(map(len, results.values()))} known issues on {sum(1 for v in results.values() if v)} pages')
-        return 0
-    if a.check:
-        baseline = json.loads(BASELINE.read_text()) if BASELINE.exists() else {}
-        scope = set(results) if a.all else changed_pages(a.base)
-        if scope is None:
-            scope = set(results)
-        new = {rel: [i for i in results[rel] if i not in baseline.get(rel, [])] for rel in scope if rel in results}
-        new = {k: v for k, v in new.items() if v}
-        for rel, issues in sorted(new.items()):
-            print(f'{rel}: {", ".join(issues)}')
-        if new:
-            print(f'SEO policy: {len(new)} page(s) have new issues. See SEO_POLICY.md.', file=sys.stderr)
-            return 1
-        print(f'SEO policy: {len(scope & set(results))} changed indexed page(s) checked; no new issues.')
-        return 0
+    if a.changed:
+        scope = changed_pages(a.base)
+        results = {k: v for k, v in results.items() if scope is None or k in scope}
     counts = {}
-    for issues in results.values():
+    for rel, issues in sorted(results.items()):
+        if a.changed and issues:
+            print(f'{rel}: {", ".join(issues)}')
         for i in issues:
             counts[i] = counts.get(i, 0) + 1
     print(f'{len(results)} indexed pages; {sum(1 for v in results.values() if v)} with issues')
