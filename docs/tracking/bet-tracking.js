@@ -79,6 +79,8 @@ async function saveTrackedBet(betData) {
     model_prob: betData.model_prob ?? null,
     edge_bps: betData.edge_bps ?? null,
   };
+  // Sent only when known, so the row matches databases without the column.
+  if (betData.player && betData.player_team) row.player_team = String(betData.player_team);
   if (!row.league || !Number.isFinite(row.stake_dollars) || row.stake_dollars <= 0 ||
       !Number.isInteger(row.odds) || Math.abs(row.odds) < 100 ||
       (row.line !== null && !Number.isFinite(row.line))) {
@@ -93,7 +95,12 @@ async function saveTrackedBet(betData) {
     row.id=betData.id;
   }
 
-  const { error } = await supabaseClient.from('bets').insert(row);
+  let { error } = await supabaseClient.from('bets').insert(row);
+  // Until supabase/schema.sql's player_team migration runs, save the bet without the team.
+  if (row.player_team && /player_team/.test(error?.message || '')) {
+    delete row.player_team;
+    ({ error } = await supabaseClient.from('bets').insert(row));
+  }
   if (error?.code === '23505' && row.id) {
     const existing=await supabaseClient.from('bets').select('*').eq('id',row.id).eq('user_id',user.id).maybeSingle();
     const numeric=new Set(['line','odds','stake_dollars','model_prob','edge_bps']);

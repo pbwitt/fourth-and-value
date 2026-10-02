@@ -266,6 +266,7 @@
       font-size: 0.875rem;
     }
     .live-line .live-player { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .team-tag { color: #999; font-size: 0.8em; font-weight: 600; margin-left: 0.35em; white-space: nowrap; }
     .live-line .live-pick { color: #4FC3F7; white-space: nowrap; }
     .live-line .live-value { font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; }
     .live-line .live-stake { color: #999; font-size: 0.8rem; text-align: right; white-space: nowrap; }
@@ -647,11 +648,11 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="bet-tracking.js?v=3"></script>
+  <script src="bet-tracking.js?v=4"></script>
   <script src="live-feeds.js?v=1"></script>
-  <script src="live-stats.js?v=2"></script>
+  <script src="live-stats.js?v=3"></script>
   <script src="../assets/offer-tracker.js?v=2"></script>
-  <script src="manual-bet.js?v=1"></script>
+  <script src="manual-bet.js?v=2"></script>
   <script>
     let betsData = [];
 
@@ -752,7 +753,7 @@
           <td>${text(bet.game_date)}</td>
           <td>${text(bet.league)}</td>
           <td>${text(bet.team_away)} @ ${text(bet.team_home)}</td>
-          <td>${text(bet.player || 'Game market')}</td>
+          <td>${text(bet.player || 'Game market')}${teamTagHtml(bet)}</td>
           <td>${text(bet.market_type)}</td>
           <td>${text(bet.side)}</td>
           <td>${text(bet.line)}</td>
@@ -802,6 +803,13 @@
     function gameLabel(bet) {
       return bet.team_away && bet.team_home ? `${bet.team_away} @ ${bet.team_home}` : (bet.team_home||bet.team_away||'');
     }
+
+    // The saved team, else the side today's live box score shows the player on.
+    function playerTeam(bet) {
+      return bet.player ? bet.player_team || liveViews.get(bet.id)?.playerTeam || '' : '';
+    }
+    const playerLabel=bet=>[bet.player||'Game market',playerTeam(bet)].filter(Boolean).join(' · ');
+    const teamTagHtml=bet=>playerTeam(bet)?`<span class="team-tag">${esc(playerTeam(bet))}</span>`:'';
 
     function toWin(bet) {
       const stake=Number(bet.stake_dollars||0), odds=Number(bet.odds);
@@ -868,7 +876,7 @@
           </div>
           <div class="bet-card-main">
             <div>
-              <div class="bet-card-player">${esc(bet.player||'Game market')}</div>
+              <div class="bet-card-player">${esc(bet.player||'Game market')}${teamTagHtml(bet)}</div>
               <div class="bet-card-pick">${esc(pickLabel(bet))}</div>
             </div>
             <div class="bet-card-odds"><strong>${esc(fmtOdds(bet.odds))}</strong><span>${esc(bet.book||'')}</span></div>
@@ -978,7 +986,7 @@
         ctx.textAlign='left';
         const leftW=right-inner-Math.max(oddsW,110)-16;
         ctx.font=`800 20px ${FONT}`; ctx.fillStyle='#fff';
-        ctx.fillText(fitText(ctx,bet.player||'Game market',leftW),inner,y+62);
+        ctx.fillText(fitText(ctx,playerLabel(bet),leftW),inner,y+62);
         ctx.font=`600 15px ${FONT}`; ctx.fillStyle='#4FC3F7';
         ctx.fillText(fitText(ctx,pickLabel(bet),leftW),inner,y+83);
 
@@ -1198,7 +1206,7 @@
               const fig=liveFigure(view), win=toWin(bet), tone='tone-'+(view.tone||'none');
               return `
             <div class="live-line ${tone}${liveBumped.has(bet.id)?' live-bump':''}">
-              <span class="live-player" title="${esc(bet.player||'Game market')}">${esc(bet.player||'Game market')}</span>
+              <span class="live-player" title="${esc(playerLabel(bet))}">${esc(bet.player||'Game market')}${teamTagHtml(bet)}</span>
               <span class="live-pick">${esc(pickLabel(bet))}</span>
               <span class="live-value">${fig?esc(fig.value):'–'}</span>
               <span>${view.progress!=null?`<span class="live-bar"><i style="width:${Math.round(view.progress*100)}%"></i></span>`:''}</span>
@@ -1323,10 +1331,10 @@
     function downloadBetsCsv() {
       const list=visibleBets();
       if (!list.length) return;
-      const head=['Date','Sport','Game','Player','Market','Side','Line','Odds','Book','Stake','Status','Result','Payout','Profit/Loss'];
+      const head=['Date','Sport','Game','Player','Team','Market','Side','Line','Odds','Book','Stake','Status','Result','Payout','Profit/Loss'];
       const rows=list.map(b=>{
         const pl=betPL(b);
-        return [b.game_date, sportOf(b), gameLabel(b), b.player||'Game market', fmtMarket(b.market_type), b.side, b.line,
+        return [b.game_date, sportOf(b), gameLabel(b), b.player||'Game market', playerTeam(b), fmtMarket(b.market_type), b.side, b.line,
           b.odds, b.book, b.stake_dollars!=null?Number(b.stake_dollars).toFixed(2):'', b.status||'pending', b.actual_result,
           b.payout!=null?Number(b.payout).toFixed(2):'', pl!=null?pl.toFixed(2):''];
       });

@@ -12,6 +12,10 @@ on:
         description: 'Report what would settle without writing'
         type: boolean
         default: false
+      backfill_teams:
+        description: 'Instead of grading, add the player team to settled bets that lack it'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -44,4 +48,4 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node scripts/grade_bets.cjs ${{ inputs.dry_run && '--dry-run' || '' }}
+        run: node scripts/grade_bets.cjs ${{ inputs.dry_run && '--dry-run' || '' }} ${{ inputs.backfill_teams && '--backfill-teams' || '' }}

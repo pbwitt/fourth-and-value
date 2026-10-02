@@ -124,6 +124,9 @@ const espnSummary={header:{competitions:[espnComp('in')]},boxscore:{players:[
   const bet=o=>({league:'NHL',team_home:'TOR',team_away:'MTL',player:'Auston Matthews',market_type:'sog',side:'over',line:2.5,...o});
   let v=L.evaluate(bet(),game,box);
   assert.deepEqual([v.value,v.tone,v.label,v.progress],[3,'won','Hit',1]);
+  assert.equal(v.playerTeam,'TOR','the box score side gives the player team');
+  assert.equal(L.evaluate(bet({player:'Nobody Here'}),game,box).playerTeam,undefined);
+  assert.equal(L.teamCode({abbrev:'',short:'Leafs',name:'Toronto Maple Leafs'}),'Leafs');assert.equal(L.teamCode(undefined),null);
   v=L.evaluate(bet({line:3.5}),game,box);
   assert.deepEqual([v.tone,v.label,v.progress],['alive','Needs 1',0.75]);
   assert(v.pace>3,'pace projects from the share of regulation played');

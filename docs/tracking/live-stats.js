@@ -38,6 +38,9 @@
       (b.length >= 3 && name.endsWith(b)) || (short.length >= 3 && b.endsWith(short));
   }
 
+  // The short label a feed gives a team: "NYR", else its short or full name.
+  const teamCode = t => (t && (t.abbrev || t.short || t.name)) || null;
+
   const STATE_RANK = { live: 0, pre: 1, final: 2, off: 3 };
 
   function findGame(bet, games) {
@@ -226,7 +229,7 @@
     if (side === 'yes') side = 'over';
     if (side === 'no') side = 'under';
     if (line == null && ['over', 'under'].includes(side)) line = 0.5;   // anytime / yes-no props
-    const view = { ...base, kind: 'player', value, unit: spec.label, playerName: player.name };
+    const view = { ...base, kind: 'player', value, unit: spec.label, playerName: player.name, playerTeam: teamCode(g[player.side]) };
     if (!['over', 'under'].includes(side) || !Number.isFinite(line)) return view;
     const verdict = overUnder(value, line, side, { final, moves: !!spec.moves });
     const clear = Number.isInteger(line) ? line + 1 : Math.ceil(line);
@@ -317,7 +320,7 @@
     };
   }
 
-  const api = { norm, teamMatches, findGame, findPlayer, marketSpec, evaluate, liveCandidates, createLiveTracker, day };
+  const api = { norm, teamMatches, teamCode, findGame, findPlayer, marketSpec, evaluate, liveCandidates, createLiveTracker, day };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else global.FVLiveStats = api;
 })(typeof window === 'undefined' ? globalThis : window);

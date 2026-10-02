@@ -4,7 +4,9 @@ const script=fs.readFileSync('docs/tracking/bet-tracking.js','utf8');
 function setup(){
   const state={user:{id:'owner'},rows:[],error:null,existing:null,filters:[]};
   const client={auth:{getSession:async()=>({data:{session:state.user?{user:state.user}:null}})},from:()=>({
-    insert:async row=>{state.rows.push(JSON.parse(JSON.stringify(row)));return {error:state.error};},
+    insert:async row=>{state.rows.push(JSON.parse(JSON.stringify(row)));
+      if(state.noTeamColumn&&'player_team' in row)return {error:{code:'PGRST204',message:"Could not find the 'player_team' column of 'bets' in the schema cache"}};
+      return {error:state.error};},
     select:()=>{const query={eq:(k,v)=>{state.filters.push([k,v]);return query;},maybeSingle:async()=>({data:state.existing,error:null})};return query;}
   })};
   const window={supabase:{createClient:()=>client}},ctx={window,console,alert:()=>{},confirm:()=>false};
@@ -23,8 +25,16 @@ function setup(){
  state.existing=null;assert.equal((await save(bet)).ok,false,'no owner-visible saved row means no success');
  state.error={code:'XX000'};assert.equal((await save(bet)).ok,false);
  state.error=null;assert.equal((await save({...bet,line:0})).ok,true);assert.equal(state.rows.at(-1).line,0);
+ // The player's team is saved with player bets, and a database without the column still saves the bet.
+ const {id:_,...unsaved}=bet,prop={...unsaved,player:'Bryce Harper',market_type:'batter_hits',side:'over',line:.5,player_team:'PHI'};
+ assert.equal((await save(prop)).ok,true);assert.equal(state.rows.at(-1).player_team,'PHI');
+ assert.equal((await save({...bet,player_team:'PHI'})).ok,true);assert.equal('player_team' in state.rows.at(-1),false,'game markets have no player team');
+ state.noTeamColumn=true;const before=state.rows.length;
+ assert.equal((await save(prop)).ok,true,'saved without the team before the migration');
+ assert.equal(state.rows.length,before+2);assert.equal('player_team' in state.rows.at(-1),false);
+ state.noTeamColumn=false;
  const stats=summary([{status:'pending',stake_dollars:100},{status:'won',stake_dollars:10,payout:20},{status:'lost',stake_dollars:5,payout:0}]);
  assert.equal(stats.totalStaked,115);assert.equal(stats.profitLoss,5);assert(Math.abs(stats.roi-100/3)<1e-9);
  assert.equal(summary([{status:'pending',stake_dollars:100}]).profitLoss,0);
- console.log('PASS: tracker auth, account ownership, nullable moneylines, validation, failed saves and duplicate protection.');
+ console.log('PASS: tracker auth, account ownership, nullable moneylines, validation, failed saves, duplicate protection and player teams.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
