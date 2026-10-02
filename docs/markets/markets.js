@@ -540,7 +540,8 @@
   // ---------- share: a branded image of one chart, plus a link straight to it ----------
   // Like the Bet Tracker, the image is drawn on this device; nothing is uploaded.
   const SHARE_W = 900, SHARE_SCALE = 2, FONT = 'system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
-  const figureFor = key => $(`[data-chart="${key}"]`) && $(`[data-chart="${key}"]`).closest('figure');
+  const figureFor = key => key === 'table' ? $(`details.table-view[data-for="${sport}"]`)
+    : $(`[data-chart="${key}"]`) && $(`[data-chart="${key}"]`).closest('figure');
 
   function shareButtons() {
     root.querySelectorAll('figure').forEach(fig => {
@@ -553,6 +554,16 @@
       b.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M18 16a3 3 0 0 0-2.4 1.2l-6.7-3.4a3 3 0 0 0 0-1.6l6.7-3.4A3 3 0 1 0 15 7l-6.7 3.4a3 3 0 1 0 0 3.2L15 17a3 3 0 1 0 3-1Z"/></svg>Share';
       fig.prepend(b);
     });
+    // Each sport's season table shares the same way; its link opens the table.
+    root.querySelectorAll('details.table-view').forEach(d => {
+      if (d.querySelector('.share-chart')) return;
+      d.id = 'table-' + d.dataset.for;
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'share-chart inline'; b.dataset.shareChart = 'table';
+      b.setAttribute('aria-label', 'Share this table');
+      b.innerHTML = root.querySelector('.share-chart svg').outerHTML + 'Share table';
+      d.querySelector('summary').after(b);
+    });
     root.addEventListener('click', e => {
       const b = e.target.closest('[data-share-chart]');
       if (b) openShare(b.dataset.shareChart);
@@ -562,6 +573,7 @@
   function scrollToChart(key) {
     const fig = figureFor(key);
     if (!fig || fig.hidden || fig.closest('[hidden]')) return;
+    if (key === 'table') fig.open = true;
     requestAnimationFrame(() => {
       const bar = $('.toolbar'), stuck = (parseFloat(getComputedStyle(bar).top) || 0) + bar.offsetHeight;
       window.scrollTo({top: fig.getBoundingClientRect().top + window.scrollY - stuck - 12});
@@ -569,7 +581,7 @@
   }
 
   function chartLink(key) {
-    const hash = key === 'board' ? `w=${state.win}&c=${key}` : `m=${state.market}&w=${state.win}&c=${key}`;
+    const hash = key === 'table' ? 'c=table' : key === 'board' ? `w=${state.win}&c=${key}` : `m=${state.market}&w=${state.win}&c=${key}`;
     return `${location.origin}${location.pathname}?sport=${sport}#${hash}`;
   }
 
@@ -597,16 +609,60 @@
     });
   }
 
+  // The season table, drawn as rows; colour only marks which side ran ahead of the prices.
+  function tableImage(table, w) {
+    const head = [...table.querySelectorAll('thead th')].map(c => c.textContent.trim());
+    const body = [...table.querySelectorAll('tbody tr')].map(r => [...r.children].map(c => c.textContent.trim()));
+    const rowH = 36, H = rowH * (body.length + 1) + 4, HEAD = `600 12px ${FONT}`;
+    const canvas = document.createElement('canvas');
+    canvas.width = w * SHARE_SCALE; canvas.height = H * SHARE_SCALE;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(SHARE_SCALE, SHARE_SCALE);
+    // Fit the market names first; the numeric columns share the rest.
+    ctx.font = `500 14.5px ${FONT}`;
+    const first = Math.min(Math.round(w * 0.42), Math.ceil(Math.max(...body.map(r => ctx.measureText(r[0]).width))) + 12);
+    const colX = i => i === 0 ? 0 : first + (w - first) * i / (head.length - 1);
+    const cell = (text, i, y, font, fill) => {
+      ctx.font = font; ctx.fillStyle = fill; ctx.textAlign = i === 0 ? 'left' : 'right';
+      const max = i === 0 ? first - 8 : (w - first) / (head.length - 1) - 2;
+      let t = text;
+      while (t.length > 3 && ctx.measureText(t).width > max) t = t.slice(0, -2) + '…';
+      ctx.fillText(t, i === 0 ? 4 : colX(i), y);
+    };
+    head.forEach((h, i) => cell(h, i, 23, HEAD, C.mint));
+    body.forEach((r, j) => {
+      const y = rowH * (j + 1);
+      ctx.fillStyle = C.edge; ctx.fillRect(0, y, w, 1);
+      r.forEach((v, i) => {
+        const gap = i === r.length - 1 && /^[+−-]\d/.test(v);
+        cell(v, i, y + 24, `${i === 0 ? 500 : 400} 14.5px ${FONT}`, gap ? (v[0] === '+' ? '#7fb3f5' : '#f08a5d') : C.ink);
+      });
+    });
+    return canvas;
+  }
+
   async function drawShare(key) {
-    const fig = figureFor(key), svgEl = fig && fig.querySelector('[data-chart] svg');
-    if (!svgEl) throw new Error('No chart to share');
-    const img = await chartImage(svgEl);
+    const fig = figureFor(key);
     const m = data.markets.find(x => x.key === state.market);
     const win = (data.windows.find(w => w.key === state.win) || {}).label || '';
-    const title = key === 'board' ? 'Every market at a glance' : (fig.querySelector('h3') || {}).textContent || '';
-    const context = [sport.toUpperCase(), key === 'board' ? null : m && m.label, win].filter(Boolean).join(' · ');
-    const lede = (fig.querySelector('.lede') || {}).textContent || '';
-    const caption = (fig.querySelector('figcaption') || {}).textContent || '';
+    let img, title, context, lede = '', caption = '';
+    if (key === 'table') {
+      const table = fig && fig.querySelector('table');
+      if (!table) throw new Error('No table to share');
+      img = tableImage(table, SHARE_W - 80 - 32);
+      title = fig.querySelector('summary').textContent.replace(/^Table view:\s*/, '');
+      title = title.charAt(0).toUpperCase() + title.slice(1);
+      context = `${sport.toUpperCase()} · Season`;
+      caption = 'Vs. expected is the gap in bets: +5 means five more overs than the books’ prices implied. For spreads and moneylines, read favorites for overs.';
+    } else {
+      const svgEl = fig && fig.querySelector('[data-chart] svg');
+      if (!svgEl) throw new Error('No chart to share');
+      img = await chartImage(svgEl);
+      title = key === 'board' ? 'Every market at a glance' : (fig.querySelector('h3') || {}).textContent || '';
+      context = [sport.toUpperCase(), key === 'board' ? null : m && m.label, win].filter(Boolean).join(' · ');
+      lede = (fig.querySelector('.lede') || {}).textContent || '';
+      caption = (fig.querySelector('figcaption') || {}).textContent || '';
+    }
     const status = ($('[data-status]') || {}).textContent || '';
     const PAD = 40, inner = SHARE_W - PAD * 2;
     const measure = document.createElement('canvas').getContext('2d');
@@ -695,7 +751,7 @@
       const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
       if (shareState.objectUrl) URL.revokeObjectURL(shareState.objectUrl);
       shareState.objectUrl = URL.createObjectURL(blob);
-      const name = `fourth-and-value-${sport}-${key === 'board' ? 'markets' : state.market + '-' + key}.png`;
+      const name = `fourth-and-value-${sport}-${key === 'board' ? 'markets' : key === 'table' ? 'season-table' : state.market + '-' + key}.png`;
       shareState.file = new File([blob], name, {type: 'image/png'});
       el.querySelector('img').src = shareState.objectUrl;
       const save = el.querySelector('[data-act=save]');
