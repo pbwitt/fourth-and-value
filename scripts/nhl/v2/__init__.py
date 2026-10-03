@@ -1,4 +1,4 @@
 """Point-in-time NHL forecasting, pricing and evaluation (no legacy model imports)."""
 
-VERSION = 'nhl-v2.1'
-FEATURE_SCHEMA = 'nhl-pit-1'
+VERSION = 'nhl-v2.2'
+FEATURE_SCHEMA = 'nhl-pit-2'

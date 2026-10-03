@@ -1,5 +1,8 @@
 # NHL v2.1 model card
 
+> Superseded for player features by `nhl-v2.2`, which ages player history by games played
+> instead of calendar days. See [the v2.2 report](../nhl-v2.2/README.md). Everything else below still applies.
+
 Purpose: independent hockey forecasts and push-aware price research for analysts. All
 markets remain experimental for betting. The engine does not select a mandatory number
 of picks, generate a narrative edge, place wagers, or alter sportsbook accounts.
