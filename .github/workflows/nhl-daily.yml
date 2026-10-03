@@ -61,6 +61,11 @@ jobs:
         run: |
           python scripts/nhl/analyst.py
           python scripts/nhl/v2/decisions.py grade --cached-history --output artifacts/nhl/analyst/evaluation.json
+      - name: Grade cross-market coherence signals
+        if: always() && (steps.refresh.outcome == 'success' || steps.refresh.outcome == 'failure')
+        continue-on-error: true
+        # Research ledger only: archived per-snapshot signals scored against official results.
+        run: python scripts/nhl/v2/coherence.py grade --cached-history
       - name: Grade NHL market results
         id: market_results
         if: steps.refresh.outcome == 'success' && steps.validate.outcome == 'success'

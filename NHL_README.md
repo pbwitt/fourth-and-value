@@ -35,3 +35,30 @@ deploy this rebuild without the requested approval.
 Historical references remain labeled separately. Missing models remain null, stale data
 are hidden, and feed failures do not resurrect old forecasts. Legacy leaking training
 scripts/artifacts and saved ledgers are not reused or regraded.
+
+## Cross-market coherence (research ledger)
+
+`scripts/nhl/v2/coherence.py` checks whether one player market agrees with another. Each
+market's paired no-vig price implies an expected count. The model's ratios (goals per shot,
+assists per point, share of team goals) move that count into a different market, and the
+model's count distribution prices the offer. An offer's own market never feeds its estimate.
+Team estimates fit regulation goals to the consensus moneyline and main total.
+
+Every source pair is archived and graded separately. Rule `nhl-coherence-1` flags an offer
+only when at least two mechanical links (shots and goals; goals or assists and points; team
+goals) each price it favorably and together reach 3% EV. The rule was fixed before any
+result was graded. Model-free containment checks share `arbitrage.contains`: same-book
+contradictions on the Arbitrage page and cross-book floors, where a wider bet is priced
+below the fair price of a narrower bet it contains.
+
+- Live refreshes freeze each snapshot to `artifacts/nhl/coherence/<snapshot_id>.json.gz`;
+  an existing file is never rewritten. Offline builds only write `docs/nhl/data/coherence.json`.
+- `python scripts/nhl/v2/coherence.py backfill` scores archived runs made by the current
+  model artifact. Backfills are labeled and graded as a separate cohort.
+- `python scripts/nhl/v2/coherence.py grade --cached-history` writes
+  `artifacts/nhl/coherence/evaluation.json`. It reports the log loss and Brier score of every
+  source against the market and the model on the same outcomes, with game-cluster intervals,
+  plus flat-unit results and later-snapshot price movement for flagged offers.
+
+Nothing here feeds Top Picks, Market Watch or recommendations. Using these signals there is a
+Top Picks policy change and needs the process-page update in `AGENTS.md`.

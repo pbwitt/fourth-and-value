@@ -6,6 +6,7 @@ from nhl.refresh import ROOT
 from site_metadata import metadata
 from nba.pipeline import save_json
 from nhl.v2.arbitrage import report, render
+from nhl.v2 import coherence
 
 
 def settlement_rules():
@@ -37,7 +38,8 @@ def settlement_rules():
             + (f'<p>Being checked:</p><ul>{pending}</ul>' if pending else '') + '</section>')
 
 
-def build(state):
+def build(state, archive=False):
+    """Write NHL pages; `archive` also freezes this snapshot's cross-market signals (live refreshes only)."""
     season = str(state['season'])
     label = season[:4] + '–' + season[-2:]
     pages = [('index.html', 'NHL Overview', 'overview'), ('props/index.html', 'Player Props', 'props'),
@@ -64,7 +66,16 @@ def build(state):
         elif page == 'arbitrage':
             arb = report(state)
             save_json(ROOT / 'docs/nhl/data/arbitrage.json', arb)
-            intro = render(arb)
+            try:
+                cross = coherence.report(state, coherence.params_for(state))
+                if archive:
+                    coherence.archive(cross)
+            except Exception as error:
+                # Research checks never block the arbitrage page or the rest of the site.
+                cross = dict(status='unavailable', error=type(error).__name__, rule_version=coherence.RULE_VERSION,
+                             snapshot_id=state.get('snapshot_id'))
+            save_json(ROOT / 'docs/nhl/data/coherence.json', coherence.public(cross))
+            intro = render(arb, coherence.render(cross))
         else:
             lead = {'props':'Compare shots on goal, goals, assists and points. Props appear as books post them near puck drop.',
                     'lines':'Regular-season totals, puck lines and moneylines. Historical scoring references are labeled separately.',

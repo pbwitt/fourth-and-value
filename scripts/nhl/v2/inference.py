@@ -98,6 +98,8 @@ def annotate(rows,games,players,events,models,manifest,now,history_checked_at,ro
             if roster is not None and not any(pid in roster.get(t,[]) for t in ids):
                 row['model_status']='Player not matched to this game’s current roster'; continue
             row['player_id']=pid
+            # Last recorded team, kept only when it is one of this game's teams.
+            row['player_team_id']=records[-1].get('team_id') if records[-1].get('team_id') in ids else None
             k=(g['game_id'],pid)
             if k not in cache:
                 features=state.player_features(pid,records[-1]['position'],g['game_date'],now)
@@ -165,17 +167,25 @@ def enrich(state,now,offline_inputs=None):
         state['rows']=annotate(state['rows'],games,players,state['events'],models,manifest,decision_now,checked,reviews=reviews)
         state['model_status']='Experimental independent forecasts; market blend and recommendations disabled'
         state['model_manifest']=manifest
+        # Count-distribution parameters, archived so cross-market checks can be reproduced.
+        # A failure here withholds those checks only, never the independent forecasts.
+        try:
+            from .coherence import distribution
+            state['model_distribution']=distribution(models,manifest)
+        except Exception:
+            state['model_distribution']=None
         state['model_data_checked_at']=checked
         state['model_prediction_at']=iso(decision_now)
         state['model_error']=None
     except Exception as error:
         # No exception URL or credentials; no stale model fallback.
         state['model_error']=f'Independent model unavailable ({type(error).__name__})'
+        state['model_distribution']=None
         state['model_status']=state['model_error']
         for row in state['rows']:
             for field in ['forecast_id','estimated_ev','fair_odds','fair_decimal','minimum_acceptable_odds',
                           'minimum_acceptable_decimal','push_probability','loss_probability','conditional_probability',
-                          'rank_score','analyst_probability','independent_market_difference','model_inputs']:
+                          'rank_score','analyst_probability','independent_market_difference','model_inputs','player_team_id']:
                 row[field]=None
             row.update(model_probability=None,independent_probability=None,final_probability=None,
                        model_status=state['model_error'],validation_status='unavailable',recommendation=False,

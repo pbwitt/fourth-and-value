@@ -86,36 +86,65 @@ def find_arbitrage(rows, near_miss=NEAR_MISS, stake=SAMPLE_STAKE):
     return found, close
 
 
-def find_incoherent(rows):
-    """Same-book prices that contradict a containment: B always wins when A wins.
+# Each player count is at least as large as the counts listed against it: every goal is
+# recorded as a shot on goal, and points are goals plus assists.
+AT_LEAST = {'player_goals': {'player_goals', 'player_points', 'player_shots_on_goal'},
+            'player_assists': {'player_assists', 'player_points'},
+            'player_points': {'player_points'}, 'player_shots_on_goal': {'player_shots_on_goal'},
+            'totals': {'totals'}}
 
-    - 1+ points contains 1+ goals and 1+ assists (Over 0.5).
-    - A team's moneyline contains that team winning by 2+ (puck line -1.5).
+
+def subject(row):
+    """What an offer is about: a player, a team (moneyline and puck line), or the game total."""
+    if row['market'].startswith('player_'):
+        return row.get('player_id') or row['player']
+    return row['side'] if row['market'] in ('h2h', 'spreads') else 'total'
+
+
+def contains(wide, narrow):
+    """True when every result that wins `narrow` also wins `wide`, for the same subject and rules.
+
+    Half lines only for counts, so neither bet can push. Teams: the moneyline contains the
+    puck line -1.5, and the puck line +1.5 contains the moneyline.
+    """
+    if wide is narrow or subject(wide) != subject(narrow) or wide['side'] != narrow['side']:
+        return False
+    if wide.get('settlement_profile') != narrow.get('settlement_profile'):
+        return False
+    wm, nm = wide['market'], narrow['market']
+    if 'h2h' in (wm, nm) or 'spreads' in (wm, nm):
+        return (wm, nm) == ('h2h', 'spreads') and narrow['line'] == -1.5 or (wm, nm) == ('spreads', 'h2h') and wide['line'] == 1.5
+    if wide['line'] is None or narrow['line'] is None or float(wide['line']).is_integer() or float(narrow['line']).is_integer():
+        return False
+    if (wm, wide['line']) == (nm, narrow['line']):
+        return False
+    if wide['side'] == 'Over':
+        return wm in AT_LEAST.get(nm, ()) and wide['line'] <= narrow['line']
+    return nm in AT_LEAST.get(wm, ()) and wide['line'] >= narrow['line']
+
+
+def find_incoherent(rows):
+    """Same-book prices that contradict a containment: the wider bet always wins when the narrower one does.
+
+    - Points contain goals and assists; shots on goal contain goals; at the same or a lower line.
+    - A lower Over (or higher Under) line contains a higher one in the same market.
+    - A team's moneyline contains its puck line -1.5; its puck line +1.5 contains its moneyline.
     A book implying a higher break-even for the narrower bet is underpricing the wider one.
     """
-    by_book = {}
+    groups = defaultdict(list)
     for row in rows:
-        if not _usable(row):
-            continue
-        p = 1 / decimal(row['price'])
-        if row['market'] in ('player_points', 'player_goals', 'player_assists') and row['side'] == 'Over' and row['line'] == 0.5:
-            by_book[(row['event_id'], row['book'], row['market'], row.get('player_id') or row['player'])] = (row, p)
-        elif row['market'] == 'h2h':
-            by_book[(row['event_id'], row['book'], 'h2h', row['side'])] = (row, p)
-        elif row['market'] == 'spreads' and row['line'] == -1.5:
-            by_book[(row['event_id'], row['book'], 'spread-1.5', row['side'])] = (row, p)
-    checks = [('player_points', 'player_goals'), ('player_points', 'player_assists'), ('h2h', 'spread-1.5')]
+        if _usable(row) and (row['line'] is not None or row['market'] == 'h2h'):
+            groups[(row['event_id'], row['book'], subject(row))].append((row, 1 / decimal(row['price'])))
     found = []
-    for (event, book, market, subject), (wide, wide_p) in by_book.items():
-        for wide_market, narrow_market in checks:
-            if market != wide_market or (event, book, narrow_market, subject) not in by_book:
-                continue
-            narrow, narrow_p = by_book[(event, book, narrow_market, subject)]
-            if narrow_p > wide_p:
+    for (event, book, who), offers in groups.items():
+        for wide, wide_p in offers:
+            for narrow, narrow_p in offers:
+                if narrow_p <= wide_p or not contains(wide, narrow):
+                    continue
                 gap = narrow_p - wide_p
                 found.append(dict(
                     game=wide['game'], commence_time=wide['commence_time'], book=book,
-                    book_label=wide.get('book_label', book), subject=subject,
+                    book_label=wide.get('book_label', book), subject=who,
                     wide=dict(market=wide.get('market_label', wide['market']), side=wide['side'], line=wide['line'],
                               price=wide['price'], implied_probability=wide_p),
                     narrow=dict(market=narrow.get('market_label', narrow['market']), side=narrow['side'], line=narrow['line'],
@@ -161,8 +190,11 @@ def _legs(row):
                    f' · stake ${leg["stake"]:.2f}</li>' for leg in row['legs'])
 
 
-def render(data):
-    """Static HTML body for docs/nhl/arbitrage.html; no client script required."""
+def render(data, extra=''):
+    """Static HTML body for docs/nhl/arbitrage.html; no client script required.
+
+    `extra` is a server-rendered section placed before the explanation.
+    """
     from html import escape
     arbs, check, close, incoherent = data['arbitrage'], data['needs_check'], data['near_misses'], data['incoherent']
     stale = data['feed_status'] != 'ready'
@@ -204,6 +236,7 @@ def render(data):
                      '<div class="table-wrap"><table><thead><tr><th>Game</th><th>Book</th><th>Subject</th><th>Narrower bet</th><th>Wider bet</th><th>Gap</th></tr></thead>'
                      f'<tbody>{body}</tbody></table></div></section>')
     else:
-        parts.append('<section class="section"><h2>Pricing contradictions</h2><div class="empty">No book priced 1+ goals or 1+ assists above 1+ points, or a puck line −1.5 above the same team’s moneyline.</div></section>')
-    parts.append('''<section class="help section"><h2>How this works</h2><p>For each game, market and line, we take the best price on each side across books. If the two break-even probabilities add up to less than 100%, staking each side in proportion to its probability returns the same amount whichever side wins. On whole-number lines a push refunds both legs.</p><p>A pair is counted only when both books’ NHL settlement rules are verified as the same (overtime, shootouts, player participation), and both quotes were captured within the pairing window. Limits, voids, palpable-error rules and account restrictions are not modeled. This page is separate from Top Picks and Market Watch and does not feed either.</p></section>''')
+        parts.append('<section class="section"><h2>Pricing contradictions</h2><div class="empty">No book priced a narrower bet above a wider one it sits inside: goals or assists above points, goals above shots on goal, a higher Over line above a lower one, or a puck line −1.5 above the same team’s moneyline.</div></section>')
+    parts.append(extra)
+    parts.append('''<section class="help section"><h2>How this works</h2><p>For each game, market and line, we take the best price on each side across books. If the two break-even probabilities add up to less than 100%, staking each side in proportion to its probability returns the same amount whichever side wins. On whole-number lines a push refunds both legs.</p><p>A pair is counted only when both books’ NHL settlement rules are verified as the same (overtime, shootouts, player participation), and both quotes were captured within the pairing window. Limits, voids, palpable-error rules and account restrictions are not modeled. This page is separate from Top Picks and Market Watch and does not feed either.</p><p>Cross-market checks are graded research. Every snapshot’s signals are archived under a fixed rule and scored against results; none can affect a pick until that record supports it.</p></section>''')
     return '\n'.join(p for p in parts if p)
