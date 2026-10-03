@@ -107,6 +107,13 @@ const espnSummary={header:{competitions:[espnComp('in')]},boxscore:{players:[
   assert.equal(L.findPlayer('Tre Harris',nfl).name,"Tre' Harris");
   assert.equal(L.findPlayer('Derwin James',nfl).name,'Derwin James Jr.');
   assert.equal(L.findPlayer('José Ramírez',[{name:'Jose Ramirez'}]).name,'Jose Ramirez');
+  // Initials as a first name are a full name, in either feed style.
+  for(const box of ['J.T. Miller','J. Miller','JT Miller','J. T. Miller'])
+    assert.equal(L.findPlayer('J.T. Miller',[{name:box},{name:'A. Matthews'}])?.name,box,`J.T. Miller matches ${box}`);
+  assert.equal(L.findPlayer('TJ Oshie',[{name:'T.J. Oshie'}]).name,'T.J. Oshie');
+  assert.equal(L.findPlayer('A.J. Brown',[{name:'AJ Brown'}]).name,'AJ Brown');
+  assert.equal(L.findPlayer('J.T. Miller',[{name:'J.T. Compher'}]),null);
+  assert.equal(L.findPlayer('J.T. Miller',[{name:'J. Miller'},{name:'J. Miller'}]),null,'ambiguous initials are no match');
 
   assert.deepEqual(L.marketSpec('NHL','player_shots_on_goal').stats,['sog']);
   assert.deepEqual(L.marketSpec('NHL','Shots on Goal').stats,['sog']);
