@@ -12,3 +12,9 @@ NFL totals forecasts now calculate their live L3/L5 features from completed-game
 A successful NFL run publishes props, totals, injury context and approved insights (only if requested), then explicitly rebuilds GitHub Pages. Failed data, modeling or QC steps prevent publication; diagnostics and model artifacts are retained for 30 days. MLB retains its existing 90-day model audit artifacts. The configured GitHub cache accelerates runs but is not a permanent archive.
 
 The Pirates blog post is outside these refreshes and remains unchanged.
+
+## On demand: Live Odds (private)
+
+`/live/` is not scheduled and publishes nothing. An editor account (`app_metadata.fv_editor`) picks one NHL game and presses Run now; the `live-odds` Edge Function makes one Odds API request for that game's moneyline, puck line, total and four player props from US books. The Odds API charges one credit per market returned, so a press costs at most 7 credits; listing games is free, and presses within 60 seconds reuse the same prices for free. Paid presses stop while fewer than `LIVE_ODDS_RESERVE` credits remain (default 2000), so the scheduled refreshes keep their budget. Bets tracked from the page go to Bet Tracker as ordinary tickets with no model probability.
+
+Setup: deploy `supabase/functions/live-odds` (both files; `supabase functions deploy live-odds`, or Edge Functions → Deploy a new function in the dashboard) and add `ODDS_API_KEY` under Edge Functions → Secrets. `LIVE_ODDS_RESERVE` is optional.
