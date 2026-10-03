@@ -63,7 +63,8 @@
   }
 
   function nameParts(name) {
-    const initialForm = /^([a-z])\.\s*(.+)$/i.exec(String(name).trim());   // NHL: "J. Staal"
+    // NHL: "J. Staal". Initials that are the first name ("J.T. Miller", "J. T. Miller") are a full name.
+    const initialForm = /^([a-z])\.\s+([^.\s]{2,}.*)$/i.exec(String(name).trim());
     if (initialForm) return { full: null, initial: initialForm[1].toLowerCase(), last: squash(initialForm[2]) };
     const tokens = norm(name).split(' ').filter(Boolean);
     return { full: tokens.join(''), initial: (tokens[0] || '')[0] || '', last: tokens.slice(1).join('') };
