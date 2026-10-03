@@ -16,7 +16,7 @@ import sklearn
 if __package__ in (None,''):
     sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
     __package__='nhl.v2'
-from . import VERSION, FEATURE_SCHEMA
+from . import VERSION, FEATURE_SCHEMA, evidence_dir
 from .data import ROOT, load, write_json, digest
 from .features import build, PLAYER_STATS
 from .models import TeamModel, PlayerModel, TEAM_CANDIDATES, PLAYER_CANDIDATES, game_outcome
@@ -99,7 +99,7 @@ def window(rows):
 
 
 def run(history_root,output,model_dir):
-    output=Path(output); output.mkdir(parents=True,exist_ok=True)
+    output=evidence_dir(output); output.mkdir(parents=True,exist_ok=True)
     games,players,manifests=load(history_root)
     if sorted({g['season'] for g in games}) != [20222023,20232024,20242025,20252026]:
         raise ValueError('Evaluation requires all four specified seasons; do not silently change the final test')
@@ -181,6 +181,6 @@ def run(history_root,output,model_dir):
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--history',type=Path,default=ROOT/'data/nhl/v2/history')
-    p.add_argument('--output',type=Path,default=ROOT/'reports/nhl-rebuild')
+    p.add_argument('--output',type=Path,help='Defaults to this model version\'s report folder')
     p.add_argument('--models',type=Path,default=ROOT/'models/nhl/v2')
     a=p.parse_args(); run(a.history,a.output,a.models)

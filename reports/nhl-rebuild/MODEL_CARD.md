@@ -1,7 +1,9 @@
 # NHL v2.1 model card
 
-> Superseded for player features by `nhl-v2.2`, which ages player history by games played
-> instead of calendar days. See [the v2.2 report](../nhl-v2.2/README.md). Everything else below still applies.
+> This card and the metrics in this folder describe `nhl-v2.1`. The current model, `nhl-v2.2`,
+> changes only player features: history is aged by games played instead of calendar days. Its
+> evaluation is in [the v2.2 report](../nhl-v2.2/README.md); v2.1's player metrics here do not
+> describe it. Team models are unchanged.
 
 Purpose: independent hockey forecasts and push-aware price research for analysts. All
 markets remain experimental for betting. The engine does not select a mandatory number

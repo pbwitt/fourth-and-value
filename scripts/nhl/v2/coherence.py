@@ -66,17 +66,24 @@ def distribution(models, manifest):
             return None   # No negative-binomial or Poisson marginal to invert.
         fields.append('base_means' if model.kind == 'rate_poisson' else 'opportunity_means')
         alphas.append((model.alpha_shots if j == 0 else model.alpha_scoring) if model.kind == 'opportunity_nb' else 0.)
-    return dict(means_fields=fields, alphas=alphas, ot_home=float(models['team'].ot_home),
+    return dict(version=manifest['version'], means_fields=fields, alphas=alphas, ot_home=float(models['team'].ot_home),
                 artifact_sha256=manifest['artifact_sha256'])
 
 
 def params_for(state):
-    """Distribution parameters archived with the snapshot, else the current artifact's if it made the snapshot."""
+    """Distribution parameters of the artifact that made the snapshot, or None.
+
+    Snapshots record them from v2.2 on. Older snapshots resolve through the registry of retired
+    artifacts or, when they match, the installed one; a mismatch is never filled in.
+    """
     if state.get('model_distribution'):
         return state['model_distribution']
     sha = (state.get('model_manifest') or {}).get('artifact_sha256')
     if not sha:
         return None
+    retired = ROOT/'models/nhl/v2/retired-distributions.json'
+    if retired.exists() and sha in (known := json.loads(retired.read_text())):
+        return known[sha]
     try:
         from .inference import bundle
         models, manifest = bundle()
@@ -391,17 +398,22 @@ def evaluate(records, games, players):
     """Probability quality for every source and flat-unit results for flagged offers.
 
     One observation per outcome: the first snapshot in which it was checked. Flagged offers
-    use the first snapshot that flagged them, at that snapshot's offered price. Prospective
-    and backfilled snapshots are reported separately; backfills were computed later from
-    archived quotes with this same fixed rule, never chosen by results.
+    use the first snapshot that flagged them, at that snapshot's offered price. Each model
+    version is a separate cohort, and so are prospective and backfilled snapshots; backfills
+    were computed later from archived quotes with this same fixed rule, never chosen by results.
     """
     from .grading import betting_metrics, settle
     by_game = {g['game_id']: g for g in games}
     by_player = {(r['game_id'], r['player_id']): r for r in players}
+    groups = defaultdict(list)
+    for rec in records:
+        params = rec.get('params') or {}
+        model = params.get('version') or 'artifact ' + str(params.get('artifact_sha256', 'unknown'))[:12]
+        groups[('backfilled ' if rec.get('backfilled') else 'prospective ') + model].append(rec)
     cohorts = {}
-    for label, wanted in [('prospective', False), ('backfilled', True)]:
+    for label, group in sorted(groups.items()):
         first, flags, latest = {}, {}, {}
-        for rec in sorted((r for r in records if bool(r.get('backfilled')) == wanted), key=lambda r: r['checked_at']):
+        for rec in sorted(group, key=lambda r: r['checked_at']):
             flagged_here = {}
             for e in rec['entries']:
                 k = _outcome_key(e)

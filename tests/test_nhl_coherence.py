@@ -11,7 +11,8 @@ from nhl.v2.coherence import (FLAG_EV, archive, bounds, coherence, evaluate, fit
                               implied_mean, outcome, public, render, report)
 from nhl.v2.pricing import compare
 
-PARAMS = dict(means_fields=['opportunity_means']*4, alphas=[.08, .025, .025, .025], ot_home=.52, artifact_sha256='x')
+PARAMS = dict(version='test-model', means_fields=['opportunity_means']*4, alphas=[.08, .025, .025, .025], ot_home=.52,
+              artifact_sha256='x')
 # Shots, goals, assists, points: a 10% shooter whose points are 43% goals.
 MODEL = [3.0, .3, .4, .7]
 GAME = dict(event_id='e1', commence_time='2026-10-10T23:00:00Z', home_team='Carolina Hurricanes',
@@ -202,7 +203,7 @@ class ArchiveAndGradingTests(unittest.TestCase):
         games = [dict(game_id=7, home_score=3, away_score=2)]
         players = [dict(game_id=7, player_id=99, shots=4, goals=1, assists=0, points=1)]
         result = evaluate(records, games, players)
-        prospective = result['cohorts']['prospective']
+        prospective = result['cohorts']['prospective test-model']
         self.assertIn('combined:player_goals', prospective['probability_quality'])
         self.assertIn('shots:player_goals', prospective['probability_quality'])
         # One graded ticket per flagged outcome, however many books or snapshots flagged it.
@@ -210,9 +211,9 @@ class ArchiveAndGradingTests(unittest.TestCase):
         self.assertGreater(len(outcomes), 0)
         self.assertEqual(prospective['flagged']['count'], len(outcomes))
         self.assertTrue(all(r['result'] in ('won', 'lost') for r in prospective['flagged_rows']))
-        self.assertIn('backfilled', result['cohorts'])
+        self.assertIn('backfilled test-model', result['cohorts'])
         # Unknown participation is unresolved, never a loss.
-        unresolved = evaluate(records, games, [])['cohorts']['prospective']
+        unresolved = evaluate(records, games, [])['cohorts']['prospective test-model']
         self.assertEqual(unresolved['probability_quality'], {})
         self.assertTrue(all(r['result'] == 'unresolved_participation' for r in unresolved['flagged_rows']))
 
@@ -220,14 +221,31 @@ class ArchiveAndGradingTests(unittest.TestCase):
         first = report(self.state('s1'), PARAMS)
         games = [dict(game_id=7, home_score=3, away_score=2)]
         players = [dict(game_id=7, player_id=99, shots=4, goals=1, assists=0, points=1)]
-        rows = evaluate([dict(first, backfilled=False)], games, players)['cohorts']['prospective']['flagged_rows']
+        rows = evaluate([dict(first, backfilled=False)], games, players)['cohorts']['prospective test-model']['flagged_rows']
         self.assertTrue(rows and all(r['later_consensus_move'] is None for r in rows))
         later = report(dict(self.state('s2'), checked_at='2026-10-10T20:05:00Z'), PARAMS)
         for e in later['entries']:
             e['consensus_probability'] += .02
         rows = evaluate([dict(first, backfilled=False), dict(later, backfilled=False)], games, players)
-        moves = [r['later_consensus_move'] for r in rows['cohorts']['prospective']['flagged_rows']]
+        moves = [r['later_consensus_move'] for r in rows['cohorts']['prospective test-model']['flagged_rows']]
         self.assertTrue(moves and all(abs(m-.02) < 1e-9 for m in moves))
+
+    def test_each_model_version_is_its_own_cohort(self):
+        games = [dict(game_id=7, home_score=3, away_score=2)]
+        players = [dict(game_id=7, player_id=99, shots=4, goals=1, assists=0, points=1)]
+        old = report(self.state('s1'), dict(PARAMS, version='old-model'))
+        new = report(self.state('s2'), PARAMS)
+        cohorts = evaluate([dict(old, backfilled=True), dict(new, backfilled=False)], games, players)['cohorts']
+        self.assertEqual(set(cohorts), {'backfilled old-model', 'prospective test-model'})
+
+    def test_snapshot_parameters_come_only_from_the_artifact_that_made_it(self):
+        from nhl.v2.coherence import params_for
+        retired = json.loads((Path(__file__).resolve().parents[1]/'models/nhl/v2/retired-distributions.json').read_text())
+        sha, v21 = next(iter(retired.items()))
+        self.assertEqual(params_for(dict(model_manifest=dict(artifact_sha256=sha)))['version'], 'nhl-v2.1')
+        self.assertEqual(params_for(dict(model_distribution=PARAMS, model_manifest=dict(artifact_sha256=sha))), PARAMS)
+        self.assertIsNone(params_for(dict(model_manifest=dict(artifact_sha256='unknown'))))
+        self.assertIsNone(params_for(dict()))
 
     def test_site_build_survives_a_coherence_failure(self):
         from unittest.mock import patch

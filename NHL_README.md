@@ -24,7 +24,8 @@ make nhl_test PY=.venv/bin/python
 
 Install `requirements-nhl.txt` for the pinned model stack. Restore archived source data
 with `scripts/nhl/v2/restore.py`, run `make nhl_evaluate`, and render the report with
-`scripts/nhl/v2/report.py`. Training is separate from daily inference. A bounded historical game-price sample uses the existing authorized odds plan; no
+`scripts/nhl/v2/report.py`. Both write to the current version's report folder
+(`reports/nhl-v2.2`) and refuse to overwrite an earlier version's evidence. Training is separate from daily inference. A bounded historical game-price sample uses the existing authorized odds plan; no
 upgrade or restricted xG dataset is used.
 
 Routes: `/nhl/`, `/nhl/props/`, `/nhl/totals/`, `/nhl/top.html`, `/nhl/methods.html`.

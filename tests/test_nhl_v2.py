@@ -91,6 +91,15 @@ class PointInTimeTests(unittest.TestCase):
             # The 2025-10-07 game becomes available at 12:00 UTC the next day.
             self.appearances([0]).player_features(9,'C','2025-10-08',datetime(2025,10,8,11,0,tzinfo=timezone.utc))
 
+    def test_evaluation_never_writes_into_another_versions_evidence(self):
+        from nhl.v2 import EVIDENCE, VERSION, evidence_dir
+        root=Path(__file__).resolve().parents[1]
+        self.assertEqual(evidence_dir(),root/EVIDENCE[VERSION])
+        for version,folder in EVIDENCE.items():
+            if version!=VERSION:
+                with self.assertRaises(ValueError):evidence_dir(root/folder)
+        with tempfile.TemporaryDirectory() as d:self.assertEqual(evidence_dir(d),Path(d))
+
     def test_future_history_rejected_and_dst_is_explicit(self):
         h=History();h.add_game(game(1,'2026-09-26'))
         with self.assertRaises(ValueError):h.team_features(game(2,'2026-09-26'),NOW)

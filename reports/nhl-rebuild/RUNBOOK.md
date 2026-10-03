@@ -11,6 +11,8 @@ python3.11 -m venv .venv
 .venv/bin/python scripts/nhl/v2/restore.py
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 .venv/bin/python scripts/nhl/v2/evaluate.py
 .venv/bin/python scripts/nhl/v2/report.py
+# Outputs go to the current version's folder (reports/nhl-v2.2 for nhl-v2.2). The scripts refuse
+# to write into another version's folder; this folder holds the frozen nhl-v2.1 evidence.
 .venv/bin/python -m unittest discover -s tests -p 'test_nhl*.py'
 .venv/bin/python scripts/nhl/refresh.py --offline
 .venv/bin/python scripts/site_notices.py --scope nhl
@@ -130,7 +132,7 @@ under `artifacts/nhl/historical-odds/`; rerunning the evaluation uses it without
 OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 .venv/bin/python scripts/nhl/v2/market_evaluate.py
 ```
 
-Run `restore.py` and `evaluate.py` first to reconstruct the feature cache if absent.
+Run `restore.py` and `evaluate.py` first to reconstruct the feature cache if absent. The diagnostic writes to the current version's report folder; the committed result here is the v2.1 diagnostic.
 Only `--download` permits new API calls, and the script skips saved dates, caps one run
 at 630 credits and preserves a 2,000-credit live-operation reserve. It never buys access.
 `HISTORICAL_MARKETS.md` separates timestamped quote diagnostics and shadow simulations

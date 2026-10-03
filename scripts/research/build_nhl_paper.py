@@ -37,6 +37,8 @@ def interval(values, digits=5, percent=False):
 
 def main():
     e, d, m = read('evaluation.json'), read('paired-differences.json'), read('historical-market-evaluation.json')
+    # Paper FV-2026-02 v1.1 documents nhl-v2.1; later models publish their own evidence.
+    assert e['version'] == 'nhl-v2.1', f"{REPORT} must hold nhl-v2.1 evidence, found {e['version']}"
     assert e['selection']['team'] == 'poisson_core'
     assert e['selection']['shots'] == e['selection']['scoring'] == 'opportunity_nb'
     assert e['selection']['market_weight'] == 0 and not e['selection']['recommendations_enabled']
