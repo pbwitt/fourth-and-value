@@ -114,6 +114,10 @@ class ModelTests(unittest.TestCase):
         self.assertIsNone(result['rows'][0]['model_probability'])
         self.assertFalse(result['rows'][0]['is_model_pick'])
         self.assertIn('probable starters',result['rows'][0]['model_status'])
+        g.update(home_pitcher={'id':11,'fullName':'Pitcher home'},away_pitcher={'id':99,'fullName':'Opener Arm'},away_team='Visitors')
+        result=attach(dict(rows=[row],events=[g]),NOW,lambda endpoint:lineup_box(),bundle)
+        self.assertEqual(result['rows'][0]['model_status'],
+            'Insufficient starting-pitcher history: Opener Arm (Visitors) has 0 starts in the past year (minimum three)')
 
     def test_held_out_dates_are_disjoint_and_worse_than_reference_fails(self):
         samples={'team_runs':[dict(date=f'2026-08-{d:02}',game_type='R') for d in range(1,31)]}

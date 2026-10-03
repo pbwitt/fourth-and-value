@@ -108,6 +108,33 @@ class EditorialTests(unittest.TestCase):
         self.assertIn('Book prices pulled Sep 22, 8:00 AM ET',c['pulled_label'])
         html=m.ENV.get_template('briefing.html').render(**c,title='t',url='/',evidence_url='/',live_picks=False)
         self.assertNotIn('matched books',html);self.assertIn('Lowest line',html)
+    def test_lone_book_total_does_not_set_the_range(self):
+        e=event()
+        e['bookmakers']=[{'key':k,'title':k.title(),'last_update':NOW.isoformat(),'markets':[{'key':'totals','outcomes':[
+            {'name':'Over','point':p,'price':o},{'name':'Under','point':p,'price':u}]}]}
+            for k,p,o,u in [('a',5.5,-135,114),('b',5.5,-140,120),('c',6.0,-110,-110),('d',6.0,-108,-108),('fan',6.5,115,-140)]]
+        g=m.summarize_events('NHL',[e],NOW,{})
+        c=m.context({'generated_at':NOW.isoformat(),'games':g},NOW,model_totals={})
+        row=c['games'][0]
+        self.assertEqual((row['high']['label'],row['high']['line']),('D',6.0))
+        self.assertEqual([(x['label'],x['line']) for x in row['high']['lone']],[('Fan',6.5)])
+        self.assertEqual((row['low']['label'],row['low']['line'],row['low']['lone']),('A',5.5,[]))
+        self.assertIn('Highest under total: D · Under 6 (-108)',c['cards'][0]['prices'][1])
+        html=m.ENV.get_template('briefing.html').render(**c,title='t',url='/',evidence_url='/',live_picks=False)
+        self.assertIn('Only Fan: 6.5 (O +115 / U -140)',html)
+        # Three or fewer books keep the full range.
+        three=m.summarize_events('NFL',[event()],NOW,{})
+        self.assertEqual(m.context({'generated_at':NOW.isoformat(),'games':three},NOW,model_totals={})['games'][0]['high']['line'],41.5)
+    def test_price_movement_summary_is_fresh_and_observed_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);(root/'mlb/data').mkdir(parents=True);(root/'nhl/data').mkdir(parents=True)
+            summary=dict(picks=5,observed=4,same_line=3,same_line_beat=2,average_probability_move=.021,line_moves=1,line_moves_favorable=1)
+            (root/'mlb/data/line-movement.json').write_text(json.dumps(dict(updated_at=NOW.isoformat(),summary=summary)))
+            (root/'nhl/data/line-movement.json').write_text(json.dumps(dict(updated_at=(NOW-timedelta(days=4)).isoformat(),summary=summary)))
+            rows=m.line_movement(NOW,root)
+        self.assertEqual([(r['sport'],r['beat'],r['same_line'],r['average']) for r in rows],[('MLB',2,3,'+2.1 pp')])
+        html=m.ENV.get_template('briefing.html').render(games=[],movement=rows,coverage={},news=[],sports=[],title='t',url='/',evidence_url='/',live_picks=False)
+        self.assertIn('Price movement after our picks',html);self.assertIn('2 of 3',html)
     def test_rundown_shows_fresh_nhl_model_total_only(self):
         board={'status':'ready','model_error':None,'model_prediction_at':(NOW-timedelta(hours=1)).isoformat(),'model_version':'nhl-test',
                'rows':[{'event_id':'abc','player':'','projected_home_reg_goals':3.0,'projected_away_reg_goals':3.0},

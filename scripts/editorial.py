@@ -121,7 +121,8 @@ def market_cards(games):
     if not games:return []
     selected=[];used=set()
     movers=sorted((g for g in games if g.get('change')),key=lambda g:-abs(g['change'])/g['median'])
-    gaps=sorted((g for g in games if g['maximum']>g['minimum']),key=lambda g:-(g['maximum']-g['minimum'])/g['median'])
+    spread=lambda g:max(q['line'] for q in supported_quotes(g))-min(q['line'] for q in supported_quotes(g)) if g.get('quotes') else g['maximum']-g['minimum']
+    gaps=sorted((g for g in games if spread(g)>0),key=lambda g:-spread(g)/g['median'])
     for kind,pool in [('Movement',movers),('Book disagreement',gaps),('Next up',sorted(games,key=lambda g:g['commence_time']))]:
         g=next((g for g in pool if g['id'] not in used),None)
         if not g:continue
@@ -130,12 +131,13 @@ def market_cards(games):
             since=stamp(g['change_from']).astimezone(ETZ).strftime('%b %d at %I:%M %p ET') if g.get('change_from') else 'the previous snapshot'
             text=f"The matched-book median moved {'up' if g['change']>0 else 'down'} {abs(g['change']):g} since {since}. The current all-book median is {g['median']:g}; this measures movement, not its cause."
         elif kind=='Book disagreement':
-            text=f"A {g['maximum']-g['minimum']:g}-point gap separates the lowest and highest totals across {len(g['books'])} books. The number available depends on where you bet; compare the attached prices too."
+            text=f"A {spread(g):g}-point gap separates the lowest and highest totals shared by at least two of {len(g['books'])} books." if supported_quotes(g) is not g.get('quotes') else f"A {spread(g):g}-point gap separates the lowest and highest totals across {len(g['books'])} books."
+            text+=" The number available depends on where you bet; compare the attached prices too."
         else:
             text=f"Starts {g['start_label']}. "
             text+=(f"All {len(g['books'])} books show a total of {g['median']:g}; the prices can still differ." if g['minimum']==g['maximum'] else f"Books show totals from {g['minimum']:g} to {g['maximum']:g}, with a median of {g['median']:g}.")
             if g.get('change')==0:text+=' No net change in the matched-book median since the previous check.'
-        quotes=g.get('quotes',[]);prices=[]
+        quotes=supported_quotes(g);prices=[]
         if quotes:
             low=min(quotes,key=lambda q:(q['line'],-q['over_price']))
             high=max(quotes,key=lambda q:(q['line'],q['under_price']))
@@ -147,13 +149,30 @@ def market_cards(games):
 def american(price):
     return f'{price:+d}' if isinstance(price,int) else f'{price:+g}'
 
-def edge_quote(g,side):
-    # Lowest total with the best Over price, or highest total with the best Under price.
+def supported_quotes(g):
+    """With four or more books, a total posted by one book alone does not set the range.
+
+    Books move their main number at different juice thresholds, so a lone book one hook
+    above everyone else is usually the same view priced on the other side, not a better line."""
     quotes=g.get('quotes',[])
+    if len(quotes)<4:return quotes
+    counts={}
+    for q in quotes:counts[q['line']]=counts.get(q['line'],0)+1
+    shared=[q for q in quotes if counts[q['line']]>=2]
+    return shared or quotes
+
+def quote_view(q):
+    return dict(label=q['label'],line=q['line'],over=american(q['over_price']),under=american(q['under_price']))
+
+def edge_quote(g,side):
+    # Lowest total with the best Over price, or highest total with the best Under price,
+    # among lines at least two books share; lone-book lines beyond it are listed separately.
+    quotes=supported_quotes(g)
     if not quotes:return None
     line=min(q['line'] for q in quotes) if side=='over' else max(q['line'] for q in quotes)
     q=max((q for q in quotes if q['line']==line),key=lambda q:(q[f'{side}_price'],q['label']))
-    return dict(label=q['label'],line=q['line'],over=american(q['over_price']),under=american(q['under_price']))
+    lone=sorted((x for x in g.get('quotes',[]) if (x['line']<line if side=='over' else x['line']>line)),key=lambda x:x['line'])
+    return dict(quote_view(q),lone=[quote_view(x) for x in lone])
 
 def pulled_label(games):
     times=sorted(stamp(q['quoted_at']).astimezone(ETZ) for g in games for q in g.get('quotes',[]))
@@ -182,6 +201,20 @@ def nhl_model_totals(now,path=None):
         totals[row['event_id']]=dict(total=home+away+tie,home=home,away=away,version=row.get('model_version') or board.get('model_version'))
     return totals
 
+def line_movement(now,root=None):
+    """Per-sport summary of how prices moved after published picks (scripts/line_movement.py)."""
+    rows=[]
+    for sport in ['MLB','NHL']:
+        try:ledger=json.loads(((root or DOCS)/sport.lower()/'data/line-movement.json').read_text())
+        except (OSError,ValueError):continue
+        updated=stamp(ledger['updated_at']) if ledger.get('updated_at') else None
+        s=ledger.get('summary') or {}
+        if not updated or not timedelta(0)<=now-updated<=timedelta(days=3) or not s.get('observed'):continue
+        avg=s.get('average_probability_move')
+        rows.append(dict(sport=sport,observed=s['observed'],picks=s['picks'],same_line=s.get('same_line',0),beat=s.get('same_line_beat',0),
+            average=f'{100*avg:+.1f} pp' if isinstance(avg,(int,float)) else '—',line_moves=s.get('line_moves',0),line_favorable=s.get('line_moves_favorable',0)))
+    return rows
+
 def context(data,now,model_totals=None):
     # Even a non-refresh render must not revive stale or already-started quotes.
     games=[]
@@ -197,7 +230,7 @@ def context(data,now,model_totals=None):
     date=stamp(data['generated_at']).astimezone(ETZ) if data.get('generated_at') else now.astimezone(ETZ)
     return dict(date_label=date.strftime('%A, %B %d'),snapshot_label='Prices checked '+date.strftime('%b %d at %I:%M %p ET')+(' · refresh pending' if not fresh else ''),
         summary=f"{len(games)} upcoming games checked · {divided} with different totals across books." if games else 'No upcoming games currently have fresh, comparable totals. The next scheduled price check will update this board.',
-        cards=cards,games=games,pulled_label=pulled_label(games),sports=sorted({g['sport'] for g in games}),news=news[:10],coverage=data.get('coverage',{}))
+        cards=cards,games=games,pulled_label=pulled_label(games),movement=line_movement(now),sports=sorted({g['sport'] for g in games}),news=news[:10],coverage=data.get('coverage',{}))
 
 def featured_now(article,now):
     if article['kind']=='Opinion':return False
