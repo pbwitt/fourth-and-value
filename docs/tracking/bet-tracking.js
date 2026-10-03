@@ -150,3 +150,17 @@ function betTrackerSummary(bets) {
     winRate:settled.length?100*settled.filter(b=>b.status==='won').length/settled.length:0};
 }
 window.betTrackerSummary=betTrackerSummary;
+
+// One game date's totals: everything staked, graded payouts (stake included) on settled
+// bets, and what pending bets would return if they all won.
+function betDayTotals(bets) {
+  const settled=bets.filter(b=>['won','lost','push'].includes(b.status)),pending=bets.filter(b=>!['won','lost','push','void'].includes(b.status));
+  const sum=(list,f)=>list.reduce((total,b)=>total+(Number.isFinite(f(b))?f(b):0),0);
+  const win=b=>{const odds=Number(b.odds),stake=Number(b.stake_dollars||0);return Math.abs(odds)>=100?stake+(odds>0?stake*odds/100:stake*100/Math.abs(odds)):NaN;};
+  const payout=sum(settled,b=>Number(b.payout||0)),settledStake=sum(settled,b=>Number(b.stake_dollars||0));
+  return {bets:bets.length,staked:sum(bets,b=>Number(b.stake_dollars||0)),payout,profitLoss:payout-settledStake,
+    won:settled.filter(b=>b.status==='won').length,lost:settled.filter(b=>b.status==='lost').length,
+    push:settled.filter(b=>b.status==='push').length,pending:pending.length,pendingStaked:sum(pending,b=>Number(b.stake_dollars||0)),
+    pendingPotential:sum(pending,win)};
+}
+window.betDayTotals=betDayTotals;
