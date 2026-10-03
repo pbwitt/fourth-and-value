@@ -108,6 +108,24 @@ class EditorialTests(unittest.TestCase):
         self.assertIn('Book prices pulled Sep 22, 8:00 AM ET',c['pulled_label'])
         html=m.ENV.get_template('briefing.html').render(**c,title='t',url='/',evidence_url='/',live_picks=False)
         self.assertNotIn('matched books',html);self.assertIn('Lowest line',html)
+    def test_rundown_shows_fresh_nhl_model_total_only(self):
+        board={'status':'ready','model_error':None,'model_prediction_at':(NOW-timedelta(hours=1)).isoformat(),'model_version':'nhl-test',
+               'rows':[{'event_id':'abc','player':'','projected_home_reg_goals':3.0,'projected_away_reg_goals':3.0},
+                       {'event_id':'abc','player':'','projected_home_reg_goals':9.0,'projected_away_reg_goals':9.0}]}
+        with tempfile.TemporaryDirectory() as tmp:
+            path=Path(tmp)/'nhl.json';path.write_text(json.dumps(board))
+            totals=m.nhl_model_totals(NOW,path)
+            # Regulation ties add exactly one settlement goal: P(tie | Poisson 3,3) is about 0.1667.
+            self.assertAlmostEqual(totals['abc']['total'],6.1667,places=3)
+            self.assertEqual(m.nhl_model_totals(NOW+timedelta(hours=37),path),{})
+            path.write_text(json.dumps(dict(board,model_error='Independent model unavailable')))
+            self.assertEqual(m.nhl_model_totals(NOW,path),{})
+        for sport,shown in [('NHL',True),('NFL',False)]:
+            g=m.summarize_events(sport,[event()],NOW,{})
+            c=m.context({'generated_at':NOW.isoformat(),'games':g},NOW,model_totals=totals)
+            html=m.ENV.get_template('briefing.html').render(**c,title='t',url='/',evidence_url='/',live_picks=False)
+            self.assertIn('<th>Model total</th>',html)
+            self.assertEqual('<strong>6.17</strong>' in html,shown)
     def test_equal_lines_are_not_labeled_disagreement(self):
         e=event()
         for book in e['bookmakers']:

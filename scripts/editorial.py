@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 import json
 import html as html_lib
+import math
 import os
 from pathlib import Path
 import re
@@ -163,14 +164,33 @@ def pulled_label(games):
     if day:return f'Book prices pulled {day}, '+(first if first==last else f'{first}–{last}')+' ET'
     return f"Book prices pulled {times[0]:%b} {times[0].day} {first} – {times[-1]:%b} {times[-1].day} {last} ET"
 
-def context(data,now):
+def nhl_model_totals(now,path=None):
+    """Expected full-game goals per Odds API event from the current NHL model board.
+
+    Mirrors TeamModel.joint: independent Poisson regulation scores, plus exactly one
+    OT/shootout settlement goal whenever regulation ends tied. Expired or failed
+    forecasts are omitted rather than shown beside current prices."""
+    path=path or DOCS/'nhl/data/latest.json'
+    try:board=json.loads(path.read_text());made=stamp(board['model_prediction_at'])
+    except (OSError,ValueError,KeyError,TypeError,AttributeError):return {}
+    if board.get('status')!='ready' or board.get('model_error') or not timedelta(0)<=now-made<=timedelta(hours=36):return {}
+    totals={}
+    for row in board.get('rows',[]):
+        home,away=row.get('projected_home_reg_goals'),row.get('projected_away_reg_goals')
+        if row.get('player') or row.get('event_id') in totals or not all(isinstance(x,(int,float)) and 0<x<18 for x in [home,away]):continue
+        tie=sum(math.exp(-home-away)*(home*away)**n/math.factorial(n)**2 for n in range(48))
+        totals[row['event_id']]=dict(total=home+away+tie,home=home,away=away,version=row.get('model_version') or board.get('model_version'))
+    return totals
+
+def context(data,now,model_totals=None):
     # Even a non-refresh render must not revive stale or already-started quotes.
     games=[]
+    model_totals=nhl_model_totals(now) if model_totals is None else model_totals
     fresh=bool(data.get('generated_at')) and timedelta(0)<=now-stamp(data['generated_at'])<=timedelta(hours=6)
     if fresh:
         for g in data.get('games',[]):
             if stamp(g['commence_time'])>now and all(timedelta(0)<=now-stamp(q['quoted_at'])<=timedelta(hours=6) for q in g.get('quotes',[])):
-                games.append(dict(g,low=edge_quote(g,'over'),high=edge_quote(g,'under')))
+                games.append(dict(g,low=edge_quote(g,'over'),high=edge_quote(g,'under'),model=model_totals.get(g['id']) if g['sport']=='NHL' else None))
     news=[n for n in data.get('news',[]) if timedelta(0)<=now-stamp(n['published_at'])<=timedelta(hours=36)]
     cards=market_cards(games)
     divided=sum(g['maximum']>g['minimum'] for g in games)
