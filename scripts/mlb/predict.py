@@ -105,8 +105,12 @@ def attach(state, now, fetch_box, bundle=None):
             if any(x['team_team_games']<10 or x['opp_team_games']<10 for x in features.values()):
                 raise ValueError('Insufficient recent team history')
             # Both starters are important even for game lines and opposing hitter props.
-            if any(x['starter_starts']<3 for x in features.values()):
-                raise ValueError('Insufficient starting-pitcher history (minimum three starts)')
+            # Name the pitcher: a reliever making a start reads differently from a data gap.
+            short=[game[s+'_pitcher']['fullName']+(f" ({game[s+'_team']})" if game.get(s+'_team') else '')
+                   +f" has {x['starter_starts']} start{'' if x['starter_starts']==1 else 's'}"
+                   for s,x in features.items() if x['starter_starts']<3]
+            if short:
+                raise ValueError('Insufficient starting-pitcher history: '+'; '.join(short)+' in the past year (minimum three)')
             distributions = {s:pmf(means(models['team_runs'],[{'x':features[s]}]),models['team_runs'])[0] for s in features}
             matrix = joint(distributions['home'],distributions['away'])
             lineups = {}

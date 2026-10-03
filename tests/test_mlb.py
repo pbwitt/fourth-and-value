@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from mlb.refresh import (SPORT, MARKETS, PROPS, PHASES, FeedError, compare, context, flatten,
-                         history_lookup, iso, load_history, match_events, refresh, schedule, validate)
+                         history_lookup, iso, load_history, starter_roles, match_events, refresh, schedule, validate)
 
 NOW = datetime(2026, 9, 21, 12, tzinfo=timezone.utc)
 GAME = dict(mlb_game_id=1, season=2026, game_type='R', phase='Regular season',
@@ -63,6 +63,18 @@ class MLBTests(unittest.TestCase):
         self.assertIsNone(row['model_probability'])
         self.assertEqual(row['stat_context']['innings'],'5.2')
 
+    def test_reliever_making_a_start_is_flagged(self):
+        game={**GAME,'away_pitcher':{'id':2,'fullName':'Relief Arm'},'away_team':'Athletics'}
+        history={'pitching':{'reliefarm':dict(player_id=2,stat=dict(gamesPlayed=18,gamesStarted=1,outs=84)),
+                             'testpitcher':dict(player_id=1,stat=dict(gamesPlayed=30,gamesStarted=30,outs=520))}}
+        roles=starter_roles(game,history)
+        self.assertEqual(roles,[dict(side='away',player_id=2,name='Relief Arm',team='Athletics',role='mostly_relief',
+            games=18,starts=1,innings_per_appearance=1.6)])
+        # A same-name record for a different player is never attributed.
+        history['pitching']['reliefarm']['player_id']=3
+        self.assertEqual(starter_roles(game,history),[])
+        game['starter_roles']=roles
+        self.assertEqual(context(dict(player='',market='totals'),game,{})['starter_roles'],roles)
     def test_missing_and_ambiguous_stats_do_not_invent_probabilities(self):
         self.assertIsNone(context(dict(player='Unknown',market='batter_hits'),GAME,{})['stat_context'])
         h=dict(fetched_at=iso(NOW),season=2026,groups={'hitting':[dict(name='Same Name',player_id=1),dict(name='Same Name',player_id=2)]})

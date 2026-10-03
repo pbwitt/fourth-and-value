@@ -264,6 +264,15 @@ started 4+ hours ago; unmatched players, unsupported markets and postponed games
 stay pending. Do not claim intervention ROI without unambiguous identity joins and
 complete outcomes. No private tracker records are read or written by this runner.
 
+Price movement after publication: each MLB and NHL refresh runs
+`scripts/line_movement.py`, which keeps, for every pick on a card published in the
+last four days, the latest snapshot ingested after publication and before the start
+(`docs/{mlb,nhl}/data/line-movement.json`). It records the same book's line and price
+and other books' fair probability at the pick's exact line; a changed line is a
+separate line move, never a same-line probability change. With refreshes at 7:05 a.m.
+and 4:30 p.m. ET this is the latest pregame snapshot held, not the closing line. The
+briefing summarizes it; it does not change selection, ranking or review.
+
 ## Release, monitoring and rollback
 
 After authorized release, dispatch `Morning Picks Edition` to exercise the full

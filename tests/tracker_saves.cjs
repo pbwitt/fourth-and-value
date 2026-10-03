@@ -10,10 +10,10 @@ function setup(){
     select:()=>{const query={eq:(k,v)=>{state.filters.push([k,v]);return query;},maybeSingle:async()=>({data:state.existing,error:null})};return query;}
   })};
   const window={supabase:{createClient:()=>client}},ctx={window,console,alert:()=>{},confirm:()=>false};
-  vm.runInNewContext(script,ctx);return {save:window.saveTrackedBet,summary:window.betTrackerSummary,state};
+  vm.runInNewContext(script,ctx);return {save:window.saveTrackedBet,summary:window.betTrackerSummary,dayTotals:window.betDayTotals,state};
 }
 (async()=>{
- const {save,summary,state}=setup(),bet={id:'b7c9ba55-1234-4234-8234-123456789abc',user_id:'intruder',league:'MLB',game_date:'2026-09-26',
+ const {save,summary,dayTotals,state}=setup(),bet={id:'b7c9ba55-1234-4234-8234-123456789abc',user_id:'intruder',league:'MLB',game_date:'2026-09-26',
    team_home:'Home',team_away:'Away',market_type:'h2h',side:'Home',line:null,book:'book',odds:146,stake_dollars:25,model_prob:0,edge_bps:0};
  state.user=null;assert.equal((await save(bet)).needsSignIn,true);assert.equal(state.rows.length,0);
  state.user={id:'owner'};assert.equal((await save({...bet,odds:50})).ok,false);assert.equal(state.rows.length,0);
@@ -36,5 +36,10 @@ function setup(){
  const stats=summary([{status:'pending',stake_dollars:100},{status:'won',stake_dollars:10,payout:20},{status:'lost',stake_dollars:5,payout:0}]);
  assert.equal(stats.totalStaked,115);assert.equal(stats.profitLoss,5);assert(Math.abs(stats.roi-100/3)<1e-9);
  assert.equal(summary([{status:'pending',stake_dollars:100}]).profitLoss,0);
+ // Daily totals: total staked, graded payout on settled bets, and pending upside.
+ const day=dayTotals([{status:'won',stake_dollars:10,payout:19.09,odds:-110},{status:'lost',stake_dollars:20,payout:0,odds:120},
+   {status:'push',stake_dollars:5,payout:5,odds:-105},{status:'pending',stake_dollars:25,odds:150},{status:'pending',stake_dollars:10,odds:null}]);
+ assert.deepEqual([day.bets,day.staked,day.won,day.lost,day.push,day.pending,day.pendingStaked],[5,70,1,1,1,2,35]);
+ assert.equal(day.payout,24.09);assert.equal(Math.round(day.profitLoss*100)/100,-10.91);assert.equal(day.pendingPotential,62.5);
  console.log('PASS: tracker auth, account ownership, nullable moneylines, validation, failed saves, duplicate protection and player teams.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

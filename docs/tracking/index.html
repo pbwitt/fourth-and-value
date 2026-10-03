@@ -204,6 +204,15 @@
     tr:hover {
       background: #222;
     }
+    /* Desktop day subtotal rows: totals sit under the Stake and Payout columns. */
+    tr.day-row, tr.day-row:hover { background: #12202a; }
+    tr.day-row th, tr.day-row td { padding: 0.7rem 1rem; border-top: 2px solid #2a3a44; border-bottom: 1px solid #2a3a44; color: #eee; font-size: 0.875rem; white-space: nowrap; }
+    tr.day-row th { background: none; font-weight: 700; }
+    .day-sub { color: #999; font-weight: 400; margin-left: 0.5rem; }
+    .day-total { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .day-row .pl-pos { color: #66BB6A; }
+    .day-row .pl-neg { color: #ff6b6b; }
+    .day-note { display: block; color: #999; font-weight: 400; font-size: 0.75rem; margin-top: 0.15rem; }
     .status-badge {
       display: inline-block;
       padding: 0.25rem 0.75rem;
@@ -648,7 +657,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="bet-tracking.js?v=4"></script>
+  <script src="bet-tracking.js?v=5"></script>
   <script src="live-feeds.js?v=1"></script>
   <script src="live-stats.js?v=4"></script>
   <script src="../assets/offer-tracker.js?v=2"></script>
@@ -748,7 +757,19 @@
         return;
       }
 
-      tbody.innerHTML = list.map((bet) => `
+      const dayRow=(date,bets)=>{
+        const t=betDayTotals(bets);
+        const settled=t.won+t.lost+t.push;
+        const record=[settled?t.won+'–'+t.lost+(t.push?'–'+t.push:''):'',t.pending?t.pending+' pending':''].filter(Boolean).join(' · ');
+        return `<tr class="day-row">
+          <th scope="rowgroup" colspan="9">${esc(dateLabel(date))}<span class="day-sub">${t.bets} bet${t.bets===1?'':'s'}</span></th>
+          <td><span class="day-total">${esc(money(t.staked))}</span><span class="day-note">total bet</span></td>
+          <td colspan="2">${esc(record)}${settled?`<span class="day-note">P/L <span class="${t.profitLoss>0?'pl-pos':t.profitLoss<0?'pl-neg':''}">${esc(signedMoney(t.profitLoss))}</span></span>`:''}</td>
+          <td><span class="day-total">${esc(money(t.payout))}</span><span class="day-note">${!t.pending?'total payout':settled?`paid · ${esc(money(t.pendingPotential))} more if pending bets win`:`none settled · ${esc(money(t.pendingPotential))} if all win`}</span></td>
+          <td></td>
+        </tr>`;
+      };
+      const betRow=(bet) => `
         <tr>
           <td>${text(bet.game_date)}</td>
           <td>${text(bet.league)}</td>
@@ -765,7 +786,8 @@
           <td>${bet.payout != null ? '$' + text(bet.payout) : '-'}</td>
           <td><button onclick="deleteBet('${bet.id}')" style="background:#d32f2f;color:white;border:none;padding:0.3rem 0.6rem;border-radius:3px;cursor:pointer;font-size:0.8rem;">Delete</button></td>
         </tr>
-      `).join('');
+      `;
+      tbody.innerHTML = betsByDate().map(([date,bets])=>dayRow(date,bets)+bets.map(betRow).join('')).join('');
     }
 
     // ---- Mobile cards + shareable image -------------------------------------

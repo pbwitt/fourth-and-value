@@ -79,6 +79,11 @@ jobs:
             artifacts/nhl/
           retention-days: 90
           if-no-files-found: ignore
+      - name: Record price movement on published picks
+        if: steps.validate.outcome == 'success'
+        continue-on-error: true
+        # Latest pregame quote for each recent card pick; read by the briefing.
+        run: python scripts/line_movement.py --sport nhl
       - name: Include responsible-use notices
         id: notices
         if: always()

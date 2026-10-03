@@ -134,6 +134,28 @@ def history_lookup(history, now):
     return result
 
 
+def starter_roles(game, history):
+    """Flag probable starters whose regular season was mostly relief or very few starts.
+
+    Descriptive only: a reliever making a start usually means a short outing and more
+    bullpen innings, which the full-game markets depend on."""
+    roles = []
+    for side in ['away', 'home']:
+        pitcher = game.get(side+'_pitcher') or {}
+        record = history.get('pitching', {}).get(normal_name(pitcher.get('fullName', '')))
+        if not record or record['player_id'] != pitcher.get('id'):
+            continue
+        stats = record['stat']
+        games, starts = stats.get('gamesPlayed') or 0, stats.get('gamesStarted') or 0
+        outs = stats.get('outsPitched', stats.get('outs', 0)) or 0
+        if not games or (starts >= 3 and 2*starts >= games):
+            continue
+        roles.append(dict(side=side, player_id=pitcher['id'], name=pitcher['fullName'], team=game.get(side+'_team'),
+            role='mostly_relief' if 2*starts < games else 'few_starts', games=games, starts=starts,
+            innings_per_appearance=round(outs/3/games, 1)))
+    return roles
+
+
 def context(row, game, history):
     row.update(market_family='props' if row['market'] in PROPS else 'lines',
                mlb_game_id=game['mlb_game_id'], game_type=game['game_type'], phase=game['phase'],
@@ -141,7 +163,8 @@ def context(row, game, history):
                game_number=game['game_number'], doubleheader=game['doubleheader'],
                if_necessary=game.get('if_necessary', False), series_game=game.get('series_game'),
                venue=game['venue'], lineup_status=game['lineup_status'],
-               model_probability=None, model_status='Forecast pending model checks', stat_context=None)
+               model_probability=None, model_status='Forecast pending model checks', stat_context=None,
+               starter_roles=game.get('starter_roles', []))
     if game['doubleheader']:
         row['game'] += f" · Game {game['game_number']}"
     group = 'pitching' if row['market'].startswith('pitcher_') else 'hitting'
@@ -173,6 +196,8 @@ def refresh(client, now, games, history):
     accepted = {e['id']:g for e,g in matches}
     rows = []
     lookup = history_lookup(history, now)
+    for game in games:
+        game['starter_roles'] = starter_roles(game, lookup)
     def add(event, game):
         for row in flatten(event, now, SPORT, MARKETS, list(PROPS)):
             if now - timestamp(row['quoted_at']) <= timedelta(hours=12):

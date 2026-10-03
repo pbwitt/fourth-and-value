@@ -25,6 +25,8 @@ on:
       - 'tests/briefing_picks.cjs'
       - 'tests/briefing_browser.cjs'
       - 'tests/test_editorial*.py'
+      - 'scripts/line_movement.py'
+      - 'tests/test_line_movement.py'
       - 'tests/editorial_permissions.cjs'
       - 'tests/editorial_dispatch.cjs'
       - 'supabase/functions/editorial-write-now/**'
@@ -53,6 +55,7 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - run: python -m unittest discover -s tests -p 'test_editorial*.py'
+      - run: python -m unittest discover -s tests -p 'test_line_movement.py'
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
