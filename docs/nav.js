@@ -1,4 +1,4 @@
-// docs/nav.js (v=47) — site navigation and footer social links
+// docs/nav.js (v=48) — site navigation and footer social links
 (function () {
   // --- Find script & compute base (works locally and deployed) ---
   const scriptEl =
@@ -209,7 +209,10 @@
         { href: `${base}/mlb/methods.html`, label: 'MLB Methods' },
       ]
     },
-    { type: 'link', href: `${base}/markets/`, label: 'Market Analytics' },
+    { type: 'dropdown', label: 'Markets', className: 'markets-menu', items: [
+      { href: `${base}/markets/`, label: 'Market Analytics' },
+      { href: `${base}/prediction-markets/`, label: 'Prediction Markets' },
+    ] },
     {
       // Everything to read or watch, in one place.
       type: 'dropdown', label: 'Reading Room', className: 'reading-room',
