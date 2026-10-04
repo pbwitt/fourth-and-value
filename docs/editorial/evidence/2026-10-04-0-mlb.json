@@ -1,0 +1,216 @@
+{
+  "as_of": "2026-10-04T11:09:36.484183+00:00",
+  "sport": "MLB",
+  "data_readiness": {
+    "ready": true,
+    "briefing_at": "2026-10-04T11:09:26.085582+00:00",
+    "board_at": "2026-10-04T11:07:05.934605Z",
+    "model_checked_at": "2026-10-04T11:07:09.074775Z",
+    "required_history_through": "2026-10-03",
+    "history_through": "2026-10-03",
+    "reason": "Current data checks passed"
+  },
+  "markets": [
+    {
+      "id": "total-6da40e91a31110e51e84ba5671996deb",
+      "sport": "MLB",
+      "game": "San Diego Padres @ Milwaukee Brewers",
+      "commence_time": "2026-10-04T20:00:00+00:00",
+      "start_label": "Sun 04:00 PM ET",
+      "median": 7.0,
+      "minimum": 7.0,
+      "maximum": 7.5,
+      "books": {
+        "fanduel": 7.5,
+        "fanatics": 7.0,
+        "betmgm": 7.0,
+        "draftkings": 7.0,
+        "mybookieag": 7.0,
+        "bovada": 7.0,
+        "betrivers": 7.0,
+        "williamhill_us": 7.0,
+        "lowvig": 7.0,
+        "betonlineag": 7.0,
+        "betus": 7.0
+      },
+      "quotes": [
+        {
+          "book": "williamhill_us",
+          "label": "Caesars",
+          "line": 7.0,
+          "over_price": -108,
+          "under_price": -109,
+          "quoted_at": "2026-10-04T11:08:34+00:00"
+        },
+        {
+          "book": "betrivers",
+          "label": "BetRivers",
+          "line": 7.0,
+          "over_price": -109,
+          "under_price": -112,
+          "quoted_at": "2026-10-04T11:08:44+00:00"
+        },
+        {
+          "book": "betus",
+          "label": "BetUS",
+          "line": 7.0,
+          "over_price": -115,
+          "under_price": -105,
+          "quoted_at": "2026-10-04T11:08:30+00:00"
+        },
+        {
+          "book": "fanduel",
+          "label": "FanDuel",
+          "line": 7.5,
+          "over_price": 116,
+          "under_price": -142,
+          "quoted_at": "2026-10-04T11:09:00+00:00"
+        }
+      ],
+      "previous_books": {},
+      "change_from": "2026-10-03T22:50:49.052428+00:00",
+      "change": null,
+      "change_label": "First comparable snapshot",
+      "low": {
+        "label": "Caesars",
+        "line": 7.0,
+        "over": "-108",
+        "under": "-109",
+        "lone": []
+      },
+      "high": {
+        "label": "LowVig.ag",
+        "line": 7.0,
+        "over": "-113",
+        "under": "-102",
+        "lone": [
+          {
+            "label": "FanDuel",
+            "line": 7.5,
+            "over": "+116",
+            "under": "-142"
+          }
+        ]
+      },
+      "model": null,
+      "quote_selection": "Selected books only; range/median use all observed books"
+    }
+  ],
+  "model_rows": [
+    {
+      "id": "model-2",
+      "event_id": "6da40e91a31110e51e84ba5671996deb",
+      "game": "San Diego Padres @ Milwaukee Brewers",
+      "commence_time": "2026-10-04T20:00:00Z",
+      "book": "draftkings",
+      "book_label": "DraftKings",
+      "market": "pitcher_outs",
+      "market_label": "Pitcher outs",
+      "player": "Michael King",
+      "side": "Over",
+      "line": 14.5,
+      "price": -133.0,
+      "book_probability": 0.5708154506437768,
+      "consensus_probability": 0.5351054952914531,
+      "fair_probability": 0.533066132264529,
+      "paired_books": 3,
+      "best_price": true,
+      "quoted_at": "2026-10-04T11:07:07Z",
+      "model_probability": 0.7233191170913098,
+      "model_push_probability": 0.0,
+      "model_conditional_probability": 0.7233191170913098,
+      "model_mean": 16.14803053499766,
+      "model_mean_label": "Projected pitcher outs",
+      "model_ev_pct": 26.716807731033974,
+      "model_edge_pp": 15.2503666447533,
+      "model_fair_price": -261,
+      "model_inputs": {
+        "Recent starter outings": 15,
+        "Starter outs/start, last five": 17.29,
+        "Starter strikeouts per batter faced": 0.219,
+        "Opponent strikeouts per PA": 0.228
+      },
+      "model_status": "Eligible experimental model pick",
+      "is_model_pick": true,
+      "model_input_through": "2026-10-03",
+      "model_version": "mlb-v1.0-ffe831160a077d5d-2026-10-03",
+      "lineup_status": "Awaiting published batting orders"
+    }
+  ],
+  "model_references": [],
+  "model_availability": [
+    {
+      "event_id": "",
+      "game": "San Diego Padres @ Milwaukee Brewers",
+      "available": true,
+      "forecast_count": 108,
+      "eligible_pick_count": 4,
+      "statuses": [
+        "No pick: estimated value is below the 3% EV threshold",
+        "No pick: a better price is available at the same line",
+        "Research forecast: fewer than two paired books at this line",
+        "Eligible experimental model pick"
+      ]
+    }
+  ],
+  "methods": "## Feature windows\n\nAll windows also have a 370-day maximum lookback.\n\n- Team: last 40 games; runs scored/allowed, PA and K/H/HR/BB/TB rates. Bullpen RA/9 is computed from team pitching minus the starter. Bullpen workload is pitches in the previous three calendar days.\n- Pitcher: last 15 starts; last-five outs and pitches, batters faced, K/BB/H/HR rates, runs per out, and rest capped at 30 days.\n- Batter: last 60 appearances; rates per PA, last 20 starting appearances for PA context, original/published batting slot and a transparent projected-PA input.\n- Park: last 100 games at the venue, shrunk by 40 games toward nine combined runs. This is a venue scoring indicator, not an isolated park factor; home-team quality can influence it.\n- Matchup: home/away and postseason indicators; own and opponent team and starter features.\n\nSmall samples shrink toward fixed league-like priors. Missing players do not receive public league-average or 50% predictions. Teams require ten prior games, each probable starter three prior starts, and hitters 50 prior PA plus a published lineup match.\n\nThese mod",
+  "model_status": "Independent MLB forecasts available",
+  "limitations": "NFL injury adjustments are not established by this evidence. A live total is not a prop forecast. Only validated fresh model rows are included. Historical quotes are not openers.",
+  "target_game": {
+    "event_id": "6da40e91a31110e51e84ba5671996deb",
+    "game": "San Diego Padres @ Milwaukee Brewers",
+    "commence_time": "2026-10-04T20:00:00+00:00",
+    "selection": "qualified-selection",
+    "model_availability": {
+      "event_id": "",
+      "game": "San Diego Padres @ Milwaukee Brewers",
+      "available": true,
+      "forecast_count": 108,
+      "eligible_pick_count": 4,
+      "statuses": [
+        "No pick: estimated value is below the 3% EV threshold",
+        "No pick: a better price is available at the same line",
+        "Research forecast: fewer than two paired books at this line",
+        "Eligible experimental model pick"
+      ]
+    }
+  },
+  "reporting": [
+    {
+      "title": "Padres-Brewers NLDS Game 2 FAQ (4 p.m. ET, FS1/FOX One)",
+      "url": "https://www.mlb.com/news/padres-brewers-nl-division-series-game-2-starting-lineups-and-pitching-matchup",
+      "published_at": "2026-10-04",
+      "published_timestamp": "2026-10-04T07:53:21+00:00",
+      "id": "s1",
+      "retrieved_at": "2026-10-04T11:09:36.484183+00:00"
+    },
+    {
+      "title": "4 big takeaways from Brewers' thrilling NLDS Game 1 win",
+      "url": "https://www.mlb.com/news/padres-brewers-nlds-game-1-takeaways",
+      "published_at": "2026-10-04",
+      "published_timestamp": "2026-10-04T06:50:00+00:00",
+      "id": "s2",
+      "retrieved_at": "2026-10-04T11:09:36.484183+00:00"
+    },
+    {
+      "title": "Were Padres robbed of go-ahead homer vs. Brewers? Why Ty France's ninth-inning fly ball was ruled an out",
+      "url": "https://www.cbssports.com/mlb/news/padres-brewers-ty-france-home-run-american-family-field-ground-rules/",
+      "published_at": "2026-10-04",
+      "published_timestamp": "2026-10-04T05:37:53+00:00",
+      "id": "s3",
+      "retrieved_at": "2026-10-04T11:09:36.484183+00:00"
+    }
+  ],
+  "validation_context": {
+    "input_through": "2026-10-03",
+    "training_through": "2026-08-04",
+    "calibration_through": "2026-09-03",
+    "test_start": "2026-09-04",
+    "test_end": "2026-10-03"
+  },
+  "model_data_dates": {
+    "history_through": "2026-10-03",
+    "weights_trained_through": "2026-08-04"
+  },
+  "model_required": true
+}
