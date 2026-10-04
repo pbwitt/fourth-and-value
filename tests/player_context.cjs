@@ -73,8 +73,43 @@ assert.doesNotMatch(full,/NaN|undefined|null/);
 const qbFull=snapshot({player:'QB',market_std:'pass_yds',mu:233.3,line:239.5,side:'Over',model_prob:.45,push_prob:0,prob_devig:.5,mkt_prob:.52,projection_diagnostics:JSON.stringify({attempts:32,completion_rate:.65,yards_per_completion:11,recent_mean_weight:.43,yards_per_completion_recent_weight:.3,
   current_sample:[{season:2026,week:1,attempts:30,completions:20,passing_yards:220},{season:2026,week:2,attempts:36,completions:25,passing_yards:301}],
   mean_stages:{before_adjustments:228.8,after_defense:248.2,after_venue:233.3,final:233.3}})},'NFL');
-assert.match(qbFull,/Opposing pass defense<\/span><strong>1\.08×/);assert.match(qbFull,/Road game<\/span><strong>0\.94×/);assert.match(qbFull,/Projection<\/span><strong>233\.3 yd/);
-assert.match(qbFull,/43% this season · 57% career/);assert.match(qbFull,/Allows more passing yards than average/);
+assert.match(qbFull,/Opposing pass defense<\/span><strong>1\.08×/);assert.match(qbFull,/Road game<\/span><strong>0\.94×/);assert.match(qbFull,/Projection<\/span><strong>233\.3 pass yds/);
+assert.match(qbFull,/43% this season · 57% career/);assert.match(qbFull,/Adjustment to the projection<\/dt><dd>1\.08×<span class="pc-detail">Easier than average/);
+assert.doesNotMatch(qbFull,/Range of outcomes/,'older traces without a spread draw no curve');assert.doesNotMatch(qbFull,/NaN|undefined|null/);
+// NFL rushing and receiving: the trace's parts, matchup, venue and the forecast's bell curve.
+const back={version:'nfl-projection-trace-1',family:'rush',carries:16.2,yards_per_carry:4.4,recent_mean_weight:.5,sigma:30,home:true,
+  current_sample:[{season:2026,week:1,opponent_team:'MIA',carries:15,rushing_yards:61},{season:2026,week:2,opponent_team:'NYJ',carries:18,rushing_yards:92},
+    {season:2026,week:3,opponent_team:'NE',carries:12,rushing_yards:40},{season:2026,week:4,opponent_team:'KC',carries:20,rushing_yards:111}],
+  mean_stages:{before_adjustments:71.28,after_defense:68.1,after_venue:72.2,final:72.2},
+  opponent:{team:'WAS',kind:'rush',rating:1.15,rank:6,of:32,allowed:98.4,league:112.3,games:4,season:2026}};
+const rush=snapshot({player:'Back',market_std:'rush_yds',name:'under',point:70.5,mu:72.2,model_prob:.47,push_prob:0,prob_devig:.5,mkt_prob:.52,projection_diagnostics:JSON.stringify(back)},'NFL');
+assert.match(rush,/2 of 4 cleared Under 70\.5/,'the row’s side and point drive the trend');
+assert.match(rush,/<th scope="row">Wk 4<\/th><td class="pc-text">KC<\/td><td>20<\/td><td class="pc-focus">111<\/td>/,'newest week first, with the opponent');
+assert.match(rush,/Rush yds \/ game<\/dt><dd>76</);assert.match(rush,/Carries \/ game<\/dt><dd>16\.3</);
+assert.match(rush,/Expected carries<\/span><strong>16\.2<.*Yards per carry<\/span><strong>4\.4<.*Before matchup<\/span><strong>71\.3 rush yds<.*Opposing run defense<\/span><strong>0\.96×<.*Home game<\/span><strong>1\.06×<.*Projection<\/span><strong>72\.2 rush yds/s);
+assert.match(rush,/Opposing run defense · WAS/);assert.match(rush,/Rushing yards allowed \/ game<\/dt><dd>98\.4<span class="pc-detail">6th toughest of 32 · 2026 season, 4 games/);
+assert.match(rush,/League 112\.3/);assert.match(rush,/Tougher than average/);assert.match(rush,/50% this season · 50% career/);
+assert.match(rush,/Under 70\.5: 47\.7% on this curve · 47% after calibration/,'curve chance from the Normal, published chance beside it');
+assert.match(rush,/56–70 rush yds: 18\.9%/);assert.match(rush,/≤10 rush yds: 2%/,'negative totals stay in the open first bin');assert.match(rush,/161\+ rush yds: 0\.2%/);
+assert.match(rush,/spread of ±30 rush yds/);assert.match(rush,/Offensive line injuries/);assert.doesNotMatch(rush,/NaN|undefined|null|≤−/);
+const total=[...rush.matchAll(/data-readout="[^"]* rush yds: ([\d.]+)%"/g)].reduce((a,m)=>a+Number(m[1]),0);
+assert(Math.abs(total-100)<.5,`the bins hold the whole curve (${total})`);
+const catcher={...back,family:'receive',targets:7.1,catch_rate:.66,yards_per_reception:11.8,sigma:2.1,home:false,opponent:{team:'BUF',kind:'pass',rating:.8,rank:25,of:32},
+  current_sample:[{season:2026,week:4,opponent_team:'MIA',targets:6,receptions:4,receiving_yards:52}],mean_stages:{before_adjustments:4.69,after_defense:4.69,after_venue:4.69,final:4.69}};
+const catches=snapshot({player:'WR',market_std:'receptions',name:'under',point:5,mu:4.69,model_prob:.52,push_prob:.17,prob_devig:.5,mkt_prob:.55,projection_diagnostics:JSON.stringify(catcher)},'NFL');
+assert.match(catches,/Expected targets<\/span><strong>7\.1<.*Catch rate<\/span><strong>66%<.*Before matchup<\/span><strong>4\.7 receptions/s);
+assert.doesNotMatch(catches,/Opposing pass defense<\/span>/,'a neutral factor is not a step');
+assert.match(catches,/Pass defense rating<\/dt><dd>0\.80<span class="pc-detail">25th toughest of 32</,'older traces fall back to the rating');
+assert.match(catches,/0 receptions: 2\.3%/,'zero holds the curve below zero');
+const caught=[...catches.matchAll(/data-readout="[^"]* receptions: ([\d.]+)%"/g)].reduce((a,m)=>a+Number(m[1]),0);
+assert(Math.abs(caught-100)<.5,`count bins hold the whole curve (${caught})`);assert.match(catches,/11\+ receptions: 0\.3%/);
+assert.match(catches,/<path class="pc-push"[^>]*\/>(?:<path class="pc-miss"[^>]*\/>){6}<line class="pc-rule" x1="(\d+\.\d)"/,'whole-number line: a push bin, then the losing bins');
+assert.match(catches,/Under 5: 57% on this curve · 52% after calibration · Push: 18\.6%/,'matches market_math: Φ(4.5) ÷ (1 − push)');
+assert.match(catches,/Model 52%.*Break-even 55%/,'NFL chances are already conditional on no push');
+const far=snapshot({player:'WR',market_std:'recv_yds',name:'over',point:160.5,mu:55.1,model_prob:.1,push_prob:0,mkt_prob:.2,
+  projection_diagnostics:JSON.stringify({...catcher,sigma:28,mean_stages:{before_adjustments:55.3,after_defense:55.3,after_venue:55.1,final:55.1}})},'NFL');
+assert.doesNotMatch(snapshot({player:'WR',market_std:'recv_yds',name:'over',point:60.5,mu:55,model_prob:.4,mkt_prob:.5,projection_diagnostics:JSON.stringify({...catcher,sigma:1e6})},'NFL'),/Range of outcomes/,'an absurd spread draws no curve');
+assert.match(far,/146–160 rec yds: 0\.1%/);assert.match(far,/161\+ rec yds: &lt;0\.1%/);assert.match(far,/Over 160\.5: &lt;0\.1% on this curve · 10% after calibration/,'a far line still gets its own edge');
 const nba=snapshot({player:'Guard',market:'player_points',line:21.5,side:'Over',baseline_probability:.556,fair_probability:.5,book_probability:.52,player_context:{schema_version:1,source:'NBA',stat_label:'Points',
   distribution:{empirical:[18,19,20,22,23,24,25,26,27,30]},trend:{label:'PTS',note:'',rows:[['2026-03-01',22,null,'vs BOS',33],['2026-03-02',19,null,'@ BOS',30]]}}},'NBA');
 assert.match(nba,/Past hit rate 55\.6%/);assert.match(nba,/7 over 21\.5 · 3 under/);assert.doesNotMatch(nba,/data-tab="record"/,'no model, no track record');
