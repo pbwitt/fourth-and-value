@@ -1,0 +1,48 @@
+name: Afternoon Market Refresh
+on:
+  schedule:
+    # Backup only. Supabase starts this at 4:30 PM (supabase/afternoon_scheduler.sql); GitHub's
+    # own schedule can run hours late, so the gate skips a sport already refreshed this afternoon.
+    - cron: '45 16 * * *'
+      timezone: America/New_York
+  workflow_dispatch:
+    inputs:
+      trigger_source:
+        description: Where the start request originated (an operator start always refreshes)
+        type: choice
+        options: [operator, supabase]
+        default: operator
+concurrency:
+  group: afternoon-market-refresh
+  cancel-in-progress: false
+permissions:
+  contents: write
+  pages: write
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      nhl: ${{ steps.gate.outputs.nhl }}
+      mlb: ${{ steps.gate.outputs.mlb }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - id: gate
+        name: Skip a sport already refreshed this afternoon
+        env:
+          AFTERNOON_TRIGGER_SOURCE: ${{ github.event_name == 'schedule' && 'github-schedule' || inputs.trigger_source || 'operator' }}
+        run: python scripts/afternoon_gate.py --source "$AFTERNOON_TRIGGER_SOURCE"
+  nhl:
+    needs: gate
+    if: needs.gate.outputs.nhl == 'true'
+    uses: ./.github/workflows/nhl-daily.yml
+    secrets: inherit
+  mlb:
+    needs: gate
+    if: needs.gate.outputs.mlb == 'true'
+    uses: ./.github/workflows/mlb-daily.yml
+    secrets: inherit

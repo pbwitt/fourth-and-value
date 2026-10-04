@@ -30,8 +30,9 @@ with `scripts/nhl/v2/restore.py`, run `make nhl_evaluate`, and render the report
 upgrade or restricted xG dataset is used.
 
 Routes: `/nhl/`, `/nhl/props/`, `/nhl/totals/`, `/nhl/top.html`, `/nhl/methods.html`.
-Public feed: `docs/nhl/data/latest.json`. Production schedules target 10:30 and 16:30
-America/New_York, gated for daylight saving time. Main-branch automation archives its
+Public feed: `docs/nhl/data/latest.json`. Production refreshes start at 07:05 (Morning
+Picks Edition) and 16:30 America/New_York (Afternoon Market Refresh); Supabase timers
+start both on time and GitHub's own schedules are backups (see `MORNING_SCHEDULER.md`). Main-branch automation archives its
 inputs and publishes; branch tests are read-only. Do not dispatch production, merge or
 deploy this rebuild without the requested approval.
 

@@ -116,7 +116,7 @@ def build(state, archive=False):
     try:
         # One search page per player (scripts/nhl/players.py); never blocks the board.
         from nhl.players import build as build_players
-        result = build_players(state)
+        result = build_players(state, out=ROOT / 'docs/nhl/players')
         print(f"NHL player pages: {result.get('players', 0)} players, {result.get('written', 0)} pages updated"
               + (f" (skipped: {result['skipped']})" if result.get('skipped') else ''))
     except Exception as error:

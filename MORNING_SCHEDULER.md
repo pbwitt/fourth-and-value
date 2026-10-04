@@ -1,8 +1,10 @@
 # Independent morning start
 
-Status: implemented and locally testable; **Supabase activation is still pending**.
-Merging the GitHub changes does not install the Supabase job. No new paid service
-or subscription is required by this setup; existing platform quotas still apply.
+Status: **active since September 29, 2026** (24 of 24 morning dispatches accepted
+through October 4). The 4:30 p.m. afternoon refresh uses the same mechanism; see
+[Afternoon refresh](#afternoon-refresh). Merging GitHub changes never installs a
+Supabase job. No new paid service or subscription is required by this setup;
+existing platform quotas still apply.
 
 ## Why this exists
 
@@ -162,3 +164,40 @@ References: [Supabase Cron](https://supabase.com/docs/guides/cron/quickstart),
 [pg_net](https://supabase.com/docs/guides/database/extensions/pg_net),
 [Vault](https://supabase.com/docs/guides/database/vault), and
 [GitHub dispatch API](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event).
+
+## Afternoon refresh
+
+From September 29 to October 4, 2026, GitHub's `30 16 * * *` America/New_York schedule
+started the NHL and MLB afternoon refreshes between 19:11 and 20:27 Eastern, two and a
+half to four hours late and after many games had started. Every run was created late,
+so this is scheduled-event delivery, not a runner queue.
+
+1. `supabase/afternoon_scheduler.sql` adds a second named job,
+   `fv-afternoon-dispatch` (every five minutes, UTC 20:00–22:55). An Eastern-time
+   guard requests `afternoon-refresh.yml` once for the 16:30 slot; a tick up to an
+   hour late still catches it, and older slots never replay. It reuses the morning
+   schema, ledger (`workflow` column), receipts, advisory lock and Vault token.
+2. `Afternoon Market Refresh` calls the existing `nhl-daily.yml` and `mlb-daily.yml`
+   reusable workflows. Those two no longer carry their own GitHub schedule.
+3. A GitHub backup schedule at 16:45 Eastern remains. Its gate
+   (`scripts/afternoon_gate.py`) skips a sport whose feed already published after
+   16:00 Eastern that day and starts nothing after midnight, so a late backup does
+   not spend a second round of odds credits. A manual (operator) start always runs.
+
+Install after `afternoon-refresh.yml` is on main: open SQL Editor as `postgres` and
+run [supabase/afternoon_scheduler.sql](supabase/afternoon_scheduler.sql). It requires
+the morning installation and fails without changing anything if that is missing.
+Re-running is safe.
+
+```sql
+select jobname, schedule, active from cron.job where jobname = 'fv-afternoon-dispatch';
+select fv_morning.afternoon_slot(now()); -- null outside 16:30–17:30 ET
+select slot_at at time zone 'America/New_York' as slot_et, workflow,
+       requested_at, response_status, result
+from fv_morning.dispatches where workflow = 'afternoon-refresh.yml'
+order by slot_at desc limit 7;
+```
+
+Rollback: `select cron.unschedule('fv-afternoon-dispatch');` stops new requests and
+leaves the ledger. The GitHub backup keeps running; to rely on it alone, restore the
+16:30 schedule in `nhl-daily.yml` and `mlb-daily.yml` or move the backup earlier.
