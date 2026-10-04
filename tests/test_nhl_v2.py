@@ -57,6 +57,49 @@ class PointInTimeTests(unittest.TestCase):
         self.assertNotEqual(first[4]['attack'],second[4]['attack'])
         self.assertTrue(all(not r['feature_cutoff'] or stamp(r['feature_cutoff'])<stamp(r['decision_at']) for r in first))
 
+    def appearances(self, days, toi=20, shots=4, start='2025-10-07'):
+        h=History()
+        for i,day in enumerate(days):
+            date=(datetime.fromisoformat(start)+timedelta(days=day)).date().isoformat()
+            h.add_player(dict(player_id=9,game_id=i,game_date=date,position='C',toi=toi[i] if isinstance(toi,list) else toi,
+                              shots=shots,goals=1,assists=1,points=2,
+                              available_at=(datetime.fromisoformat(date).replace(tzinfo=timezone.utc)+timedelta(days=1,hours=12)).isoformat()))
+        return h
+
+    def test_offseason_or_injury_gap_does_not_age_player_history(self):
+        h=self.appearances(range(0,40,2))
+        asof=datetime(2026,10,10,14,30,tzinfo=timezone.utc)
+        soon=h.player_features(9,'C','2025-11-20',asof)
+        after_summer=h.player_features(9,'C','2026-10-08',asof)
+        for k in ['projected_toi','base_means','opportunity_means']:
+            self.assertEqual(soon[k],after_summer[k])
+        # A 20-minute regular keeps his level across the summer; the 15-minute prior (5 games) still
+        # holds about a fifth of the weight once history saturates.
+        self.assertGreater(after_summer['projected_toi'],18.5)
+
+    def test_player_weights_halve_per_half_life_in_games_and_sparse_history_shrinks(self):
+        from nhl.v2.features import PLAYER_HALF_LIVES
+        asof=datetime(2026,10,10,14,30,tzinfo=timezone.utc)
+        toi=[12.]*30+[20.]*14
+        f=self.appearances(range(0,88,2),toi=toi).player_features(9,'C','2026-01-10',asof)
+        w=np.exp2(-np.arange(len(toi))[::-1]/PLAYER_HALF_LIVES['toi'])
+        self.assertAlmostEqual(f['projected_toi'],(w@np.array(toi)+5*15)/(w.sum()+5))
+        self.assertAlmostEqual(w[-1-PLAYER_HALF_LIVES['toi']],.5)
+        one=self.appearances([0],toi=25).player_features(9,'C','2025-10-20',asof)
+        self.assertAlmostEqual(one['projected_toi'],(25+5*15)/6)
+        with self.assertRaises(ValueError):
+            # The 2025-10-07 game becomes available at 12:00 UTC the next day.
+            self.appearances([0]).player_features(9,'C','2025-10-08',datetime(2025,10,8,11,0,tzinfo=timezone.utc))
+
+    def test_evaluation_never_writes_into_another_versions_evidence(self):
+        from nhl.v2 import EVIDENCE, VERSION, evidence_dir
+        root=Path(__file__).resolve().parents[1]
+        self.assertEqual(evidence_dir(),root/EVIDENCE[VERSION])
+        for version,folder in EVIDENCE.items():
+            if version!=VERSION:
+                with self.assertRaises(ValueError):evidence_dir(root/folder)
+        with tempfile.TemporaryDirectory() as d:self.assertEqual(evidence_dir(d),Path(d))
+
     def test_future_history_rejected_and_dst_is_explicit(self):
         h=History();h.add_game(game(1,'2026-09-26'))
         with self.assertRaises(ValueError):h.team_features(game(2,'2026-09-26'),NOW)

@@ -7,12 +7,16 @@ from collections import defaultdict
 
 if __package__ in (None,''):
     sys.path.insert(0,str(Path(__file__).resolve().parents[2])); __package__='nhl.v2'
-from .data import ROOT,write_json
+from . import VERSION, evidence_dir
+from .data import write_json
 from .evaluate import interval_mean
 
 
-def render(root=ROOT/'reports/nhl-rebuild'):
+def render(root=None):
+    root=evidence_dir(root)
     report=json.loads((root/'evaluation.json').read_text()); selection=report['selection']
+    if report['version']!=VERSION:
+        raise ValueError(f"{root} holds {report['version']} results; this code renders {VERSION}")
     differences={}
     for kind,baseline in [('team','rate'),('player','rate_poisson')]:
         grouped=defaultdict(dict)

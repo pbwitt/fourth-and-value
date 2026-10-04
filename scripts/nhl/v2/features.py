@@ -11,18 +11,24 @@ TEAM_FEATURES = ['home', 'attack', 'defense', 'shots_for', 'shots_against',
                  'save_rate', 'opp_save_rate', 'pp', 'opp_pk', 'rest', 'opp_rest', 'b2b', 'opp_b2b']
 CORE_FEATURES = ['home', 'attack', 'defense']
 PLAYER_STATS = ['shots', 'goals', 'assists', 'points']
+# Player history is aged by the player's own appearances, newest = 0, so an offseason, injury or
+# break does not erase it. Half-lives are in games, chosen on the 2023-24 and 2024-25 validation
+# folds only (feature schema nhl-pit-2); position priors and prior strengths are unchanged.
+PLAYER_HALF_LIVES = dict(base=82.5, toi=14, rate=110)
 
 
 def decision_time(day, hour=10, minute=30):
     return datetime.fromisoformat(day).replace(hour=hour, minute=minute, tzinfo=ZoneInfo('America/New_York'))
 
 
-def weighted(records, day, fields, priors, strength=12, half_life=90):
+def weighted(records, day, fields, priors, strength=12, half_life=90, ages=None):
+    """Recency-weighted mean shrunk toward `priors`; ages default to calendar days before `day`."""
     if not records:
         return np.asarray(priors, dtype=float)
-    target = datetime.fromisoformat(day)
-    ages = np.array([(target-datetime.fromisoformat(r['game_date'])).days for r in records])
-    weights = np.exp2(-ages / half_life)
+    if ages is None:
+        target = datetime.fromisoformat(day)
+        ages = np.array([(target-datetime.fromisoformat(r['game_date'])).days for r in records])
+    weights = np.exp2(-np.asarray(ages, dtype=float) / half_life)
     values = np.array([[r[f] for f in fields] for r in records])
     return (weights @ values + strength * np.asarray(priors)) / (weights.sum()+strength)
 
@@ -67,11 +73,15 @@ class History:
             raise ValueError('Future player history')
         # Fixed cold-start priors; these are never season-final summaries.
         priors = [1.6,.12,.30] if position == 'D' else [1.9,.25,.34]
-        means = weighted(records,day,['shots','goals','assists'],priors)
-        toi = weighted(records,day,['toi'],[18 if position=='D' else 15],strength=5,half_life=30)[0]
+        # Records are in arrival order, so this counts the player's later appearances.
+        games = np.arange(len(records))[::-1]
+        means = weighted(records,day,['shots','goals','assists'],priors,half_life=PLAYER_HALF_LIVES['base'],ages=games)
+        toi = weighted(records,day,['toi'],[18 if position=='D' else 15],strength=5,
+                       half_life=PLAYER_HALF_LIVES['toi'],ages=games)[0]
         # Shrink per-minute production separately from projected opportunity.
         records_rate = [{**r, **{s:r[s]/r['toi'] for s in PLAYER_STATS[:3]}} for r in records]
-        rates = weighted(records_rate,day,PLAYER_STATS[:3],np.asarray(priors)/(18 if position=='D' else 15),half_life=120)
+        rates = weighted(records_rate,day,PLAYER_STATS[:3],np.asarray(priors)/(18 if position=='D' else 15),
+                         half_life=PLAYER_HALF_LIVES['rate'],ages=games)
         return dict(player_id=pid, history_games=len(records), projected_toi=float(toi),
                     last_game=records[-1]['game_date'] if records else None,
                     base_means=[*means,float(means[1]+means[2])],

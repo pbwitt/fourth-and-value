@@ -40,7 +40,9 @@ const server=http.createServer((req,res)=>{
         {label:'Opponent strikeout rate',value:22.6,unit:'%',used:true,detail:'Up to 40 games; K / PA'}],
       note:'Model rates include fixed priors; observed averages do not. Innings are shown in thirds (5⅔ = five innings and two outs).'},
     stat_context:{group:'pitching',innings:'160.2',starts:28,strikeouts:172,k_per_nine:9.63,era:3.42},model_conditional_probability:.55,consensus_probability:.5};
-  const nhl={...common,model_version:'nhl-v2.1',market:'player_shots_on_goal',market_label:'Shots on goal',line:2.5,projected_mean:3.1,projected_toi:20.4,conditional_probability:.55,market_probability:.5,
+  // The NHL track record shows only for the running model version; match the published file.
+  const nhlVersion=JSON.parse(fs.readFileSync(path.join(root,'nhl/data/track-record.json'),'utf8')).model_version;
+  const nhl={...common,model_version:nhlVersion,market:'player_shots_on_goal',market_label:'Shots on goal',line:2.5,projected_mean:3.1,projected_toi:20.4,conditional_probability:.55,market_probability:.5,
     player_context:{schema_version:1,source:'NHL completed-game logs',through:'2026-09-30',sample_games:164,sample_label:'appearances',stat_label:'SOG',workload_label:'Ice time',workload_unit:'min',
       recent:[{games:5,mean:3.4,workload:21.2},{games:10,mean:3.1,workload:20.9},{games:20,mean:3.2,workload:20.7}],
       games:[{date:'2026-04-16',opp:'vs CHI',toi:'21:05',shots:4,goals:1,assists:0,points:1},{date:'2026-04-14',opp:'@ TOR',toi:'20:41',shots:3,goals:0,assists:1,points:1}],

@@ -187,6 +187,16 @@ class PlayerContextTests(unittest.TestCase):
         self.assertIs(c['opponent'],matchup)
         self.assertIn('Opponent defense and goalie',c['missing'])
 
+    def test_nhl_v22_fades_by_games_played_not_days(self):
+        history=History()
+        for i,day in enumerate(['2026-03-01','2026-03-03','2026-10-02']):
+            history.add_player(dict(player_id=1,game_id=i,game_date=day,available_at=day+'T23:00:00Z',shots=2,goals=0,assists=0,points=0,toi=18,position='F'))
+        f=history.player_features(1,'F','2026-10-04',datetime(2026,10,4,tzinfo=timezone.utc))
+        c=nhl_context(history.players[1],f,0,'opportunity_nb','nhl-v2.2',None,'2026-10-04',None,None)
+        self.assertEqual([r[2] for r in c['trend']['rows']],[round(2**(-2/110),3),round(2**(-1/110),3),1.0],
+                         'the offseason gap does not fade March games')
+        self.assertIn('110 of his games',c['trend']['note'])
+
     def test_nba_defense_pairs_team_logs_and_aliases(self):
         rows=[]
         for i in range(12):
