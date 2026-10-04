@@ -7,10 +7,11 @@ import hashlib
 import json
 from pathlib import Path
 
-from . import VERSION
+from . import VERSION, EVIDENCE
 from .data import ROOT
 
-REPORTS = {'nhl-v2.1': 'reports/nhl-rebuild/evaluation.json'}
+# Each version's own evidence folder; a version without published evidence gets no track record.
+REPORTS = {version: folder + '/evaluation.json' for version, folder in EVIDENCE.items()}
 PLAYER = {'player_shots_on_goal': 'shots', 'player_goals': 'goals', 'player_assists': 'assists', 'player_points': 'points'}
 GAME = {'h2h': ('moneyline', 'Home win'), 'totals': ('total_5.5', 'Over 5.5 goals'), 'spreads': ('puck_-1.5', 'Home −1.5')}
 OUT = ROOT / 'docs/nhl/data/track-record.json'

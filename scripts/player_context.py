@@ -131,7 +131,8 @@ def blend(label, own, detail=''):
     return dict(label=label, own=num(min(max(own,0),1)), detail=detail)
 
 
-NHL_HALF_LIVES={'nhl-v2.1':dict(rate=120,toi=30,by='days')}
+# How each model version fades a player's older games (features.py of that version).
+NHL_HALF_LIVES={'nhl-v2.1':dict(rate=120,toi=30,by='days'),'nhl-v2.2':dict(rate=110,toi=14,by='games')}
 
 
 def nhl_explain(records, features, j, model_kind, version, opponent, day, pmf, matchup):
@@ -153,11 +154,17 @@ def nhl_explain(records, features, j, model_kind, version, opponent, day, pmf, m
         out['distribution']=distribution(pmf)
     life=NHL_HALF_LIVES.get(version)
     target=calendar.fromisoformat(day) if day else None
-    if life and target:
-        ages=lambda half:[2**(-(target-calendar.fromisoformat(r['game_date'])).days/half) for r in records]
+    if life and (target or life['by']=='games'):
+        if life['by']=='games':
+            # Newest appearance = 0: an offseason or injury break does not fade his history.
+            ages=lambda half:[2**(-(len(records)-1-i)/half) for i in range(len(records))]
+            unit='of his games'
+        else:
+            ages=lambda half:[2**(-(target-calendar.fromisoformat(r['game_date'])).days/half) for r in records]
+            unit='days'
         rate,minutes=ages(life['rate']),ages(life['toi'])
         weight=dict(zip((id(r) for r in records),rate))
-        note=f"Faded games count less. A game’s weight halves every {life['rate']} days for production and every {life['toi']} days for ice time."
+        note=f"Faded games count less. A game’s weight halves every {life['rate']} {unit} for production and every {life['toi']} {unit} for ice time."
         out['blend']=[blend('Production rate',sum(rate)/(sum(rate)+12),'Recency-weighted games; the rest is the position average'),
                       blend('Ice time',sum(minutes)/(sum(minutes)+5),'Recency-weighted games; the rest is the position average')]
     else:

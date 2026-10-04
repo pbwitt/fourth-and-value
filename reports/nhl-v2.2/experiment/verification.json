@@ -1,0 +1,171 @@
+{
+ "role": "independent verifier (rebuilt features and metrics from scratch)",
+ "verdict": "confirmed",
+ "recomputed": [
+  {
+   "metric": "2025-26 prop-tier shots level ratio, fix",
+   "reported": 0.985,
+   "recomputed": 0.9847,
+   "agree": true
+  },
+  {
+   "metric": "2025-26 prop-tier shots level ratio, baseline",
+   "reported": 0.913,
+   "recomputed": 0.9135,
+   "agree": true
+  },
+  {
+   "metric": "2025-26 prop-tier shots level, October, fix",
+   "reported": 0.988,
+   "recomputed": 0.9882,
+   "agree": true
+  },
+  {
+   "metric": "2025-26 prop-tier goals level, fix",
+   "reported": 0.981,
+   "recomputed": 0.9809,
+   "agree": true
+  },
+  {
+   "metric": "2025-26 prop-tier assists level, fix",
+   "reported": 0.926,
+   "recomputed": 0.9258,
+   "agree": true
+  },
+  {
+   "metric": "2025-26 prop-tier points level, fix",
+   "reported": 0.948,
+   "recomputed": 0.9478,
+   "agree": true
+  },
+  {
+   "metric": "2025-26 all-player shots level, fix",
+   "reported": 1.056,
+   "recomputed": 1.0561,
+   "agree": true
+  },
+  {
+   "metric": "2025-26 all-player goals level, fix",
+   "reported": 1.039,
+   "recomputed": 1.0389,
+   "agree": true
+  },
+  {
+   "metric": "2025-26 all-player points level, fix",
+   "reported": 1.026,
+   "recomputed": 1.0264,
+   "agree": true
+  },
+  {
+   "metric": "2025-26 shots count LL diff fix-baseline",
+   "reported": -0.00902,
+   "recomputed": -0.009017,
+   "agree": true
+  },
+  {
+   "metric": "2025-26 goals count LL diff fix-baseline",
+   "reported": -0.00223,
+   "recomputed": -0.002228,
+   "agree": true
+  },
+  {
+   "metric": "2025-26 assists count LL diff fix-baseline",
+   "reported": -0.00364,
+   "recomputed": -0.003638,
+   "agree": true
+  },
+  {
+   "metric": "2025-26 points count LL diff fix-baseline",
+   "reported": -0.00507,
+   "recomputed": -0.005072,
+   "agree": true
+  },
+  {
+   "metric": "2025-26 baseline shots count LL (matches evaluation.json)",
+   "reported": 1.55355,
+   "recomputed": 1.55355,
+   "agree": true
+  },
+  {
+   "metric": "2025-26 prop-tier shots 2.5 binary LL diff",
+   "reported": -0.00982,
+   "recomputed": -0.009818,
+   "agree": true
+  },
+  {
+   "metric": "Validation objective, chosen config (14,110)",
+   "reported": 3.49532,
+   "recomputed": 3.49532,
+   "agree": true
+  },
+  {
+   "metric": "Validation objective, calendar baseline",
+   "reported": 3.51273,
+   "recomputed": 3.51273,
+   "agree": true
+  },
+  {
+   "metric": "Live all-markets LL fix (n=1156)",
+   "reported": 0.6591,
+   "recomputed": 0.65905,
+   "agree": true
+  },
+  {
+   "metric": "Live all-markets LL market",
+   "reported": 0.6537,
+   "recomputed": 0.65368,
+   "agree": true
+  },
+  {
+   "metric": "Live all-markets LL fix minus baseline",
+   "reported": -0.0089,
+   "recomputed": -0.00889,
+   "agree": true
+  },
+  {
+   "metric": "Live shots LL fix minus baseline",
+   "reported": -0.0254,
+   "recomputed": -0.0254,
+   "agree": true
+  },
+  {
+   "metric": "Live goals LL fix minus baseline",
+   "reported": 0.0056,
+   "recomputed": 0.0056,
+   "agree": true
+  },
+  {
+   "metric": "Live median model/market-implied mean, all, fix",
+   "reported": 0.975,
+   "recomputed": 0.9746,
+   "agree": true
+  },
+  {
+   "metric": "Live strict (verified-only, n=929) LL fix minus baseline",
+   "reported": -0.0116,
+   "recomputed": -0.0116,
+   "agree": true
+  },
+  {
+   "metric": "Current screen Under share, fix",
+   "reported": 0.579,
+   "recomputed": 0.5789,
+   "agree": true
+  },
+  {
+   "metric": "Current screen Under share, baseline",
+   "reported": 0.916,
+   "recomputed": 0.9158,
+   "agree": true
+  }
+ ],
+ "issues": [
+  "The headline live sample (n=1156) includes 227 outcomes priced only by books whose settlement rules are unverified. nhl.v2.grading.settle returns 'unresolved_rules' for those, and the experimenter settled them under an assumed standard profile. This is disclosed. Under the task's 'no unresolved results' rule the strict n=929 figures should be the headline: shots ratio .848->.943, all-markets ratio .852->.962, overall LL fix minus baseline -0.0116, CI [-0.0249, +0.0013] in my bootstrap and [-0.0239, +0.0026] in theirs. The conclusions do not change.",
+  "Even with the fix, the model is still worse than the market on live 2026-27 props in every market. All markets: fix minus market LL +0.0054 [-0.0052, +0.0174]. Goals get worse with the fix (fix minus baseline +0.0056), and on the current screen goals turn Over-heavy (19 Overs vs 7 Unders). The fix corrects the level. It does not show an edge.",
+  "The fix only partly corrects the prop-tier level. 2025-26 assists are 0.926 overall and 0.906 in Dec-Apr, and points are 0.948. Low-tier and no-previous-season players are still over-predicted by 9-31%. Mid-tier shots get slightly worse (1.005 -> 1.026).",
+  "In 449 of the live keys, consensus_probability differs across book rows for the same (game, player, market, line). The median is used. This is a minor and defensible choice.",
+  "s_rate=6 scored better on validation (3.49355, which I reproduced) but was not adopted, under a rule the experimenter says was declared in advance. I cannot verify when that rule was written. Leaving the better setting out is conservative and gives no test-side advantage.",
+  "No issues found in these areas: tuning used only the 2023-24 and 2024-25 folds (tuning.json has no 20252026 fold, and lock.json mtime 18:27:04 is before final_test.json at 18:27:57). Fix features use only records with available_at <= decision time and never the target game. Tiers come from 2024-25 shots per game, so they are ex ante. There is no post-hoc calibration on test; the NB alphas are fit on training seasons for the test and on the four completed seasons for live use. Live uses the Over side only, with one row per (game, player, market, line) and no Over/Under double counting. The first snapshot was before commence in all 1656 keys. 490 pending outcomes and 10 with no player record are excluded. All intervals are game-cluster bootstraps. The baseline matches production: stored 2025-26 means agree to 6.6e-15 on 188,920 values, a 500-row production History replay to 6.7e-16, history_at to 4e-16, and the archived live P(Over) to 7.9e-15."
+ ],
+ "summary": "I independently reproduced the 'decay' fix's numbers and could not refute any of them. The fix measures age in the player's own eligible games (most recent = 0, no offseason penalty), with h_toi=14 and h_rate=110 games and production prior strengths of 5 and 12.\n\nMy own incremental feature builder reproduces the production baseline to machine precision. I also recomputed the validation objective (3.51273 calendar vs 3.49532 chosen) and every final-test number.\n\nOn 2025-26, the prop-tier (prior-season shots >= 2.5) level ratio moves from baseline to fix as follows:\n- shots 0.913 -> 0.985 [0.968, 1.002]\n- goals 0.907 -> 0.981\n- assists 0.873 -> 0.926\n- points 0.887 -> 0.948\n- October prop-tier shots 0.843 -> 0.988\n\nAll-player levels improve slightly (shots 1.065 -> 1.056, goals 1.073 -> 1.039, points 1.056 -> 1.026). Count log loss improves in every market, with game-cluster CIs excluding zero (shots -0.0090 [-0.0101, -0.0080], goals -0.0022, assists -0.0036, points -0.0051).\n\nOn live 2026-27 props (1156 outcomes from 20 games, Over side, first snapshot), the median model/market-implied mean moves from 0.866 to 0.975 and log loss improves by 0.0089 [-0.0228, +0.0062]. The fix is still worse than the market (+0.0054 [-0.0052, +0.0174]). Goals get slightly worse. Among EV>=2% rows on the current screen, the Under share falls from 91.6% to 57.9%.\n\nTwo caveats. First, the headline live sample includes 227 outcomes that settle() marks as unresolved rules; on the strict n=929 sample the change is -0.0116 [-0.0249, +0.0013]. Second, the fix corrects only part of the assists and points level gap, and low-volume and rookie players are still over-predicted.\n\nVerdict: confirmed. The fix corrects the level for shots and goals and narrows it for assists and points. There is no evidence of an edge over the market."
+}

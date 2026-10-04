@@ -1,0 +1,50 @@
+{
+ "locked_at": "2026-10-03T18:27:04.197528+00:00",
+ "fix": "offseason-aware decay: age measured in the player own eligible games played (most recent = 0), no offseason penalty",
+ "config": {
+  "age": "games",
+  "K": 0,
+  "h_toi": 14.0,
+  "h_rate": 110.0,
+  "h_base": 82.5,
+  "s_toi": 5.0,
+  "s_rate": 12.0,
+  "s_base": 12.0,
+  "priors": "production position priors unchanged (F/U [1.9,.25,.34] TOI 15; D [1.6,.12,.30] TOI 18)",
+  "window": 164
+ },
+ "baseline": {
+  "age": "calendar",
+  "P": null,
+  "h_toi": 30.0,
+  "h_rate": 120.0,
+  "h_base": 90.0,
+  "s_toi": 5.0,
+  "s_rate": 12.0,
+  "s_base": 12.0
+ },
+ "selection": "min mean over folds 2023-24, 2024-25 of sum of 4 markets count log loss; stages A (age def), B (half-lives), C (offseason penalty)",
+ "strength_rule": "pre-declared: production prior strengths kept because stage-B validation prop-tier level within 3% of 1; s_rate 6/24 run as sensitivity only",
+ "validation_objective": {
+  "A0_calendar_baseline": 3.5127334626680042,
+  "A1_compressed_P0": 3.501899959426581,
+  "A2_compressed_P30": 3.503319397448197,
+  "A3_compressed_P60": 3.505143720249721,
+  "A4_games": 3.4956028329322546,
+  "B_games_toi7_rate55": 3.497848441616815,
+  "B_games_toi14_rate55": 3.4956028329322546,
+  "B_games_toi28_rate55": 3.496134280118463,
+  "B_games_toi7_rate110": 3.497174790160125,
+  "B_games_toi14_rate110": 3.495318616906794,
+  "B_games_toi28_rate110": 3.4961845197195935,
+  "B_games_toi14_rate220": 3.4958181605286733,
+  "B_games_toi14_rate27": 3.499995399301917,
+  "C_games_K0": 3.495318616906794,
+  "C_games_K10": 3.495493462399719,
+  "C_games_K25": 3.496220766946769,
+  "C_sens_srate6": 3.4935542200423133,
+  "C_sens_srate24": 3.501984259613608
+ },
+ "chosen": "C_games_K0 (== B_games_toi14_rate110)",
+ "final_test": "2025-26 scored once after this file was written"
+}

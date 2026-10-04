@@ -20,6 +20,7 @@ import numpy as np
 
 if __package__ in (None,''):
     sys.path.insert(0,str(Path(__file__).resolve().parents[2])); __package__='nhl.v2'
+from . import evidence_dir
 from .data import ROOT,load,iso,stamp,write_json,digest
 from .features import decision_time
 from .models import TeamModel,game_outcome
@@ -66,7 +67,8 @@ def evaluate(root,history,output):
     cache=joblib.load(Path(history)/'features.joblib');tr,_=cache['rows']
     if cache['key']!=digest([manifests,Path(__file__).with_name('features.py').read_text()]):
         raise ValueError('Feature cache does not match source history/code; rerun the predictive evaluation')
-    chosen=json.loads((ROOT/'reports/nhl-rebuild/selection-lock.json').read_text())['team']
+    output=evidence_dir(output)
+    chosen=json.loads((output/'selection-lock.json').read_text())['team']
     models={s:TeamModel(chosen).fit([r for r in tr if r['season']<s],[g for g in games if g['season']<s]) for s in [20232024,20242025,20252026]}
     means={}
     for season,model in models.items():
@@ -199,7 +201,7 @@ def evaluate(root,history,output):
 if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('--download',action='store_true')
     p.add_argument('--env-file',type=Path,default=ROOT/'.env');p.add_argument('--root',type=Path,default=ROOT/'artifacts/nhl/historical-odds')
-    p.add_argument('--history',type=Path,default=ROOT/'data/nhl/v2/history');p.add_argument('--output',type=Path,default=ROOT/'reports/nhl-rebuild')
+    p.add_argument('--history',type=Path,default=ROOT/'data/nhl/v2/history');p.add_argument('--output',type=Path,help='Defaults to this model version\'s report folder')
     a=p.parse_args()
     if a.download:download(a.root,a.env_file)
     evaluate(a.root,a.history,a.output)

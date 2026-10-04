@@ -298,7 +298,7 @@ def main():
             code = 1
         save_json(public, state)
     from nhl.site import build
-    build(state)
+    build(state, archive=not args.offline)
     print(f"NHL: {state['status']}; {len(state['events'])} regular-season games; {len(state['rows'])} saved quotes")
     return code
 
