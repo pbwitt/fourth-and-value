@@ -15,6 +15,7 @@ from .features import history_at
 from .models import outcome, game_outcome
 from .pricing import compare, price, signal
 from .review import apply_review, validate_review
+from player_context import describe, nhl_context
 
 MARKETS=['player_shots_on_goal','player_goals','player_assists','player_points']
 MODEL_DIR=ROOT/'models/nhl/v2'
@@ -67,6 +68,7 @@ def annotate(rows,games,players,events,models,manifest,now,history_checked_at,ro
     cache={}
     for row in rows:
         row.update(model_probability=None,independent_probability=None,final_probability=None,
+            player_context=None,model_inputs=None,
             decision_at=iso(now),
             model_version=VERSION,feature_schema=FEATURE_SCHEMA,model_data_checked_at=history_checked_at,
             validation_status=manifest['validation_status'],analyst_status='unreviewed',
@@ -104,6 +106,7 @@ def annotate(rows,games,players,events,models,manifest,now,history_checked_at,ro
                 cache[k]=(features,models['shots'].pmfs(features)[0],models['scoring'].pmfs(features))
             f,shots,scoring=cache[k]; j=MARKETS.index(row['market']); pmf=shots if j==0 else scoring[j]
             row['model_inputs']=f
+            row['player_context']=describe(nhl_context,records,f,j,models['shots' if j==0 else 'scoring'].kind,VERSION)
             probs=outcome(pmf,row['line'],row['side'])
             # Scenario bounds, not confidence intervals or evidence of a learned injury effect.
             scenario=[]
@@ -175,7 +178,7 @@ def enrich(state,now,offline_inputs=None):
         for row in state['rows']:
             for field in ['forecast_id','estimated_ev','fair_odds','fair_decimal','minimum_acceptable_odds',
                           'minimum_acceptable_decimal','push_probability','loss_probability','conditional_probability',
-                          'rank_score','analyst_probability','independent_market_difference','model_inputs']:
+                          'rank_score','analyst_probability','independent_market_difference','model_inputs','player_context']:
                 row[field]=None
             row.update(model_probability=None,independent_probability=None,final_probability=None,
                        model_status=state['model_error'],validation_status='unavailable',recommendation=False,

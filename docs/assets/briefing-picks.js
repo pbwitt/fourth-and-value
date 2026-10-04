@@ -340,7 +340,8 @@
   }
 
   function rowHTML(r,index=0,saved=false) {
-    const research=researchHTML(r);
+    const context=global.FVPlayerContext?.render(r,r.sport,{saved:!!r.card_snapshot_at})||'';
+    const research=context+researchHTML(r);
     const a=hasReview(r)&&r.review_matches_current!==false?assessment(r.qualitative_review):null;
     const reason=a?.verdict==='wait'&&r.human_decision!=='select'?`<span class="estimate-detail"><strong>Why:</strong> ${esc(a.reason)}</span>`:'';
     const line=r.line===null?`${r.side} · ${r.market_label}`:`${r.side} ${r.market==='spreads'&&r.line>0?'+':''}${r.line}`;

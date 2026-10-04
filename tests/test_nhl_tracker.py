@@ -24,10 +24,11 @@ class TrackerPages(unittest.TestCase):
             module.build({'season': 20262027, 'last_success_at': None})
             for name in ['props/index.html', 'totals/index.html', 'top.html', 'picks.html']:
                 text = (output / 'docs/nhl' / name).read_text()
-                board = 'nhl-candidates.js?v=9' if name == 'picks.html' else 'nhl.js?v=5'
+                board = 'nhl-candidates.js?' if name == 'picks.html' else 'nhl.js?'
                 self.assertEqual(text.count('offer-tracker.js?v=1'), 1)
                 self.assertIn('offer-tracker.css?v=1', text)
                 self.assertLess(text.index('offer-tracker.js?v=1'), text.index(board))
+                self.assertLess(text.index('player-context.js?'), text.index(board))
             for name in ['index.html', 'methods.html']:
                 self.assertNotIn('offer-tracker.js', (output / 'docs/nhl' / name).read_text())
 

@@ -203,7 +203,7 @@ def add_baselines(rows, history, now):
         if dt and now - timedelta(days=370) < dt < now:
             team_games[game.get('TEAM_NAME')].append(game)
     for row in rows:
-        row.update(baseline_mean=None, baseline_probability=None, baseline_games=0,
+        row.update(baseline_mean=None, baseline_probability=None, baseline_games=0, player_context=None,
                    baseline_last_game=None, baseline_push=None,
                    model_status='Awaiting sufficient player history', model_probability=None)
         if row['market'] not in STATS:
@@ -225,6 +225,15 @@ def add_baselines(rows, history, now):
                    baseline_probability=(wins + 1) / (len(vals) - pushes + 2),
                    baseline_last_game=games[-1]['GAME_DATE'], baseline_push=pushes / len(vals),
                    model_status='Historical baseline only; minutes and injuries not adjusted')
+        from player_context import windows
+        complete=[dict(value=sum(float(g[k]) for k in STATS[row['market']]), minutes=float(g['MIN']), date=str(g['GAME_DATE'])[:10])
+                  for g in games if all(g.get(k) is not None for k in STATS[row['market']])]
+        row['player_context']=dict(schema_version=1,source='NBA regular-season game logs',
+            through=complete[-1]['date'],sample_games=len(complete),sample_label='appearances',
+            stat_label=row.get('market_label',row['market'].replace('player_','').replace('_',' ')),
+            workload_label='Minutes / game',workload_unit='min',
+            recent=windows(complete,[5,10,30],'value','minutes'),inputs=[],
+            note='Historical context only. These are observed averages, not a current-game forecast. Minutes, role changes and injuries are not adjusted; prior-season appearances may be included.')
     return rows
 
 

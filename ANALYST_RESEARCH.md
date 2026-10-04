@@ -342,3 +342,9 @@ research can use available daily drafting slots; they never become standalone
 public daily articles. Reader submissions alone do not authorize a paid request.
 Activation requires `supabase/editorial_opinion_generation.sql` plus redeploying
 `editorial-write-now`. See `EDITORIAL_OPERATIONS.md` for the release sequence.
+
+## Player context display
+
+Sport boards and Today’s Picks share `docs/assets/player-context.js` and its stylesheet. `scripts/player_context.py` records descriptive recent form alongside the exact selected forecast inputs, without changing probabilities, selection or ranking. NHL shows recent production and ice time; MLB shows recent innings, pitches, strikeout rates or batting opportunity; NBA remains a historical reference. NFL passing panels use the saved projection trace.
+
+Observed averages and prior-adjusted inputs are labeled separately. A field is labeled “Model input” only when the selected model uses it; other available factors are context. MLB averaged innings use decimal units (5.50 = five and a half innings), while official season totals retain baseball notation. All history windows retain their pregame cutoffs. Saved editions keep their original inputs; missing context is not reconstructed from later results.
