@@ -18,19 +18,24 @@ def render(root=None):
     if report['version']!=VERSION:
         raise ValueError(f"{root} holds {report['version']} results; this code renders {VERSION}")
     differences={}
-    for kind,baseline in [('team','rate'),('player','rate_poisson')]:
+    # Baselines: the simple rate models, and the previous production player kind when it was scored.
+    for kind,baselines in [('team',['rate']),('player',['rate_poisson','opportunity_nb'])]:
         grouped=defaultdict(dict)
         with gzip.open(root/f'{kind}-predictions.jsonl.gz','rt') as f:
             for line in f:
                 r=json.loads(line)
                 k=(r['game_id'],r.get('player_id'),r.get('market','joint_score'))
                 grouped[k][r['model']]=r['score_nll' if kind=='team' else 'count_log_loss']
-        for market in sorted({k[2] for k in grouped}):
-            chosen=selection['team' if kind=='team' else 'shots' if market=='shots' else 'scoring']
-            pairs=[(k,v) for k,v in grouped.items() if k[2]==market and chosen in v and baseline in v]
-            vals=[v[chosen]-v[baseline] for k,v in pairs]; ids=[k[0] for k,v in pairs]
-            differences[market]=dict(selected_minus_baseline=sum(vals)/len(vals),
-                game_cluster_bootstrap95=interval_mean(vals,ids),records=len(vals),games=len(set(ids)))
+        for baseline in baselines:
+            for market in sorted({k[2] for k in grouped}):
+                chosen=selection['team' if kind=='team' else 'shots' if market=='shots' else 'scoring']
+                pairs=[(k,v) for k,v in grouped.items() if k[2]==market and chosen in v and baseline in v]
+                if chosen==baseline or not pairs:
+                    continue
+                vals=[v[chosen]-v[baseline] for k,v in pairs]; ids=[k[0] for k,v in pairs]
+                key=market if baseline in ('rate','rate_poisson') else f'{market} vs {baseline}'
+                differences[key]=dict(selected_minus_baseline=sum(vals)/len(vals),
+                    game_cluster_bootstrap95=interval_mean(vals,ids),records=len(vals),games=len(set(ids)))
     write_json(root/'paired-differences.json',differences)
     lines=['# NHL evaluation: actual results and limitations','',
         'All seven markets are **experimental forecasts**. No market is approved as a validated betting recommendation. '

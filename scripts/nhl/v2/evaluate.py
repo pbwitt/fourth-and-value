@@ -151,7 +151,8 @@ def run(history_root,output,model_dir):
             m=TeamModel(name).fit(train,tg)
             report['final']['team'][name]=team_metrics(m,test,fg,save)
     with gzip.open(output/'player-predictions.jsonl.gz','wt') as save:
-        for name in dict.fromkeys(['rate_poisson',selected_shots,selected_scoring]):
+        # The previous production kind is scored too, for a paired comparison on the same games.
+        for name in dict.fromkeys(['rate_poisson','opportunity_nb',selected_shots,selected_scoring]):
             m=PlayerModel(name).fit(pt)
             report['final']['player'][name]=player_metrics(m,pv,save)
     report['selection']=selection

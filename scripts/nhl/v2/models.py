@@ -11,7 +11,9 @@ from .features import TEAM_FEATURES, CORE_FEATURES
 
 SUPPORT = np.arange(48)
 TEAM_CANDIDATES = ['rate', 'opponent', 'poisson_core', 'poisson_context', 'boosting']
-PLAYER_CANDIDATES = ['rate_poisson', 'opportunity_poisson', 'opportunity_nb', 'opportunity_hurdle']
+PLAYER_CANDIDATES = ['rate_poisson', 'opportunity_poisson', 'opportunity_nb', 'opportunity_hurdle', 'opportunity_nb_opp']
+NB_KINDS = ('opportunity_nb', 'opportunity_nb_opp')
+OPPONENT_GRID = np.round(np.arange(0, 2.0001, .05), 2)
 
 
 def count_pmf(mean, alpha=0):
@@ -96,17 +98,52 @@ class PlayerModel:
         self.kind = kind
 
     def fit(self,rows):
-        means = np.array([r['opportunity_means'] for r in rows])
         y = np.array([r['targets'] for r in rows])
+        if self.kind=='opportunity_nb_opp':
+            self.fit_opponent(rows,y)
+            means = np.array([self.means(r) for r in rows])
+        else:
+            means = np.array([r['opportunity_means'] for r in rows])
         self.alpha_shots = float(np.clip(np.sum((y[:,0]-means[:,0])**2-y[:,0])/np.sum(means[:,0]**2),0,.75))
         # Shared latent scoring intensity: goals and assists sum exactly to points.
         self.alpha_scoring = float(np.clip(np.sum((y[:,3]-means[:,3])**2-y[:,3])/np.sum(means[:,3]**2),0,.75))
         self.zero_ratio = float(np.mean(y[:,3]==0)/np.mean(np.exp(-means[:,3])))
         return self
 
+    def fit_opponent(self,rows,y):
+        """Opponent elasticities by Poisson likelihood on training rows only.
+
+        Shots scale with (opponent shots allowed / league mean)^beta_shots; goals, assists and
+        points share (opponent goals allowed / league mean)^beta_scoring, so goals + assists = points.
+        A row without an opponent keeps factor 1.
+        """
+        base = np.array([r['opportunity_means'] for r in rows])
+        for key,col,name in [('opp_shots_against',0,'shots'),('opp_goals_against',3,'scoring')]:
+            ratio = np.array([r.get(key) or np.nan for r in rows],dtype=float)
+            known = np.isfinite(ratio)&(ratio>0)
+            league = float(ratio[known].mean()) if known.any() else 1.
+            setattr(self,'league_'+name,league)
+            m,t,x = base[known,col],y[known,col],ratio[known]/league
+            ll = [float(np.sum(t*np.log(np.maximum(m*x**b,1e-9))-m*x**b)) for b in OPPONENT_GRID]
+            setattr(self,'beta_'+name,float(OPPONENT_GRID[int(np.argmax(ll))]) if known.any() else 0.)
+
+    def factors(self,row):
+        if self.kind!='opportunity_nb_opp':
+            return 1.,1.
+        sa,ga = row.get('opp_shots_against'),row.get('opp_goals_against')
+        shots = (sa/self.league_shots)**self.beta_shots if sa else 1.
+        scoring = (ga/self.league_scoring)**self.beta_scoring if ga else 1.
+        return float(shots),float(scoring)
+
+    def means(self,row):
+        """The forecast means this kind uses: opportunity means times the opponent factors."""
+        base = row['base_means'] if self.kind=='rate_poisson' else row['opportunity_means']
+        shots,scoring = self.factors(row)
+        return [base[0]*shots,base[1]*scoring,base[2]*scoring,base[3]*scoring]
+
     def pmfs(self,row):
-        means = row['base_means'] if self.kind=='rate_poisson' else row['opportunity_means']
-        use_nb = self.kind=='opportunity_nb'
+        means = self.means(row)
+        use_nb = self.kind in NB_KINDS
         shots = count_pmf(means[0],self.alpha_shots if use_nb else 0)
         points = count_pmf(means[3],self.alpha_scoring if use_nb else 0)
         if self.kind=='opportunity_hurdle':
@@ -124,7 +161,7 @@ class PlayerModel:
         return [shots,goals,assists,points]
 
     def fast_pmfs(self,rows):
-        means = np.array([r['base_means'] if self.kind=='rate_poisson' else r['opportunity_means'] for r in rows])
+        means = np.array([self.means(r) for r in rows])
         out=[]
         if self.kind=='opportunity_hurdle':
             # Closed-form binomial thinning of a shifted Poisson positive component.
@@ -141,7 +178,7 @@ class PlayerModel:
                 out.append(p/p.sum(axis=1)[:,None])
             return out
         for j in range(4):
-            alpha=(self.alpha_shots if j==0 else self.alpha_scoring) if self.kind=='opportunity_nb' else 0
+            alpha=(self.alpha_shots if j==0 else self.alpha_scoring) if self.kind in NB_KINDS else 0
             p=nbinom.pmf(SUPPORT[None,:],1/alpha,1/(1+alpha*means[:,j,None])) if alpha>1e-6 else poisson.pmf(SUPPORT[None,:],means[:,j,None])
             out.append(p/p.sum(axis=1)[:,None])
         return out

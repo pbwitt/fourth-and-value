@@ -184,8 +184,28 @@ class PlayerContextTests(unittest.TestCase):
         self.assertAlmostEqual(steps[0]['value']*steps[1]['value']/60,steps[2]['value'],places=3)
         own=sum(2**(-(10-d)/120) for d in range(1,8))
         self.assertAlmostEqual(c['blend'][0]['own'],own/(own+12),places=3)
-        self.assertIs(c['opponent'],matchup)
+        self.assertEqual(c['opponent'],matchup)
         self.assertIn('Opponent defense and goalie',c['missing'])
+
+    def test_nhl_v23_shows_the_opponent_adjustment(self):
+        history=History()
+        for day in range(1,8):
+            history.add_player(dict(player_id=1,game_id=day,game_date=f'2026-09-{day:02}',available_at=f'2026-09-{day+1:02}T12:00:00Z',
+                shots=3,goals=1,assists=1,points=2,toi=20,position='F'))
+        f=history.player_features(1,'F','2026-09-10',datetime(2026,9,10,tzinfo=timezone.utc))
+        f.update(opp_shots_against=33.0,opp_goals_against=3.3,adjusted_means=[m*1.1 for m in f['opportunity_means']])
+        items=[dict(label='Shots allowed per game',value=33.0),dict(label='Regulation goals allowed per game',value=3.3)]
+        shots=nhl_context(history.players[1],f,0,'opportunity_nb_opp','nhl-v2.3',None,'2026-09-10',None,dict(team='CHI',items=items))
+        steps=shots['build']['steps']
+        self.assertEqual([s['label'] for s in steps][-3:],['Before the opponent','Opponent shots allowed vs. long-run league average','Expected shots'])
+        self.assertAlmostEqual(steps[-2]['value'],1.1,places=4)
+        self.assertEqual([i['used'] for i in shots['opponent']['items']],[True,False],'shots read shots allowed only')
+        self.assertNotIn('Opponent defense and goalie',shots['missing'])
+        self.assertIn('Opponent shots allowed / game',[i['label'] for i in shots['inputs'] if i['used']])
+        goals=nhl_context(history.players[1],f,1,'opportunity_nb_opp','nhl-v2.3',None,'2026-09-10',None,dict(team='CHI',items=items))
+        self.assertEqual([i['used'] for i in goals['opponent']['items']],[False,True])
+        self.assertIn('Opponent goals allowed / game',[i['label'] for i in goals['inputs'] if i['used']])
+        self.assertIn('110 of his games',goals['trend']['note'])
 
     def test_nhl_v22_fades_by_games_played_not_days(self):
         history=History()

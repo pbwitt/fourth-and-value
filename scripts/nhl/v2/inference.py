@@ -11,7 +11,7 @@ import numpy as np
 from nba.pipeline import normal_name
 from . import VERSION, FEATURE_SCHEMA
 from .data import ROOT, load, stamp, iso, digest, write_json
-from .features import history_at, weighted
+from .features import history_at, weighted, matchup as opponent_fields
 from .models import outcome, game_outcome
 from .pricing import compare, price, signal
 from .review import apply_review, validate_review
@@ -133,6 +133,12 @@ def annotate(rows,games,players,events,models,manifest,now,history_checked_at,ro
             k=(g['game_id'],pid)
             if k not in cache:
                 features=state.player_features(pid,records[-1]['position'],g['game_date'],now)
+                # The opponent's shots and goals allowed, from the same team features as game lines;
+                # the opponent-adjusted model kind scales its means by them (others ignore them).
+                if ('team',g['game_id']) not in cache:
+                    cache[('team',g['game_id'])]=state.team_features(g,now)
+                features.update(opponent_fields(cache[('team',g['game_id'])],g,records[-1].get('team_id')))
+                features['adjusted_means']=[models['shots'].means(features)[0],*models['scoring'].means(features)[1:]]
                 cache[k]=(features,models['shots'].pmfs(features)[0],models['scoring'].pmfs(features))
             f,shots,scoring=cache[k]; j=MARKETS.index(row['market']); pmf=shots if j==0 else scoring[j]
             row['model_inputs']=f

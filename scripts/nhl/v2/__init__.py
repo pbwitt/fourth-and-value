@@ -1,11 +1,11 @@
 """Point-in-time NHL forecasting, pricing and evaluation (no legacy model imports)."""
 from pathlib import Path
 
-VERSION = 'nhl-v2.2'
-FEATURE_SCHEMA = 'nhl-pit-2'
+VERSION = 'nhl-v2.3'
+FEATURE_SCHEMA = 'nhl-pit-3'
 # Evidence folder for each model version. Code for one version never writes into another
 # version's folder, so published results are not relabeled as evidence for a later model.
-EVIDENCE = {'nhl-v2.1': 'reports/nhl-rebuild', 'nhl-v2.2': 'reports/nhl-v2.2'}
+EVIDENCE = {'nhl-v2.1': 'reports/nhl-rebuild', 'nhl-v2.2': 'reports/nhl-v2.2', 'nhl-v2.3': 'reports/nhl-v2.3'}
 _ROOT = Path(__file__).resolve().parents[3]
 
 
