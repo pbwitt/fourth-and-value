@@ -121,6 +121,46 @@ const server=http.createServer((req,res)=>{
         await p.reload();await p.waitForSelector('.prop-card');assert.equal(await p.locator('.pc-name').count(),0,'Expired NHL model context hidden');
       }
     }
+    // NFL: rushing and receiving traces from the saved params, with the forecast's bell curve.
+    const fields=['game_id','game','player','bookmaker','book_label','market_std','market_label','name','point','price','mu','model_prob','push_prob','mkt_prob','prob_devig',
+      'consensus_prob','consensus_line','book_count','edge_bps','ev_per_100','model_status','last_update','commence_time','kick_et','home_team','away_team','projection_diagnostics'];
+    const back={version:'nfl-projection-trace-1',family:'rush',carries:16.2,yards_per_carry:4.4,recent_mean_weight:.5,sigma:30,home:true,
+      current_sample:[{season:2026,week:1,opponent_team:'MIA',carries:15,rushing_yards:61},{season:2026,week:2,opponent_team:'NYJ',carries:18,rushing_yards:92},
+        {season:2026,week:3,opponent_team:'NE',carries:12,rushing_yards:40},{season:2026,week:4,opponent_team:'KC',carries:20,rushing_yards:111}],
+      mean_stages:{before_adjustments:71.28,after_defense:68.1,after_venue:72.2,final:72.2},
+      opponent:{team:'WAS',kind:'rush',rating:1.15,rank:6,of:32,allowed:98.4,league:112.3,games:4,season:2026}};
+    const nflRow=o=>fields.map(f=>o[f]??null);
+    const nflBase={game_id:'nfl-g',game:'Example Away @ Example Home',bookmaker:'draftkings',book_label:'DraftKings',price:-110,mkt_prob:.524,prob_devig:.5,consensus_prob:.5,consensus_line:70.5,book_count:3,
+      edge_bps:-500,ev_per_100:-5,model_status:'Calibration fitted; not prospectively validated',last_update:now,commence_time:future,kick_et:'Sun 1:00 PM ET',home_team:'Example Home',away_team:'Example Away'};
+    const payload={fields,dictionary:{},topOnly:false,root:'..',snapshotUpcoming:2,snapshotVerified:true,lastKickoff:future,rows:[
+      nflRow({...nflBase,player:'Example Back',market_std:'rush_yds',market_label:'Rushing yards',name:'under',point:70.5,mu:72.2,model_prob:.47,push_prob:0,projection_diagnostics:JSON.stringify(back)}),
+      nflRow({...nflBase,player:'Example Receiver',market_std:'receptions',market_label:'Receptions',name:'over',point:4.5,mu:4.69,model_prob:.52,push_prob:0,
+        projection_diagnostics:JSON.stringify({...back,family:'receive',targets:7.1,catch_rate:.66,yards_per_reception:11.8,sigma:2.1,home:false,opponent:{team:'BUF',kind:'pass',rating:.8,rank:25,of:32},
+          current_sample:[{season:2026,week:4,opponent_team:'MIA',targets:6,receptions:4,receiving_yards:52}],mean_stages:{before_adjustments:4.69,after_defense:4.69,after_venue:4.69,final:4.69}})})]};
+    const propsHTML=fs.readFileSync(path.join(root,'props/index.html'),'utf8')
+      .replace(/(<script type="application\/json" id="props-data">)[\s\S]*?(<\/script>)/,(_,a,b)=>a+JSON.stringify(payload).replace(/</g,'\\u003c')+b);
+    await p.route(base+'/props/',route=>route.fulfill({contentType:'text/html',body:propsHTML}));
+    for(const width of [390,1440]){
+      await p.setViewportSize({width,height:1050});await p.goto(base+'/props/');await p.waitForSelector('.prop-card .pc-name');
+      const name=p.locator('.prop-card .pc-name',{hasText:'Example Back'}),pop=p.locator('.pc-pop');
+      await name.click();await pop.waitFor({state:'visible'});
+      const form=await pop.textContent();
+      assert.match(form,/2 of 4 cleared Under 70\.5/);assert.match(form,/Rush yds \/ game76/);assert.doesNotMatch(form,/NaN|undefined|null/);
+      await pop.locator('[data-tab=model]').click();await pop.locator('.pc-dist .pc-plot').waitFor({state:'visible'});
+      const model=await pop.locator('#pc-panel-model').textContent();
+      assert.match(model,/Opposing run defense0\.96×/);assert.match(model,/Home game1\.06×/);assert.match(model,/Rushing yards allowed \/ game98\.4/);
+      assert.match(model,/Under 70\.5: 47\.7% on this curve · 47% after calibration/);
+      const out=pop.locator('.pc-dist .pc-readout');await pop.locator('.pc-dist .pc-target').nth(5).hover();
+      assert.match(await out.textContent(),/71–85 rush yds: 19\.4%/,'hovering a bin shows its chance');
+      assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,`NFL pop-up overflow at ${width}`);
+      await p.screenshot({path:`/tmp/fv-player-pop-nfl-${width}-model.png`});
+      await pop.locator('[data-tab=form]').click();await p.keyboard.press('Escape');await pop.waitFor({state:'hidden'});
+      await p.locator('.prop-card .pc-name',{hasText:'Example Receiver'}).click();await pop.waitFor({state:'visible'});
+      await pop.locator('[data-tab=model]').click();
+      assert.match(await pop.locator('#pc-panel-model').textContent(),/Expected targets7\.1×Catch rate66%=Before matchup4\.7 receptions/);
+      assert.equal(await pop.locator('.pc-dist .pc-ticks span').count(),12,'one bin per catch count, 0 to 11+');
+      await pop.locator('[data-tab=form]').click();await p.keyboard.press('Escape');await pop.waitFor({state:'hidden'});
+    }
     for(const width of [320,390,768,1440]){
       await p.setViewportSize({width,height:1000});await p.goto(base+'/briefing/');
       await p.waitForFunction(()=>!document.getElementById('picks-status').textContent.includes('Loading'));
@@ -133,6 +173,6 @@ const server=http.createServer((req,res)=>{
       assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,`Daily picks context overflow at ${width}`);
     }
     assert.deepEqual(errors,[]);
-    console.log('PASS: name pop-up (click, hover, Escape, outside click, close), game logs, inputs and tracking at four widths; stale NHL context hidden; daily-picks context.');
+    console.log('PASS: name pop-up (click, hover, Escape, outside click, close), game logs, inputs and tracking at four widths; stale NHL context hidden; NFL rushing and receiving curves; daily-picks context.');
   }finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);server.close();process.exitCode=1;});

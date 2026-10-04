@@ -670,9 +670,11 @@ def calculate_defensive_ratings(season: int, week: int) -> pd.DataFrame:
         # Filter to weeks before current week
         df = df[df['week'] < week].copy()
 
+    data_season = season
     if len(df) == 0:
         # No current-season games yet (e.g. Week 1-3) - fall back to last
         # season's full-season defensive performance as a proxy.
+        data_season = season - 1
         prior_path = Path(f"data/weekly_player_stats_{season - 1}.parquet")
         if not prior_path.exists():
             logging.warning(f"No defensive data available: {parquet_path} or {prior_path}")
@@ -729,7 +731,10 @@ def calculate_defensive_ratings(season: int, week: int) -> pd.DataFrame:
         def_df[rating_col] = rating
 
     logging.info(f"[defense] Calculated ratings for {len(def_df)} teams")
-    return def_df[['team', 'pass_def_rating', 'rush_def_rating', 'games']].set_index('team')
+    # Yards allowed and the data season are kept for display; the ratings alone adjust projections.
+    def_df['season'] = data_season
+    return def_df[['team', 'pass_def_rating', 'rush_def_rating', 'games',
+                   'pass_yds_per_game', 'rush_yds_per_game', 'season']].set_index('team')
 
 
 # Sportsbook team names to nflverse abbreviations, the keys used by game logs and defensive ratings.
@@ -1633,9 +1638,20 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
         sg_map[mkt] = sg
 
     # Preserve a trace of the existing calculation; these copies never alter it.
-    from nfl_prop_diagnostics import passing_trace, clean as clean_diagnostic
+    from nfl_prop_diagnostics import passing_trace, family_trace, opponent_trace, clean as clean_diagnostic
     pass_players = cands.loc[cands.market_std.isin(['pass_attempts', 'pass_completions', 'pass_yds']), 'player'].unique()
     pass_trace = passing_trace(logs, career_df, pass_latents, season, pass_players)
+    # Rushing and receiving traces are display-only: a failure leaves them out, never the means.
+    family_traces = {}
+    for family, markets, family_latents in [('rush', ['rush_attempts', 'rush_yds'], rush_latents),
+                                            ('receive', ['receptions', 'recv_yds'], receive_latents)]:
+        try:
+            players = cands.loc[cands.market_std.isin(markets), 'player'].unique()
+            family_traces[family] = family_trace(logs, family_latents, family, players,
+                                                 career_df is not None and not career_df.empty)
+        except Exception as error:
+            print(f"[diagnostics] {family} trace skipped ({type(error).__name__})")
+            family_traces[family] = {}
     before_adjustments = {m: values.copy() for m, values in mu_map.items()}
 
     print(f"[family] Derived params for {len(mu_map)} Normal markets from latents")
@@ -1907,13 +1923,27 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
     pass_yds_mask = params["market_std"].isin(["pass_completions", "pass_yds"])
     params.loc[pass_yds_mask, "implied_ypc_pass"] = params.loc[pass_yds_mask, "player"].map(player_to_ypc_pass)
 
+    family_of = {'rush_attempts': 'rush', 'rush_yds': 'rush', 'receptions': 'receive', 'recv_yds': 'receive'}
+
     def trace_row(row):
-        if row['market_std'] not in ('pass_attempts', 'pass_completions', 'pass_yds'):
-            return None
         p, m = row['player'], row['market_std']
-        trace = dict(pass_trace[p], mean_stages=clean_diagnostic(dict(
-            before_adjustments=float(before_adjustments[m][p]), after_defense=float(after_defense[m][p]),
-            after_venue=float(mu_map[m][p]), final=float(row['mu']))))
+        if m in ('pass_attempts', 'pass_completions', 'pass_yds'):
+            trace = dict(pass_trace[p], mean_stages=clean_diagnostic(dict(
+                before_adjustments=float(before_adjustments[m][p]), after_defense=float(after_defense[m][p]),
+                after_venue=float(mu_map[m][p]), final=float(row['mu']))))
+        elif m in family_of and p in family_traces.get(family_of[m], {}):
+            trace = dict(family_traces[family_of[m]][p], mean_stages=clean_diagnostic(dict(
+                before_adjustments=float(before_adjustments[m][p]), after_defense=float(after_defense[m][p]),
+                after_venue=float(mu_map[m][p]), final=float(row['mu']))))
+        else:
+            return None
+        # Display extras for the player snapshot; they never feed the forecast.
+        try:
+            trace.update(clean_diagnostic(dict(sigma=float(row['sigma']) if pd.notna(row.get('sigma')) else None,
+                opponent=opponent_trace(m, p, opponent_map, defensive_ratings),
+                home=(home_away_map or {}).get(p))))
+        except Exception:
+            pass
         return json.dumps(trace, separators=(',', ':'), allow_nan=False)
     params['projection_diagnostics'] = params.apply(trace_row, axis=1)
 

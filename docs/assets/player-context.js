@@ -15,43 +15,89 @@
   function inputsHTML(inputs){
     return `<dl class="pc-inputs">${inputs.filter(i=>i&&finite(i.value)).map(i=>`<div><dt>${esc(i.label)} <span class="pc-kind">${i.used?'Model input':'Context'}</span></dt><dd>${measure(i.value,i.unit,i.unit==='days'?0:2)}${i.unit?' '+esc(i.unit):''}${i.detail?`<span class="pc-detail">${esc(i.detail)}</span>`:''}</dd></div>`).join('')}</dl>`;
   }
-  function fallback(r,sport){
-    if(sport==='NFL'){
-      let p=r.model_diagnostics?.projection;
-      if(!p&&typeof r.projection_diagnostics==='string')try{p=JSON.parse(r.projection_diagnostics);}catch{}
-      const market=r.market_std||r.market,stat={pass_yds:'passing_yards',pass_attempts:'attempts',pass_completions:'completions'}[market];
-      if(!p||!stat)return null;
-      const sample=Array.isArray(p.current_sample)?p.current_sample:[];
-      const mean=key=>{const values=sample.map(g=>g[key]).filter(finite);return values.length?values.reduce((a,b)=>a+b,0)/values.length:null;};
-      const inputs=[{label:'Expected attempts',value:p.attempts,unit:'att',used:true}];
-      if(market!=='pass_attempts')inputs.push({label:'Completion rate',value:finite(p.completion_rate)?p.completion_rate*100:null,unit:'%',used:true});
-      if(market==='pass_yds')inputs.push({label:'Yards / completion',value:p.yards_per_completion,unit:'yd',used:true});
-      inputs.push({label:'Recent weight: attempts',value:finite(p.recent_mean_weight)?p.recent_mean_weight*100:null,unit:'%',detail:'Share given to the recent sample in the career blend'});
-      if(market==='pass_yds')inputs.push({label:'Recent weight: yards / completion',value:finite(p.yards_per_completion_recent_weight)?p.yards_per_completion_recent_weight*100:null,unit:'%'});
-      const games=sample.slice().reverse().map(g=>({week:finite(g.week)?'Wk '+g.week:'—',att:g.attempts,cmp:g.completions,yds:g.passing_yards}));
-      // How the projection is built: the model's own components and adjustment stages.
-      const st=p.mean_stages||{},unit={pass_yds:'yd',pass_attempts:'att',pass_completions:'cmp'}[market],steps=[];
-      steps.push({label:'Expected attempts',value:p.attempts,unit:''});
-      if(market!=='pass_attempts')steps.push({label:'Completion rate',value:finite(p.completion_rate)?p.completion_rate*100:null,unit:'%',op:'×'});
-      if(market==='pass_yds')steps.push({label:'Yards per completion',value:p.yards_per_completion,unit:'',op:'×'});
-      if(finite(st.before_adjustments)&&market!=='pass_attempts')steps.push({label:'Before matchup',value:st.before_adjustments,unit,op:'='});
-      const ratio=(a,b)=>finite(a)&&finite(b)&&b>0?a/b:null,defense=ratio(st.after_defense,st.before_adjustments),venue=ratio(st.after_venue,st.after_defense),other=ratio(st.final,st.after_venue);
-      if(finite(defense))steps.push({label:'Opposing pass defense',value:defense,unit:'×',op:'×'});
-      if(finite(venue)&&Math.abs(venue-1)>1e-6)steps.push({label:venue>1?'Home field':'Road game',value:venue,unit:'×',op:'×'});
-      if(finite(other)&&Math.abs(other-1)>1e-6)steps.push({label:'Injury or manual adjustment',value:other,unit:'×',op:'×'});
-      if(finite(st.final))steps.push({label:'Projection',value:st.final,unit,op:'='});
-      const explain={build:{steps,note:'Attempts, completion rate and yards per completion are blended from this season and his career, then scaled for the opponent and venue.'},
-        trend:{label:unit,note:`This season’s games count ${finite(p.recent_mean_weight)?Math.round(p.recent_mean_weight*100)+'%':'part'} in the attempts estimate; career history and the position average fill the rest.`,
-          rows:sample.map(g=>[finite(g.week)?'Wk '+g.week:'',g[stat],null,null,g.attempts])},
-        blend:[{label:'Attempts',own:p.recent_mean_weight,own_label:'this season',rest_label:'career',detail:`${sample.length} game${sample.length===1?'':'s'} this season`},
-          ...(market==='pass_yds'&&finite(p.yards_per_completion_recent_weight)?[{label:'Yards per completion',own:p.yards_per_completion_recent_weight,own_label:'this season',rest_label:'career'}]:[])],
-        opponent:finite(defense)?{label:'Opposing pass defense',items:[{label:'Defense adjustment',value:defense,unit:'×',league:1,used:true,rank:defense>1?'Allows more passing yards than average':defense<1?'Allows fewer passing yards than average':'About average'}]}:null,
-        missing:['Weather and wind','Game script (trailing teams pass more)','Teammate injuries and target changes']};
-      return {schema_version:1,source:'NFL saved forecast trace',...explain,sample_games:sample.length,sample_label:'recent appearances',stat_label:{pass_yds:'yd',pass_attempts:'att',pass_completions:'cmp'}[market],
-        workload_label:'Attempts / game',workload_unit:'att',recent:sample.length?[{games:sample.length,mean:mean(stat),workload:mean('attempts')}]:[],inputs,
-        games,game_columns:[['week','Week'],['att','Att'],['cmp','Cmp'],['yds','Yds']],game_focus:{pass_yds:'yds',pass_attempts:'att',pass_completions:'cmp'}[market],
-        note:'Passing components are shown before matchup and venue adjustments. Recent weight describes the share given to current form versus career history. Partial appearances are not separately adjusted.'};
+  // ---- NFL: built from the saved projection trace (make_player_prop_params.py). ----
+  // market: [family, sample stat, stat label, game-log focus column]
+  const NFL={pass_yds:['pass','passing_yards','pass yds','yds'],pass_attempts:['pass','attempts','att','att'],pass_completions:['pass','completions','cmp','cmp'],
+    rush_yds:['rush','rushing_yards','rush yds','yds'],rush_attempts:['rush','carries','carries','car'],receptions:['receive','receptions','receptions','rec'],recv_yds:['receive','receiving_yards','rec yds','yds']};
+  const NFL_WORK={pass:['attempts','Attempts','att'],rush:['carries','Carries','car'],receive:['targets','Targets','tgt']};
+  const ordinal=n=>n+(n%100>=11&&n%100<=13?'th':{1:'st',2:'nd',3:'rd'}[n%10]||'th');
+  const erf=x=>{const t=1/(1+.3275911*Math.abs(x)),y=1-((((1.061405429*t-1.453152027)*t+1.421413741)*t-.284496736)*t+.254829592)*t*Math.exp(-x*x);return x>=0?y:-y;};
+  const normal=(x,m,s)=>x===-Infinity?0:x===Infinity?1:.5*(1+erf((x-m)/(s*Math.SQRT2)));
+  // The forecast's Normal curve as whole-number bins. Bin edges sit on the line (a half-point
+  // line, or the push interval of a whole-number line, as market_math.py prices them), so no
+  // bin holds both winning and losing results. The end bins are open.
+  function normalBins(mu,sigma,line,count){
+    if(!finite(mu)||!(sigma>0))return null;
+    const has=finite(line),push=has&&Number.isInteger(line);
+    let lo=mu-3*sigma,hi=mu+3*sigma;
+    if(has){lo=Math.min(lo,line-1.5);hi=Math.max(hi,line+1.5);}
+    lo=Math.max(lo,-.5);  // negative totals are rare; the open first bin holds them
+    const span=hi-lo,width=count&&span<=16?1:[2,5,10,15,20,25,30,40,50,100,200,500].find(w=>span/w<=14)||1000;
+    if(span/width>40)return null;
+    const top=has?(push?line-.5:line):Math.round(mu)-.5,edges=[];
+    for(let e=top;e>lo;e-=width)edges.unshift(e);
+    if(push)edges.push(line+.5);
+    for(let e=(push?line+.5:top)+width;e<hi;e+=width)edges.push(e);
+    // The open first bin keeps the curve's mass below zero, as the pricing does; a count bin that
+    // ends at zero is simply "0".
+    const cuts=[-Infinity,...edges.filter(e=>e>-.5),Infinity],bins=[];
+    for(let i=0;i<cuts.length-1;i++){
+      const a=cuts[i],b=cuts[i+1],to=b===Infinity?null:Math.ceil(b)-1,zero=a===-Infinity&&count&&to===0;
+      bins.push({from:zero?0:a===-Infinity?null:Math.ceil(a),to,p:normal(b,mu,sigma)-normal(a,mu,sigma),low:a===-Infinity&&!zero,high:b===Infinity});
     }
+    return bins.length>1?bins:null;
+  }
+  function nflContext(r){
+    let p=r.model_diagnostics?.projection;
+    if(!p&&typeof r.projection_diagnostics==='string')try{p=JSON.parse(r.projection_diagnostics);}catch{}
+    const market=r.market_std||r.market,spec=NFL[market];
+    if(!p||!spec)return null;
+    const [family,stat,label,focus]=spec,[workKey,workName,workUnit]=NFL_WORK[family];
+    const sample=Array.isArray(p.current_sample)?p.current_sample:[];
+    const mean=key=>{const values=sample.map(g=>g[key]).filter(finite);return values.length?values.reduce((a,b)=>a+b,0)/values.length:null;};
+    const parts=family==='pass'?[['Expected attempts',p.attempts,''],market!=='pass_attempts'&&['Completion rate',finite(p.completion_rate)?p.completion_rate*100:null,'%'],market==='pass_yds'&&['Yards per completion',p.yards_per_completion,'']]
+      :family==='rush'?[['Expected carries',p.carries,''],market==='rush_yds'&&['Yards per carry',p.yards_per_carry,'']]
+      :[['Expected targets',p.targets,''],['Catch rate',finite(p.catch_rate)?p.catch_rate*100:null,'%'],market==='recv_yds'&&['Yards per reception',p.yards_per_reception,'']];
+    const used=parts.filter(x=>x&&finite(x[1])),st=p.mean_stages||{},steps=used.map(([name,value,u],i)=>({label:name,value,unit:u,op:i?'×':null}));
+    if(finite(st.before_adjustments)&&used.length>1)steps.push({label:'Before matchup',value:st.before_adjustments,unit:label,op:'='});
+    const ratio=(a,b)=>finite(a)&&finite(b)&&b>0?a/b:null,defense=ratio(st.after_defense,st.before_adjustments),venue=ratio(st.after_venue,st.after_defense),other=ratio(st.final,st.after_venue);
+    const side=family==='rush'?'run':'pass',Side=side==='run'?'Run':'Pass';
+    if(finite(defense)&&Math.abs(defense-1)>1e-6)steps.push({label:`Opposing ${side} defense`,value:defense,unit:'×',op:'×'});
+    if(finite(venue)&&Math.abs(venue-1)>1e-6)steps.push({label:venue>1?'Home game':'Road game',value:venue,unit:'×',op:'×'});
+    if(finite(other)&&Math.abs(other-1)>1e-6)steps.push({label:'Injury or manual adjustment',value:other,unit:'×',op:'×'});
+    if(finite(st.final)&&steps.length>1)steps.push({label:'Projection',value:st.final,unit:label,op:'='});
+    const o=p.opponent&&typeof p.opponent==='object'?p.opponent:null,items=[];
+    const basis=o&&finite(o.season)&&finite(o.games)?` · ${o.season} season, ${o.games} game${o.games===1?'':'s'}`:'';
+    const rank=o&&finite(o.rank)&&finite(o.of)?(o.rank===1?'Toughest':ordinal(o.rank)+' toughest')+` of ${o.of}`:'';
+    if(o&&finite(o.allowed))items.push({label:`${side==='run'?'Rushing':'Receiving'} yards allowed / game`,value:o.allowed,unit:'',league:o.league,used:true,rank:rank+basis});
+    else if(o&&finite(o.rating))items.push({label:`${Side} defense rating`,value:o.rating,unit:'',league:1,used:true,rank:rank+basis});
+    if(finite(defense))items.push({label:'Adjustment to the projection',value:defense,unit:'×',league:1,used:true,
+      rank:defense>1.0005?'Easier than average':defense<.9995?'Tougher than average':'About average'});
+    const blend=finite(p.recent_mean_weight)?[{label:workName,own:p.recent_mean_weight,own_label:'this season',rest_label:'career',detail:`${sample.length} game${sample.length===1?'':'s'} this season`}]:[];
+    if(market==='pass_yds'&&finite(p.yards_per_completion_recent_weight))blend.push({label:'Yards per completion',own:p.yards_per_completion_recent_weight,own_label:'this season',rest_label:'career'});
+    const center=finite(r.mu)?r.mu:st.final,bins=normalBins(center,p.sigma,lineOf(r),!/_yds$/.test(market));
+    const games=sample.slice().reverse().map(g=>({week:finite(g.week)?'Wk '+g.week:'—',opp:g.opponent_team||null,
+      att:g.attempts,cmp:g.completions,car:g.carries,tgt:g.targets,rec:g.receptions,yds:g[family==='pass'?'passing_yards':family==='rush'?'rushing_yards':'receiving_yards']}));
+    const columns=(family==='pass'?[['week','Week'],['opp','Opp'],['att','Att'],['cmp','Cmp'],['yds','Yds']]
+      :family==='rush'?[['week','Week'],['opp','Opp'],['car','Car'],['yds','Yds']]:[['week','Week'],['opp','Opp'],['tgt','Tgt'],['rec','Rec'],['yds','Yds']])
+      .filter(([k])=>k!=='opp'||games.some(g=>g.opp));
+    const weight=finite(p.recent_mean_weight)?Math.round(p.recent_mean_weight*100)+'%':null;
+    return {schema_version:1,source:'NFL saved forecast trace',sample_games:sample.length,sample_label:'recent appearances',stat_label:label,
+      workload_label:workName+' / game',workload_unit:workUnit,recent:sample.length?[{games:sample.length,mean:mean(stat),workload:mean(workKey)}]:[],
+      inputs:[...used.map(([name,value,u])=>({label:name,value,unit:u,used:true})),...(weight?[{label:`Recent weight: ${workName.toLowerCase()}`,value:p.recent_mean_weight*100,unit:'%',used:true,detail:'Share given to this season in the career blend'}]:[])],
+      games,game_columns:columns,game_focus:focus,
+      build:steps.length>1?{steps,note:`Each part is a blend of this season and his career. The total is then scaled for the opposing ${side} defense and the venue.`}:null,
+      trend:{label,note:weight?`This season’s games count ${weight} in the ${workName.toLowerCase()} estimate; his career and the position average fill the rest.`:'Recent games this season.',
+        rows:sample.map(g=>[finite(g.week)?'Wk '+g.week:'',g[stat],null,g.opponent_team?'vs '+g.opponent_team:null,g[workKey]])},
+      blend,opponent:items.length?{team:o?.team,label:`Opposing ${side} defense`,items}:null,
+      distribution:bins?{bins,count:!/_yds$/.test(market),sigma:p.sigma,center}:null,
+      missing:family==='pass'?['Weather and wind','Game script (trailing teams pass more)','Teammate injuries and target changes']
+        :family==='rush'?['Game script (leading teams run more)','Offensive line injuries','Goal-line and short-yardage roles']
+        :['Quarterback changes','Teammate injuries and target share','Weather and wind'],
+      note:'Parts are shown before the matchup and venue adjustments. Recent weight is the share given to this season versus his career. Partial appearances are not separately adjusted.'};
+  }
+  function fallback(r,sport){
+    if(sport==='NFL')return nflContext(r);
     if(sport==='NBA'&&finite(r.baseline_mean))return {schema_version:1,source:'NBA historical baseline',through:r.baseline_last_game,
       sample_games:r.baseline_games,sample_label:'appearances',stat_label:r.market_label,workload_label:'Minutes / game',workload_unit:'min',
       recent:[{games:r.baseline_games,mean:r.baseline_mean,workload:null}],inputs:[],
@@ -154,8 +200,8 @@
     return `<h4>Recent averages</h4><div class="pc-log"><table><thead><tr><th scope="col">Sample</th><th scope="col">${esc(c.stat_label)} / ${sample}</th><th scope="col">${esc(c.workload_label||'')}</th></tr></thead><tbody>${
       recent.map(w=>`<tr><th scope="row">Last ${w.games}</th><td>${fmt(w.mean,'',sport)}</td><td>${withUnit(w.workload,c.workload_unit,sport)}</td></tr>`).join('')}</tbody></table></div>`;
   }
-  const statName=c=>({yd:'Pass yds',att:'Attempts',cmp:'Completions'})[c.stat_label]||String(c.stat_label||'').replace(/^[a-z]/,x=>x.toUpperCase());
-  const workName=(c,sport)=>({IP:'IP',min:sport==='NHL'?'TOI':'Minutes',PA:'PA',att:'Attempts'})[c.workload_unit]||c.workload_label||'Workload';
+  const statName=c=>({att:'Attempts',cmp:'Completions'})[c.stat_label]||String(c.stat_label||'').replace(/^[a-z]/,x=>x.toUpperCase());
+  const workName=(c,sport)=>({IP:'IP',min:sport==='NHL'?'TOI':'Minutes',PA:'PA',att:'Attempts',car:'Carries',tgt:'Targets'})[c.workload_unit]||c.workload_label||'Workload';
   // ---- Small charts: inline SVG. Every value is also in text (caption, readout, tables, chart label). ----
   const W=320;
   const plain=v=>/^\d{4}-\d{2}-\d{2}$/.test(v||'')?new Date(v+'T12:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'}):String(v??'');
@@ -163,6 +209,9 @@
   const odds=v=>finite(v)?(v*100).toFixed(1).replace(/\.0$/,'')+'%':'—';
   const lineText=v=>finite(v)?String(+v.toFixed(2)):'';
   const winner=(k,line,side)=>!finite(line)?null:k===line?'push':side==='Under'?k<line:k>line;
+  const minus=v=>String(v).replace('-','−');
+  const lineOf=r=>finite(r?.line)?r.line:finite(r?.point)?r.point:null;
+  const sideOf=r=>/^under$/i.test(String(r?.side??r?.name??''))?'Under':'Over';
   // A rounded data end (4px) and a square baseline, per the house chart spec.
   function bar(x,top,w,h,cls,opacity=1){
     if(!(h>0))return '';
@@ -176,14 +225,14 @@
     if(!finite(v))return '';
     if(sport==='NHL')return clock(v)+' TOI';
     if(sport==='MLB')return Math.round(v)+(c.sample_label==='starts'?' pitches':' PA');
-    if(sport==='NFL')return Math.round(v)+' att';
+    if(sport==='NFL')return Math.round(v)+' '+(c.workload_unit||'att');
     return Math.round(v)+' min';
   }
   // Last ten games against tonight's line. Faded bars count less in the model.
   function trendChart(c,r,sport){
     const t=c?.trend,rows=(Array.isArray(t?.rows)?t.rows:[]).filter(x=>Array.isArray(x)&&finite(x[1]));
     if(rows.length<2)return '';
-    const line=finite(r.line)?r.line:null,side=r.side==='Under'?'Under':'Over',H=84,n=rows.length,band=W/n,bw=Math.min(22,band-4);
+    const line=lineOf(r),side=sideOf(r),H=84,n=rows.length,band=W/n,bw=Math.min(22,band-4);
     const max=Math.max(...rows.map(x=>x[1]),line??0,1)*1.15,y=v=>H-v/max*H;
     let marks='',targets='',wins=0,decided=0;
     const words=[];
@@ -206,9 +255,10 @@
   function distChart(c,r,sport){
     const d=c?.distribution;
     if(Array.isArray(d?.empirical))return pastChart(d.empirical.filter(finite),c,r);
+    if(Array.isArray(d?.bins))return binsChart(d,c,r,sport);
     const p=(Array.isArray(d?.p)?d.p:[]).map(Number);
     if(p.length<2||!p.every(finite))return '';
-    const line=finite(r.line)?r.line:null,side=r.side==='Under'?'Under':'Over',H=72,n=p.length,band=W/n,bw=Math.min(22,band-4);
+    const line=lineOf(r),side=sideOf(r),H=72,n=p.length,band=W/n,bw=Math.min(22,band-4);
     const max=Math.max(...p)*1.1||1,start=finite(d.start)?d.start:0;
     let marks='',targets='',labels='',win=0,push=0;
     const words=[];
@@ -234,10 +284,42 @@
     return `<h4>Range of outcomes</h4>`+figure('pc-dist',`Model chances: ${words.join('; ')}`,svg,`<div class="pc-ticks" style="grid-template-columns:repeat(${n},1fr)">${labels}</div>`,caption,
       'The model gives a chance for every count, not one guess. Highlighted bars win this bet.');
   }
+  // NFL: the forecast's Normal curve in bins. The winning bins add up to the curve's chance;
+  // the published chance is that number after calibration, so the caption shows both.
+  function binsChart(d,c,r,sport){
+    const bins=d.bins.filter(b=>b&&finite(b.p));
+    if(bins.length<2)return '';
+    const line=lineOf(r),side=sideOf(r),H=72,n=bins.length,band=W/n,bw=Math.min(22,band-4),max=Math.max(...bins.map(b=>b.p))*1.1||1;
+    const chance=v=>v>0&&v<.0005?'<0.1%':odds(v);
+    let marks='',targets='',labels='',win=0,push=0,at=null;
+    const words=[];
+    bins.forEach((b,i)=>{
+      const lowest=b.low?-Infinity:b.from,highest=b.high?Infinity:b.to;
+      const outcome=line===null?null:lowest===line&&highest===line?'push':side==='Under'?highest<line:lowest>line;
+      if(outcome==='push')push+=b.p;else if(outcome)win+=b.p;
+      if(line!==null&&at===null)at=outcome==='push'?(i+.5)*band:lowest>line?i*band:null;
+      const name=b.low?`≤${minus(b.to)}`:b.high?`${minus(b.from)}+`:b.from===b.to?minus(b.from):`${minus(b.from)}–${minus(b.to)}`;
+      const h=b.p>0?Math.max(1.5,b.p/max*H):0;
+      marks+=bar(i*band+(band-bw)/2,H-h,bw,h,outcome==='push'?'pc-push':outcome?'pc-hit':'pc-miss');
+      const text=`${name} ${c.stat_label}: ${chance(b.p)}`;
+      words.push(text);
+      targets+=`<rect class="pc-target" x="${(i*band).toFixed(1)}" y="0" width="${band.toFixed(1)}" height="${H}" data-readout="${esc(text)}"/>`;
+      labels+=`<span>${n>12&&i%2?'':esc(b.low?`≤${minus(b.to)}`:b.high?`${minus(b.from)}+`:minus(b.from))}</span>`;
+    });
+    const rule=at!==null&&at>0&&at<W?`<line class="pc-rule" x1="${at.toFixed(1)}" x2="${at.toFixed(1)}" y1="0" y2="${H}"/>`:'';
+    const svg=`<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${marks}${rule}${targets}</svg>`;
+    const curve=line!==null&&push<1?win/(1-push):null,published=finite(r.model_prob)?r.model_prob:null;
+    const caption=line===null?'Chance of each outcome':`${side} ${lineText(line)}: ${chance(curve)} on this curve`
+      +(published!==null?` · ${odds(published)} after calibration`:'')+(push>.0005?` · Push: ${odds(push)}`:'');
+    const spread=finite(d.sigma)?` with a spread of ±${fmt(d.sigma,'',sport)} ${c.stat_label} (one standard deviation)`:'';
+    return `<h4>Range of outcomes</h4>`+figure('pc-dist',`Forecast curve: ${words.join('; ')}`,svg,`<div class="pc-ticks" style="grid-template-columns:repeat(${n},1fr)">${labels}</div>`,caption,
+      `A bell curve centered on the projection${finite(d.center)?` (${fmt(d.center,'',sport)} ${c.stat_label})`:''}${spread}. Highlighted bars win this bet. `
+      +'The published chance is calibrated against past results, so it can differ from the curve.');
+  }
   // No model yet (NBA): how the recent games fell around the line.
   function pastChart(values,c,r){
     if(values.length<5)return '';
-    const line=finite(r.line)?r.line:null,side=r.side==='Under'?'Under':'Over';
+    const line=lineOf(r),side=sideOf(r);
     const lo=Math.floor(Math.min(...values)),hi=Math.ceil(Math.max(...values)),size=Math.max(1,Math.ceil((hi-lo+1)/10)),n=Math.floor((hi-lo)/size)+1;
     const counts=Array(n).fill(0);values.forEach(v=>counts[Math.min(n-1,Math.floor((v-lo)/size))]++);
     const H=64,band=W/n,bw=Math.min(22,band-4),max=Math.max(...counts);
@@ -259,7 +341,7 @@
     const cond=(w,p)=>finite(w)?(finite(p)&&p<1?w/(1-p):w):null;
     const v={NHL:[r.conditional_probability??cond(r.independent_probability,r.push_probability),r.market_probability,r.book_probability],
       MLB:[r.model_conditional_probability,r.consensus_probability??r.fair_probability,r.book_probability],
-      NFL:[cond(r.model_prob,r.push_prob),r.consensus_prob??r.prob_devig,r.mkt_prob],
+      NFL:[r.model_prob,r.consensus_prob??r.prob_devig,r.mkt_prob],
       NBA:[r.baseline_probability,r.consensus_probability??r.fair_probability,r.book_probability]}[sport];
     if(!v||!finite(v[0])||!finite(v[2]))return '';
     const shown=v.filter(finite),span=Math.max(.24,Math.max(...shown)-Math.min(...shown)+.12),mid=(Math.max(...shown)+Math.min(...shown))/2;
@@ -271,7 +353,7 @@
       +`<circle class="pc-model" cx="${x(v[0])}" cy="11" r="5"/></svg>`;
     const gap=(v[0]-v[2])*100;
     const keys=`<p class="pc-keys"><span class="pc-key-model">${esc(model)} ${odds(v[0])}</span>${finite(v[1])?`<span class="pc-key-market">Market ${odds(v[1])}</span>`:''}<span class="pc-key-even">Break-even ${odds(v[2])}</span></p>`;
-    const caption=`${model} vs. break-even: ${gap>=0?'+':'−'}${Math.abs(gap).toFixed(1)} points${finite(r.line)&&Number.isInteger(r.line)?' · chances exclude pushes':''}`;
+    const caption=`${model} vs. break-even: ${gap>=0?'+':'−'}${Math.abs(gap).toFixed(1)} points${Number.isInteger(lineOf(r))?' · chances exclude pushes':''}`;
     return `<figure class="pc-chart pc-strip"><div class="pc-plot" role="img" aria-label="${esc(`${model} ${odds(v[0])}, market ${odds(v[1])}, break-even ${odds(v[2])}`)}">${svg}</div>${keys}<figcaption class="pc-readout">${esc(caption)}</figcaption></figure>`;
   }
   function buildHTML(c,sport){
