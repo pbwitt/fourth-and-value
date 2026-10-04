@@ -5,7 +5,7 @@ import sys
 import unittest
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from player_context import nhl_context, mlb_context, windows
+from player_context import nhl_context, mlb_context, windows, nba_matchup
 from mlb.models import State
 from nhl.v2.features import History
 from nba.pipeline import add_baselines
@@ -34,13 +34,13 @@ class PlayerContextTests(unittest.TestCase):
         features=dict(starter_outs5=15,starter_pitches5=85,starter_bf=22,starter_k_rate=.25,opp_k_rate=.20,starter_rest=1)
         result=mlb_context(history,'2026-09-03',{'id':1},'pitcher_strikeouts',features,{'kind':'rolling'})
         self.assertEqual(result['sample_games'],2)
-        self.assertEqual(result['recent'],[dict(games=2,mean=3,workload=5.5)])
+        self.assertEqual(result['recent'],[dict(games=2,mean=3,workload=5.5,pitches=None)])
         self.assertEqual(result['through'],'2026-09-02')
         used=[i['label'] for i in result['inputs'] if i['used']]
         self.assertEqual(used,['Pitcher strikeout rate','Opponent strikeout rate','Batters faced / start'])
         self.assertEqual(result['inputs'][0]['value'],5)
         self.assertEqual(result['inputs'][2]['value'],25)
-        self.assertIn('decimal innings',result['note'])
+        self.assertIn('thirds',result['note'])
 
     def test_selected_model_controls_input_labels(self):
         history=State()
@@ -64,6 +64,53 @@ class PlayerContextTests(unittest.TestCase):
         self.assertTrue(all(w['mean']==20 and w['workload']==30 for w in c['recent']))
         self.assertIsNone(result['model_probability'])
         self.assertEqual(result['baseline_push'],1)
+
+    def test_pitcher_game_log_is_newest_first_with_innings_in_thirds(self):
+        history=State()
+        team=lambda tid,pitches:dict(id=tid,starter=tid*10,batting=dict(runs=3,plateAppearances=38,strikeOuts=8,hits=7,homeRuns=1,
+            baseOnBalls=3,totalBases=11),pitching=dict(runs=3,outs=27,numberOfPitches=140),batters=[dict(id=tid*100,slot=1,plateAppearances=4,hits=2,
+            totalBases=5,homeRuns=1,rbi=2)],pitchers=[dict(id=tid*10,outs=17,battersFaced=24,strikeOuts=7,baseOnBalls=2,hits=5,homeRuns=1,runs=2,
+            earnedRuns=2,numberOfPitches=pitches,gamesStarted=1)])
+        for day,pitches in [('2026-09-20',95),('2026-09-26',101)]:
+            history.update(dict(date=day,venue=1,home_score=3,away_score=3,teams=dict(home=team(147,pitches),away=team(111,88))))
+        features=dict(starter_outs5=16,starter_pitches5=97)
+        result=mlb_context(history,'2026-10-01',{'id':1470},'pitcher_strikeouts',features,{'kind':'rolling'})
+        self.assertEqual(result['games'][0],dict(date='2026-09-26',opp='vs BOS',ip='5⅔',pitches=101,k=7,bb=2,er=2))
+        self.assertEqual([c[0] for c in result['game_columns']],['date','opp','ip','pitches','k','bb','er'])
+        self.assertEqual(result['game_focus'],'k')
+        self.assertEqual(result['recent'][0]['pitches'],98)
+        batter=mlb_context(history,'2026-10-01',{'id':11100},'batter_total_bases',{},{'kind':'rolling'})
+        self.assertEqual(batter['games'][0],dict(date='2026-09-26',opp='@ NYY',pa=4,h=2,tb=5,hr=1,rbi=2))
+        self.assertEqual(batter['game_focus'],'tb')
+        # Histories saved before opponents were recorded keep the log and drop the column.
+        for r in history.pitchers[1470]: r.pop('opponent_id')
+        older=mlb_context(history,'2026-10-01',{'id':1470},'pitcher_outs',features,{'kind':'rolling'})
+        self.assertNotIn('opp',[c[0] for c in older['game_columns']])
+        self.assertEqual(older['game_focus'],'ip')
+
+    def test_nhl_game_log_shows_opponent_and_ice_time(self):
+        history=History()
+        for day in range(1,8):
+            history.add_player(dict(player_id=1,game_id=day,game_date=f'2026-09-{day:02}',available_at=f'2026-09-{day+1:02}T12:00:00Z',
+                shots=day,goals=day%2,assists=0,points=day%2,toi=18.5+day/60,position='F',home=day%2==0))
+        features=history.player_features(1,'F','2026-09-10',datetime(2026,9,10,tzinfo=timezone.utc))
+        result=nhl_context(history.players[1],features,0,'opportunity_nb','nhl-v2.1',lambda r:('vs ' if r['home'] else '@ ')+'CHI')
+        self.assertEqual(len(result['games']),5)
+        self.assertEqual(result['games'][0],dict(date='2026-09-07',opp='@ CHI',toi='18:37',shots=7,goals=1,assists=0,points=1))
+        self.assertEqual(result['game_focus'],'shots')
+        bare=nhl_context(history.players[1],features,3,'opportunity_nb','nhl-v2.1')
+        self.assertEqual([c[0] for c in bare['game_columns']],['date','toi','shots','goals','assists','points'])
+
+    def test_nba_matchup_labels(self):
+        self.assertEqual(nba_matchup('BOS vs. NYK'),'vs NYK')
+        self.assertEqual(nba_matchup('BOS @ NYK'),'@ NYK')
+        self.assertIsNone(nba_matchup(None))
+        games=[dict(GAME_ID=str(i),PLAYER_ID=1,PLAYER_NAME='Test Player',MIN=30+i%2,PTS=20+i,REB=5,AST=5,MATCHUP='LAL @ BOS',
+                    GAME_DATE=f'2026-03-{i:02}') for i in range(1,26)]
+        row=dict(player='Test Player',market='player_points_rebounds_assists',market_label='Pts + Reb + Ast',line=40.5,side='Over')
+        c=add_baselines([row],{'players':games},datetime(2026,4,1,tzinfo=timezone.utc))[0]['player_context']
+        self.assertEqual(c['games'][0],dict(date='2026-03-25',opp='@ BOS',minutes=31,value=55))
+        self.assertEqual(c['game_columns'][-1],['value','PRA'])
 
     def test_missing_observations_are_not_zero(self):
         self.assertEqual(windows([dict(stat=None,toi=None)],[5,10],'stat','toi'),[dict(games=1,mean=None,workload=None)])

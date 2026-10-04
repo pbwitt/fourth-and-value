@@ -40,6 +40,11 @@ STATS = {
     'player_rebounds_assists': ['REB', 'AST'], 'player_blocks': ['BLK'],
     'player_steals': ['STL'], 'player_turnovers': ['TOV'],
 }
+SHORT_STATS = {
+    'player_points': 'PTS', 'player_rebounds': 'REB', 'player_assists': 'AST', 'player_threes': '3PM',
+    'player_points_rebounds_assists': 'PRA', 'player_points_rebounds': 'P+R', 'player_points_assists': 'P+A',
+    'player_rebounds_assists': 'R+A', 'player_blocks': 'BLK', 'player_steals': 'STL', 'player_turnovers': 'TOV',
+}
 
 
 def iso(value):
@@ -225,14 +230,18 @@ def add_baselines(rows, history, now):
                    baseline_probability=(wins + 1) / (len(vals) - pushes + 2),
                    baseline_last_game=games[-1]['GAME_DATE'], baseline_push=pushes / len(vals),
                    model_status='Historical baseline only; minutes and injuries not adjusted')
-        from player_context import windows
-        complete=[dict(value=sum(float(g[k]) for k in STATS[row['market']]), minutes=float(g['MIN']), date=str(g['GAME_DATE'])[:10])
+        from player_context import windows, game_log, nba_matchup, count
+        complete=[dict(value=sum(float(g[k]) for k in STATS[row['market']]), minutes=float(g['MIN']), date=str(g['GAME_DATE'])[:10],
+                       opp=nba_matchup(g.get('MATCHUP')))
                   for g in games if all(g.get(k) is not None for k in STATS[row['market']])]
+        log,columns=game_log(complete,[['date','Date'],['opp','Opp'],['minutes','MIN'],['value',SHORT_STATS[row['market']]]],
+            lambda g:dict(date=g['date'],opp=g['opp'],minutes=count(g['minutes']),value=count(g['value'])))
         row['player_context']=dict(schema_version=1,source='NBA regular-season game logs',
             through=complete[-1]['date'],sample_games=len(complete),sample_label='appearances',
             stat_label=row.get('market_label',row['market'].replace('player_','').replace('_',' ')),
             workload_label='Minutes / game',workload_unit='min',
             recent=windows(complete,[5,10,30],'value','minutes'),inputs=[],
+            games=log,game_columns=columns,game_focus='value',
             note='Historical context only. These are observed averages, not a current-game forecast. Minutes, role changes and injuries are not adjusted; prior-season appearances may be included.')
     return rows
 

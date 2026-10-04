@@ -100,9 +100,11 @@ class State:
                 pa=b['plateAppearances'],k=b['strikeOuts'],hits=b['hits'],hr=b['homeRuns'],bb=b['baseOnBalls'],
                 tb=b['totalBases'],bull_runs=max(0,p['runs']-starter['runs']),
                 bull_outs=max(0,p['outs']-starter['outs']),bull_pitches=max(0,p['numberOfPitches']-starter['numberOfPitches'])))
-            self.pitchers[starter['id']].append({**starter,'date':day})
+            # Opponent fields label game logs only; no feature reads them.
+            seen=dict(date=day,opponent_id=other['id'],at_home=side=='home')
+            self.pitchers[starter['id']].append({**starter,**seen})
             for batter in team['batters']:
-                self.batters[batter['id']].append({**batter,'date':day})
+                self.batters[batter['id']].append({**batter,**seen})
         self.parks[game['venue']].append(dict(date=day,total=game['home_score']+game['away_score']))
         self.last_date=day
 

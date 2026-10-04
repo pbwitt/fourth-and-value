@@ -15,7 +15,7 @@ from .features import history_at
 from .models import outcome, game_outcome
 from .pricing import compare, price, signal
 from .review import apply_review, validate_review
-from player_context import describe, nhl_context
+from player_context import describe, nhl_context, versus
 
 MARKETS=['player_shots_on_goal','player_goals','player_assists','player_points']
 MODEL_DIR=ROOT/'models/nhl/v2'
@@ -63,8 +63,16 @@ def annotate(rows,games,players,events,models,manifest,now,history_checked_at,ro
     team_ids={}
     for g in games:
         for side in ['home','away']: team_ids.setdefault(normal_name(g[side+'_team']),set()).add(g[side+'_id'])
-    player_ids={}
-    for r in players: player_ids.setdefault(normal_name(r['player']),set()).add(r['player_id'])
+    # Display only: team abbreviations label the opponent in a player's recent-game log.
+    sides={x.get('game_id'):(x.get('home_id'),x.get('away_id')) for x in games}
+    player_ids,abbrev={},{}
+    for r in players:
+        player_ids.setdefault(normal_name(r['player']),set()).add(r['player_id'])
+        ids=sides.get(r.get('game_id'))
+        if ids and r.get('team_abbrev'): abbrev[ids[0] if r.get('home') else ids[1]]=r['team_abbrev']
+    def opponent(r):
+        ids=sides.get(r.get('game_id'))
+        return versus(r.get('home'),abbrev.get(ids[1] if r.get('home') else ids[0])) if ids else None
     cache={}
     for row in rows:
         row.update(model_probability=None,independent_probability=None,final_probability=None,
@@ -106,7 +114,7 @@ def annotate(rows,games,players,events,models,manifest,now,history_checked_at,ro
                 cache[k]=(features,models['shots'].pmfs(features)[0],models['scoring'].pmfs(features))
             f,shots,scoring=cache[k]; j=MARKETS.index(row['market']); pmf=shots if j==0 else scoring[j]
             row['model_inputs']=f
-            row['player_context']=describe(nhl_context,records,f,j,models['shots' if j==0 else 'scoring'].kind,VERSION)
+            row['player_context']=describe(nhl_context,records,f,j,models['shots' if j==0 else 'scoring'].kind,VERSION,opponent)
             probs=outcome(pmf,row['line'],row['side'])
             # Scenario bounds, not confidence intervals or evidence of a learned injury effect.
             scenario=[]
