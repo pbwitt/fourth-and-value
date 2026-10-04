@@ -216,12 +216,31 @@ def refresh(client, now, games, history):
             if event['id'] in allowed:
                 rows.extend(flatten(event, now, SPORT, MARKETS, list(PROPS)))
     near = [e for e in accepted if timestamp(e['commence_time']) <= now + timedelta(hours=48)]
+    from nhl.v2 import ladders
+    rules = read_json(ROOT/'config/nhl_settlement.json', {}).get('books', {})
+    milestones = []
     for event in near[:16]:
-        prop = client.get(f"events/{event['id']}/odds", regions='us', markets=','.join(PROPS), oddsFormat='american')
+        # The one-week milestone test rides on the same request (nhl/v2/ladders.py).
+        extra = ladders.wanted(event, now)
+        markets = list(PROPS) + (list(ladders.MARKETS) if extra else [])
+        try:
+            prop = client.get(f"events/{event['id']}/odds", regions='us', markets=','.join(markets), oddsFormat='american')
+        except FeedError:
+            if not extra:
+                raise
+            # The research markets must never cost the published props: ask again without them.
+            print('NHL milestone markets refused; requesting the standard props only', file=sys.stderr)
+            extra = False
+            prop = client.get(f"events/{event['id']}/odds", regions='us', markets=','.join(PROPS), oddsFormat='american')
         if not isinstance(prop, dict) or prop.get('id') != event['id'] or not regular_events([prop], games):
             raise FeedError('NHL prop odds response did not match the regular-season event')
         prop['nhl_game_id'] = event['nhl_game_id']
         rows.extend(flatten(prop, now, SPORT, MARKETS, list(PROPS)))
+        if extra:
+            try:
+                milestones.extend(ladders.quotes(prop, now, rules))
+            except Exception as error:   # research-only; the published props are unaffected
+                print(f'NHL milestone quotes skipped ({type(error).__name__})', file=sys.stderr)
     rows = baselines(compare(rows, now), history, now)
     return dict(sport=SPORT, season=season_for(now), status='ready' if rows else 'waiting_for_markets',
                 checked_at=iso(now), last_success_at=iso(now), events=games, rows=rows,
@@ -230,7 +249,19 @@ def refresh(client, now, games, history):
                 history_through_date=history.get('through_date'), history_error=history.get('error'),
                 history_player_count=sum(len(s.get('players', [])) for s in history.get('seasons', {}).values()),
                 requests=client.requests, quota_remaining=client.quota_remaining,
-                model_status='Historical references only; legacy models withheld pending leakage correction and validation')
+                model_status='Historical references only; legacy models withheld pending leakage correction and validation',
+                milestone_quotes=milestones)
+
+
+def record_milestones(quotes, state, now):
+    """Research-only milestone test; a failure here never affects the published refresh."""
+    try:
+        from nhl.v2.ladders import record
+        path = record(quotes, state, now)
+        if path:
+            print(f'NHL milestone test: {len(quotes)} quotes priced into {path.relative_to(ROOT)}')
+    except Exception as error:
+        print(f'NHL milestone test skipped ({type(error).__name__})', file=sys.stderr)
 
 
 def main():
@@ -249,6 +280,7 @@ def main():
             history = load_history(now)
             client = OddsClient(os.getenv('NHL_ODDS_API_KEY') or os.getenv('ODDS_API_KEY'), SPORT)
             state = refresh(client, now, games, history)
+            milestones = state.pop('milestone_quotes', [])
             from nhl.v2.inference import enrich
             state = enrich(state, now)
             state['decision_session'] = 'morning' if now.astimezone(__import__('zoneinfo').ZoneInfo('America/New_York')).hour < 14 else 'afternoon'
@@ -257,6 +289,7 @@ def main():
             from nhl.v2.archive import archive_run
             archive_run(state)
             save_json(ROOT / 'data/nhl/snapshots' / (now.strftime('%Y%m%dT%H%M%SZ') + '.json'), state)
+            record_milestones(milestones, state, now)
         except Exception as error:
             # Even an unexpected schema/archive failure must not leave a healthy-looking feed.
             message=str(error) if isinstance(error,FeedError) else f'NHL refresh failed ({type(error).__name__})'

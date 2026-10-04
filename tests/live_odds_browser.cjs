@@ -10,8 +10,9 @@ const iso=s=>new Date(Date.now()-s*1000).toISOString();
 const book=(key,title,age,markets)=>({key,title,last_update:iso(age),markets:Object.entries(markets).map(([k,outs])=>({key:k,last_update:iso(age),
   outcomes:outs.map(([name,price,point,description])=>({name,price,...(point==null?{}:{point}),...(description?{description}:{})}))}))});
 const sog=(o,u,player)=>({player_shots_on_goal:[['Over',o,2.5,player],['Under',u,2.5,player]]});
+const scorer=price=>({player_goal_scorer_anytime:[['Yes',price,null,'Tage Thompson']]});
 const even=(k,t)=>book(k,t,20,{...sog(-110,-110,'Tage Thompson'),totals:[['Over',-110,6.5],['Under',-110,6.5]],h2h:[['${HOME}',-150],['${AWAY}',130]],
-  ...{player_points:[['Over',-120,0.5,'<img src=x onerror="window.hacked=1">'],['Under',-110,0.5,'<img src=x onerror="window.hacked=1">']]}});
+  ...{player_points:[['Over',-120,0.5,'<img src=x onerror="window.hacked=1">'],['Under',-110,0.5,'<img src=x onerror="window.hacked=1">']]},...scorer(150)});
 window.mode='editor';window.calls=[];window.fail=null;window.detail='2nd Int';
 window.supabaseClient={
   auth:{getUser:async()=>({data:{user:window.mode==='signedout'?null:{email:'e@x.com',app_metadata:window.mode==='editor'?{fv_editor:true}:{}}}}),
@@ -26,7 +27,7 @@ window.supabaseClient={
       {id:'${ID}',commence_time:new Date(Date.now()-40*60e3).toISOString(),home_team:'${HOME}',away_team:'${AWAY}'}],remaining:17185},error:null};
     return {data:{event:{id:body.event,commence_time:new Date(Date.now()-40*60e3).toISOString(),home_team:'${HOME}',away_team:'${AWAY}',
       bookmakers:[even('fanduel','FanDuel'),even('betmgm','BetMGM'),even('williamhill_us','Caesars'),
-        book('draftkings','DraftKings',15,{...sog(110,-140,'Tage Thompson'),totals:[['Over',-110,6.5],['Under',-110,6.5]]})]},
+        book('draftkings','DraftKings',15,{...sog(110,-140,'Tage Thompson'),totals:[['Over',-110,6.5],['Under',-110,6.5]],...scorer(200)})]},
       fetched_at:new Date().toISOString(),cost:7,reused:false,remaining:17178},error:null};
   }}};
 window.signInWithEmail=async email=>{window.signedInWith=email;return {ok:true};};
@@ -57,21 +58,25 @@ window.saved=[];window.saveTrackedBet=async t=>{window.saved.push(t);return {ok:
   await page.waitForFunction(()=>!document.getElementById('result').hidden);
   assert.match(await page.locator('#message').textContent(),/This run cost 7 credits\. 17,178 Odds API credits left\./);
   const calls=await page.evaluate(()=>window.calls);
-  assert.deepEqual(calls.filter(c=>c[0]==='live-odds').map(c=>c[1]),[{},{event:ID}]);
+  assert.deepEqual(calls.filter(c=>c[0]==='live-odds').map(c=>c[1]),[{},{event:ID,live:true}],'a game in progress also asks for milestones');
   assert.deepEqual(calls.find(c=>c[0]==='live-stats')[1],{league:'NHL',date:await page.evaluate(()=>FVLiveOdds.easternDate(new Date(Date.now()-40*60e3)))});
   const scoreline=await page.locator('#scoreline').textContent();
   assert.ok(scoreline.includes('CHI 1 – 2 BUF')&&scoreline.includes('2nd Int'),scoreline);
   assert.equal(await page.locator('#play-notice').isVisible(),false,'intermission: no live-play warning');
   const flags=await page.locator('#flags li').allTextContents();
-  assert.equal(flags.length,1);
+  assert.equal(flags.length,2);
   assert.ok(flags[0].includes('Tage Thompson · Shots on goal · Over 2.5')&&flags[0].includes('+110 at DraftKings')&&flags[0].includes('+5.0%'),flags[0]);
+  // A one-way milestone: listed as a price gap, never as an edge.
+  assert.ok(flags[1].includes('Tage Thompson · Anytime goal scorer · To score')&&flags[1].includes('+200 at DraftKings')
+    &&flags[1].includes('+20.0%')&&flags[1].includes('where to shop, not whether the bet is good'),flags[1]);
+  assert.ok((await page.locator('#lines tr',{hasText:'To score'}).textContent()).includes('vs. prices, margins in'));
   assert.equal(await page.locator('#lines tr.flagged').count(),1);
   assert.equal(await page.locator('#lines img').count(),0,'player names are escaped');
   assert.equal(await page.evaluate(()=>window.hacked),undefined);
   assert.ok((await page.locator('#asof').textContent()).includes('4 books'));
 
   // Track a live bet from the flag: the shared dialog saves the price received and the stake.
-  await page.locator('#flags button.track').click();
+  await page.locator('#flags button.track').first().click();
   const dialog=page.locator('#fv-bet-tracker');await dialog.waitFor({state:'visible'});
   const description=await page.locator('#fv-track-description').textContent();
   assert.ok(description.includes('Tage Thompson')&&description.includes('DraftKings')&&description.includes('Over'),description);
@@ -92,6 +97,15 @@ window.saved=[];window.saveTrackedBet=async t=>{window.saved.push(t);return {ok:
   await dialog.waitFor({state:'visible'});
   assert.ok((await page.locator('#fv-track-description').textContent()).includes('Caesars'));
   await page.locator('#fv-track-close').click();
+  // A milestone is saved as the grader's base contract: anytime scorer = goals "Yes", no line.
+  await page.locator('#flags button.track').nth(1).click();
+  await dialog.waitFor({state:'visible'});
+  assert.ok((await page.locator('#fv-track-description').textContent()).includes('Anytime goal scorer'));
+  await page.locator('#fv-track-stake').fill('5');await page.locator('#fv-track-confirm').check();await page.locator('#fv-track-save').click();
+  await page.waitForFunction(()=>window.saved.length===2);
+  const scorerTicket=(await page.evaluate(()=>window.saved))[1];
+  assert.deepEqual([scorerTicket.market_type,scorerTicket.side,scorerTicket.line,scorerTicket.odds,scorerTicket.book],['goals','Yes',null,200,'draftkings']);
+  await page.locator('#fv-track-close').click();
 
   // Filters.
   const total=await page.locator('#lines tr').count();
@@ -99,7 +113,7 @@ window.saved=[];window.saveTrackedBet=async t=>{window.saved.push(t);return {ok:
   assert.equal(await page.locator('#lines tr').count(),2);
   await page.locator('#market').selectOption('');
   await page.locator('#player').fill('thomp');
-  assert.equal(await page.locator('#lines tr').count(),2);
+  assert.equal(await page.locator('#lines tr').count(),3);
   await page.locator('#player').fill('nobody');
   assert.ok((await page.locator('#lines').textContent()).includes('No lines match'));
   await page.locator('#player').fill('');assert.equal(await page.locator('#lines tr').count(),total);

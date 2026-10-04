@@ -1,6 +1,7 @@
 /* Private Live Odds page. An editor picks one NHL game and presses Run now: one
-   call to the live-odds Edge Function (at most 7 Odds API credits; presses within
-   60 seconds reuse the same prices for free) plus the free NHL scoreboard through
+   call to the live-odds Edge Function (at most 7 Odds API credits before puck drop,
+   10 once play starts, when it also asks for the milestones books post in-game;
+   presses within 60 seconds reuse the same prices for free) plus the free NHL scoreboard through
    live-stats. The comparison itself lives in docs/live/live-odds.js. Track buttons
    open Bet Tracker's shared dialog (docs/assets/offer-tracker.js) for the exact
    book, line and price shown; its pregame-only buttons are not used here.
@@ -56,7 +57,8 @@
   if(!g||busy)return;
   busy=true;$('run').disabled=true;say('Fetching prices…');
   try{
-   const [odds,score]=await Promise.all([invoke('live-odds',{event:g.id}),scoreboard(g).catch(()=>null)]);
+   const live=Date.parse(g.commence_time)<=Date.now();
+   const [odds,score]=await Promise.all([invoke('live-odds',{event:g.id,live}),scoreboard(g).catch(()=>null)]);
    // A different game chosen while this one loaded: keep the new selection clean.
    if($('game').value!==g.id){say('Game changed. Press Run now for the selected game.');return;}
    const fetched=Date.parse(odds.fetched_at);
@@ -88,6 +90,12 @@
  const track=(l,q,text='Track')=>`<button type="button" class="track" data-line="${esc(l.id)}" data-book="${esc(q.book)}"`
   +` aria-label="Track bet: ${esc(l.player?l.player+' ':'')}${esc(l.market_label)} ${esc(l.label)} at ${esc(q.book_label)}">${text}</button>`;
 
+ function vsCell(q){
+  if(q.advantage!=null)return esc(pct(q.advantage));
+  if(q.price_gap!=null)return `${esc(pct(q.price_gap))}<span class="sub">vs. prices, margins in</span>`;
+  return `—<span class="sub">${q.stale?'quote too old':'needs 3+ other books'}</span>`;
+ }
+
  function booksCell(l){
   const items=l.quotes.map(q=>`<li>${esc(q.book_label)} ${esc(O.signed(q.price))}${q.fair_probability!=null?` · fair ${esc(O.signed(O.american(q.fair_probability)))}`:''}`
    +`${q.advantage!=null?` · ${esc(pct(q.advantage))}`:''} · ${esc(age(last.fetched-q.at))}${q.stale?' · <span class="old">old</span>':''} ${track(l,q)}</li>`).join('');
@@ -102,11 +110,16 @@
    ?`${b.lines.length} lines from ${b.books.length} book${b.books.length===1?'':'s'} (${b.books.join(', ')}). Newest quote ${clock(Date.parse(b.newest))}, ${age(last.fetched-Date.parse(b.newest))} before the fetch.`
    :'No book is offering prices on this game right now. Books may have closed its markets.';
   $('play-notice').hidden=!(score?.state==='live'&&!/\bInt\b/.test(score.detail||''));
-  const flagged=b.lines.filter(l=>l.flagged);
-  $('flags').innerHTML=flagged.length?flagged.map(l=>`<li><strong>${esc(l.player?`${l.player} · ${l.market_label}`:l.market_label)} · ${esc(l.label)}</strong>`
+  const name=l=>esc(l.player?`${l.player} · ${l.market_label}`:l.market_label)+' · '+esc(l.label);
+  const edges=b.lines.filter(l=>l.flagged).map(l=>`<li><strong>${name(l)}</strong>`
    +` — ${esc(O.signed(l.best.price))} at ${esc(l.best.book_label)}. Other books’ fair price ${esc(O.signed(O.american(l.best.other_probability)))}`
    +` (${l.best.other_books} books), so this price is <span class="pos">${esc(pct(l.best.advantage))}</span> against them. Quote ${esc(age(last.fetched-l.best.at))} old${l.push_possible?'; can push':''}.`
-   +` ${track(l,l.best,'Track this bet')}</li>`).join('')
+   +` ${track(l,l.best,'Track this bet')}</li>`);
+  const gaps=b.lines.filter(l=>l.gap_flagged).map(l=>`<li class="gap"><strong>${name(l)}</strong>`
+   +` — ${esc(O.signed(l.best.price))} at ${esc(l.best.book_label)} is <span class="pos">${esc(pct(l.best.price_gap))}</span> better than the other books’ median price`
+   +` (${esc(O.signed(O.american(l.best.other_price_probability)))}, ${l.best.price_books} books). One-way bet: their margins are still in, so this shows where to shop, not whether the bet is good.`
+   +` Quote ${esc(age(last.fetched-l.best.at))} old. ${track(l,l.best,'Track this bet')}</li>`);
+  $('flags').innerHTML=edges.length||gaps.length?[...edges,...gaps].join('')
    :`<li class="none">${b.books.length<O.MIN_OTHER_BOOKS+1?'Fewer than four books are pricing this game, so there is nothing to compare yet.'
     :'No book beats the others by 2% or more right now.'}</li>`;
   const markets=[...new Set(b.lines.map(l=>l.market))];
@@ -121,7 +134,7 @@
   const market=$('market').value,player=$('player').value.trim().toLowerCase();
   const rows=last.board.lines.filter(l=>(!market||l.market===market)&&(!player||l.player.toLowerCase().includes(player)));
   $('lines').innerHTML=rows.length?rows.map(l=>`<tr${l.flagged?' class="flagged"':''}><td>${betCell(l)}</td><td class="num">${priceCell(l,l.best)}</td>`
-   +`<td class="num${l.flagged?' pos':''}">${esc(pct(l.best.advantage))}${l.best.advantage==null?`<span class="sub">${l.best.stale?'quote too old':'needs 3+ other books'}</span>`:''}</td>`
+   +`<td class="num${l.flagged||l.gap_flagged?' pos':''}">${vsCell(l.best)}</td>`
    +`<td class="num">${l.fair_odds==null?'—':esc(O.signed(l.fair_odds))}<span class="sub">${l.fair_books} book${l.fair_books===1?'':'s'}</span></td>`
    +`<td>${booksCell(l)}</td><td class="num">${esc(age(last.fetched-l.best.at))}</td></tr>`).join('')
    :'<tr><td colspan="6" class="meta">No lines match these filters.</td></tr>';
