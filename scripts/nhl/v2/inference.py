@@ -11,11 +11,11 @@ import numpy as np
 from nba.pipeline import normal_name
 from . import VERSION, FEATURE_SCHEMA
 from .data import ROOT, load, stamp, iso, digest, write_json
-from .features import history_at
+from .features import history_at, weighted
 from .models import outcome, game_outcome
 from .pricing import compare, price, signal
 from .review import apply_review, validate_review
-from player_context import describe, nhl_context, versus
+from player_context import describe, nhl_context, versus, opposing
 
 MARKETS=['player_shots_on_goal','player_goals','player_assists','player_points']
 MODEL_DIR=ROOT/'models/nhl/v2'
@@ -73,6 +73,26 @@ def annotate(rows,games,players,events,models,manifest,now,history_checked_at,ro
     def opponent(r):
         ids=sides.get(r.get('game_id'))
         return versus(r.get('home'),abbrev.get(ids[1] if r.get('home') else ids[0])) if ids else None
+    defenses={}
+    def matchup(g,records):
+        """Display only: the opponent's recency-weighted shots and goals allowed, as the game-line model sees them."""
+        last=records[-1]
+        # Trust the player's team only from a recent appearance; an offseason move could name the wrong opponent.
+        if last.get('team_id') not in (g['home_id'],g['away_id']) or (stamp(g['game_date']+'T12:00:00Z')-stamp(last['game_date']+'T12:00:00Z')).days>30:
+            return None
+        rival=g['away_id'] if last['team_id']==g['home_id'] else g['home_id']
+        if g['game_date'] not in defenses:
+            day=datetime.fromisoformat(g['game_date']).date()
+            active={tid:list(rows) for tid,rows in state.teams.items()
+                    if rows and (day-datetime.fromisoformat(rows[-1]['game_date']).date()).days<=250}
+            defenses[g['game_date']]={tid:dict(zip(['sa','ga'],map(float,weighted(rows,g['game_date'],['sa','ga'],[30,3]))))
+                                      for tid,rows in active.items()}
+        table=defenses[g['game_date']]
+        if rival not in table:
+            return None
+        return dict(team=abbrev.get(rival),label='Opposing defense',items=[
+            opposing(table,rival,'sa','Shots allowed per game','',1,'most',1),
+            opposing(table,rival,'ga','Regulation goals allowed per game','',1,'most',2)])
     cache={}
     for row in rows:
         row.update(model_probability=None,independent_probability=None,final_probability=None,
@@ -114,7 +134,8 @@ def annotate(rows,games,players,events,models,manifest,now,history_checked_at,ro
                 cache[k]=(features,models['shots'].pmfs(features)[0],models['scoring'].pmfs(features))
             f,shots,scoring=cache[k]; j=MARKETS.index(row['market']); pmf=shots if j==0 else scoring[j]
             row['model_inputs']=f
-            row['player_context']=describe(nhl_context,records,f,j,models['shots' if j==0 else 'scoring'].kind,VERSION,opponent)
+            row['player_context']=describe(nhl_context,records,f,j,models['shots' if j==0 else 'scoring'].kind,VERSION,opponent,
+                                           g['game_date'],pmf,describe(matchup,g,records))
             probs=outcome(pmf,row['line'],row['side'])
             # Scenario bounds, not confidence intervals or evidence of a learned injury effect.
             scenario=[]

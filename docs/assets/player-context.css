@@ -79,3 +79,57 @@
 .pc-pop .pc-pop-note summary{min-height:36px;padding:.45rem 0;font-size:.78rem}
 .pc-pop .pc-pop-note p{margin:.2rem 0 .4rem;font-size:.75rem;line-height:1.55;color:var(--pc-muted)}
 .pc-pop .pc-pop-link{margin:.5rem 0 0;font-size:.85rem}
+/* Snapshot tabs and small charts. Marks carry color; all text stays in text tones.
+   Palette validated for the dark surface (dataviz validator: band, chroma, CVD, contrast). */
+.pc-pop{--pc-hit:#27a77c;--pc-miss:#566476;--pc-push:#c98500;--pc-market:#3987e5;--pc-surface:#0f1722}
+.pc-tabs{display:flex;gap:4px;margin:12px 0 2px;border-bottom:1px solid var(--pc-border)}
+.pc-tabs [role=tab]{all:unset;cursor:pointer;padding:8px 10px;min-height:20px;font-size:.8rem;font-weight:600;color:var(--pc-muted);border-bottom:2px solid transparent;margin-bottom:-1px;border-radius:6px 6px 0 0}
+.pc-tabs [role=tab][aria-selected=true]{color:#f4f7fb;border-bottom-color:var(--pc-hit)}
+.pc-tabs [role=tab]:hover{color:#e2ebf6}
+.pc-tabs [role=tab]:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}
+.pc-panel[hidden]{display:none}
+.pc-chart{margin:.35rem 0 .2rem}
+.pc-plot{position:relative}
+.pc-plot svg{display:block;width:100%;height:auto;overflow:visible}
+.pc-trend .pc-plot svg{height:84px}
+.pc-dist .pc-plot svg{height:72px}
+.pc-strip .pc-plot svg{height:22px}
+.pc-record .pc-plot svg{height:150px}
+.pc-chart .pc-hit{fill:var(--pc-hit)}
+.pc-chart .pc-miss{fill:var(--pc-miss)}
+.pc-chart .pc-push{fill:var(--pc-push)}
+.pc-chart .pc-rule{stroke:#c5d0dc;stroke-width:1;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
+.pc-chart .pc-track{stroke:#344254;stroke-width:1;vector-effect:non-scaling-stroke}
+.pc-chart .pc-target{fill:transparent;cursor:pointer}
+.pc-chart .pc-target.pc-on{fill:rgba(255,255,255,.06)}
+.pc-chart .pc-even{stroke:var(--pc-push);stroke-width:2}
+.pc-chart .pc-model{fill:var(--pc-hit);stroke:var(--pc-surface);stroke-width:2}
+.pc-chart .pc-market{fill:var(--pc-market);stroke:var(--pc-surface);stroke-width:2}
+.pc-chart .pc-dot{fill:var(--pc-hit);stroke:var(--pc-surface);stroke-width:2}
+.pc-rule-label{position:absolute;right:0;transform:translateY(-120%);font-size:.66rem;color:#c5d0dc;background:var(--pc-surface);padding:0 3px;border-radius:3px;line-height:1.3}
+.pc-axis{display:flex;justify-content:space-between;font-size:.66rem;color:var(--pc-muted);margin-top:3px}
+.pc-ticks{display:grid;text-align:center;font-size:.64rem;color:var(--pc-muted);margin-top:3px;font-variant-numeric:tabular-nums}
+.pc-pop .pc-readout{margin:.3rem 0 0;font-size:.76rem;color:#e2ebf6;min-height:1.2em}
+.pc-pop .pc-chart-note{margin:.25rem 0 0;font-size:.7rem;line-height:1.45;color:var(--pc-muted)}
+.pc-keys{display:flex;flex-wrap:wrap;gap:.2rem .9rem;margin:.3rem 0 0;font-size:.74rem;color:#e2ebf6}
+.pc-keys span::before{content:'';display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:.05em}
+.pc-key-model::before{background:var(--pc-hit)}
+.pc-key-market::before{background:var(--pc-market)}
+.pc-key-even::before{background:var(--pc-push);border-radius:1px!important;width:3px!important;height:11px!important;vertical-align:-.12em!important}
+.pc-strip{margin-top:10px}
+.pc-build{list-style:none;margin:.3rem 0;padding:0;font-size:.8rem}
+.pc-build li{display:grid;grid-template-columns:1.2em 1fr auto;gap:.4rem;align-items:baseline;padding:.3rem 0;border-bottom:1px solid var(--pc-border)}
+.pc-build .pc-op{color:var(--pc-muted);text-align:center}
+.pc-build .pc-step{color:#d5e0ed}
+.pc-build strong{font-weight:650;color:#f2f7fb;font-variant-numeric:tabular-nums}
+.pc-build li.pc-total strong{color:var(--pc-accent)}
+.pc-blend{margin:.35rem 0 .5rem}
+.pc-blend-label{display:flex;justify-content:space-between;gap:.5rem;font-size:.74rem;color:#d5e0ed}
+.pc-blend-label span:last-child{color:var(--pc-muted)}
+.pc-meter{height:6px;border-radius:3px;background:#2a3646;margin-top:4px;overflow:hidden}
+.pc-meter span{display:block;height:100%;background:var(--pc-hit);border-radius:3px}
+.pc-pop .pc-opp .pc-detail{display:block;font-weight:400;font-size:.7rem;color:var(--pc-muted);margin-top:.15rem}
+.pc-pop .pc-opp .pc-kind{display:inline-block;margin:.25rem 0 0}
+.pc-missing{margin:.3rem 0;padding-left:1.1rem;font-size:.78rem;color:#d5e0ed}
+.pc-missing li{margin:.15rem 0}
+.pc-y-label{position:absolute;left:0;top:0;font-size:.66rem;color:var(--pc-muted)}

@@ -29,7 +29,25 @@
       inputs.push({label:'Recent weight: attempts',value:finite(p.recent_mean_weight)?p.recent_mean_weight*100:null,unit:'%',detail:'Share given to the recent sample in the career blend'});
       if(market==='pass_yds')inputs.push({label:'Recent weight: yards / completion',value:finite(p.yards_per_completion_recent_weight)?p.yards_per_completion_recent_weight*100:null,unit:'%'});
       const games=sample.slice().reverse().map(g=>({week:finite(g.week)?'Wk '+g.week:'—',att:g.attempts,cmp:g.completions,yds:g.passing_yards}));
-      return {schema_version:1,source:'NFL saved forecast trace',sample_games:sample.length,sample_label:'recent appearances',stat_label:{pass_yds:'yd',pass_attempts:'att',pass_completions:'cmp'}[market],
+      // How the projection is built: the model's own components and adjustment stages.
+      const st=p.mean_stages||{},unit={pass_yds:'yd',pass_attempts:'att',pass_completions:'cmp'}[market],steps=[];
+      steps.push({label:'Expected attempts',value:p.attempts,unit:''});
+      if(market!=='pass_attempts')steps.push({label:'Completion rate',value:finite(p.completion_rate)?p.completion_rate*100:null,unit:'%',op:'×'});
+      if(market==='pass_yds')steps.push({label:'Yards per completion',value:p.yards_per_completion,unit:'',op:'×'});
+      if(finite(st.before_adjustments)&&market!=='pass_attempts')steps.push({label:'Before matchup',value:st.before_adjustments,unit,op:'='});
+      const ratio=(a,b)=>finite(a)&&finite(b)&&b>0?a/b:null,defense=ratio(st.after_defense,st.before_adjustments),venue=ratio(st.after_venue,st.after_defense),other=ratio(st.final,st.after_venue);
+      if(finite(defense))steps.push({label:'Opposing pass defense',value:defense,unit:'×',op:'×'});
+      if(finite(venue)&&Math.abs(venue-1)>1e-6)steps.push({label:venue>1?'Home field':'Road game',value:venue,unit:'×',op:'×'});
+      if(finite(other)&&Math.abs(other-1)>1e-6)steps.push({label:'Injury or manual adjustment',value:other,unit:'×',op:'×'});
+      if(finite(st.final))steps.push({label:'Projection',value:st.final,unit,op:'='});
+      const explain={build:{steps,note:'Attempts, completion rate and yards per completion are blended from this season and his career, then scaled for the opponent and venue.'},
+        trend:{label:unit,note:`This season’s games count ${finite(p.recent_mean_weight)?Math.round(p.recent_mean_weight*100)+'%':'part'} in the attempts estimate; career history and the position average fill the rest.`,
+          rows:sample.map(g=>[finite(g.week)?'Wk '+g.week:'',g[stat],null,null,g.attempts])},
+        blend:[{label:'Attempts',own:p.recent_mean_weight,own_label:'this season',rest_label:'career',detail:`${sample.length} game${sample.length===1?'':'s'} this season`},
+          ...(market==='pass_yds'&&finite(p.yards_per_completion_recent_weight)?[{label:'Yards per completion',own:p.yards_per_completion_recent_weight,own_label:'this season',rest_label:'career'}]:[])],
+        opponent:finite(defense)?{label:'Opposing pass defense',items:[{label:'Defense adjustment',value:defense,unit:'×',league:1,used:true,rank:defense>1?'Allows more passing yards than average':defense<1?'Allows fewer passing yards than average':'About average'}]}:null,
+        missing:['Weather and wind','Game script (trailing teams pass more)','Teammate injuries and target changes']};
+      return {schema_version:1,source:'NFL saved forecast trace',...explain,sample_games:sample.length,sample_label:'recent appearances',stat_label:{pass_yds:'yd',pass_attempts:'att',pass_completions:'cmp'}[market],
         workload_label:'Attempts / game',workload_unit:'att',recent:sample.length?[{games:sample.length,mean:mean(stat),workload:mean('attempts')}]:[],inputs,
         games,game_columns:[['week','Week'],['att','Att'],['cmp','Cmp'],['yds','Yds']],game_focus:{pass_yds:'yds',pass_attempts:'att',pass_completions:'cmp'}[market],
         note:'Passing components are shown before matchup and venue adjustments. Recent weight describes the share given to current form versus career history. Partial appearances are not separately adjusted.'};
@@ -98,9 +116,10 @@
     if(!finite(v))return '—';
     if(unit==='IP')return thirds(v);
     if(unit==='min'&&sport==='NHL')return clock(v);
-    return v.toLocaleString('en-US',{maximumFractionDigits:unit==='days'||Number.isInteger(v)?0:Math.abs(v)<1?2:1});
+    const d=unit==='×'?2:unit==='days'||Number.isInteger(v)?0:Math.abs(v)<1?2:1;
+    return v.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
   }
-  const withUnit=(v,unit,sport)=>fmt(v,unit,sport)+(!unit||unit==='min'&&sport==='NHL'?'':unit==='%'?'%':' '+esc(unit));
+  const withUnit=(v,unit,sport)=>fmt(v,unit,sport)+(!unit||unit==='min'&&sport==='NHL'?'':unit==='%'||unit==='×'?unit:' '+esc(unit));
   function name(r,sport=r?.sport,options={}){
     const text=esc(r?.player??'');
     if(!r||!r.player||r.model_withheld)return text;
@@ -137,6 +156,173 @@
   }
   const statName=c=>({yd:'Pass yds',att:'Attempts',cmp:'Completions'})[c.stat_label]||String(c.stat_label||'').replace(/^[a-z]/,x=>x.toUpperCase());
   const workName=(c,sport)=>({IP:'IP',min:sport==='NHL'?'TOI':'Minutes',PA:'PA',att:'Attempts'})[c.workload_unit]||c.workload_label||'Workload';
+  // ---- Small charts: inline SVG. Every value is also in text (caption, readout, tables, chart label). ----
+  const W=320;
+  const plain=v=>/^\d{4}-\d{2}-\d{2}$/.test(v||'')?new Date(v+'T12:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'}):String(v??'');
+  const share=v=>finite(v)?Math.round(v*100)+'%':'—';
+  const odds=v=>finite(v)?(v*100).toFixed(1).replace(/\.0$/,'')+'%':'—';
+  const lineText=v=>finite(v)?String(+v.toFixed(2)):'';
+  const winner=(k,line,side)=>!finite(line)?null:k===line?'push':side==='Under'?k<line:k>line;
+  // A rounded data end (4px) and a square baseline, per the house chart spec.
+  function bar(x,top,w,h,cls,opacity=1){
+    if(!(h>0))return '';
+    const r=Math.min(4,w/2,h),b=top+h;
+    return `<path class="${cls}" d="M${x.toFixed(1)},${b.toFixed(1)}V${(top+r).toFixed(1)}Q${x.toFixed(1)},${top.toFixed(1)} ${(x+r).toFixed(1)},${top.toFixed(1)}H${(x+w-r).toFixed(1)}Q${(x+w).toFixed(1)},${top.toFixed(1)} ${(x+w).toFixed(1)},${(top+r).toFixed(1)}V${b.toFixed(1)}Z"${opacity<1?` fill-opacity="${opacity.toFixed(2)}"`:''}/>`;
+  }
+  function figure(cls,label,svg,below,caption,note){
+    return `<figure class="pc-chart ${cls}"><div class="pc-plot" role="img" aria-label="${esc(label)}">${svg}</div>${below||''}<figcaption class="pc-readout" aria-live="polite" data-default="${esc(caption)}">${esc(caption)}</figcaption>${note?`<p class="pc-chart-note">${esc(note)}</p>`:''}</figure>`;
+  }
+  function workText(v,c,sport){
+    if(!finite(v))return '';
+    if(sport==='NHL')return clock(v)+' TOI';
+    if(sport==='MLB')return Math.round(v)+(c.sample_label==='starts'?' pitches':' PA');
+    if(sport==='NFL')return Math.round(v)+' att';
+    return Math.round(v)+' min';
+  }
+  // Last ten games against tonight's line. Faded bars count less in the model.
+  function trendChart(c,r,sport){
+    const t=c?.trend,rows=(Array.isArray(t?.rows)?t.rows:[]).filter(x=>Array.isArray(x)&&finite(x[1]));
+    if(rows.length<2)return '';
+    const line=finite(r.line)?r.line:null,side=r.side==='Under'?'Under':'Over',H=84,n=rows.length,band=W/n,bw=Math.min(22,band-4);
+    const max=Math.max(...rows.map(x=>x[1]),line??0,1)*1.15,y=v=>H-v/max*H;
+    let marks='',targets='',wins=0,decided=0;
+    const words=[];
+    rows.forEach(([d,v,w,opp,work],i)=>{
+      const outcome=winner(v,line,side),x=i*band+(band-bw)/2,h=v>0?Math.max(2,H-y(v)):0;
+      if(outcome===true||outcome===false){decided++;if(outcome)wins++;}
+      marks+=bar(x,H-h,bw,h,outcome==='push'?'pc-push':outcome?'pc-hit':'pc-miss',finite(w)?.3+.7*Math.min(1,Math.max(0,w)):1);
+      const text=[plain(d),opp,`${fmt(v,'',sport)} ${t.label}`,workText(work,c,sport),finite(w)?`counts ${share(w)}`:''].filter(Boolean).join(' · ');
+      words.push(text);
+      targets+=`<rect class="pc-target" x="${(i*band).toFixed(1)}" y="0" width="${band.toFixed(1)}" height="${H}" data-readout="${esc(text)}"/>`;
+    });
+    const rule=line!==null?`<line class="pc-rule" x1="0" x2="${W}" y1="${y(line).toFixed(1)}" y2="${y(line).toFixed(1)}"/>`:'';
+    const tag=line!==null?`<span class="pc-rule-label" style="top:${(y(line)/H*100).toFixed(1)}%">${esc(lineText(line))}</span>`:'';
+    const svg=`<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${marks}${rule}${targets}</svg>${tag}`;
+    const axis=`<div class="pc-axis"><span>${esc(plain(rows[0][0]))}</span><span>${esc(plain(rows[n-1][0]))}</span></div>`;
+    const caption=line!==null?`${wins} of ${decided} cleared ${side} ${lineText(line)}${rows.some(x=>finite(x[2]))?' · faded games count less':''}`:`Last ${n} games`;
+    return `<h4>Last ${n} ${c.sample_label==='starts'?'starts':'games'} vs. the line</h4>`+figure('pc-trend',`Last ${n}: ${words.join('; ')}`,svg,axis,caption,t.note);
+  }
+  // The model's chance of each outcome, with the bet's winning outcomes highlighted.
+  function distChart(c,r,sport){
+    const d=c?.distribution;
+    if(Array.isArray(d?.empirical))return pastChart(d.empirical.filter(finite),c,r);
+    const p=(Array.isArray(d?.p)?d.p:[]).map(Number);
+    if(p.length<2||!p.every(finite))return '';
+    const line=finite(r.line)?r.line:null,side=r.side==='Under'?'Under':'Over',H=72,n=p.length,band=W/n,bw=Math.min(22,band-4);
+    const max=Math.max(...p)*1.1||1,start=finite(d.start)?d.start:0;
+    let marks='',targets='',labels='',win=0,push=0;
+    const words=[];
+    p.forEach((v,i)=>{
+      const k=start+i,outcome=winner(k,line,side),h=v>0?Math.max(1.5,v/max*H):0;
+      if(outcome==='push')push+=v;else if(outcome)win+=v;
+      const name=(i===0&&d.low?'≤':'')+k+(i===n-1&&d.high?'+':'');
+      marks+=bar(i*band+(band-bw)/2,H-h,bw,h,outcome==='push'?'pc-push':outcome?'pc-hit':'pc-miss');
+      const text=`${name} ${c.stat_label}: ${odds(v)}`;
+      words.push(text);
+      targets+=`<rect class="pc-target" x="${(i*band).toFixed(1)}" y="0" width="${band.toFixed(1)}" height="${H}" data-readout="${esc(text)}"/>`;
+      labels+=`<span>${n>14&&i%2?'':esc(name)}</span>`;
+    });
+    if(line!==null){
+      const row=sport==='MLB'?[r.model_probability,r.model_push_probability]:sport==='NHL'?[r.independent_probability,r.push_probability]:[];
+      if(finite(row[0])){win=row[0];push=finite(row[1])?row[1]:push;}
+    }
+    const at=line!==null?((line-start+.5)/n*W):null;
+    const rule=at!==null&&at>0&&at<W?`<line class="pc-rule" x1="${at.toFixed(1)}" x2="${at.toFixed(1)}" y1="0" y2="${H}"/>`:'';
+    const svg=`<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${marks}${rule}${targets}</svg>`;
+    const other=side==='Over'?'Under':'Over';
+    const caption=line!==null?`${side} ${lineText(line)}: ${odds(win)}${push>.0005?` · Push: ${odds(push)}`:''} · ${other}: ${odds(Math.max(0,1-win-push))}`:'Chance of each outcome';
+    return `<h4>Range of outcomes</h4>`+figure('pc-dist',`Model chances: ${words.join('; ')}`,svg,`<div class="pc-ticks" style="grid-template-columns:repeat(${n},1fr)">${labels}</div>`,caption,
+      'The model gives a chance for every count, not one guess. Highlighted bars win this bet.');
+  }
+  // No model yet (NBA): how the recent games fell around the line.
+  function pastChart(values,c,r){
+    if(values.length<5)return '';
+    const line=finite(r.line)?r.line:null,side=r.side==='Under'?'Under':'Over';
+    const lo=Math.floor(Math.min(...values)),hi=Math.ceil(Math.max(...values)),size=Math.max(1,Math.ceil((hi-lo+1)/10)),n=Math.floor((hi-lo)/size)+1;
+    const counts=Array(n).fill(0);values.forEach(v=>counts[Math.min(n-1,Math.floor((v-lo)/size))]++);
+    const H=64,band=W/n,bw=Math.min(22,band-4),max=Math.max(...counts);
+    let marks='',targets='',labels='';
+    counts.forEach((k,i)=>{
+      const from=lo+i*size,to=from+size-1,mid=(from+to)/2,outcome=winner(mid,line,side),h=k?Math.max(2,k/max*H):0;
+      marks+=bar(i*band+(band-bw)/2,H-h,bw,h,outcome===true?'pc-hit':'pc-miss');
+      const text=`${size>1?`${from}–${to}`:from}: ${k} game${k===1?'':'s'}`;
+      targets+=`<rect class="pc-target" x="${(i*band).toFixed(1)}" y="0" width="${band.toFixed(1)}" height="${H}" data-readout="${esc(text)}"/>`;
+      labels+=`<span>${n>8&&i%2?'':esc(size>1?from:from)}</span>`;
+    });
+    const over=values.filter(v=>line!==null&&v>line).length,under=values.filter(v=>line!==null&&v<line).length;
+    const svg=`<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${marks}${targets}</svg>`;
+    return `<h4>Last ${values.length} games</h4>`+figure('pc-dist',`Past results: ${counts.join(', ')}`,svg,`<div class="pc-ticks" style="grid-template-columns:repeat(${n},1fr)">${labels}</div>`,
+      line!==null?`${over} over ${lineText(line)} · ${under} under`:`${values.length} games`,'Past results, not a forecast.');
+  }
+  // Our number next to the market's and the break-even for this price, on one scale.
+  function marketStrip(r,sport){
+    const cond=(w,p)=>finite(w)?(finite(p)&&p<1?w/(1-p):w):null;
+    const v={NHL:[r.conditional_probability??cond(r.independent_probability,r.push_probability),r.market_probability,r.book_probability],
+      MLB:[r.model_conditional_probability,r.consensus_probability??r.fair_probability,r.book_probability],
+      NFL:[cond(r.model_prob,r.push_prob),r.consensus_prob??r.prob_devig,r.mkt_prob],
+      NBA:[r.baseline_probability,r.consensus_probability??r.fair_probability,r.book_probability]}[sport];
+    if(!v||!finite(v[0])||!finite(v[2]))return '';
+    const shown=v.filter(finite),span=Math.max(.24,Math.max(...shown)-Math.min(...shown)+.12),mid=(Math.max(...shown)+Math.min(...shown))/2;
+    const lo=Math.max(0,Math.min(1-span,mid-span/2)),hi=Math.min(1,lo+span),x=p=>((p-lo)/(hi-lo)*(W-16)+8).toFixed(1);
+    const model=sport==='NBA'?'Past hit rate':'Model';
+    const svg=`<svg viewBox="0 0 ${W} 22" aria-hidden="true"><line class="pc-track" x1="8" x2="${W-8}" y1="11" y2="11"/>`
+      +`<line class="pc-even" x1="${x(v[2])}" x2="${x(v[2])}" y1="3" y2="19"/>`
+      +(finite(v[1])?`<circle class="pc-market" cx="${x(v[1])}" cy="11" r="5"/>`:'')
+      +`<circle class="pc-model" cx="${x(v[0])}" cy="11" r="5"/></svg>`;
+    const gap=(v[0]-v[2])*100;
+    const keys=`<p class="pc-keys"><span class="pc-key-model">${esc(model)} ${odds(v[0])}</span>${finite(v[1])?`<span class="pc-key-market">Market ${odds(v[1])}</span>`:''}<span class="pc-key-even">Break-even ${odds(v[2])}</span></p>`;
+    const caption=`${model} vs. break-even: ${gap>=0?'+':'−'}${Math.abs(gap).toFixed(1)} points${finite(r.line)&&Number.isInteger(r.line)?' · chances exclude pushes':''}`;
+    return `<figure class="pc-chart pc-strip"><div class="pc-plot" role="img" aria-label="${esc(`${model} ${odds(v[0])}, market ${odds(v[1])}, break-even ${odds(v[2])}`)}">${svg}</div>${keys}<figcaption class="pc-readout">${esc(caption)}</figcaption></figure>`;
+  }
+  function buildHTML(c,sport){
+    const steps=(c?.build?.steps||[]).filter(s=>s&&finite(s.value));
+    if(!steps.length)return '';
+    return `<h4>How the number is built</h4><ol class="pc-build">${steps.map(s=>`<li class="${s.op==='='||s.op==='→'?'pc-total':''}"><span class="pc-op" aria-hidden="true">${esc(s.op||'')}</span><span class="pc-step">${esc(s.label)}</span><strong>${withUnit(s.value,s.unit,sport)}</strong></li>`).join('')}</ol>${c.build.note?`<p class="pc-chart-note">${esc(c.build.note)}</p>`:''}`;
+  }
+  function blendHTML(c){
+    const items=(Array.isArray(c?.blend)?c.blend:[]).filter(b=>b&&finite(b.own));
+    if(!items.length)return '';
+    return `<h4>How much his own recent games count</h4>${items.map(b=>{const own=b.own_label||'his games',rest=b.rest_label||'average';return `<div class="pc-blend"><div class="pc-blend-label"><span>${esc(b.label)}</span><span>${share(b.own)} ${esc(own)} · ${share(1-b.own)} ${esc(rest)}</span></div><div class="pc-meter" role="img" aria-label="${esc(`${b.label}: ${share(b.own)} ${own}, ${share(1-b.own)} ${rest}`)}"><span style="width:${(b.own*100).toFixed(1)}%"></span></div>${b.detail?`<p class="pc-chart-note">${esc(b.detail)}</p>`:''}</div>`;}).join('')}<p class="pc-chart-note">Small samples lean on the longer history, so one hot or cold week moves the forecast less.</p>`;
+  }
+  function opponentHTML(c,sport){
+    const o=c?.opponent,items=(Array.isArray(o?.items)?o.items:[]).filter(i=>i&&finite(i.value));
+    if(!items.length)return '';
+    return `<h4>${esc(o.label||'Opponent')}${o.team?` · ${esc(o.team)}`:''}</h4><dl class="pc-pop-inputs pc-opp">${items.map(i=>`<div><dt>${esc(i.label)}</dt><dd>${withUnit(i.value,i.unit,sport)}${i.rank?`<span class="pc-detail">${esc(i.rank)}</span>`:''}${finite(i.league)?`<span class="pc-detail">League ${withUnit(i.league,i.unit,sport)}</span>`:''}<span class="pc-kind">${i.used?'Used by the model':'Not in this model'}</span></dd></div>`).join('')}</dl>`;
+  }
+  function missingHTML(c){
+    const items=(Array.isArray(c?.missing)?c.missing:[]).filter(x=>typeof x==='string'&&x);
+    return items.length?`<h4>What the model doesn’t know</h4><ul class="pc-missing">${items.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`:'';
+  }
+  // ---- Track record: how past forecasts for this market turned out (published backtests). ----
+  const tracks={};
+  const trackSource=sport=>({MLB:'/mlb/data/validation.json'})[sport];
+  function trackFor(sport){
+    const url=trackSource(sport);
+    if(!url||typeof fetch!=='function')return Promise.resolve(null);
+    return tracks[sport]=tracks[sport]||fetch(url).then(x=>x.ok?x.json():null).catch(()=>null);
+  }
+  function trackHTML(report,r,sport){
+    if(sport!=='MLB'||!report)return '<p class="pc-chart-note">No published track record for this market yet.</p>';
+    const post=r.game_type&&r.game_type!=='R',test=(post?report.postseason:report.regular)?.[r.market]||report.regular?.[r.market];
+    const bins=(test?.calibration_bins||[]).filter(b=>finite(b.predicted)&&finite(b.observed)&&b.n>0);
+    if(!bins.length)return '<p class="pc-chart-note">No published track record for this market yet.</p>';
+    const H=150,x=p=>(8+p*(W-16)).toFixed(1),y=p=>(H-8-p*(H-16)).toFixed(1);
+    let dots='',targets='';
+    bins.forEach(b=>{
+      const text=`Said ${share(b.predicted)} → happened ${share(b.observed)} (${b.n.toLocaleString('en-US')} chances)`;
+      dots+=`<circle class="pc-dot" cx="${x(b.predicted)}" cy="${y(b.observed)}" r="4"/>`;
+      targets+=`<circle class="pc-target" cx="${x(b.predicted)}" cy="${y(b.observed)}" r="12" data-readout="${esc(text)}"/>`;
+    });
+    const svg=`<svg viewBox="0 0 ${W} ${H}" aria-hidden="true"><line class="pc-track" x1="${x(0)}" y1="${y(0)}" x2="${x(1)}" y2="${y(1)}"/>${dots}${targets}</svg><span class="pc-y-label">Happened ↑</span>`;
+    const window=post?`${report.postseason_year} postseason`:`${date(report.test_start)}–${date(report.test_end)}`;
+    const skill=finite(test.brier_skill)?` Accuracy ${test.brier_skill>=0?'+':''}${Math.round(test.brier_skill*100)}% vs. a baseline from past results (Brier skill).`:'';
+    const gap=finite(test.ece)?` Average gap between said and happened: ${(test.ece*100).toFixed(1)} points.`:'';
+    return figure('pc-record','Predicted vs. observed: '+bins.map(b=>`${share(b.predicted)} to ${share(b.observed)}`).join('; '),svg,
+      '<div class="pc-axis"><span>Model said 0%</span><span>100%</span></div>',
+      'On the diagonal = it happened as often as the model said.',
+      `Tested on ${(test.forecasts||test.samples||0).toLocaleString('en-US')} forecasts it had not seen (${window}).${skill}${gap}`);
+  }
+  let lastTab='form';
   function snapshot({r,sport,options,c}){
     const recent=(c?.recent||[]).filter(w=>w&&finite(w.games)&&w.games>0);
     // Model inputs first. Only a field the selected model is known not to use is marked as
@@ -152,10 +338,32 @@
     const form=tiles?`<h4>Last ${first.games} ${per}s</h4><dl class="pc-stats">${tiles}</dl>`:'';
     const model=inputs.length?`<h4>What goes into the forecast</h4><dl class="pc-pop-inputs">${inputs.map(i=>`<div><dt>${esc(i.label)}</dt><dd>${withUnit(i.value,i.unit,sport)}${i.used===false?' <span class="pc-kind">Context only</span>':''}</dd></div>`).join('')}</dl>`:'';
     const source=c?`${esc(c.source)}${date(c.through)?' · through '+esc(date(c.through)):''}${options.saved?' · saved with this forecast':''}`:'';
+    const note=c?.note?`<details class="pc-pop-note"><summary>About these numbers</summary><p>${esc(c.note)}</p></details>`:'';
+    const formPanel=(c?trendChart(c,r,sport):'')+form+(c?gameLog(c,sport,recent):'')+seasonLine(options.season);
+    const modelPanel=c?buildHTML(c,sport)+distChart(c,r,sport)+opponentHTML(c,sport)+blendHTML(c)+model+missingHTML(c)+note:'';
+    const record=sport!=='NBA'&&trackSource(sport);
+    const tabs=[['form','Form',formPanel],['model','How it works',modelPanel],...(record?[['record','Track record','<div class="pc-record"><p class="pc-chart-note">Loading the track record…</p></div>']]:[])]
+      .filter(([,,html])=>html);
+    const pick=tabs.some(([k])=>k===lastTab)?lastTab:tabs[0]?.[0];
+    const body=tabs.length>1?`<div class="pc-tabs" role="tablist" aria-label="Player snapshot sections">${tabs.map(([k,l])=>`<button type="button" role="tab" id="pc-tab-${k}" data-tab="${k}" aria-controls="pc-panel-${k}" aria-selected="${k===pick}" tabindex="${k===pick?0:-1}">${l}</button>`).join('')}</div>`
+      +tabs.map(([k,,html])=>`<div class="pc-panel" role="tabpanel" id="pc-panel-${k}" aria-labelledby="pc-tab-${k}"${k===pick?'':' hidden'}>${html}</div>`).join('')
+      :tabs.map(([,,html])=>html).join('');
     return `<div class="pc-pop-head"><div><strong>${esc(r.player)}</strong>${r.game?`<span>${esc(r.game)}</span>`:''}</div><button type="button" class="pc-close" aria-label="Close player snapshot">×</button></div>`
-      +projection+form+(c?gameLog(c,sport,recent):'')+model+seasonLine(options.season)
-      +(c?.note?`<details class="pc-pop-note"><summary>About these numbers</summary><p>${esc(c.note)}</p></details>`:'')
+      +projection+marketStrip(r,sport)+body
       +(source?`<p class="pc-source">${source}</p>`:'')+'<p class="pc-pop-link" hidden></p>';
+  }
+  function selectTab(key){
+    if(!pop)return;
+    lastTab=key;
+    pop.querySelectorAll('[role=tab]').forEach(t=>{const on=t.dataset.tab===key;t.setAttribute('aria-selected',on);t.tabIndex=on?0:-1;});
+    pop.querySelectorAll('[role=tabpanel]').forEach(p=>{p.hidden=p.id!=='pc-panel-'+key;});
+    place();
+  }
+  async function fillRecord(entry,id){
+    const box=pop?.querySelector('.pc-record');
+    if(!box)return;
+    const report=await trackFor(entry.sport);
+    if(pop&&!pop.hidden&&owner?.dataset.pc===id&&box.isConnected){box.innerHTML=trackHTML(report,entry.r,entry.sport);place();}
   }
   function place(){
     if(!pop||pop.hidden||!owner)return;
@@ -200,7 +408,27 @@
     if(!entry)return;
     if(!pop){
       pop=document.createElement('div');pop.className='pc-pop player-context';pop.setAttribute('role','dialog');pop.tabIndex=-1;pop.hidden=true;
-      pop.addEventListener('click',e=>{if(e.target.closest('.pc-close'))close(true);else pinned=true;});
+      pop.addEventListener('click',e=>{
+        const tab=e.target.closest('[role=tab]');
+        if(e.target.closest('.pc-close'))return close(true);
+        pinned=true;
+        if(tab)selectTab(tab.dataset.tab);
+        const mark=e.target.closest?.('[data-readout]');
+        if(mark)readout(mark);
+      });
+      pop.addEventListener('keydown',e=>{
+        const tab=e.target.closest('[role=tab]');
+        if(!tab||!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;
+        const all=[...pop.querySelectorAll('[role=tab]')],i=all.indexOf(tab);
+        const next=all[e.key==='Home'?0:e.key==='End'?all.length-1:(i+(e.key==='ArrowRight'?1:-1)+all.length)%all.length];
+        e.preventDefault();selectTab(next.dataset.tab);next.focus();
+      });
+      // Chart readouts: hover or tap a bar or dot; leaving the chart restores its summary.
+      pop.addEventListener('pointerover',e=>{const mark=e.target.closest?.('[data-readout]');if(mark)readout(mark);});
+      pop.addEventListener('pointerout',e=>{
+        const chart=e.target.closest?.('.pc-chart');
+        if(chart&&!chart.contains(e.relatedTarget))reset(chart);
+      });
       document.body.append(pop);
     }
     clearTimeout(hoverTimer);clearTimeout(leaveTimer);
@@ -210,6 +438,18 @@
     pop.hidden=false;pop.scrollTop=0;t.setAttribute('aria-expanded','true');place();
     if(pin)pop.focus({preventScroll:true});
     playerPage(entry,t.dataset.pc);
+    fillRecord(entry,t.dataset.pc);
+  }
+  function readout(mark){
+    const chart=mark.closest('.pc-chart'),out=chart?.querySelector('.pc-readout');
+    if(!out)return;
+    chart.querySelectorAll('.pc-on').forEach(x=>x.classList.remove('pc-on'));
+    mark.classList.add('pc-on');out.textContent=mark.dataset.readout;
+  }
+  function reset(chart){
+    const out=chart.querySelector('.pc-readout');
+    chart.querySelectorAll('.pc-on').forEach(x=>x.classList.remove('pc-on'));
+    if(out?.dataset.default)out.textContent=out.dataset.default;
   }
   function close(focus){
     clearTimeout(hoverTimer);clearTimeout(leaveTimer);
