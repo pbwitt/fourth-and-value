@@ -2,9 +2,10 @@
 
 The first integration covers Kalshi NFL game-winner contracts, configured in
 `config/prediction_markets.json`. It is an observation board plus an owner-only
-local paper ledger. There is **no authenticated trading client, production order
-endpoint, account connection, or real-money enable switch** in this release.
-No credentials are needed. The public site never reads the private ledger.
+local paper ledger. No credentials are needed for observation or paper execution.
+Phase 2 adds a separate [private demo client](KALSHI_DEMO.md) for authenticated
+mock-funds order rehearsal, disabled by default. There is no production order
+endpoint or real-money enable switch. The public site never reads private ledgers.
 
 ## Observe and preview
 
@@ -52,8 +53,8 @@ estimates and does not maintain a second pricing implementation.
   total cost and equivalent odds. No default zero-fee assumption is allowed.
 * Round the total debit up to cents at each price level. This is deliberately a
   conservative estimate: exchange direct-member precision, within-level fills,
-  rounding accumulators and rebates can differ. Capture actual fees from fills
-  when authenticated execution is added; these estimates are not actual charges.
+  rounding accumulators and rebates can differ. The demo client captures actual
+  fees from its fills; public and paper estimates are not actual charges.
 * Equivalent American odds describe a $1 terminal payout, not a probability.
   Intermediate/fair-price settlements and ties follow the preserved contract
   rules. An NFL tie paying $0.50 is not a refund of the entry price.
@@ -130,9 +131,10 @@ value never becomes a zero or a win inferred from a title.
 
 ## Before real trading
 
-The next release needs a Kalshi demo account and server-held credentials to test
-authenticated order lifecycle, actual fills/fees, timeout reconciliation and
-cancellation. Live activation additionally needs the owner's account access,
+The demo CLI supports order lifecycle, actual fills/fees, timeout reconciliation
+and cancellation. An account-level smoke test still needs a Kalshi demo account
+and locally held credentials; fixture tests alone are not that validation.
+Live activation additionally needs the owner's account access,
 explicit capital/exposure limits, a validated strategy and deployment choice.
 This foundation does not implement live trading or multi-user account custody.
 Existing sportsbook Bet Tracker records remain separate from paper simulations.

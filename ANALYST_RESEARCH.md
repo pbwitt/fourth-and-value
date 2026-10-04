@@ -69,6 +69,18 @@ limits are $10/order, $100 gross purchases per Eastern day, $25 open cost/event
 and $100 total open cost; these do not authorize real spending or consume the
 research allowance. See `PREDICTION_MARKETS.md` for simulation and fee limitations.
 
+Phase 2 adds a private, disabled-by-default Kalshi demo CLI using mock funds.
+It retrieves demo rules, fee overrides and depth, checks a verified future start
+and 30-second freshness, checks balance and limits, durably reserves the whole
+IOC request, submits once, then reconciles order state and actual fills/fees.
+Demo-only limits are $2/order, $20 gross purchases per Eastern day, $5 open
+cost/event and $10 total open cost, including conservative fee/rounding reserves.
+Uncertain requests block further submissions until reconciled; cancellation does
+not release reservations until fills are accounted for. Explicit finalized
+settlement values release open cost but never gross daily spend. This is a manual
+rehearsal with no scheduled start or publication and no public account UI.
+See `KALSHI_DEMO.md` for credential setup, recovery and the required account test.
+
 These contracts do not enter the shared Top Picks selector or Market Watch.
 Exact sportsbook comparisons require independently verified matching settlement
 rules; NFL ties paying 50 cents are not automatically equivalent to pushes.
