@@ -2,8 +2,11 @@
 // run it with stubbed fetches; index.ts only wires it to Deno.serve.
 //
 // One press of Run now on the private Live Odds page (docs/live/) is at most one
-// paid Odds API request, for one NHL game. The key stays here as an Edge Function
-// secret and only editor accounts (app_metadata.fv_editor) may spend it.
+// paid Odds API request, for one NHL game. Only editor accounts
+// (app_metadata.fv_editor) may spend it, and the key never leaves the server: an
+// ODDS_API_KEY Edge Function secret if set, otherwise the copy the "Live Odds key"
+// workflow keeps in Supabase Vault (supabase/live_odds_key.sql), read with the
+// service role.
 //
 // POST {}             -> NHL games from 6 hours ago to 24 hours ahead (free endpoint)
 // POST {event:'<id>'} -> that game's prices from US books: moneyline, puck line,
@@ -33,6 +36,7 @@ export function createHandler({ fetchImpl = fetch, now = () => Date.now(), env =
   allowOrigin = o => ORIGINS.has(o) } = {}) {
   const cache = new Map();
   let remaining = null;   // credits left, from the most recent Odds API response
+  let vaultKey = null;
 
   function reserve() {
     const raw = env('LIVE_ODDS_RESERVE'), n = raw == null || raw === '' ? NaN : Number(raw);
@@ -63,9 +67,24 @@ export function createHandler({ fetchImpl = fetch, now = () => Date.now(), env =
     return user?.app_metadata?.fv_editor === true;
   }
 
+  async function oddsKey() {
+    const direct = env('ODDS_API_KEY');
+    if (direct) return direct;
+    if (vaultKey) return vaultKey;
+    const base = env('SUPABASE_URL'), service = env('SUPABASE_SERVICE_ROLE_KEY');
+    if (!base || !service) return null;
+    try {
+      const res = await fetchImpl(`${base}/rest/v1/rpc/live_odds_key`, { method: 'POST', body: '{}',
+        headers: { apikey: service, Authorization: `Bearer ${service}`, 'Content-Type': 'application/json' } });
+      const key = res.ok ? await res.json() : null;
+      if (typeof key === 'string' && key) vaultKey = key;
+    } catch { /* reported below as a missing key */ }
+    return vaultKey;
+  }
+
   async function upstream(path, params) {
-    const key = env('ODDS_API_KEY');
-    if (!key) throw new Failure(503, 'Live odds need ODDS_API_KEY in the Edge Function secrets.');
+    const key = await oddsKey();
+    if (!key) throw new Failure(503, 'Live odds have no Odds API key yet. Run the Live Odds key workflow, or add ODDS_API_KEY to the Edge Function secrets.');
     let res;
     try {
       res = await fetchImpl(`${ODDS}/${path}?${new URLSearchParams({ ...params, apiKey: key })}`,
@@ -76,7 +95,10 @@ export function createHandler({ fetchImpl = fetch, now = () => Date.now(), env =
     }
     const left = res.headers.get('x-requests-remaining');
     if (left != null && left !== '' && Number.isFinite(Number(left))) remaining = Number(left);
-    if (res.status === 401 || res.status === 403) throw new Failure(503, 'The odds service refused the key, or the plan is out of credits.');
+    if (res.status === 401 || res.status === 403) {
+      vaultKey = null;   // a rotated key is read again on the next press
+      throw new Failure(503, 'The odds service refused the key, or the plan is out of credits.');
+    }
     if (res.status === 404) throw new Failure(404, 'The odds service no longer lists that game.');
     if (res.status === 429) throw new Failure(429, 'The odds service is busy. Wait a few seconds and try again.');
     if (!res.ok) throw new Failure(502, `The odds service returned an error (HTTP ${res.status}).`);

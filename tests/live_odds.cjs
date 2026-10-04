@@ -156,12 +156,16 @@ assert.equal(O.signed(-115),'−115');assert.equal(O.signed(120),'+120');assert.
   const {createHandler,MARKETS}=await import('../supabase/functions/live-odds/handler.mjs');
   const KEY='secret-odds-key',ID='b'.repeat(32);
   const ENV={SUPABASE_URL:'https://db.example',SUPABASE_ANON_KEY:'anon',ODDS_API_KEY:KEY};
-  function setup({env=ENV,user={app_metadata:{fv_editor:true}},odds}={}){
-    let clock=NOW,left=17000;const calls=[];
+  function setup({env=ENV,user={app_metadata:{fv_editor:true}},odds,vault=null}={}){
+    let clock=NOW,left=17000;const calls=[],vaultReads=[];
     const fetchImpl=async(url,init)=>{
       if(url.startsWith('https://db.example/auth/v1/user')){
         assert.equal(init.headers.Authorization,'Bearer user-token');assert.equal(init.headers.apikey,'anon');
         return user?new Response(JSON.stringify(user),{status:200}):new Response('{}',{status:401});
+      }
+      if(url==='https://db.example/rest/v1/rpc/live_odds_key'){
+        vaultReads.push(init);
+        return new Response(JSON.stringify(typeof vault==='function'?vault():vault),{status:200});
       }
       calls.push(url);
       if(odds)return odds(url);
@@ -177,7 +181,7 @@ assert.equal(O.signed(-115),'−115');assert.equal(O.signed(120),'+120');assert.
     const handle=createHandler({fetchImpl,now:()=>clock,env:n=>env[n]});
     const req=(body,{origin='https://fourthandvalue.com',method='POST',auth='Bearer user-token'}={})=>handle(new Request('https://edge/',
       {method,headers:{origin,...(auth?{authorization:auth}:{})},body:method==='POST'?(typeof body==='string'?body:JSON.stringify(body)):undefined}));
-    return {req,calls,tick:ms=>{clock+=ms;},setLeft:n=>{left=n;}};
+    return {req,calls,vaultReads,tick:ms=>{clock+=ms;},setLeft:n=>{left=n;}};
   }
 
   {
@@ -197,7 +201,7 @@ assert.equal(O.signed(-115),'−115');assert.equal(O.signed(120),'+120');assert.
     const r=await reader.req({event:ID});assert.equal(r.status,403);assert.equal(reader.calls.length,0,'readers cannot spend credits');
     assert.equal((await setup({env:{...ENV,SUPABASE_URL:''}}).req({})).status,503);
     const nokey=await setup({env:{...ENV,ODDS_API_KEY:''}}).req({event:ID});
-    assert.equal(nokey.status,503);assert.match((await nokey.json()).error,/ODDS_API_KEY/);
+    assert.equal(nokey.status,503);assert.match((await nokey.json()).error,/no Odds API key yet.*Live Odds key workflow/);
   }
   {
     // Game list: the free events endpoint, a 6-hour-back/24-hour-ahead window, ids validated.
@@ -246,6 +250,32 @@ assert.equal(O.signed(-115),'−115');assert.equal(O.signed(120),'+120');assert.
     const dflt=setup();dflt.setLeft(1999);await dflt.req({});   // learns 1999 from the free game list
     assert.equal((await dflt.req({event:ID})).status,429,'default reserve is 2000');
     assert.equal(dflt.calls.length,1);
+  }
+  {
+    // Without an ODDS_API_KEY secret the key comes from Vault through the service role, once.
+    const VAULT='vault-odds-key-123',SERVICE={...ENV,ODDS_API_KEY:undefined,SUPABASE_SERVICE_ROLE_KEY:'service-role'};
+    const v=setup({env:SERVICE,vault:VAULT});
+    const list=await v.req({});const prices=await v.req({event:ID});
+    assert.equal(list.status,200);assert.equal(prices.status,200);
+    assert.equal(v.vaultReads.length,1,'read once, then kept for the isolate');
+    assert.deepEqual([v.vaultReads[0].method,v.vaultReads[0].headers.apikey,v.vaultReads[0].headers.Authorization],['POST','service-role','Bearer service-role']);
+    assert(v.calls.every(u=>new URL(u).searchParams.get('apiKey')===VAULT));
+    assert(!JSON.stringify(await prices.json()).includes(VAULT),'the Vault key never reaches the browser');
+    // A secret takes precedence over the Vault copy.
+    const both=setup({env:{...SERVICE,ODDS_API_KEY:KEY},vault:VAULT});await both.req({});
+    assert.equal(both.vaultReads.length,0);assert.equal(new URL(both.calls[0]).searchParams.get('apiKey'),KEY);
+    // No key anywhere: a plain message, no odds request.
+    const none=setup({env:SERVICE,vault:null});const r=await none.req({event:ID});
+    assert.equal(r.status,503);assert.match((await r.json()).error,/Live Odds key workflow/);assert.equal(none.calls.length,0);
+    // A refused key is read again on the next press, so a rotated key takes effect.
+    let current='old-vault-key-123';
+    const rotated=setup({env:SERVICE,vault:()=>current,odds:async url=>new Response('{}',{status:new URL(url).searchParams.get('apiKey')===current?200:401,
+      headers:{'x-requests-remaining':'9000'}})});
+    assert.equal((await rotated.req({})).status,502,'old key accepted; body shape is checked separately');
+    current='new-vault-key-456';rotated.tick(301e3);
+    assert.equal((await rotated.req({})).status,503,'the cached old key is refused once');
+    rotated.tick(11e3);await rotated.req({});
+    assert.equal(rotated.vaultReads.length,2);assert.equal(new URL(rotated.calls.at(-1)).searchParams.get('apiKey'),'new-vault-key-456');
   }
   {
     // Odds service failures become plain messages without the key.

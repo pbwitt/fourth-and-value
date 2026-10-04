@@ -1,0 +1,34 @@
+name: Live Odds key
+# Copies the Odds API key the NHL refresh uses into Supabase Vault for the
+# private live-odds Edge Function (supabase/live_odds_key.sql). Runs when this
+# file reaches main; run it by hand after rotating the key. The key is never printed.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/live-odds-key.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: live-odds-key
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Store the key in Supabase Vault
+        env:
+          ODDS_API_KEY: ${{ secrets.NHL_ODDS_API_KEY || secrets.ODDS_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          for name in ODDS_API_KEY SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
+            if [ -z "${!name}" ]; then echo "::error::Repository secret for $name is missing."; exit 1; fi
+          done
+          status=$(jq -n --arg key "$ODDS_API_KEY" '{new_key: $key}' | curl -sS -o /dev/null -w '%{http_code}' \
+            -X POST "${SUPABASE_URL%/}/rest/v1/rpc/set_live_odds_key" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H 'Content-Type: application/json' --data @-)
+          if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then echo "::error::Supabase returned HTTP $status."; exit 1; fi
+          echo "Stored the Odds API key for live odds."
