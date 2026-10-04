@@ -147,10 +147,26 @@ class ProbabilityTests(unittest.TestCase):
 
     def test_player_shared_scoring_mean_and_fast_batch_agree(self):
         rows=[dict(opportunity_means=[3,.4,.6,1],base_means=[2,.3,.4,.7],targets=[4,1,1,2])]*20
-        for name in ['rate_poisson','opportunity_poisson','opportunity_nb','opportunity_hurdle']:
+        for name in ['rate_poisson','opportunity_poisson','opportunity_nb','opportunity_hurdle','opportunity_nb_opp']:
             m=PlayerModel(name).fit(rows);p=m.pmfs(rows[0]);batch=m.fast_pmfs(rows[:1]);n=np.arange(48)
             self.assertAlmostEqual(p[1]@n+p[2]@n,p[3]@n,places=6)
             for a,b in zip(p,batch):np.testing.assert_allclose(a,b[0],atol=1e-8)
+
+    def test_opponent_kind_learns_the_effect_and_defaults_to_one(self):
+        rng=np.random.default_rng(7);rows=[]
+        for _ in range(3000):
+            sa,ga=rng.uniform(24,36),rng.uniform(2.4,3.6)
+            goals,assists=rng.poisson(.4*ga/3),rng.poisson(.6*ga/3)
+            rows.append(dict(opportunity_means=[3,.4,.6,1],base_means=[3,.4,.6,1],opp_shots_against=sa,opp_goals_against=ga,
+                             targets=[int(rng.poisson(3*(sa/30)**1.2)),int(goals),int(assists),int(goals+assists)]))
+        m=PlayerModel('opportunity_nb_opp').fit(rows)
+        self.assertAlmostEqual(m.beta_shots,1.2,delta=.3);self.assertAlmostEqual(m.beta_scoring,1.0,delta=.4)
+        unknown=dict(rows[0],opp_shots_against=None,opp_goals_against=None)
+        self.assertEqual(m.means(unknown),[3,.4,.6,1],'no opponent, no adjustment')
+        tough=dict(rows[0],opp_shots_against=m.league_shots*.9,opp_goals_against=m.league_scoring)
+        self.assertLess(m.means(tough)[0],3)
+        self.assertAlmostEqual(sum(m.means(tough)[1:3]),m.means(tough)[3],places=9)
+        self.assertEqual(PlayerModel('opportunity_nb').fit(rows).means(tough),[3,.4,.6,1],'other kinds ignore the opponent')
 
     def test_push_aware_fair_ev_minimum(self):
         r=price(dict(win=.45,push=.1,loss=.45),110,lower_win=.4)

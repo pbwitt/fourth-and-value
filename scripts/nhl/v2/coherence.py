@@ -64,8 +64,10 @@ def distribution(models, manifest):
         model = models['shots' if j == 0 else 'scoring']
         if model.kind == 'opportunity_hurdle':
             return None   # No negative-binomial or Poisson marginal to invert.
-        fields.append('base_means' if model.kind == 'rate_poisson' else 'opportunity_means')
-        alphas.append((model.alpha_shots if j == 0 else model.alpha_scoring) if model.kind == 'opportunity_nb' else 0.)
+        # The opponent-adjusted kind forecasts from its adjusted means (inference stores them).
+        fields.append('base_means' if model.kind == 'rate_poisson' else 'adjusted_means' if model.kind == 'opportunity_nb_opp'
+                      else 'opportunity_means')
+        alphas.append((model.alpha_shots if j == 0 else model.alpha_scoring) if model.kind in ('opportunity_nb', 'opportunity_nb_opp') else 0.)
     return dict(version=manifest['version'], means_fields=fields, alphas=alphas, ot_home=float(models['team'].ot_home),
                 artifact_sha256=manifest['artifact_sha256'])
 

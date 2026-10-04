@@ -89,6 +89,18 @@ class History:
                     feature_cutoff=records[-1]['available_at'] if records else None)
 
 
+def matchup(team_rows, g, team_id):
+    """The opponent's recency-weighted shots and regulation goals allowed, from the team features.
+
+    The player's team is the one he last appeared for; when it is not in this game the fields are
+    None and the opponent factor is 1.
+    """
+    for i, side in enumerate(['home', 'away']):
+        if team_id is not None and team_id == g[side + '_id']:
+            return dict(opp_shots_against=float(team_rows[i]['shots_against']), opp_goals_against=float(team_rows[i]['defense']))
+    return dict(opp_shots_against=None, opp_goals_against=None)
+
+
 def build(games, players):
     """Every game on a calendar date sees only results available by that morning."""
     history = History()
@@ -116,6 +128,7 @@ def build(games, players):
             prior = history.players[r['player_id']]
             position = prior[-1]['position'] if prior else 'U'
             f = history.player_features(r['player_id'],position,g['game_date'],asof)
+            f.update(matchup(features, g, prior[-1].get('team_id') if prior else None))
             player_rows.append(dict(**f,game_id=g['game_id'],season=g['season'], game_date=g['game_date'],
                 decision_at=iso(asof), player=r['player'],position=position,
                 targets=[r[s] for s in PLAYER_STATS],actual_toi=r['toi']))
