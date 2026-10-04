@@ -47,4 +47,6 @@ const qb=snapshot({player:'QB',market_std:'pass_yds',mu:245,projection_diagnosti
   current_sample:[{season:2026,week:3,attempts:30,completions:20,passing_yards:220},{season:2026,week:4,attempts:36,completions:25,passing_yards:301}]})},'NFL');
 assert.match(qb,/<th scope="row">Wk 4<\/th><td>36<\/td><td>25<\/td><td class="pc-focus">301<\/td>/,'newest week first');
 assert.match(qb,/65%/);
+const legacy=snapshot({player:'Skater',market:'player_goals',projected_mean:.124,model_inputs:{projected_toi:15.2,history_games:30,last_game:'2026-04-16',opportunity_means:[2,.15,.2,.35]}},'NHL');
+assert.match(legacy,/0\.12 <span>goals/,'two decimals below one');assert.doesNotMatch(legacy,/Context only/,'unknown usage is not called context');assert.match(legacy,/15:12/);
 console.log('PASS: player context preserves missing values, zeros, units, input labels, archived context and escaped content; name pop-up snapshots.');

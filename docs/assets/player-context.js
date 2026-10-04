@@ -93,12 +93,12 @@
   const contextFor=(r,sport)=>r.player_context?.schema_version===1?r.player_context:fallback(r,sport);
   const short=v=>/^\d{4}-\d{2}-\d{2}$/.test(v||'')?new Date(v+'T12:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'}):esc(v??'—');
   const clock=v=>{const s=Math.round(v*60);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');};
-  // One decimal at most; innings in thirds; NHL ice time as minutes:seconds.
+  // One decimal (two below 1, as in 0.35 goals); innings in thirds; NHL ice time as minutes:seconds.
   function fmt(v,unit,sport){
     if(!finite(v))return '—';
     if(unit==='IP')return thirds(v);
     if(unit==='min'&&sport==='NHL')return clock(v);
-    return v.toLocaleString('en-US',{maximumFractionDigits:unit==='days'||Number.isInteger(v)?0:1});
+    return v.toLocaleString('en-US',{maximumFractionDigits:unit==='days'||Number.isInteger(v)?0:Math.abs(v)<1?2:1});
   }
   const withUnit=(v,unit,sport)=>fmt(v,unit,sport)+(!unit||unit==='min'&&sport==='NHL'?'':unit==='%'?'%':' '+esc(unit));
   function name(r,sport=r?.sport,options={}){
@@ -139,7 +139,8 @@
   const workName=(c,sport)=>({IP:'IP',min:sport==='NHL'?'TOI':'Minutes',PA:'PA',att:'Attempts'})[c.workload_unit]||c.workload_label||'Workload';
   function snapshot({r,sport,options,c}){
     const recent=(c?.recent||[]).filter(w=>w&&finite(w.games)&&w.games>0);
-    // Model inputs first; anything the selected model does not use is marked as context.
+    // Model inputs first. Only a field the selected model is known not to use is marked as
+    // context; older saved snapshots do not record usage, so they carry no tag.
     const inputs=(c?.inputs||[]).filter(i=>i&&finite(i.value)).sort((a,b)=>!!b.used-!!a.used).slice(0,6);
     const mean=sport==='MLB'?r.model_mean:sport==='NFL'?r.mu:r.projected_mean,first=recent[0];
     const per=c?.sample_label==='starts'?'start':'game';
@@ -149,7 +150,7 @@
     if(first&&finite(first.workload))tiles+=tile(`${workName(c,sport)} / ${per}`,fmt(first.workload,c.workload_unit,sport));
     if(first&&finite(first.pitches))tiles+=tile(`Pitches / ${per}`,fmt(Math.round(first.pitches),'',sport));
     const form=tiles?`<h4>Last ${first.games} ${per}s</h4><dl class="pc-stats">${tiles}</dl>`:'';
-    const model=inputs.length?`<h4>What goes into the forecast</h4><dl class="pc-pop-inputs">${inputs.map(i=>`<div><dt>${esc(i.label)}</dt><dd>${withUnit(i.value,i.unit,sport)}${i.used?'':' <span class="pc-kind">Context only</span>'}</dd></div>`).join('')}</dl>`:'';
+    const model=inputs.length?`<h4>What goes into the forecast</h4><dl class="pc-pop-inputs">${inputs.map(i=>`<div><dt>${esc(i.label)}</dt><dd>${withUnit(i.value,i.unit,sport)}${i.used===false?' <span class="pc-kind">Context only</span>':''}</dd></div>`).join('')}</dl>`:'';
     const source=c?`${esc(c.source)}${date(c.through)?' · through '+esc(date(c.through)):''}${options.saved?' · saved with this forecast':''}`:'';
     return `<div class="pc-pop-head"><div><strong>${esc(r.player)}</strong>${r.game?`<span>${esc(r.game)}</span>`:''}</div><button type="button" class="pc-close" aria-label="Close player snapshot">×</button></div>`
       +projection+form+(c?gameLog(c,sport,recent):'')+model+seasonLine(options.season)
