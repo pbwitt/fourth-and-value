@@ -631,7 +631,7 @@ def apply_defensive_adjustment(mu: float, market_std: str, def_rating: float) ->
     Logic:
         - def_rating = 0.5 (weakest defense) → multiply mu by 1.15 (+15%)
         - def_rating = 1.0 (average defense) → multiply mu by 1.00 (no change)
-        - def_rating = 2.0 (toughest defense) → multiply mu by 0.85 (-15%)
+        - def_rating = 2.0 (toughest defense) → multiply mu by 0.70 (-30%)
     """
     if pd.isna(mu) or pd.isna(def_rating):
         return mu
@@ -732,6 +732,23 @@ def calculate_defensive_ratings(season: int, week: int) -> pd.DataFrame:
     return def_df[['team', 'pass_def_rating', 'rush_def_rating', 'games']].set_index('team')
 
 
+# Sportsbook team names to nflverse abbreviations, the keys used by game logs and defensive ratings.
+# nflverse writes the Rams as 'LA' (see nfl_fetch_scores.py).
+TEAM_TO_ABBREV = {
+    'Arizona Cardinals': 'ARI', 'Atlanta Falcons': 'ATL', 'Baltimore Ravens': 'BAL',
+    'Buffalo Bills': 'BUF', 'Carolina Panthers': 'CAR', 'Chicago Bears': 'CHI',
+    'Cincinnati Bengals': 'CIN', 'Cleveland Browns': 'CLE', 'Dallas Cowboys': 'DAL',
+    'Denver Broncos': 'DEN', 'Detroit Lions': 'DET', 'Green Bay Packers': 'GB',
+    'Houston Texans': 'HOU', 'Indianapolis Colts': 'IND', 'Jacksonville Jaguars': 'JAX',
+    'Kansas City Chiefs': 'KC', 'Las Vegas Raiders': 'LV', 'Los Angeles Chargers': 'LAC',
+    'Los Angeles Rams': 'LA', 'Miami Dolphins': 'MIA', 'Minnesota Vikings': 'MIN',
+    'New England Patriots': 'NE', 'New Orleans Saints': 'NO', 'New York Giants': 'NYG',
+    'New York Jets': 'NYJ', 'Philadelphia Eagles': 'PHI', 'Pittsburgh Steelers': 'PIT',
+    'San Francisco 49ers': 'SF', 'Seattle Seahawks': 'SEA', 'Tampa Bay Buccaneers': 'TB',
+    'Tennessee Titans': 'TEN', 'Washington Commanders': 'WAS'
+}
+
+
 def _player_team_map(logs: pd.DataFrame, career_df: pd.DataFrame = None) -> dict:
     """Most recent known team per player: prefers current-season logs, falls
     back to career_df (needed when the current season has no games yet)."""
@@ -757,21 +774,6 @@ def create_opponent_map(props: pd.DataFrame, logs: pd.DataFrame, career_df: pd.D
         1. Get player's team from game logs (most recent team)
         2. Parse game string to find opponent
     """
-    # Team name to abbreviation mapping
-    team_to_abbrev = {
-        'Arizona Cardinals': 'ARI', 'Atlanta Falcons': 'ATL', 'Baltimore Ravens': 'BAL',
-        'Buffalo Bills': 'BUF', 'Carolina Panthers': 'CAR', 'Chicago Bears': 'CHI',
-        'Cincinnati Bengals': 'CIN', 'Cleveland Browns': 'CLE', 'Dallas Cowboys': 'DAL',
-        'Denver Broncos': 'DEN', 'Detroit Lions': 'DET', 'Green Bay Packers': 'GB',
-        'Houston Texans': 'HOU', 'Indianapolis Colts': 'IND', 'Jacksonville Jaguars': 'JAX',
-        'Kansas City Chiefs': 'KC', 'Las Vegas Raiders': 'LV', 'Los Angeles Chargers': 'LAC',
-        'Los Angeles Rams': 'LAR', 'Miami Dolphins': 'MIA', 'Minnesota Vikings': 'MIN',
-        'New England Patriots': 'NE', 'New Orleans Saints': 'NO', 'New York Giants': 'NYG',
-        'New York Jets': 'NYJ', 'Philadelphia Eagles': 'PHI', 'Pittsburgh Steelers': 'PIT',
-        'San Francisco 49ers': 'SF', 'Seattle Seahawks': 'SEA', 'Tampa Bay Buccaneers': 'TB',
-        'Tennessee Titans': 'TEN', 'Washington Commanders': 'WAS'
-    }
-
     opponent_map = {}
     player_team_map = _player_team_map(logs, career_df)
 
@@ -781,26 +783,17 @@ def create_opponent_map(props: pd.DataFrame, logs: pd.DataFrame, career_df: pd.D
         if pd.isna(player):
             continue
 
-        home = row.get('home_team', '')
-        away = row.get('away_team', '')
-
-        # Get player's team
+        # Props carry full names; logs carry abbreviations. Compare abbreviations.
+        home = TEAM_TO_ABBREV.get(row.get('home_team', ''), row.get('home_team', ''))
+        away = TEAM_TO_ABBREV.get(row.get('away_team', ''), row.get('away_team', ''))
         player_team = player_team_map.get(player)
 
-        if player_team:
-            # Determine opponent
-            if player_team == home:
-                opponent_map[player] = team_to_abbrev.get(away, away)
-            elif player_team == away:
-                opponent_map[player] = team_to_abbrev.get(home, home)
-            else:
-                # Team mismatch - player might have been traded
-                # Try to infer from game string
-                game = row.get('game', '')
-                if home and away:
-                    # Default to home team as opponent if player is away, vice versa
-                    # This is a fallback heuristic
-                    opponent_map[player] = team_to_abbrev.get(home, home)  # Conservative default
+        if player_team and player_team == home:
+            opponent_map[player] = away
+        elif player_team and player_team == away:
+            opponent_map[player] = home
+        # A team that matches neither side (a trade, a stale log) gets no opponent
+        # adjustment rather than a guess.
 
     logging.info(f"[opponent] Mapped opponents for {len(opponent_map)} players")
     return opponent_map
@@ -820,23 +813,8 @@ def create_home_away_map(props: pd.DataFrame, logs: pd.DataFrame, career_df: pd.
         1. Get player's team from game logs (most recent team)
         2. Check if team matches home_team or away_team in props
     """
-    # Team name to abbreviation mapping (same as create_opponent_map)
-    team_to_abbrev = {
-        'Arizona Cardinals': 'ARI', 'Atlanta Falcons': 'ATL', 'Baltimore Ravens': 'BAL',
-        'Buffalo Bills': 'BUF', 'Carolina Panthers': 'CAR', 'Chicago Bears': 'CHI',
-        'Cincinnati Bengals': 'CIN', 'Cleveland Browns': 'CLE', 'Dallas Cowboys': 'DAL',
-        'Denver Broncos': 'DEN', 'Detroit Lions': 'DET', 'Green Bay Packers': 'GB',
-        'Houston Texans': 'HOU', 'Indianapolis Colts': 'IND', 'Jacksonville Jaguars': 'JAX',
-        'Kansas City Chiefs': 'KC', 'Las Vegas Raiders': 'LV', 'Los Angeles Chargers': 'LAC',
-        'Los Angeles Rams': 'LAR', 'Miami Dolphins': 'MIA', 'Minnesota Vikings': 'MIN',
-        'New England Patriots': 'NE', 'New Orleans Saints': 'NO', 'New York Giants': 'NYG',
-        'New York Jets': 'NYJ', 'Philadelphia Eagles': 'PHI', 'Pittsburgh Steelers': 'PIT',
-        'San Francisco 49ers': 'SF', 'Seattle Seahawks': 'SEA', 'Tampa Bay Buccaneers': 'TB',
-        'Tennessee Titans': 'TEN', 'Washington Commanders': 'WAS'
-    }
-
     # Reverse mapping: abbrev → full name
-    abbrev_to_team = {v: k for k, v in team_to_abbrev.items()}
+    abbrev_to_team = {v: k for k, v in TEAM_TO_ABBREV.items()}
 
     home_away_map = {}
     player_team_map = _player_team_map(logs, career_df)
