@@ -1,0 +1,26 @@
+name: Live Odds tests
+on:
+  pull_request:
+    paths:
+      - 'docs/live/**'
+      - 'supabase/functions/live-odds/**'
+      - 'docs/assets/offer-tracker.*'
+      - 'docs/tracking/bet-tracking.js'
+      - 'docs/tracking/live-feeds.js'
+      - 'tests/live_odds*.cjs'
+      - '.github/workflows/live-odds-pr-tests.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tests/live_odds.cjs
+      - run: npm install --no-save --package-lock=false playwright@1.55.1
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/live_odds_browser.cjs

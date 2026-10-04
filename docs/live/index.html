@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Live Odds | Fourth &amp; Value</title>
+<meta name="description" content="Private in-game odds check: every US book's current prices for one NHL game, compared side by side when you press Run now.">
+<link rel="canonical" href="https://fourthandvalue.com/live/">
+<meta property="og:title" content="Live Odds | Fourth &amp; Value">
+<meta property="og:description" content="Private in-game odds check: every US book's current prices for one NHL game, compared side by side when you press Run now.">
+<meta property="og:url" content="https://fourthandvalue.com/live/">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://fourthandvalue.com/assets/social-card.png">
+<meta property="og:image:alt" content="Fourth &amp; Value">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://fourthandvalue.com/assets/social-card.png">
+<link rel="icon" href="/assets/logo.svg">
+<link rel="stylesheet" href="/assets/site.css">
+<link rel="stylesheet" href="/assets/offer-tracker.css?v=1">
+<link rel="stylesheet" href="/live/live.css?v=1">
+<link rel="stylesheet" href="/assets/responsible-use.css?v=1"></head>
+<body>
+<div id="nav-root"></div>
+<script src="/nav.js?v=47"></script>
+<main class="wrap live">
+<header>
+<p class="eyebrow">Private · Game analytics</p>
+<h1>Live odds, one game at a time.</h1>
+<p class="lead">Pick the game you are watching and press Run now. Every US book’s current moneyline, puck line, total and player-prop prices, compared against each other. Track any bet you place straight into Bet Tracker.</p>
+</header><!-- fv-notices:notice:start --><aside id="fv-betting-notice" class="fv-use-notice" aria-label="Betting information disclaimer"><strong>Analysis, not a guarantee.</strong> Picks and projections are uncertain; odds and player information can change. No outcome or profit is guaranteed. Any wager is your decision and responsibility. <a href="/terms.html#responsible-play">Read our limitations and responsible-play guidance</a>.</aside><!-- fv-notices:notice:end -->
+<p id="message" class="status" role="status" aria-live="polite">Checking your sign-in…</p>
+
+<section id="login" hidden>
+<h2>Editor access required</h2>
+<p>Each run spends paid Odds API credits, so live odds are limited to editor accounts.</p>
+<form id="login-form" class="controls">
+<label for="email">Email <input id="email" type="email" autocomplete="email" required></label>
+<button type="submit">Email me a sign-in link</button>
+</form>
+</section>
+
+<section id="desk" hidden>
+<div class="controls">
+<label for="game">Game <select id="game"></select></label>
+<button id="run" class="button primary" type="button" disabled>Run now</button>
+<button id="signout" type="button">Sign out</button>
+</div>
+<p class="meta">Each run costs at most 7 Odds API credits: one per market the books are offering. Prices are reused for 60 seconds, so pressing again sooner costs nothing.</p>
+
+<div id="result" hidden>
+<div id="scoreline" class="scoreline"></div>
+<p id="asof" class="meta"></p>
+<p id="play-notice" class="notice" hidden>Play is live. Books suspend and reprice at every whistle, so some quotes may be from before the last goal or penalty. Readings taken during an intermission are the most reliable.</p>
+
+<h2>Worth a look</h2>
+<p class="meta">A book’s price that beats the median fair price of at least three other books by 2% or more, using only quotes taken close together in time. This compares books with each other; it is not a model forecast or a pick.</p>
+<ul id="flags" class="flags"></ul>
+
+<h2>Every line</h2>
+<div class="controls filters">
+<label for="market">Market <select id="market"></select></label>
+<label for="player">Player <input id="player" type="search" placeholder="Any player" autocomplete="off"></label>
+</div>
+<p class="meta"><b>Fair odds</b> is the median of each book’s price with its margin removed. <b>Vs. other books</b> is the expected return of the best price if the other books’ median fair price is right. Lines that can push show fair odds conditional on no push.</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th scope="col">Bet</th><th scope="col">Best price</th><th scope="col">Vs. other books</th><th scope="col">Fair odds</th><th scope="col">Books</th><th scope="col">Quote age</th></tr></thead>
+<tbody id="lines"></tbody>
+</table>
+</div>
+</div>
+</section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/tracking/bet-tracking.js?v=3"></script>
+<script src="/tracking/live-feeds.js?v=1"></script>
+<script src="/assets/offer-tracker.js?v=2"></script>
+<script src="/live/live-odds.js?v=1"></script>
+<script src="/live/live.js?v=1"></script>
+<!-- fv-notices:footer:start --><section id="fv-responsible-footer" class="fv-use-footer" aria-label="Responsible use"><p>Fourth &amp; Value provides sports analysis for informational and entertainment purposes. We do not accept wagers. You are responsible for your wagering decisions and for meeting applicable age and legal requirements. Never wager money you cannot afford to lose.</p><p><a href="/terms.html">Terms &amp; privacy</a> · <a href="/terms.html#responsible-play">Responsible play</a> · U.S. gambling support: call or text <a href="tel:+18006973738">1-800-MY-RESET</a> or <a href="https://www.ncpgambling.org/help-treatment/">find confidential help</a>.</p></section><!-- fv-notices:footer:end --></body>
+</html>
