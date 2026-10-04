@@ -1,6 +1,7 @@
 """Current-season NHL pages; no embedded historical betting cards."""
 from html import escape
 import re
+import sys
 from pathlib import Path
 from nhl.refresh import ROOT
 from site_metadata import metadata
@@ -50,7 +51,7 @@ def build(state):
         nhl = '..' if '/' in filename else '.'
         links = '<nav class="subnav" aria-label="NHL sections">' + ''.join(
             f'<a href="{nhl}/{f}"' + (' aria-current="page"' if f == filename else '') + f'>{t}</a>'
-            for f,t,_ in pages if f != 'methods.html') + '</nav>'
+            for f,t,_ in pages if f != 'methods.html') + f'<a href="{nhl}/players/">Players</a></nav>'
         if page == 'overview':
             intro = '''<p class="lead">Fresh hockey markets, clear prices, and regular-season context.</p>
 <div class="actions"><a class="button primary" href="totals/">Compare game lines →</a><a class="button" href="props/">Compare player props →</a></div>
@@ -93,3 +94,11 @@ def build(state):
             body = body.replace(f'<script src="{rel}/assets/nhl', f'<script src="{rel}/assets/offer-tracker.js?v=1" defer></script><script src="{rel}/assets/nhl', 1)
             body = body.replace('assets/nhl.js?v=3', 'assets/nhl.js?v=5').replace('assets/nhl-candidates.js?v=7', 'assets/nhl-candidates.js?v=9')
         path.write_text(body)
+    try:
+        # One search page per player (scripts/nhl/players.py); never blocks the board.
+        from nhl.players import build as build_players
+        result = build_players(state)
+        print(f"NHL player pages: {result.get('players', 0)} players, {result.get('written', 0)} pages updated"
+              + (f" (skipped: {result['skipped']})" if result.get('skipped') else ''))
+    except Exception as error:
+        print(f'NHL player pages skipped ({type(error).__name__}: {error})', file=sys.stderr)

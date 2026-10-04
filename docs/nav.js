@@ -176,6 +176,7 @@
       items: [
         { href: `${base}/nhl/`, label: 'NHL Overview' },
         { href: `${base}/nhl/props/index.html`, label: 'Props' },
+        { href: `${base}/nhl/players/`, label: 'Player Pages' },
         { href: `${base}/nhl/totals/index.html`, label: 'Game Lines' },
         { href: `${base}/nhl/picks.html`, label: 'Top Picks' },
         { href: `${base}/nhl/top.html`, label: 'Market Watch' },
