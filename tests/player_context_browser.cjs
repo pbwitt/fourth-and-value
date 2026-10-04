@@ -25,17 +25,35 @@ const server=http.createServer((req,res)=>{
       games:[{date:'2026-09-28',opp:'@ BOS',ip:'6⅓',pitches:98,k:8,bb:1,er:2},{date:'2026-09-22',opp:'vs TOR',ip:'5⅔',pitches:94,k:6,bb:2,er:3},
         {date:'2026-09-16',opp:'vs BAL',ip:'5',pitches:88,k:4,bb:3,er:2},{date:'2026-09-10',opp:'@ TB',ip:'6',pitches:91,k:7,bb:1,er:1},{date:'2026-09-04',opp:'vs SEA',ip:'5⅓',pitches:87,k:4,bb:2,er:4}],
       game_columns:[['date','Date'],['opp','Opp'],['ip','IP'],['pitches','Pitches'],['k','K'],['bb','BB'],['er','ER']],game_focus:'k',
+      trend:{label:'K',note:'Every start in the window counts equally: up to 15 for rates and the last 5 for workload.',
+        rows:[['2026-08-17',5,null,'vs NYY',92],['2026-08-23',7,null,'@ TOR',97],['2026-08-29',3,null,'vs BAL',85],['2026-09-04',4,null,'vs SEA',87],['2026-09-10',7,null,'@ TB',91],
+          ['2026-09-16',4,null,'vs BAL',88],['2026-09-22',6,null,'vs TOR',94],['2026-09-28',8,null,'@ BOS',98],['2026-09-30',6,null,'vs NYY',96],['2026-10-02',5,null,'@ TOR',90]]},
+      build:{steps:[{label:'Batters faced per start',value:23.4,unit:'',op:null},{label:'Strikeout rate',value:25.1,unit:'%',op:'×'},{label:'Opponent adjustment',value:1.02,unit:'×',op:'×'},
+        {label:'Simple estimate',value:5.99,unit:'K',op:'='},{label:'Adjusted to past results',value:5.7,unit:'K',op:'→'}],note:'This market uses the simple estimate directly.'},
+      distribution:{start:1,p:[.02,.05,.1,.15,.18,.17,.13,.09,.06,.03,.02],low:true,high:true},
+      blend:[{label:'Strikeout rate',own:.78,detail:'352 batters faced in his last 15 starts'},{label:'Outs per start',own:.71,detail:'His last 5 starts'}],
+      opponent:{team:'BOS',label:'Opposing lineup',items:[{label:'Strikeout rate',value:23.9,unit:'%',league:22.4,rank:'7th highest of 30',used:true},{label:'Runs per game',value:4.61,unit:'',league:4.4,rank:'9th most of 30',used:false}]},
+      missing:['Weather and umpire','Today’s actual batting order (team rates are used)','Announced pitch limits and injuries'],
       inputs:[{label:'Recent innings / start',value:5.62,unit:'IP',used:true,detail:'Last 5 starts; prior-adjusted'},
         {label:'Recent pitches / start',value:88,used:true,detail:'Last 5 starts; prior-adjusted'},
         {label:'Pitcher strikeout rate',value:25.1,unit:'%',used:true,detail:'Up to 15 starts; K / batters faced'},
         {label:'Opponent strikeout rate',value:22.6,unit:'%',used:true,detail:'Up to 40 games; K / PA'}],
       note:'Model rates include fixed priors; observed averages do not. Innings are shown in thirds (5⅔ = five innings and two outs).'},
-    stat_context:{group:'pitching',innings:'160.2',starts:28,strikeouts:172,k_per_nine:9.63,era:3.42}};
-  const nhl={...common,market:'player_shots_on_goal',market_label:'Shots on goal',line:2.5,projected_mean:3.1,projected_toi:20.4,
+    stat_context:{group:'pitching',innings:'160.2',starts:28,strikeouts:172,k_per_nine:9.63,era:3.42},model_conditional_probability:.55,consensus_probability:.5};
+  const nhl={...common,model_version:'nhl-v2.1',market:'player_shots_on_goal',market_label:'Shots on goal',line:2.5,projected_mean:3.1,projected_toi:20.4,conditional_probability:.55,market_probability:.5,
     player_context:{schema_version:1,source:'NHL completed-game logs',through:'2026-09-30',sample_games:164,sample_label:'appearances',stat_label:'SOG',workload_label:'Ice time',workload_unit:'min',
       recent:[{games:5,mean:3.4,workload:21.2},{games:10,mean:3.1,workload:20.9},{games:20,mean:3.2,workload:20.7}],
       games:[{date:'2026-04-16',opp:'vs CHI',toi:'21:05',shots:4,goals:1,assists:0,points:1},{date:'2026-04-14',opp:'@ TOR',toi:'20:41',shots:3,goals:0,assists:1,points:1}],
       game_columns:[['date','Date'],['opp','Opp'],['toi','TOI'],['shots','SOG'],['goals','G'],['assists','A'],['points','P']],game_focus:'shots',
+      trend:{label:'SOG',note:'Faded games count less. A game’s weight halves every 120 days for production and every 30 days for ice time.',
+        rows:[['2026-03-28',2,.36,'@ MTL',19.5],['2026-03-31',5,.37,'vs OTT',21.2],['2026-04-02',3,.37,'vs DET',20.4],['2026-04-04',1,.38,'@ BOS',18.9],['2026-04-07',4,.39,'vs TOR',22.0],
+          ['2026-04-09',2,.39,'@ NYR',19.8],['2026-04-11',6,.40,'vs FLA',21.7],['2026-04-14',3,.40,'@ TOR',20.7],['2026-04-16',4,.41,'vs CHI',21.1],['2026-10-02',3,.98,'vs CHI',20.3]]},
+      build:{steps:[{label:'Projected ice time',value:20.4,unit:'min',op:null},{label:'SOG',value:9.12,unit:'per 60 min',op:'×'},{label:'Expected shots',value:3.1,unit:'SOG',op:'='}],
+        note:'Ice time × production per 60 minutes, both recency-weighted and blended with a position average.'},
+      distribution:{start:0,p:[.05,.15,.22,.22,.17,.1,.05,.04],low:false,high:true},
+      blend:[{label:'Production rate',own:.86,detail:'Recency-weighted games; the rest is the position average'},{label:'Ice time',own:.41,detail:'Recency-weighted games; the rest is the position average'}],
+      opponent:{team:'CHI',label:'Opposing defense',items:[{label:'Shots allowed per game',value:31.9,unit:'',league:29.8,rank:'4th most of 32',used:false},{label:'Regulation goals allowed per game',value:3.21,unit:'',league:2.9,rank:'3rd most of 32',used:false}]},
+      missing:['Opponent defense and goalie','Linemates and power-play role','Injuries and late lineup changes'],
       inputs:[{label:'Projected ice time',value:20.4,unit:'min',used:true,detail:'Prior-adjusted workload estimate'},
         {label:'Weighted SOG / 60',value:9.12,used:true,detail:'Prior-adjusted production per 60 minutes'}],
       note:'Newer games carry more weight. Ice time has a 30-day half-life; production per minute has a 120-day half-life. Observed averages are unweighted.'}};
@@ -64,6 +82,27 @@ const server=http.createServer((req,res)=>{
         else{assert(box.y>=nameBox.y+nameBox.height||box.y+box.height<=nameBox.y,'anchored beside the name');assert(box.x+box.width<=width,'inside the viewport');}
         assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,`${sport} overflow at ${width}`);
         if(width===390||width===1440)await p.screenshot({path:`/tmp/fv-player-pop-${sport}-${width}.png`});
+        if(width===390||width===1440){
+          for(const tab of ['model','record']){
+            if(!await pop.locator(`[data-tab=${tab}]`).count())continue;
+            await pop.locator(`[data-tab=${tab}]`).click();await pop.locator(`#pc-panel-${tab}`).waitFor({state:'visible'});
+            if(tab==='record')await pop.locator('.pc-record .pc-plot').waitFor({state:'visible'});
+            await p.screenshot({path:`/tmp/fv-player-pop-${sport}-${width}-${tab}.png`});
+          }
+          await pop.locator('[data-tab=form]').click();
+        }
+        if(width===1440){
+          // Keyboard tabs, and a chart readout that follows the pointer.
+          await pop.locator('[data-tab=form]').focus();await p.keyboard.press('ArrowRight');
+          assert.equal(await pop.locator('[data-tab=model]').getAttribute('aria-selected'),'true');
+          assert(await pop.locator('#pc-panel-model').isVisible());assert.equal(await pop.locator('#pc-panel-form').isVisible(),false);
+          assert.match(await pop.locator('#pc-panel-model').textContent(),/How the number is built/);
+          await p.keyboard.press('ArrowLeft');
+          const out=pop.locator('.pc-trend .pc-readout'),before=await out.textContent();
+          await pop.locator('.pc-trend .pc-target').last().hover();
+          assert.notEqual(await out.textContent(),before,'hovering a bar shows that game');
+          assert.match(await out.textContent(),sport==='mlb'?/Oct 2 · @ TOR · 5 K/:/Oct 2 · vs CHI · 3 SOG · 20:18 TOI · counts 98%/);
+        }
         await p.keyboard.press('Escape');await pop.waitFor({state:'hidden'});
         assert.equal(await p.evaluate(()=>document.activeElement?.classList.contains('pc-name')),true,'focus returns to the name');
         await name.click();await pop.waitFor({state:'visible'});await p.mouse.click(2,2);await pop.waitFor({state:'hidden'});

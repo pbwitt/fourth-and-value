@@ -85,7 +85,7 @@ def build_page(args, top_only=False):
     payload = json.dumps({'fields':fields, 'dictionary':dictionary, 'rows':packed, 'topOnly':top_only, 'root':rel, 'snapshotUpcoming':len(future), 'snapshotVerified':verified, 'lastKickoff':max((r['commence_time'] for r in future), default=None)}, separators=(',', ':'), allow_nan=False).replace('<', '\\u003c').replace('&', '\\u0026')
     html = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{escape(title)} | Fourth &amp; Value</title>{metadata(args.out,title+' | Fourth & Value',description)}
-<link rel="icon" href="{rel}/assets/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="{rel}/assets/site.css"><link rel="stylesheet" href="{rel}/assets/player-context.css?v=2"><script src="{rel}/assets/player-context.js?v=2" defer></script><link rel="stylesheet" href="{rel}/assets/offer-tracker.css?v=1"></head>
+<link rel="icon" href="{rel}/assets/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="{rel}/assets/site.css"><link rel="stylesheet" href="{rel}/assets/player-context.css?v=3"><script src="{rel}/assets/player-context.js?v=3" defer></script><link rel="stylesheet" href="{rel}/assets/offer-tracker.css?v=1"></head>
 <body><a class="skip-link" href="#main">Skip to props</a><div id="nav-root"></div><script src="{rel}/nav.js?v=47"></script>
 <main id="main" class="wrap">{nfl_links(rel, 'Top picks' if top_only else 'Player props')}
 <p class="eyebrow">{context}</p><h1>{title}</h1>

@@ -207,6 +207,8 @@ def add_baselines(rows, history, now):
         dt = timestamp(game.get('GAME_DATE'))
         if dt and now - timedelta(days=370) < dt < now:
             team_games[game.get('TEAM_NAME')].append(game)
+    from player_context import describe, nba_defense
+    defense = describe(nba_defense, team_games)
     for row in rows:
         row.update(baseline_mean=None, baseline_probability=None, baseline_games=0, player_context=None,
                    baseline_last_game=None, baseline_push=None,
@@ -230,7 +232,7 @@ def add_baselines(rows, history, now):
                    baseline_probability=(wins + 1) / (len(vals) - pushes + 2),
                    baseline_last_game=games[-1]['GAME_DATE'], baseline_push=pushes / len(vals),
                    model_status='Historical baseline only; minutes and injuries not adjusted')
-        from player_context import windows, game_log, nba_matchup, count
+        from player_context import windows, game_log, nba_matchup, count, nba_explain
         complete=[dict(value=sum(float(g[k]) for k in STATS[row['market']]), minutes=float(g['MIN']), date=str(g['GAME_DATE'])[:10],
                        opp=nba_matchup(g.get('MATCHUP')))
                   for g in games if all(g.get(k) is not None for k in STATS[row['market']])]
@@ -243,6 +245,8 @@ def add_baselines(rows, history, now):
             recent=windows(complete,[5,10,30],'value','minutes'),inputs=[],
             games=log,game_columns=columns,game_focus='value',
             note='Historical context only. These are observed averages, not a current-game forecast. Minutes, role changes and injuries are not adjusted; prior-season appearances may be included.')
+        row['player_context'].update(describe(nba_explain,row,games,complete,STATS[row['market']],SHORT_STATS[row['market']],
+                                              defense,wins,pushes,row['baseline_probability']) or {})
     return rows
 
 

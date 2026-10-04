@@ -150,7 +150,7 @@ def attach(state, now, fetch_box, bundle=None):
                     model=models[market];mass=pmf(means(model,[{'x':x}]),model)[0]
                     g['cache'][key]=(x,mass)
                 x,mass=g['cache'][key];win,push=outcome(mass,row['line'],row['side']);mean=float(mass@np.arange(len(mass)))
-                row['player_context']=describe(mlb_context,history,g['data']['date'],player,market,x,models[market])
+                row['player_context']=describe(mlb_context,history,g['data']['date'],player,market,x,models[market],mass,g['data'])
                 row['model_player_id']=player['id'];row['model_mean_label']='Projected '+row['market_label'].lower()
                 inputs=dict(zip(['Recent starter outings','Starter outs/start, last five','Starter strikeouts per batter faced','Opponent strikeouts per PA'],
                     [x['starter_starts'],round(x['starter_outs5'],2),round(x['starter_k_rate'],3),round(x['opp_k_rate'],3)])) if market.startswith('pitcher_') else {
