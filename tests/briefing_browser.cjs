@@ -43,7 +43,9 @@ const server=http.createServer((req,res)=>{
       assert.equal(await page.locator('.book-offer-line').first().textContent(),'Over 2.5');
       assert.match(await page.locator('#research-picks-rows').textContent(),/Projected Points: 3.4/i);
       assert(!(await page.locator('#daily-picks').textContent()).includes('Astra'));
-      assert.deepEqual((await page.locator('main > h2, #daily-picks-heading').allTextContents()).slice(0,2),["Today's picks",'The price rundown']);
+      const headings=await page.locator('main > h2, #daily-picks-heading').allTextContents();
+      assert.equal(headings[0],"Today's picks");
+      assert(headings.indexOf('The price rundown')>0,'market rundown follows the picks, with optional price-movement context');
       assert.equal(await page.getByText('What changed and what’s next',{exact:true}).count(),0);
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
       assert.match(await page.locator('#research-picks-rows').textContent(),/7:59:00 AM ET/);

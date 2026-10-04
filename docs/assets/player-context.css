@@ -1,0 +1,42 @@
+/* Player statistics use one visual language on sport boards and daily picks. */
+.player-context{--pc-border:#344254;--pc-muted:#b0bfd0;--pc-accent:#95e4cc;container:playerstats / inline-size;margin:1.25rem 0 0;padding:1rem 0 0;border-top:1px solid var(--pc-border);color:#ecf2f8;min-width:0;font-size:14px;line-height:1.5;text-align:left}
+.pc-heading{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:.35rem 1rem;margin-bottom:.8rem}
+.player-context .pc-heading h3{font-size:1rem;font-weight:650;letter-spacing:-.01em;margin:0;color:#f4f7fb}
+.pc-heading>span,.pc-source{font-size:.72rem;color:var(--pc-muted)}
+.player-context dl.pc-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;margin:0;background:var(--pc-border);border:1px solid var(--pc-border);border-radius:10px;overflow:hidden}
+.pc-stat{min-width:0;background:#141e2a;padding:.75rem .8rem}
+.pc-stat-primary{background:#142b2b;grid-column:1/-1}
+.player-context .pc-stat dt{font-size:.72rem;line-height:1.35;color:var(--pc-muted);margin-bottom:.35rem}
+.player-context .pc-stat dd{margin:0;text-align:left;font-size:1.35rem;line-height:1.3;font-weight:650;letter-spacing:-.035em;color:#f3f7fc;font-variant-numeric:tabular-nums}
+.player-context .pc-stat-primary dd{color:var(--pc-accent)}
+.player-context .pc-stat dd span{font-size:.7rem;font-weight:500;letter-spacing:0;color:var(--pc-muted)}
+.player-context .pc-detail{display:block;font-weight:400;letter-spacing:0;color:var(--pc-muted);font-size:.72rem;line-height:1.5;margin-top:.3rem}
+.player-context .pc-more{margin:.5rem 0 0}
+.player-context summary{min-height:44px;line-height:1.5;padding:.75rem 0;color:#c5d9f0;font-size:.82rem;font-weight:550}
+.player-context h4{font-size:.78rem;font-weight:650;color:#e0e9f4;letter-spacing:.02em;margin:1rem 0 .5rem}
+.pc-recent{max-width:100%;overflow-x:auto}
+.player-context table{border-collapse:collapse;width:100%;font-size:.78rem;font-variant-numeric:tabular-nums;min-width:0}
+.player-context th,.player-context td{padding:.55rem .4rem;border-bottom:1px solid var(--pc-border);background:transparent;white-space:normal;color:#e2ebf6}
+.player-context th{font-weight:500;text-align:left}
+.player-context thead th{color:var(--pc-muted);font-size:.7rem}
+.player-context td{text-align:right}
+.player-context dl.pc-inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.8rem 1.2rem;margin:.5rem 0}
+.pc-inputs>div{min-width:0;border-bottom:1px solid var(--pc-border);padding-bottom:.7rem}
+.player-context .pc-inputs dt{font-size:.78rem;color:#d5e0ed;line-height:1.5}
+.player-context .pc-inputs dd{margin:.3rem 0 0;text-align:left;font-weight:600;color:#f2f7fb;font-size:1rem;font-variant-numeric:tabular-nums}
+.pc-kind{display:inline-block;font-size:.6rem;letter-spacing:.015em;border:1px solid #4a5e71;border-radius:4px;padding:.05rem .3rem;margin-left:.25rem;vertical-align:middle;color:#b9c8d8;font-weight:400}
+.player-context .pc-note{font-size:.75rem;line-height:1.65;color:var(--pc-muted);margin:.8rem 0}
+.player-context .pc-source{margin:.6rem 0 0;line-height:1.5}
+.player-context.pc-season{margin-top:1rem}
+.pick-research-row .player-context{margin:0 0 1rem;padding-top:0;border-top:0}
+.pc-season .pc-stat:last-child:nth-child(odd){grid-column:1/-1}
+.prop-grid:has(.player-context){grid-template-columns:repeat(2,minmax(0,1fr))}
+@container playerstats (min-width:440px){.player-context dl.pc-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.pc-stat-primary{grid-column:auto}.pc-season .pc-stat:last-child:nth-child(odd){grid-column:auto}}
+@media(max-width:700px){.prop-grid:has(.player-context){grid-template-columns:1fr}}
+/* The daily-picks comparison becomes cards on mobile. Keep its nested stats
+   table semantic and readable instead of inheriting that outer-table layout. */
+#daily-picks .picks-table .player-context table{display:table;min-width:0;width:100%}
+#daily-picks .picks-table .player-context thead{display:table-header-group;position:static;width:auto;height:auto;padding:0;margin:0;overflow:visible;clip-path:none;white-space:normal}
+#daily-picks .picks-table .player-context tbody{display:table-row-group;width:auto}
+#daily-picks .picks-table .player-context tr{display:table-row}
+#daily-picks .picks-table .player-context th,#daily-picks .picks-table .player-context td{display:table-cell;width:auto}
