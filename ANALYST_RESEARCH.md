@@ -56,6 +56,25 @@ with an 8:30 a.m. delivery target.
 
 ## Quantitative policy and ranking
 
+### Prediction-market observations
+
+The separate `/prediction-markets/` board observes Kalshi NFL game contracts
+through public GET endpoints. Operator refreshes fetch series fees, contract
+metadata, event fee overrides and order books before publishing a dated snapshot;
+there is no scheduled start or promised publication time in this initial release.
+Public observations older than 15 minutes are historical. Private paper execution
+requires quotes, snapshots and fees no older than 30 seconds, a verified future
+game start and matching contract rules. Market close is not kickoff. Paper-only
+limits are $10/order, $100 gross purchases per Eastern day, $25 open cost/event
+and $100 total open cost; these do not authorize real spending or consume the
+research allowance. See `PREDICTION_MARKETS.md` for simulation and fee limitations.
+
+These contracts do not enter the shared Top Picks selector or Market Watch.
+Exact sportsbook comparisons require independently verified matching settlement
+rules; NFL ties paying 50 cents are not automatically equivalent to pushes.
+Missing forecasts remain unknown. The private paper ledger is not Bet Tracker
+and cannot establish live returns; historical research keeps its original policy.
+
 NFL props require outcome calibration, a known push probability, fresh quotes,
 and at least 3% EV under the smaller of raw and calibrated probabilities where
 both exist. This is a sensitivity heuristic, not a confidence interval. Matching

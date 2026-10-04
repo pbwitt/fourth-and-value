@@ -8,6 +8,11 @@ NBA market pages, preseason behavior, scheduled updates and prediction-readiness
 
 ## Preview
 
+Kalshi contract observations and private paper execution are documented in
+[Prediction markets](PREDICTION_MARKETS.md). The `/prediction-markets/` board
+shows depth-aware purchase estimates and exact settlement rules; it does not
+place real orders or change Today's Picks.
+
 ```sh
 python3 -m http.server 8010 --bind 127.0.0.1 --directory docs
 ```
