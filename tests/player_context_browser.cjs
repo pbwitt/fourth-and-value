@@ -39,10 +39,10 @@ const server=http.createServer((req,res)=>{
         {label:'Pitcher strikeout rate',value:25.1,unit:'%',used:true,detail:'Up to 15 starts; K / batters faced'},
         {label:'Opponent strikeout rate',value:22.6,unit:'%',used:true,detail:'Up to 40 games; K / PA'}],
       note:'Model rates include fixed priors; observed averages do not. Innings are shown in thirds (5⅔ = five innings and two outs).'},
-    stat_context:{group:'pitching',innings:'160.2',starts:28,strikeouts:172,k_per_nine:9.63,era:3.42},model_conditional_probability:.55,consensus_probability:.5};
+    stat_context:{group:'pitching',innings:'160.2',starts:28,strikeouts:172,k_per_nine:9.63,era:3.42},model_conditional_probability:.55,consensus_probability:.5,player_position:'SP'};
   // The NHL track record shows only for the running model version; match the published file.
   const nhlVersion=JSON.parse(fs.readFileSync(path.join(root,'nhl/data/track-record.json'),'utf8')).model_version;
-  const nhl={...common,model_version:nhlVersion,market:'player_shots_on_goal',market_label:'Shots on goal',line:2.5,projected_mean:3.1,projected_toi:20.4,conditional_probability:.55,market_probability:.5,
+  const nhl={...common,model_version:nhlVersion,market:'player_shots_on_goal',market_label:'Shots on goal',line:2.5,projected_mean:3.1,projected_toi:20.4,conditional_probability:.55,market_probability:.5,player_position:'C',
     player_context:{schema_version:1,source:'NHL completed-game logs',through:'2026-09-30',sample_games:164,sample_label:'appearances',stat_label:'SOG',workload_label:'Ice time',workload_unit:'min',
       recent:[{games:5,mean:3.4,workload:21.2},{games:10,mean:3.1,workload:20.9},{games:20,mean:3.2,workload:20.7}],
       games:[{date:'2026-04-16',opp:'vs CHI',toi:'21:05',shots:4,goals:1,assists:0,points:1},{date:'2026-04-14',opp:'@ TOR',toi:'20:41',shots:3,goals:0,assists:1,points:1}],
@@ -70,6 +70,7 @@ const server=http.createServer((req,res)=>{
         assert.equal(await p.locator('.prop-card .player-context').count(),0,'Context moved off the card into the name pop-up');
         const name=p.locator('.prop-card .pc-name').first(),pop=p.locator('.pc-pop');
         assert.equal(await name.getAttribute('aria-expanded'),'false');
+        assert.equal(await p.locator('.prop-card .pc-pos').first().textContent(),sport==='mlb'?'SP':'C','position beside the name');
         await name.click();await pop.waitFor({state:'visible'});
         assert.equal(await name.getAttribute('aria-expanded'),'true');
         assert.equal(await pop.getAttribute('role'),'dialog');
@@ -123,7 +124,7 @@ const server=http.createServer((req,res)=>{
     }
     // NFL: rushing and receiving traces from the saved params, with the forecast's bell curve.
     const fields=['game_id','game','player','bookmaker','book_label','market_std','market_label','name','point','price','mu','model_prob','push_prob','mkt_prob','prob_devig',
-      'consensus_prob','consensus_line','book_count','edge_bps','ev_per_100','model_status','last_update','commence_time','kick_et','home_team','away_team','projection_diagnostics'];
+      'consensus_prob','consensus_line','book_count','edge_bps','ev_per_100','model_status','last_update','commence_time','kick_et','home_team','away_team','projection_diagnostics','player_position'];
     const back={version:'nfl-projection-trace-1',family:'rush',carries:16.2,yards_per_carry:4.4,recent_mean_weight:.5,sigma:30,home:true,
       current_sample:[{season:2026,week:1,opponent_team:'MIA',carries:15,rushing_yards:61},{season:2026,week:2,opponent_team:'NYJ',carries:18,rushing_yards:92},
         {season:2026,week:3,opponent_team:'NE',carries:12,rushing_yards:40},{season:2026,week:4,opponent_team:'KC',carries:20,rushing_yards:111}],
@@ -133,7 +134,7 @@ const server=http.createServer((req,res)=>{
     const nflBase={game_id:'nfl-g',game:'Example Away @ Example Home',bookmaker:'draftkings',book_label:'DraftKings',price:-110,mkt_prob:.524,prob_devig:.5,consensus_prob:.5,consensus_line:70.5,book_count:3,
       edge_bps:-500,ev_per_100:-5,model_status:'Calibration fitted; not prospectively validated',last_update:now,commence_time:future,kick_et:'Sun 1:00 PM ET',home_team:'Example Home',away_team:'Example Away'};
     const payload={fields,dictionary:{},topOnly:false,root:'..',snapshotUpcoming:2,snapshotVerified:true,lastKickoff:future,rows:[
-      nflRow({...nflBase,player:'Example Back',market_std:'rush_yds',market_label:'Rushing yards',name:'under',point:70.5,mu:72.2,model_prob:.47,push_prob:0,projection_diagnostics:JSON.stringify(back)}),
+      nflRow({...nflBase,player:'Example Back',player_position:'RB',market_std:'rush_yds',market_label:'Rushing yards',name:'under',point:70.5,mu:72.2,model_prob:.47,push_prob:0,projection_diagnostics:JSON.stringify(back)}),
       nflRow({...nflBase,player:'Example Receiver',market_std:'receptions',market_label:'Receptions',name:'over',point:4.5,mu:4.69,model_prob:.52,push_prob:0,
         projection_diagnostics:JSON.stringify({...back,family:'receive',targets:7.1,catch_rate:.66,yards_per_reception:11.8,sigma:2.1,home:false,opponent:{team:'BUF',kind:'pass',rating:.8,rank:25,of:32},
           current_sample:[{season:2026,week:4,opponent_team:'MIA',targets:6,receptions:4,receiving_yards:52}],mean_stages:{before_adjustments:4.69,after_defense:4.69,after_venue:4.69,final:4.69}})})]};
@@ -144,6 +145,8 @@ const server=http.createServer((req,res)=>{
       await p.setViewportSize({width,height:1050});await p.goto(base+'/props/');await p.waitForSelector('.prop-card .pc-name');
       const name=p.locator('.prop-card .pc-name',{hasText:'Example Back'}),pop=p.locator('.pc-pop');
       await name.click();await pop.waitFor({state:'visible'});
+      assert.equal(await p.locator('.prop-card h2',{hasText:'Example Back'}).locator('.pc-pos').textContent(),'RB');
+      assert.match(await pop.locator('.pc-pop-head span').textContent(),/^RB · Example Away @ Example Home$/,'position in the snapshot header');
       const form=await pop.textContent();
       assert.match(form,/2 of 4 cleared Under 70\.5/);assert.match(form,/Rush yds \/ game76/);assert.doesNotMatch(form,/NaN|undefined|null/);
       await pop.locator('[data-tab=model]').click();await pop.locator('.pc-dist .pc-plot').waitFor({state:'visible'});

@@ -32,7 +32,8 @@ def published_lineups(box, game):
             value = int(player.get('battingOrder') or 0)
             person = player.get('person', {})
             if value and value % 100 == 0 and 1 <= value//100 <= 9 and person.get('id') and person.get('fullName'):
-                order.append(dict(id=person['id'], name=person['fullName'], slot=value//100, side=side))
+                order.append(dict(id=person['id'], name=person['fullName'], slot=value//100, side=side,
+                                  position=(player.get('position') or {}).get('abbreviation')))
         if ({p['slot'] for p in order} == set(range(1, 10)) and len(order) == 9
             and len({p['id'] for p in order}) == 9):
             result[side] = order
@@ -144,6 +145,8 @@ def attach(state, now, fetch_box, bundle=None):
                 if len(found)!=1:
                     raise ValueError('Player is not uniquely matched to a probable starter' if market.startswith('pitcher_') else 'Awaiting this player in a published starting batting order')
                 player=found[0];side=player['side'];key=(market,player['id'])
+                # Today's role: the probable starter, or the batter's position in the posted lineup.
+                row['player_position']='SP' if market.startswith('pitcher_') else player.get('position') or row.get('player_position')
                 if key not in g['cache']:
                     x=g['x'][side] if market.startswith('pitcher_') else history.features(g['data'],side,player['id'],player['slot'])
                     if market.startswith('batter_') and x['batter_pa']<50:raise ValueError('Insufficient batter history (minimum 50 plate appearances)')

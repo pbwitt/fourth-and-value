@@ -2108,7 +2108,7 @@ def main():
         params["market"] = params["market_std"]
 
     # Final tidy + write
-    cols = ["season","week","player","player_key","name_std","market_std","market",
+    cols = ["season","week","player","player_key","name_std","position","market_std","market",
         "dist","mu","sigma","lam","used_logs","is_home","no_real_data",
         "implied_ypc","implied_ypr","implied_comp_pct","implied_ypc_pass","implied_cr",
         "injury_availability","injury_status","projection_diagnostics"]

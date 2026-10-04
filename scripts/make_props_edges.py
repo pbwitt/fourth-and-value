@@ -213,6 +213,18 @@ def compute_model_prob_row(row) -> float:
     )[0]
 
 
+def attach_positions(merged: pd.DataFrame, params: pd.DataFrame, key) -> pd.DataFrame:
+    """Roster position from the player's game logs, for display only.
+
+    Every market of a player shares it, including markets the model does not price.
+    """
+    if not key or key not in merged.columns or key not in params.columns or "position" not in params.columns:
+        return merged
+    positions = (params[[key, "position"]].dropna().drop_duplicates(key)
+                 .rename(columns={"position": "player_position"}))
+    return merged.merge(positions, on=key, how="left", validate="many_to_one")
+
+
 def ensure_cols(df: pd.DataFrame, cols: Iterable[str], default=np.nan) -> None:
     for c in cols:
         if c not in df.columns:
@@ -290,6 +302,7 @@ def main():
         how="left",
         validate="many_to_one",
     )
+    merged = attach_positions(merged, params, join_keys[0] if join_keys else None)
     if "no_real_data" not in merged.columns:
         merged["no_real_data"] = False
     merged["no_real_data"] = merged["no_real_data"].fillna(False)

@@ -37,6 +37,35 @@ def official_json(endpoint, **params):
         raise FeedError('MLB official feed unavailable') from None
 
 
+def add_positions(state, fetch):
+    """Each prop player's primary position from the official player list; display only.
+
+    A name is matched within the two teams of its game when it is not unique; an ambiguous or
+    missing name stays blank. Today's batting-order position replaces it once the lineup posts.
+    """
+    rows = [r for r in state['rows'] if r.get('market') in PROPS]
+    if not rows:
+        return state
+    try:
+        people = fetch('sports/1/players', season=state.get('season')).get('people') or []
+    except (FeedError, AttributeError, TypeError, ValueError):
+        return state
+    by_name = defaultdict(list)
+    for person in people if isinstance(people, list) else []:
+        if not isinstance(person, dict):
+            continue
+        position = (person.get('primaryPosition') or {}).get('abbreviation')
+        if person.get('fullName') and position:
+            by_name[normal_name(person['fullName'])].append(((person.get('currentTeam') or {}).get('id'), position))
+    teams = {g['mlb_game_id']: {g.get('home_team_id'), g.get('away_team_id')} for g in state.get('events', [])}
+    for row in rows:
+        found = by_name.get(normal_name(row['player']), [])
+        if len(found) > 1:
+            found = [f for f in found if f[0] in teams.get(row.get('mlb_game_id'), set())]
+        row['player_position'] = found[0][1] if len(found) == 1 else None
+    return state
+
+
 def normalize_team(name):
     value = normal_name(name)
     return 'athletics' if value in ['oaklandathletics', 'sacramentoathletics'] else value
@@ -275,6 +304,7 @@ def main():
             history = load_history(now)
             client = OddsClient(os.getenv('MLB_ODDS_API_KEY') or os.getenv('ODDS_API_KEY'), SPORT)
             state = refresh(client, now, games, history)
+            state = add_positions(state, official_json)
             from mlb.predict import attach
             state = attach(state, datetime.now(UTC), official_json)
             # Long prop fetches can cross first pitch; remove those games before publishing.

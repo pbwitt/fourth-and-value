@@ -209,10 +209,21 @@ def add_baselines(rows, history, now):
             team_games[game.get('TEAM_NAME')].append(game)
     from player_context import describe, nba_defense
     defense = describe(nba_defense, team_games)
+    # Listed positions by player ID, then by name when the name is unique; later seasons win.
+    position_ids, position_names = {}, defaultdict(set)
+    for entry in history.get('positions', []):
+        position_ids[entry['id']] = entry['position']
+    for entry in history.get('positions', []):
+        position_names[normal_name(entry['name'])].add(position_ids[entry['id']])
     for row in rows:
         row.update(baseline_mean=None, baseline_probability=None, baseline_games=0, player_context=None,
                    baseline_last_game=None, baseline_push=None,
                    model_status='Awaiting sufficient player history', model_probability=None)
+        if row['market'] in PROP_MARKETS:
+            ids = {g['PLAYER_ID'] for g in players.get(normal_name(row['player']), [])}
+            names = position_names.get(normal_name(row['player']), set())
+            row['player_position'] = (position_ids.get(next(iter(ids))) if len(ids) == 1 and next(iter(ids)) in position_ids
+                                      else next(iter(names)) if len(names) == 1 else None)
         if row['market'] not in STATS:
             row['model_status'] = 'NBA game model not yet validated'
             continue
@@ -265,7 +276,28 @@ def fetch_history(season):
             result[destination] = [dict(zip(sets[0]['headers'], values)) for values in sets[0]['rowSet']]
         except (requests.RequestException, KeyError, ValueError, IndexError) as error:
             raise FeedError(f'NBA Stats unavailable ({type(error).__name__})') from None
+    result['positions'] = fetch_positions(season)
     return result
+
+
+def fetch_positions(season):
+    """Listed positions (G, F, C, G-F ...) from the NBA player index; display only.
+
+    Best effort: an error returns no positions and never blocks the game logs.
+    """
+    try:
+        response = requests.get('https://stats.nba.com/stats/playerindex', timeout=35,
+            headers={'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.nba.com/'},
+            params=dict(LeagueID='00', Season=season, Historical=0, Active='', AllStar='', College='', Country='',
+                        DraftPick='', DraftRound='', DraftYear='', Height='', TeamID=0, Weight=''))
+        if not response.ok:
+            return []
+        table = response.json()['resultSets'][0]
+        rows = [dict(zip(table['headers'], values)) for values in table['rowSet']]
+        return [dict(id=r['PERSON_ID'], name=f"{r.get('PLAYER_FIRST_NAME') or ''} {r.get('PLAYER_LAST_NAME') or ''}".strip(),
+                     position=r['POSITION']) for r in rows if r.get('PERSON_ID') and r.get('POSITION')]
+    except (requests.RequestException, KeyError, ValueError, IndexError, TypeError):
+        return []
 
 
 def refresh(client, now, history, previous=None):
@@ -314,15 +346,19 @@ def main():
                                   events=[], rows=[], history_players=0))
     if args.history_season:
         try:
-            save_json(history_dir / f'{args.history_season}.json', fetch_history(args.history_season))
+            fetched = fetch_history(args.history_season)
+            # A failed position lookup keeps the last saved list rather than blanking it.
+            fetched['positions'] = fetched['positions'] or read_json(history_dir / f'{args.history_season}.json', {}).get('positions', [])
+            save_json(history_dir / f'{args.history_season}.json', fetched)
         except FeedError as error:
             print(str(error), file=sys.stderr)
             return 1
-    history = dict(players=[], teams=[])
+    history = dict(players=[], teams=[], positions=[])
     for path in sorted(history_dir.glob('*.json')):
         data = read_json(path, {})
         history['players'].extend(data.get('players', []))
         history['teams'].extend(data.get('teams', []))
+        history['positions'].extend(data.get('positions', []))
         history['fetched_at'] = data.get('fetched_at')
     exit_code = 0
     if not args.offline:

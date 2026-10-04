@@ -38,7 +38,8 @@ def history():
         games.append(dict(game_id=gid, season=20252026, game_type=2, game_date=f'2026-03-{10 + i:02d}', home_id=7, away_id=16,
                           home_team=HOME, away_team=AWAY))
         records.append(dict(game_id=gid, player_id=1, player='Tage Thompson', season=20252026, game_date=f'2026-03-{10 + i:02d}',
-                            toi=18.5, home=True, team_abbrev='BUF', team_id=7, shots=i % 5, goals=i % 2, assists=0, points=i % 2))
+                            toi=18.5, home=True, team_abbrev='BUF', team_id=7, shots=i % 5, goals=i % 2, assists=0, points=i % 2,
+                            position='C'))
     games.append(dict(game_id=2025030001, season=20252026, game_type=3, game_date='2026-04-30', home_id=7, away_id=16,
                       home_team=HOME, away_team=AWAY))
     records.append(dict(game_id=2025030001, player_id=1, player='Tage Thompson', season=20252026, game_date='2026-04-30',
@@ -103,6 +104,9 @@ class PlayerPageTests(unittest.TestCase):
         self.assertEqual(len(re.findall('<loc>', sitemap)), 4)
         registry = json.loads((self.out / 'players.json').read_text())['players']
         self.assertEqual(registry['tage-thompson']['team'], 'BUF')
+        self.assertEqual(registry['tage-thompson']['position'], 'C')
+        self.assertIn('<p class="eyebrow">NHL player props · Buffalo Sabres · Center</p>', html)
+        self.assertIn('<p class="eyebrow">NHL player props</p>', self.page('connor-bedard'), 'no history, no position')
         index = (self.out / 'index.html').read_text()
         self.assertIn('Chicago Blackhawks at Buffalo Sabres', index)
         self.assertIn('<a href="/nhl/players/tage-thompson/">Tage Thompson</a> <span class="muted">G 1, SOG 2.5</span>', index)
