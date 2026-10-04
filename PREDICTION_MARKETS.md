@@ -25,8 +25,8 @@ require a verified future start.
 
 The optional **Prediction Market Snapshot** Actions workflow is manual and only
 runs on `main`. It fetches the data, archives the observation for 30 days, commits
-the public snapshot (including explicit failure status), then the existing site
-deployment publishes it. Dispatch time is not publication time. There is no
+the public snapshot (including explicit failure status), then explicitly requests
+a GitHub Pages rebuild. Dispatch time is not publication time. There is no
 scheduled refresh or always-on worker yet. A browser rereads the saved feed every
 five minutes and marks observations older than 15 minutes historical. It retains
 an explicitly historical copy if a later fetch fails.

@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+  pages: write
 concurrency:
   group: prediction-market-snapshot
   cancel-in-progress: false
@@ -30,6 +31,7 @@ jobs:
           path: data/prediction-markets/snapshots/
           retention-days: 30
       - name: Publish snapshot or explicit feed failure
+        id: publish
         run: |
           test -f docs/prediction-markets/snapshot.json
           git config user.name 'github-actions[bot]'
@@ -39,6 +41,12 @@ jobs:
           git commit -m 'Refresh Kalshi observation snapshot'
           git pull --rebase origin main
           git push origin HEAD:main
+      - name: Rebuild public site
+        if: always() && steps.publish.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # Commits made with GITHUB_TOKEN do not automatically rebuild Pages.
+        run: gh api --method POST "repos/$GITHUB_REPOSITORY/pages/builds" --jq .status
       - name: Report incomplete observation
         if: steps.observe.outcome != 'success'
         run: exit 1
