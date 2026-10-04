@@ -116,6 +116,48 @@ assert.equal(O.signed(-115),'−115');assert.equal(O.signed(120),'+120');assert.
   assert.deepEqual(newer.map(r=>r.price),[120,-150]);
 }
 
+// ---- In-game milestones: anytime scorer and alternate lines -----------------------------
+{
+  const scorer=outs=>({player_goal_scorer_anytime:outs.map(([name,price])=>[name,price,null,'Tage Thompson'])});
+  const ladder=(market,rungs)=>({[market]:rungs.map(([line,price,side='Over'])=>[side,price,line,'Tage Thompson'])});
+  // Parsing: the anytime scorer has no line and only Yes/No; alternates keep their exact lines.
+  const rows=O.quotes(event([book('draftkings','DraftKings',10,{...scorer([['Yes',200],['No',-260],['Over',150]]),
+    ...ladder('player_shots_on_goal_alternate',[[2.5,-130],[3.5,160],[null,300]])})]));
+  assert.deepEqual(rows.map(r=>[r.market,r.side,r.line,r.price]),[['player_goal_scorer_anytime','Yes',null,200],
+    ['player_goal_scorer_anytime','No',null,-260],['player_shots_on_goal_alternate','Over',2.5,-130],['player_shots_on_goal_alternate','Over',3.5,160]]);
+  // A book offering both sides of "to score" is de-vigged like any pair.
+  const paired=O.board(event([book('draftkings','DraftKings',10,scorer([['Yes',200],['No',-260]]))]),NOW);
+  const yes=line(paired,'player_goal_scorer_anytime|Tage Thompson||Yes');
+  near(yes.quotes[0].fair_probability,(1/3)/(1/3+260/360),'Yes/No pair');
+  assert.deepEqual([yes.label,line(paired,'player_goal_scorer_anytime|Tage Thompson||No').label,yes.push_possible],['To score','Not to score',false]);
+  // One-way bets: no margin to remove, so only a price gap against the other books' median price.
+  const oneWay=k=>book(k,k.toUpperCase(),20,{...scorer([['Yes',150]]),...ladder('player_shots_on_goal_alternate',[[3.5,180]])});
+  const b=O.board(event([oneWay('fanduel'),oneWay('betmgm'),oneWay('williamhill_us'),
+    book('draftkings','DraftKings',15,{...scorer([['Yes',200]]),...ladder('player_shots_on_goal_alternate',[[3.5,190]])})]),NOW);
+  const top=line(b,'player_goal_scorer_anytime|Tage Thompson||Yes');
+  assert.deepEqual([top.best.book,top.best.advantage,top.flagged,top.gap_flagged],['draftkings',null,false,true]);
+  near(top.best.price_gap,100*(.4/(1/3)-1),'+20% against the median of three prices');
+  assert.equal(top.best.price_books,3);near(top.best.other_price_probability,.4,'median price, margins in');
+  assert.equal(b.lines.findIndex(l=>l.id===top.id),0,'gap-flagged lines lead when no line beats the fair price');
+  const rung=line(b,'player_shots_on_goal_alternate|Tage Thompson|3.5|Over');
+  assert.equal(rung.label,'Over 3.5 (4+)');
+  assert(rung.best.price_gap<O.GAP_FLAG&&!rung.gap_flagged,'a small gap is shown, not listed');
+  const two=O.board(event([oneWay('fanduel'),oneWay('betmgm'),book('draftkings','DraftKings',15,scorer([['Yes',200]]))]),NOW);
+  assert.equal(line(two,'player_goal_scorer_anytime|Tage Thompson||Yes').best.price_gap,null,'two other books are too few');
+  const old=O.board(event([oneWay('fanduel'),oneWay('betmgm'),book('williamhill_us','Caesars',20+400,scorer([['Yes',150]])),
+    book('draftkings','DraftKings',15,scorer([['Yes',200]]))]),NOW);
+  assert.equal(line(old,'player_goal_scorer_anytime|Tage Thompson||Yes').best.price_gap,null,'an old quote is no reference');
+  // Tickets: the grader's base contracts.
+  const T=require('../docs/assets/offer-tracker.js');
+  const game={id:'a'.repeat(32),commence_time:'2026-10-03T23:10:00Z',home_team:HOME,away_team:AWAY};
+  const t1=T.ticketData(O.ticket(game,top.best),200,5,NOW);
+  assert.deepEqual([t1.market_type,t1.side,t1.line,t1.player],['goals','Yes',null,'Tage Thompson'],'anytime scorer = goals "Yes", no line');
+  const t2=T.ticketData(O.ticket(game,rung.best),190,5,NOW);
+  assert.deepEqual([t2.market_type,t2.side,t2.line],['sog','over',3.5]);
+  const pts=O.board(event([book('draftkings','DraftKings',10,ladder('player_points_alternate',[[1.5,240]]))]),NOW);
+  assert.equal(T.ticketData(O.ticket(game,pts.lines[0].best),240,5,NOW).market_type,'points');
+}
+
 // ---- Bet Tracker tickets: the shared dialog's ledger fields ----------------------------
 {
   const T=require('../docs/assets/offer-tracker.js');
@@ -153,7 +195,7 @@ assert.equal(O.signed(-115),'−115');assert.equal(O.signed(120),'+120');assert.
 
 // ---- The editor-only relay -----------------------------------------------------------
 (async()=>{
-  const {createHandler,MARKETS}=await import('../supabase/functions/live-odds/handler.mjs');
+  const {createHandler,MARKETS,LIVE_MARKETS}=await import('../supabase/functions/live-odds/handler.mjs');
   const KEY='secret-odds-key',ID='b'.repeat(32);
   const ENV={SUPABASE_URL:'https://db.example',SUPABASE_ANON_KEY:'anon',ODDS_API_KEY:KEY};
   function setup({env=ENV,user={app_metadata:{fv_editor:true}},odds,vault=null}={}){
@@ -236,6 +278,29 @@ assert.equal(O.signed(-115),'−115');assert.equal(O.signed(120),'+120');assert.
     assert.deepEqual([again.reused,again.cost,again.fetched_at],[true,0,'2026-10-03T23:40:00Z']);assert.equal(calls.length,1);
     tick(2e3);const fresh=await (await req({event:ID})).json();
     assert.deepEqual([fresh.reused,fresh.cost],[false,7]);assert.equal(calls.length,2);
+  }
+  {
+    // During a game the milestones are added, with their own reuse window.
+    const {req,calls}=setup();
+    assert.equal((await req({event:ID,live:'yes'})).status,400);
+    const live=await (await req({event:ID,live:true})).json();
+    assert.equal(new URL(calls[0]).searchParams.get('markets'),[...MARKETS,...LIVE_MARKETS].join(','));
+    assert.deepEqual(LIVE_MARKETS,['player_goal_scorer_anytime','player_shots_on_goal_alternate','player_points_alternate']);
+    assert.deepEqual([live.reused,live.cost],[false,7]);
+    const pre=await (await req({event:ID,live:false})).json();
+    assert.equal(calls.length,2,'pregame and live prices are separate requests');
+    assert.equal(new URL(calls[1]).searchParams.get('markets'),MARKETS.join(','));
+    assert.equal(pre.reused,false);
+    assert.equal((await (await req({event:ID,live:true})).json()).reused,true);assert.equal(calls.length,2);
+    // If the odds service ever refuses a milestone market, the standard prices still come back.
+    const refused=setup({odds:async url=>new URL(url).searchParams.get('markets').includes('alternate')
+      ?new Response('{"message":"Invalid markets"}',{status:422})
+      :new Response(JSON.stringify({...event([]),id:ID}),{status:200,headers:{'x-requests-last':'3'}})});
+    const fallback=await refused.req({event:ID,live:true});
+    assert.equal(fallback.status,200);assert.equal(refused.calls.length,2);
+    assert.equal(new URL(refused.calls[1]).searchParams.get('markets'),MARKETS.join(','));
+    const other=setup({odds:async()=>new Response('{}',{status:500})});
+    assert.equal((await other.req({event:ID,live:true})).status,502);assert.equal(other.calls.length,1,'only a refused market retries');
   }
   {
     // Paid calls stop below the reserve; saved prices are still served.

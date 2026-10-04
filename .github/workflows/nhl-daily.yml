@@ -67,6 +67,10 @@ jobs:
         continue-on-error: true
         # Rebuilt from the committed run archive: last pregame snapshot per game vs. official results.
         run: python scripts/build_market_results.py --sport nhl
+      - name: Grade the NHL milestone-prop test
+        if: always() && (steps.refresh.outcome == 'success' || steps.refresh.outcome == 'failure')
+        continue-on-error: true
+        run: python scripts/nhl/v2/ladder_test.py
       - name: Archive odds and model inputs for later review
         if: always()
         uses: actions/upload-artifact@v4

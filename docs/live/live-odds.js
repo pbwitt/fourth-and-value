@@ -12,17 +12,28 @@
 
    Exact offered lines and prices are kept. A side without its pair has no fair
    probability rather than a guessed one. Whole-number lines can push, so their
-   probabilities are conditional on no push. Nothing here feeds Top Picks or Market
-   Watch; a bet you track goes to Bet Tracker as an ordinary ticket. */
+   probabilities are conditional on no push. One-way bets (milestones such as
+   "to score" or "3+ shots" often come without the other side) have no margin to
+   remove, so they are only compared on price: how the best price stands against
+   the other books' median price, margins included. Nothing here feeds Top Picks or
+   Market Watch; a bet you track goes to Bet Tracker as an ordinary ticket. */
 (function (global) {
 'use strict';
 
 const MARKETS = { h2h: 'Moneyline', spreads: 'Puck line', totals: 'Game total',
-  player_shots_on_goal: 'Shots on goal', player_goals: 'Goals', player_assists: 'Assists', player_points: 'Points' };
+  player_shots_on_goal: 'Shots on goal', player_goals: 'Goals', player_assists: 'Assists', player_points: 'Points',
+  // Milestones books post during games (the function asks for them once play starts).
+  player_goal_scorer_anytime: 'Anytime goal scorer', player_shots_on_goal_alternate: 'Shots on goal (alternate)',
+  player_points_alternate: 'Points (alternate)' };
 const ORDER = Object.keys(MARKETS);
 const PROPS = new Set(ORDER.slice(3));
+const YES_NO = new Set(['player_goal_scorer_anytime']);
+// The grader's contract for each milestone: anytime scorer = goals over 0.5; "3+ shots" = shots over 2.5.
+const BASE = { player_goal_scorer_anytime: 'player_goals', player_shots_on_goal_alternate: 'player_shots_on_goal',
+  player_points_alternate: 'player_points' };
 const MIN_OTHER_BOOKS = 3;   // as consensus_ev in the scheduled pipeline
 const FLAG_EDGE = 2;         // percent; the scheduled pipeline's minimum EV target
+const GAP_FLAG = 10;         // percent; one-way price gaps worth listing
 const PAIR_WINDOW = 5 * 60e3;
 // Reference quotes must be this close in time to the quote they judge, and a
 // quote this far behind the newest one in the response is too old to compare.
@@ -64,15 +75,15 @@ function quotes(event) {
       for (const o of market.outcomes || []) {
         const probability = implied(o?.price);
         if (!Number.isFinite(probability)) continue;
-        const prop = PROPS.has(key), side = String(o.name ?? '');
+        const prop = PROPS.has(key), yesNo = YES_NO.has(key), side = String(o.name ?? '');
         const player = prop ? String(o.description ?? '').trim() : '';
         let line = null;
-        if (key !== 'h2h') {
+        if (key !== 'h2h' && !yesNo) {
           line = o.point == null || o.point === '' ? NaN : Number(o.point);
           if (!Number.isFinite(line)) continue;
         }
         if (prop && !player) continue;
-        if ((prop || key === 'totals') && side !== 'Over' && side !== 'Under') continue;
+        if (yesNo ? side !== 'Yes' && side !== 'No' : (prop || key === 'totals') && side !== 'Over' && side !== 'Under') continue;
         if ((key === 'h2h' || key === 'spreads') && side !== home && side !== away) continue;
         out.push({ book: String(book.key), book_label: String(book.title || book.key), market: key,
           market_label: MARKETS[key], player, side, line, price: Number(o.price), book_probability: probability,
@@ -108,8 +119,9 @@ function compare(rows, mode) {
     return [...m.values()];
   };
   for (const pair of group(r => offerKey(r) + '|' + r.book)) {
-    const expected = pair[0].market === 'h2h' || pair[0].market === 'spreads'
-      ? [pair[0].home_team, pair[0].away_team] : ['Over', 'Under'];
+    const m = pair[0].market;
+    const expected = m === 'h2h' || m === 'spreads' ? [pair[0].home_team, pair[0].away_team]
+      : YES_NO.has(m) ? ['Yes', 'No'] : ['Over', 'Under'];
     const valid = pair.length === 2 && expected.every(s => pair.some(r => r.side === s))
       && Math.abs(pair[0].at - pair[1].at) <= PAIR_WINDOW;
     const total = pair.reduce((s, r) => s + r.book_probability, 0);
@@ -125,6 +137,12 @@ function compare(rows, mode) {
       r.other_probability = median(refs.map(q => q.fair_probability));
       r.other_books = refs.length;
       r.advantage = !r.stale && refs.length >= MIN_OTHER_BOOKS ? 100 * (r.other_probability / r.book_probability - 1) : null;
+      // Without enough fair prices, compare prices only: the other books' margins stay in.
+      const raw = side.filter(q => q.book !== r.book && !q.stale && Math.abs(q.at - r.at) <= WINDOW[mode]);
+      r.other_price_probability = median(raw.map(q => q.book_probability));
+      r.price_books = raw.length;
+      r.price_gap = r.advantage == null && !r.stale && raw.length >= MIN_OTHER_BOOKS
+        ? 100 * (r.other_price_probability / r.book_probability - 1) : null;
     }
   }
   return { rows: kept, newest: Number.isFinite(newest) ? newest : null };
@@ -133,11 +151,14 @@ function compare(rows, mode) {
 function label(r) {
   if (r.market === 'h2h') return r.side;
   if (r.market === 'spreads') return `${r.side} ${point(r.line)}`;
+  if (YES_NO.has(r.market)) return r.side === 'Yes' ? 'To score' : 'Not to score';
+  if (BASE[r.market] && r.side === 'Over' && r.line % 1 === 0.5) return `Over ${r.line} (${r.line + 0.5}+)`;
   return `${r.side} ${r.line}`;
 }
 
 /* One line per offered bet (market, player, line and side), best fresh price first.
-   Flagged lines beat the other books' median fair price by FLAG_EDGE percent or more. */
+   Flagged lines beat the other books' median fair price by FLAG_EDGE percent or more;
+   gap-flagged one-way lines beat the other books' median price by GAP_FLAG percent. */
 function board(event, now = Date.now()) {
   const start = Date.parse(event?.commence_time);
   const mode = Number.isFinite(start) && start <= now ? 'live' : 'pre';
@@ -162,10 +183,13 @@ function board(event, now = Date.now()) {
       best, fair_probability: fair, fair_odds: american(fair),
       fair_books: fresh.filter(q => q.fair_probability != null).length,
       flagged: best.advantage != null && best.advantage >= FLAG_EDGE,
+      gap_flagged: best.advantage == null && best.price_gap != null && best.price_gap >= GAP_FLAG,
       quotes: [...qs].sort((a, b) => a.book_probability - b.book_probability || a.book_label.localeCompare(b.book_label)),
     };
   });
-  lines.sort((a, b) => (b.flagged - a.flagged) || (a.flagged && b.flagged ? b.best.advantage - a.best.advantage : 0)
+  const rank = l => l.flagged ? 2 : l.gap_flagged ? 1 : 0;
+  lines.sort((a, b) => rank(b) - rank(a)
+    || (rank(a) === 2 ? b.best.advantage - a.best.advantage : rank(a) === 1 ? b.best.price_gap - a.best.price_gap : 0)
     || ORDER.indexOf(a.market) - ORDER.indexOf(b.market) || a.player.localeCompare(b.player)
     || (a.line ?? 0) - (b.line ?? 0) || a.side.localeCompare(b.side));
   return { mode, newest: newest == null ? null : new Date(newest).toISOString(),
@@ -178,11 +202,13 @@ const LIVE_SETTLEMENT = 'Full-game market: it settles on the whole game, includi
   + 'Verify your sportsbook’s live rules and market exceptions.';
 
 // The offer row Bet Tracker's shared dialog expects (docs/assets/offer-tracker.js).
-// No model probability: a comparison between books is not a forecast.
+// No model probability: a comparison between books is not a forecast. Milestones are
+// saved as the grader's base contract: anytime scorer = goals "Yes" with no line.
 function ticket(game, q) {
   return { sport: 'NHL', event_id: game.id, commence_time: game.commence_time,
     game: `${game.away_team} @ ${game.home_team}`, home_team: game.home_team, away_team: game.away_team,
-    player: q.player || '', market: q.market, market_label: q.market_label, side: q.side, line: q.line,
+    player: q.player || '', market: BASE[q.market] || q.market, market_label: q.market_label, side: q.side,
+    line: YES_NO.has(q.market) ? null : q.line,
     book: q.book, book_label: q.book_label, price: q.price, quoted_at: q.quoted_at, settlement_scope: LIVE_SETTLEMENT };
 }
 
@@ -206,8 +232,8 @@ function easternDate(when) {
     .format(new Date(when));
 }
 
-const api = { MARKETS, MIN_OTHER_BOOKS, FLAG_EDGE, WINDOW, STALE, implied, american, signed, quotes, compare, board,
-  ticket, findGame, easternDate };
+const api = { MARKETS, MIN_OTHER_BOOKS, FLAG_EDGE, GAP_FLAG, WINDOW, STALE, implied, american, signed, quotes, compare,
+  board, ticket, findGame, easternDate };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else global.FVLiveOdds = api;
 })(typeof window === 'undefined' ? globalThis : window);

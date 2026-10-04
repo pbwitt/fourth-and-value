@@ -12,6 +12,8 @@
 // POST {event:'<id>'} -> that game's prices from US books: moneyline, puck line,
 //                        total and four player props. The Odds API charges one
 //                        credit per market returned, so 7 at most.
+// POST {event:'<id>', live:true} -> also the anytime goal scorer and alternate
+//                        shots and points lines books post during games: 10 at most.
 //
 // Guards: a game's prices are reused for 60 seconds, so repeat presses cost
 // nothing; paid requests stop while the credits left are below the reserve kept
@@ -21,13 +23,14 @@ const ORIGINS = new Set(['https://fourthandvalue.com', 'https://www.fourthandval
 const ODDS = 'https://api.the-odds-api.com/v4/sports/icehockey_nhl';
 export const MARKETS = ['h2h', 'spreads', 'totals',
   'player_shots_on_goal', 'player_goals', 'player_assists', 'player_points'];
+export const LIVE_MARKETS = ['player_goal_scorer_anytime', 'player_shots_on_goal_alternate', 'player_points_alternate'];
 const TTL = { odds: 60e3, events: 300e3, error: 10e3 };
 const EVENT_ID = /^[0-9a-f]{32}$/;
 const MAX_BYTES = 3e6;
 const MAX_ENTRIES = 100;
 
 class Failure extends Error {
-  constructor(status, message) { super(message); this.status = status; }
+  constructor(status, message, upstream = null) { super(message); this.status = status; this.upstream = upstream; }
 }
 
 const iso = ms => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -101,7 +104,7 @@ export function createHandler({ fetchImpl = fetch, now = () => Date.now(), env =
     }
     if (res.status === 404) throw new Failure(404, 'The odds service no longer lists that game.');
     if (res.status === 429) throw new Failure(429, 'The odds service is busy. Wait a few seconds and try again.');
-    if (!res.ok) throw new Failure(502, `The odds service returned an error (HTTP ${res.status}).`);
+    if (!res.ok) throw new Failure(502, `The odds service returned an error (HTTP ${res.status}).`, res.status);
     const text = await res.text();
     if (text.length > MAX_BYTES) throw new Failure(502, 'The odds response was too large.');
     let body;
@@ -122,15 +125,24 @@ export function createHandler({ fetchImpl = fetch, now = () => Date.now(), env =
     return { games: await value, remaining };
   }
 
-  async function prices(event) {
-    const key = 'odds:' + event, hit = cache.get(key);
+  async function prices(event, live) {
+    const key = `odds:${event}:${live ? 'live' : 'pre'}`, hit = cache.get(key);
     if (!(hit && hit.expires > now()) && remaining != null && remaining < reserve()) {
       throw new Failure(429, `Live odds are paused: ${remaining} credits left, below the ${reserve()} kept for the scheduled refreshes.`);
     }
     const { value, reused } = cached(key, TTL.odds, async () => {
       const fetched = now();
-      const { body, cost } = await upstream(`events/${event}/odds`,
-        { regions: 'us', markets: MARKETS.join(','), oddsFormat: 'american', dateFormat: 'iso' });
+      const ask = list => upstream(`events/${event}/odds`,
+        { regions: 'us', markets: list.join(','), oddsFormat: 'american', dateFormat: 'iso' });
+      let response;
+      try {
+        response = await ask(live ? [...MARKETS, ...LIVE_MARKETS] : MARKETS);
+      } catch (error) {
+        // A refused milestone market must not cost the standard prices.
+        if (!live || error.upstream !== 422) throw error;
+        response = await ask(MARKETS);
+      }
+      const { body, cost } = response;
       if (!body || typeof body !== 'object' || body.id !== event) {
         throw new Failure(502, 'The odds service returned a different game than requested.');
       }
@@ -159,12 +171,13 @@ export function createHandler({ fetchImpl = fetch, now = () => Date.now(), env =
     try { input = raw ? JSON.parse(raw) : {}; } catch { return reply(400, { error: 'Invalid request' }); }
     if (!input || typeof input !== 'object' || Array.isArray(input)) return reply(400, { error: 'Invalid request' });
     if (input.event != null && !EVENT_ID.test(String(input.event))) return reply(400, { error: 'Invalid game' });
+    if (input.live != null && typeof input.live !== 'boolean') return reply(400, { error: 'Invalid request' });
 
     try {
       const allowed = await editor(authorization);
       if (allowed === null) return reply(401, { error: 'Sign in again.' });
       if (!allowed) return reply(403, { error: 'Live odds are limited to editor accounts.' });
-      return reply(200, input.event == null ? await games() : await prices(String(input.event)));
+      return reply(200, input.event == null ? await games() : await prices(String(input.event), input.live === true));
     } catch (error) {
       if (error instanceof Failure) return reply(error.status, { error: error.message, remaining });
       return reply(502, { error: 'Live odds are unavailable right now.', remaining });
