@@ -36,7 +36,7 @@ def prepare_records(path):
     d = d.drop_duplicates(['game_id', 'player', 'market_std', 'name', 'point', 'bookmaker'] if 'game_id' in d else ['commence_time', 'player', 'market_std', 'name', 'point', 'bookmaker'])
     cols = ['game_id','game','player','bookmaker','book_label','market_std','market_label','name','point','price',
             'mu','model_prob','push_prob','mkt_prob','prob_devig','consensus_prob','consensus_line','book_count',
-            'edge_bps','ev_per_100','model_status','last_update','commence_time','kick_et','home_team','away_team']
+            'edge_bps','ev_per_100','model_status','last_update','commence_time','kick_et','home_team','away_team','projection_diagnostics']
     for c in cols:
         if c not in d:
             d[c] = None
@@ -85,7 +85,7 @@ def build_page(args, top_only=False):
     payload = json.dumps({'fields':fields, 'dictionary':dictionary, 'rows':packed, 'topOnly':top_only, 'root':rel, 'snapshotUpcoming':len(future), 'snapshotVerified':verified, 'lastKickoff':max((r['commence_time'] for r in future), default=None)}, separators=(',', ':'), allow_nan=False).replace('<', '\\u003c').replace('&', '\\u0026')
     html = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{escape(title)} | Fourth &amp; Value</title>{metadata(args.out,title+' | Fourth & Value',description)}
-<link rel="icon" href="{rel}/assets/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="{rel}/assets/site.css"><link rel="stylesheet" href="{rel}/assets/offer-tracker.css?v=1"></head>
+<link rel="icon" href="{rel}/assets/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="{rel}/assets/site.css"><link rel="stylesheet" href="{rel}/assets/player-context.css?v=1"><script src="{rel}/assets/player-context.js?v=1" defer></script><link rel="stylesheet" href="{rel}/assets/offer-tracker.css?v=1"></head>
 <body><a class="skip-link" href="#main">Skip to props</a><div id="nav-root"></div><script src="{rel}/nav.js?v=47"></script>
 <main id="main" class="wrap">{nfl_links(rel, 'Top picks' if top_only else 'Player props')}
 <p class="eyebrow">{context}</p><h1>{title}</h1>
@@ -108,7 +108,7 @@ def build_page(args, top_only=False):
 <div class="pager" id="pager" hidden><button id="previous">Previous</button><span id="page-info" aria-live="polite"></span><button id="next">Next</button></div>
 <noscript><p>The first 24 upcoming offers are shown. Enable JavaScript to filter and compare the full snapshot.</p></noscript>
 <footer><a href="{rel}/nfl/">NFL overview</a> · <a href="{rel}/methods.html">Methods &amp; limitations</a> · <a href="{rel}/terms.html">Terms &amp; privacy</a><p>Free sports analysis from Fourth &amp; Value. No guaranteed outcomes.</p></footer></main>
-<script type="application/json" id="props-data">{payload}</script><script src="{rel}/assets/offer-tracker.js?v=1" defer></script><script src="{rel}/assets/props.js?v=2" defer></script></body></html>'''
+<script type="application/json" id="props-data">{payload}</script><script src="{rel}/assets/offer-tracker.js?v=1" defer></script><script src="{rel}/assets/props.js?v=3" defer></script></body></html>'''
     Path(args.out).parent.mkdir(parents=True,exist_ok=True)
     Path(args.out).write_text(html)
     if top_only:

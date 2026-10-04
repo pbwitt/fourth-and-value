@@ -5,7 +5,7 @@
   const $=id=>document.getElementById(id);
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const pct=n=>Number.isFinite(n)?`${(100*n).toFixed(1)}%`:'Unavailable';
-  const odds=n=>n>0?`+${n}`:String(n);
+  const odds=n=>Number.isFinite(n)?(n>0?`+${n}`:String(n)):'Unavailable';
   const time=s=>s?new Date(s).toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' ET':'Not yet checked';
   const status=$('feed-status');
   let data;
@@ -40,7 +40,7 @@
     selected.sort((a,b)=>page==='watch'?b.consensus_ev-a.consensus_ev:a.commence_time.localeCompare(b.commence_time)||a.player.localeCompare(b.player));
     $('result-count').textContent=`${selected.length} matching offers`;
     $('results').innerHTML=selected.slice(0,limit).map(r=>{
-      const baseline=r.baseline_mean!==null&&r.baseline_mean!==undefined?`<details><summary>Historical baseline (${r.baseline_games} games)</summary><p>Mean: ${r.baseline_mean.toFixed(1)}. Smoothed historical hit rate: ${pct(r.baseline_probability)}. Last game: ${esc(r.baseline_last_game)}.</p><p>${esc(r.model_status)}</p></details>`:'';
+      const baseline=r.baseline_mean!==null&&r.baseline_mean!==undefined?`${window.FVPlayerContext?.render(r,'NBA')||''}<p class="meta">Historical hit rate: ${pct(r.baseline_probability)} · Smoothed; excludes pushes. ${esc(r.model_status)}</p>`:'';
       const watch=page==='watch'?`<p>Other-book fair probability: ${pct(r.other_book_probability)} (${r.other_books} books). Price gap: ${(100*(r.other_book_probability-r.book_probability)).toFixed(1)} percentage points.</p>`:'';
       return `<article class="panel prop-card"><p class="meta">${esc(r.game)} · ${esc(time(r.commence_time))}</p><h2>${esc(r.player||r.market_label)}</h2><p class="betline">${esc(r.side)} ${r.line===null?'':esc(r.line)} · ${esc(r.market_label)}</p><p><strong>${esc(r.book_label)} ${esc(odds(r.price))}</strong></p><dl><dt>Book probability</dt><dd>${pct(r.book_probability)}</dd><dt>Paired fair probability</dt><dd>${pct(r.fair_probability)}</dd><dt>Same-line consensus</dt><dd>${pct(r.consensus_probability)}</dd><dt>Paired books</dt><dd>${r.paired_books}</dd></dl>${watch}${baseline}<p class="meta">Quote: ${esc(time(r.quoted_at))}</p></article>`;
     }).join('')||'<p class="empty">No matching NBA offers. Markets may not be posted yet, or your filters may exclude the available quotes.</p>';

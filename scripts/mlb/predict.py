@@ -11,6 +11,7 @@ import numpy as np
 from nba.pipeline import iso, normal_name, timestamp
 from mlb.models import LINES, means, pmf, joint, outcome, game_outcome, expected_return
 from mlb.train import MODEL_PATH, signature
+from player_context import describe, mlb_context
 
 ET = ZoneInfo('America/New_York')
 POLICY = 'mlb-picks-v1'
@@ -80,7 +81,7 @@ def pick_reason(row, report, now):
 def attach(state, now, fetch_box, bundle=None):
     rows = state['rows']
     for row in rows:
-        row.update(model_probability=None, model_push_probability=None, model_mean=None,
+        row.update(model_probability=None, model_push_probability=None, model_mean=None, player_context=None,
                    model_ev_pct=None, model_edge_pp=None, is_model_pick=False,
                    model_status='Forecast unavailable')
     try:
@@ -149,6 +150,7 @@ def attach(state, now, fetch_box, bundle=None):
                     model=models[market];mass=pmf(means(model,[{'x':x}]),model)[0]
                     g['cache'][key]=(x,mass)
                 x,mass=g['cache'][key];win,push=outcome(mass,row['line'],row['side']);mean=float(mass@np.arange(len(mass)))
+                row['player_context']=describe(mlb_context,history,g['data']['date'],player,market,x,models[market])
                 row['model_player_id']=player['id'];row['model_mean_label']='Projected '+row['market_label'].lower()
                 inputs=dict(zip(['Recent starter outings','Starter outs/start, last five','Starter strikeouts per batter faced','Opponent strikeouts per PA'],
                     [x['starter_starts'],round(x['starter_outs5'],2),round(x['starter_k_rate'],3),round(x['opp_k_rate'],3)])) if market.startswith('pitcher_') else {

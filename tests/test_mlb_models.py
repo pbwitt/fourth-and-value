@@ -152,6 +152,13 @@ class ModelTests(unittest.TestCase):
             self.assertAlmostEqual(row['model_ev_pct'],100*expected_return(p,push,row['price']))
         self.assertLessEqual(sum(r['is_model_pick'] for r in rows if r['market']=='h2h'),1)
         self.assertGreater(next(r for r in rows if r['market']=='totals')['model_push_probability'],0)
+        self.assertTrue(all(r['player_context'] for r in rows if r['market'].startswith(('batter_','pitcher_'))))
+        # Missing display-only context cannot suppress or reprice a valid forecast.
+        with patch('mlb.predict.mlb_context',side_effect=ValueError('Malformed display context')):
+            without=attach(dict(rows=copy.deepcopy(rows),events=[g]),NOW,lambda endpoint:lineup_box(),bundle)
+        fields=['model_probability','model_push_probability','model_mean','model_ev_pct','is_model_pick','model_status']
+        self.assertEqual([[r[k] for k in fields] for r in rows],[[r[k] for k in fields] for r in without['rows']])
+        self.assertTrue(all(r['player_context'] is None for r in without['rows']))
 
     def test_stale_model_bundle_is_rejected(self):
         with patch('mlb.predict.MODEL_PATH') as path,patch('mlb.predict.joblib.load',return_value={'source_signature':'test','history_fetched_date':'2026-09-19'}),patch('mlb.predict.signature',return_value='test'):
