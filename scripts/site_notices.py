@@ -9,7 +9,7 @@ NOTICE='''<aside id="fv-betting-notice" class="fv-use-notice" aria-label="Bettin
 FOOTER='''<section id="fv-responsible-footer" class="fv-use-footer" aria-label="Responsible use"><p>Fourth &amp; Value provides sports analysis for informational and entertainment purposes. We do not accept wagers. You are responsible for your wagering decisions and for meeting applicable age and legal requirements. Never wager money you cannot afford to lose.</p><p><a href="/terms.html">Terms &amp; privacy</a> · <a href="/terms.html#responsible-play">Responsible play</a> · U.S. gambling support: call or text <a href="tel:+18006973738">1-800-MY-RESET</a> or <a href="https://www.ncpgambling.org/help-treatment/">find confidential help</a>.</p></section>'''
 
 def contextual(path):
-    return path.startswith(('props/','nfl/','nba/','nhl/','mlb/','markets/','tracking/','live/','briefing/','research/','editorial/articles/','tools/')) or path=='methods.html' or (path.startswith('blog/') and path!='blog/index.html')
+    return path.startswith(('props/','nfl/','nba/','nhl/','mlb/','markets/','prediction-markets/','tracking/','live/','briefing/','research/','editorial/articles/','tools/')) or path=='methods.html' or (path.startswith('blog/') and path!='blog/index.html')
 
 def apply(html,path):
     if path.endswith('render.html') or 'template' in path or re.search(r'http-equiv=["\']refresh',html,re.I):return html

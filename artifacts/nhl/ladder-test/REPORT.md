@@ -1,8 +1,8 @@
 # NHL milestone-prop test
 
-Research only; no bets were placed. Window 2026-10-04 to 2026-10-11 (end exclusive), 1 refreshes, model nhl-v2.1. Generated 2026-10-04T11:06:52.403649Z.
+Research only; no bets were placed. Window 2026-10-04 to 2026-10-11 (end exclusive), 2 refreshes, model nhl-v2.1, nhl-v2.3. Generated 2026-10-04T23:22:20.140148Z.
 
-879 contracts priced; results: pending 879.
+1165 contracts priced; results: pending 1165.
 
 ## Model bets (best verified price, estimated EV at or above the threshold)
 

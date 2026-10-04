@@ -39,6 +39,7 @@ def times(cron):
 def render():
     config=json.loads((ROOT/'config/analyst_review.json').read_text())
     nhl=json.loads((ROOT/'config/nhl_analyst.json').read_text())
+    prediction=json.loads((ROOT/'config/prediction_markets.json').read_text())
     rows=[]
     for name,(label,description) in WORKFLOWS.items():
         source=(ROOT/'.github/workflows'/name).read_text()
@@ -60,6 +61,7 @@ def render():
     values=dict(POLICY=config['policy_version'],SCHEDULE=''.join(rows),NHL_EV=f"{nhl['minimum_ev']*100:g}",
         MORNING_BUDGET=f"{config['daily_budget_usd']-config['later_reserve_usd']:.2f}",LATER_RESERVE=f"{config['later_reserve_usd']:.2f}",NHL_QUOTE=str(nhl['quote_max_minutes']),NHL_MODEL=str(nhl['model_max_hours']),BUDGET=f"{config['daily_budget_usd']:.2f}",FINGERPRINT=fingerprint)
     result=(ROOT/'scripts/research/daily_process.html').read_text()
+    values.update(PREDICTION_QUOTE=f"{prediction['public_snapshot_max_seconds']/60:g}",PAPER_QUOTE=str(prediction['paper_snapshot_max_seconds']))
     for key,value in values.items():result=result.replace('{{'+key+'}}',value)
     from site_notices import apply
     return apply(result,'research/daily-process.html')
