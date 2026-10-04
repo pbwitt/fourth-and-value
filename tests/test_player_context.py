@@ -5,7 +5,7 @@ import sys
 import unittest
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from player_context import nhl_context, mlb_context, windows, nba_matchup
+from player_context import nhl_context, mlb_context, windows, nba_matchup, distribution, ranked, nba_defense
 from mlb.models import State
 from nhl.v2.features import History
 from nba.pipeline import add_baselines
@@ -111,6 +111,91 @@ class PlayerContextTests(unittest.TestCase):
         c=add_baselines([row],{'players':games},datetime(2026,4,1,tzinfo=timezone.utc))[0]['player_context']
         self.assertEqual(c['games'][0],dict(date='2026-03-25',opp='@ BOS',minutes=31,value=55))
         self.assertEqual(c['game_columns'][-1],['value','PRA'])
+
+    def test_distribution_trims_tails_into_end_bars(self):
+        mass=[.001,.002,.1,.4,.3,.19,.004,.003]
+        d=distribution(mass)
+        self.assertEqual(d['start'],2)
+        self.assertTrue(d['low']) ; self.assertTrue(d['high'])
+        self.assertAlmostEqual(sum(d['p']),1,places=3)
+        self.assertAlmostEqual(d['p'][0],.103,places=3,msg='the first bar carries the lower tail')
+        self.assertIsNone(distribution([0,0]))
+
+    def test_rank_wording(self):
+        table={1:dict(v=3),2:dict(v=5),3:dict(v=4)}
+        self.assertEqual(ranked(table,2,'v','most'),'Most of 3')
+        self.assertEqual(ranked(table,3,'v','most'),'2nd most of 3')
+        self.assertIsNone(ranked(table,9,'v','most'))
+
+    def mlb_season(self):
+        history=State()
+        team=lambda tid,k,runs,pitches:dict(id=tid,starter=tid*10,batting=dict(runs=runs,plateAppearances=38,strikeOuts=k,hits=8,homeRuns=1,
+            baseOnBalls=3,totalBases=12),pitching=dict(runs=runs,outs=27,numberOfPitches=140),batters=[dict(id=tid*100,slot=2,plateAppearances=4,
+            hits=1,totalBases=2,homeRuns=0,rbi=1,strikeOuts=1,baseOnBalls=0)],pitchers=[dict(id=tid*10,outs=17,battersFaced=24,strikeOuts=7,
+            baseOnBalls=2,hits=5,homeRuns=1,runs=2,earnedRuns=2,numberOfPitches=pitches,gamesStarted=1)])
+        for d in range(1,13):
+            history.update(dict(date=f'2026-09-{d:02}',venue=1,home_score=4,away_score=3,teams=dict(home=team(147,9,4,95+d),away=team(111,6,3,90))))
+            history.update(dict(date=f'2026-09-{d:02}',venue=2,home_score=5,away_score=2,teams=dict(home=team(119,11,5,100),away=team(144,5,2,88))))
+        return history,dict(date='2026-09-20',game_type='R',venue=1,home_id=147,away_id=111,home_starter=1470,away_starter=1110)
+
+    def test_mlb_explains_the_number_the_odds_and_the_opponent(self):
+        from mlb.models import means, pmf
+        history,game=self.mlb_season()
+        x=history.features(game,'home')
+        model=dict(kind='rolling',target='pitcher_strikeouts',alpha=.05,sigma=2,calibrator=None,features=sorted(x))
+        mass=pmf(means(model,[{'x':x}]),model)[0]
+        c=mlb_context(history,'2026-09-20',{'id':1470,'side':'home'},'pitcher_strikeouts',x,model,mass,game)
+        steps=c['build']['steps']
+        self.assertEqual([s['label'] for s in steps],['Batters faced per start','Strikeout rate','Opponent adjustment','Simple estimate','Adjusted to past results'])
+        self.assertAlmostEqual(steps[0]['value']*steps[1]['value']/100*steps[2]['value'],steps[3]['value'],places=2)
+        self.assertAlmostEqual(steps[-1]['value'],float(mass@range(len(mass))),places=3)
+        self.assertAlmostEqual(sum(c['distribution']['p']),1,places=3)
+        self.assertEqual(len(c['trend']['rows']),10)
+        self.assertEqual(c['trend']['rows'][-1][:4],['2026-09-12',7.0,None,'vs BOS'])
+        self.assertEqual(c['opponent']['team'],'BOS')
+        k,runs=c['opponent']['items']
+        self.assertTrue(k['used']) ; self.assertFalse(runs['used'],'the strikeout model reads only the lineup strikeout rate')
+        self.assertEqual(k['rank'],'3rd highest of 4')
+        self.assertAlmostEqual(c['blend'][0]['own'],288/388,places=3)
+        boosted=dict(model,kind='boosted',features=sorted(x),estimator=type('E',(),{'predict':lambda self,m:[6.4]*len(m)})())
+        c=mlb_context(history,'2026-09-20',{'id':1470,'side':'home'},'pitcher_strikeouts',x,boosted,mass,game)
+        self.assertEqual(c['build']['steps'][-2]['label'],f'Machine-learning model ({len(x)} inputs)')
+        self.assertTrue(all(i['used'] for i in c['opponent']['items']))
+
+    def test_explanations_never_break_the_context(self):
+        history,game=self.mlb_season()
+        x=history.features(game,'home')
+        c=mlb_context(history,'2026-09-20',{'id':1470,'side':'home'},'pitcher_strikeouts',x,{'kind':'rolling','target':'pitcher_strikeouts'},None,None)
+        self.assertEqual(c['sample_games'],12,'the base context survives a model without distribution settings')
+        self.assertNotIn('opponent',c)
+
+    def test_nhl_trend_weights_and_blend_follow_the_model(self):
+        history=History()
+        for day in range(1,8):
+            history.add_player(dict(player_id=1,game_id=day,game_date=f'2026-09-{day:02}',available_at=f'2026-09-{day+1:02}T12:00:00Z',
+                shots=day,goals=0,assists=1,points=1,toi=20,position='F'))
+        f=history.player_features(1,'F','2026-09-10',datetime(2026,9,10,tzinfo=timezone.utc))
+        matchup=dict(team='CHI',label='Opposing defense',items=[])
+        c=nhl_context(history.players[1],f,0,'opportunity_nb','nhl-v2.1',None,'2026-09-10',[.2,.3,.3,.2],matchup)
+        weights=[r[2] for r in c['trend']['rows']]
+        self.assertAlmostEqual(weights[-1],2**(-3/120),places=3,msg='a game three days back keeps 98% weight')
+        self.assertLess(weights[0],weights[-1])
+        steps=c['build']['steps']
+        self.assertAlmostEqual(steps[0]['value']*steps[1]['value']/60,steps[2]['value'],places=3)
+        own=sum(2**(-(10-d)/120) for d in range(1,8))
+        self.assertAlmostEqual(c['blend'][0]['own'],own/(own+12),places=3)
+        self.assertIs(c['opponent'],matchup)
+        self.assertIn('Opponent defense and goalie',c['missing'])
+
+    def test_nba_defense_pairs_team_logs_and_aliases(self):
+        rows=[]
+        for i in range(12):
+            rows.append(dict(GAME_ID=str(i),TEAM_NAME='LA Clippers',TEAM_ABBREVIATION='LAC',PTS=110,REB=44,AST=25,FG3M=12,BLK=5,STL=7,TOV=13,GAME_DATE=f'2026-03-{i+1:02}'))
+            rows.append(dict(GAME_ID=str(i),TEAM_NAME='Boston Celtics',TEAM_ABBREVIATION='BOS',PTS=100+i,REB=40,AST=22,FG3M=14,BLK=4,STL=8,TOV=12,GAME_DATE=f'2026-03-{i+1:02}'))
+        d=nba_defense({'x':rows})
+        self.assertEqual(d['table']['losangelesclippers']['PTS'],105.5,'what the Clippers allowed: Boston scored 100 to 111')
+        self.assertEqual(d['table']['bostonceltics']['PTS'],110)
+        self.assertEqual(d['abbreviations']['losangelesclippers'],'LAC')
 
     def test_missing_observations_are_not_zero(self):
         self.assertEqual(windows([dict(stat=None,toi=None)],[5,10],'stat','toi'),[dict(games=1,mean=None,workload=None)])

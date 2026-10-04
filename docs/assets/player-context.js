@@ -295,16 +295,29 @@
   }
   // ---- Track record: how past forecasts for this market turned out (published backtests). ----
   const tracks={};
-  const trackSource=sport=>({MLB:'/mlb/data/validation.json'})[sport];
+  const trackSource=sport=>({MLB:'/mlb/data/validation.json',NHL:'/nhl/data/track-record.json'})[sport];
   function trackFor(sport){
     const url=trackSource(sport);
     if(!url||typeof fetch!=='function')return Promise.resolve(null);
     return tracks[sport]=tracks[sport]||fetch(url).then(x=>x.ok?x.json():null).catch(()=>null);
   }
+  // One shape for both sources: MLB's validation report and the NHL track-record file.
+  function trackTest(report,r,sport){
+    if(!report)return null;
+    if(sport==='MLB'){
+      const post=r.game_type&&r.game_type!=='R',test=(post?report.postseason:report.regular)?.[r.market]||report.regular?.[r.market];
+      return test&&{bins:test.calibration_bins,forecasts:test.forecasts||test.samples,skill:test.brier_skill,ece:test.ece,
+        window:post?`${report.postseason_year} postseason`:`${date(report.test_start)}–${date(report.test_end)}`,note:''};
+    }
+    // NHL: only the running model version's evidence describes this forecast.
+    const m=report.markets?.[r.market];
+    if(!m||report.model_version!==r.model_version)return null;
+    return {bins:m.calibration_bins,forecasts:m.forecasts,ece:m.ece,window:`${date(report.test_start)}–${date(report.test_end)}`,
+      note:`Checked as “${m.side}” for every game. ${report.note||''}`};
+  }
   function trackHTML(report,r,sport){
-    if(sport!=='MLB'||!report)return '<p class="pc-chart-note">No published track record for this market yet.</p>';
-    const post=r.game_type&&r.game_type!=='R',test=(post?report.postseason:report.regular)?.[r.market]||report.regular?.[r.market];
-    const bins=(test?.calibration_bins||[]).filter(b=>finite(b.predicted)&&finite(b.observed)&&b.n>0);
+    const test=trackTest(report,r,sport);
+    const bins=(test?.bins||[]).filter(b=>finite(b.predicted)&&finite(b.observed)&&b.n>0);
     if(!bins.length)return '<p class="pc-chart-note">No published track record for this market yet.</p>';
     const H=150,x=p=>(8+p*(W-16)).toFixed(1),y=p=>(H-8-p*(H-16)).toFixed(1);
     let dots='',targets='';
@@ -314,13 +327,12 @@
       targets+=`<circle class="pc-target" cx="${x(b.predicted)}" cy="${y(b.observed)}" r="12" data-readout="${esc(text)}"/>`;
     });
     const svg=`<svg viewBox="0 0 ${W} ${H}" aria-hidden="true"><line class="pc-track" x1="${x(0)}" y1="${y(0)}" x2="${x(1)}" y2="${y(1)}"/>${dots}${targets}</svg><span class="pc-y-label">Happened ↑</span>`;
-    const window=post?`${report.postseason_year} postseason`:`${date(report.test_start)}–${date(report.test_end)}`;
-    const skill=finite(test.brier_skill)?` Accuracy ${test.brier_skill>=0?'+':''}${Math.round(test.brier_skill*100)}% vs. a baseline from past results (Brier skill).`:'';
+    const skill=finite(test.skill)?` Accuracy ${test.skill>=0?'+':''}${Math.round(test.skill*100)}% vs. a baseline from past results (Brier skill).`:'';
     const gap=finite(test.ece)?` Average gap between said and happened: ${(test.ece*100).toFixed(1)} points.`:'';
     return figure('pc-record','Predicted vs. observed: '+bins.map(b=>`${share(b.predicted)} to ${share(b.observed)}`).join('; '),svg,
       '<div class="pc-axis"><span>Model said 0%</span><span>100%</span></div>',
       'On the diagonal = it happened as often as the model said.',
-      `Tested on ${(test.forecasts||test.samples||0).toLocaleString('en-US')} forecasts it had not seen (${window}).${skill}${gap}`);
+      `Tested on ${(test.forecasts||0).toLocaleString('en-US')} forecasts it had not seen (${test.window}).${skill}${gap}${test.note?' '+test.note:''}`);
   }
   let lastTab='form';
   function snapshot({r,sport,options,c}){

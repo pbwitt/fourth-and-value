@@ -49,4 +49,33 @@ assert.match(qb,/<th scope="row">Wk 4<\/th><td>36<\/td><td>25<\/td><td class="pc
 assert.match(qb,/65%/);
 const legacy=snapshot({player:'Skater',market:'player_goals',projected_mean:.124,model_inputs:{projected_toi:15.2,history_games:30,last_game:'2026-04-16',opportunity_means:[2,.15,.2,.35]}},'NHL');
 assert.match(legacy,/0\.12 <span>goals/,'two decimals below one');assert.doesNotMatch(legacy,/Context only/,'unknown usage is not called context');assert.match(legacy,/15:12/);
+// How the model works: tabs, charts, build-up, odds, opponent, blend and limits.
+const explained={...row,player:'Ace',line:5.5,side:'Over',model_probability:.54,model_push_probability:0,model_conditional_probability:.54,consensus_probability:.5,book_probability:.476,
+  player_context:{...row.player_context,
+    trend:{label:'K',note:'Every start counts equally.',rows:[['2026-09-01',4,null,'<b>BOS</b>',90],['2026-09-07',7,null,'@ TOR',98],['2026-09-13',6,.5,'vs NYY',95]]},
+    build:{steps:[{label:'Batters faced per start',value:23.4,unit:''},{label:'Strikeout rate',value:25.1,unit:'%',op:'×'},{label:'Opponent adjustment',value:1.02,unit:'×',op:'×'},{label:'Simple estimate',value:5.99,unit:'K',op:'='}],note:'Simple.'},
+    distribution:{start:2,p:[.1,.2,.2,.2,.15,.1,.05],low:true,high:true},
+    blend:[{label:'Strikeout rate',own:.78,detail:'352 batters faced'}],
+    opponent:{team:'BOS',label:'Opposing lineup',items:[{label:'Strikeout rate',value:23.9,unit:'%',league:22.4,rank:'7th highest of 30',used:true}]},
+    missing:['Weather and umpire']}};
+const full=snapshot(explained,'MLB');
+assert.match(full,/role="tablist"/);assert.match(full,/data-tab="form"[^>]*aria-selected="true"/);assert.match(full,/id="pc-panel-model"[^>]*hidden/);
+assert.match(full,/2 of 3 cleared Over 5\.5 · faded games count less/);
+assert.match(full,/data-readout="Sep 1 · &lt;b&gt;BOS&lt;\/b&gt; · 4 K · 90 pitches"/,'readouts are escaped');assert.doesNotMatch(full,/<b>BOS/);
+assert.match(full,/Opponent adjustment<\/span><strong>1\.02×/);assert.match(full,/Simple estimate<\/span><strong>6\.0 K/);
+assert.match(full,/Over 5\.5: 54% · Under: 46%/,'odds come from the row, not the trimmed bars');
+assert.match(full,/≤2 K: 10%/);assert.match(full,/8\+ K: 5%/);
+assert.match(full,/Model 54%.*Market 50%.*Break-even 47\.6%/);assert.match(full,/Model vs\. break-even: \+6\.4 points/);
+assert.match(full,/78% his games · 22% average/);assert.match(full,/Used by the model/);assert.match(full,/7th highest of 30/);
+assert.match(full,/What the model doesn’t know.*Weather and umpire/);
+assert.match(full,/data-tab="record"/,'MLB has a published track record');
+assert.doesNotMatch(full,/NaN|undefined|null/);
+const qbFull=snapshot({player:'QB',market_std:'pass_yds',mu:233.3,line:239.5,side:'Over',model_prob:.45,push_prob:0,prob_devig:.5,mkt_prob:.52,projection_diagnostics:JSON.stringify({attempts:32,completion_rate:.65,yards_per_completion:11,recent_mean_weight:.43,yards_per_completion_recent_weight:.3,
+  current_sample:[{season:2026,week:1,attempts:30,completions:20,passing_yards:220},{season:2026,week:2,attempts:36,completions:25,passing_yards:301}],
+  mean_stages:{before_adjustments:228.8,after_defense:248.2,after_venue:233.3,final:233.3}})},'NFL');
+assert.match(qbFull,/Opposing pass defense<\/span><strong>1\.08×/);assert.match(qbFull,/Road game<\/span><strong>0\.94×/);assert.match(qbFull,/Projection<\/span><strong>233\.3 yd/);
+assert.match(qbFull,/43% this season · 57% career/);assert.match(qbFull,/Allows more passing yards than average/);
+const nba=snapshot({player:'Guard',market:'player_points',line:21.5,side:'Over',baseline_probability:.556,fair_probability:.5,book_probability:.52,player_context:{schema_version:1,source:'NBA',stat_label:'Points',
+  distribution:{empirical:[18,19,20,22,23,24,25,26,27,30]},trend:{label:'PTS',note:'',rows:[['2026-03-01',22,null,'vs BOS',33],['2026-03-02',19,null,'@ BOS',30]]}}},'NBA');
+assert.match(nba,/Past hit rate 55\.6%/);assert.match(nba,/7 over 21\.5 · 3 under/);assert.doesNotMatch(nba,/data-tab="record"/,'no model, no track record');
 console.log('PASS: player context preserves missing values, zeros, units, input labels, archived context and escaped content; name pop-up snapshots.');

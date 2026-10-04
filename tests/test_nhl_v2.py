@@ -193,6 +193,20 @@ class ReviewAndGradingTests(unittest.TestCase):
         self.assertLess(w['net_units'],m['net_units'])
 
 
+class TrackRecordTests(unittest.TestCase):
+    def test_held_out_bins_for_every_market(self):
+        from nhl.v2 import VERSION
+        from nhl.v2.track import build, merged
+        data=build()
+        self.assertEqual(data['model_version'],VERSION)
+        self.assertEqual(set(data['markets']),{'player_shots_on_goal','player_goals','player_assists','player_points','h2h','totals','spreads'})
+        shots=data['markets']['player_shots_on_goal']
+        self.assertEqual(sum(b['n'] for b in shots['calibration_bins']),shots['forecasts'])
+        self.assertTrue(all(b['n']>=100 for b in shots['calibration_bins']),'no dot rests on a handful of games')
+        self.assertEqual(merged([dict(forecast=.1,observed=.2,count=60),dict(forecast=.3,observed=.2,count=60),dict(forecast=.5,observed=.5,count=10)]),
+                         [dict(predicted=.2231,observed=.2231,n=130)])
+
+
 class SiteContractTests(unittest.TestCase):
     def test_broken_artifact_clears_partial_forecast_but_keeps_quote(self):
         r=dict(quote(),independent_probability=.7,estimated_ev=.1,fair_odds=-150,forecast_id='old')

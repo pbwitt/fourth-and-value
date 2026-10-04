@@ -78,7 +78,7 @@ def build(state):
         descriptions = {'overview': 'Explore NHL regular-season matchups, sportsbook lines, player props and experimental forecasts with links to research and model methods.', 'props': 'Compare NHL player props with recent shots, scoring, ice time and model inputs alongside exact sportsbook lines and prices.', 'lines': 'Compare NHL moneylines, puck lines and game totals with exact sportsbook prices, independent forecasts and settlement context.', 'candidates': 'Review NHL research candidates with model probabilities, recent player form, ice time, source analysis and current quote checks.', 'watch': 'Compare NHL offers against other sportsbooks at the same line, with player statistics and clearly labeled market price differences.', 'arbitrage': 'Inspect NHL cross-book price combinations and settlement assumptions, with exact lines, potential returns and quote timestamps.', 'methods': 'Understand NHL count models, recency weighting, projected ice time, uncertainty, settlement rules and experimental forecast limits.'}
         body = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{search_title} | Fourth &amp; Value</title>
 {metadata(path, search_title+' | Fourth & Value', descriptions[page])}
-<link rel="stylesheet" href="{rel}/assets/site.css"><link rel="stylesheet" href="{rel}/assets/player-context.css?v=2"><script src="{rel}/assets/player-context.js?v=2" defer></script><link rel="icon" href="{rel}/assets/logo.svg"></head><body><a class="skip-link" href="#main">Skip to content</a><div id="nav-root"></div><script src="{rel}/nav.js?v=47"></script>
+<link rel="stylesheet" href="{rel}/assets/site.css"><link rel="stylesheet" href="{rel}/assets/player-context.css?v=3"><script src="{rel}/assets/player-context.js?v=3" defer></script><link rel="icon" href="{rel}/assets/logo.svg"></head><body><a class="skip-link" href="#main">Skip to content</a><div id="nav-root"></div><script src="{rel}/nav.js?v=47"></script>
 <main class="wrap" id="main" data-nhl-page="{page}" data-feed="{nhl}/data/latest.json">{links}<p class="eyebrow">NHL · {label}</p><h1>{title}</h1>
 <div class="notice" id="feed-status" role="status"><strong>NHL regular-season market snapshot</strong><p>Last successful check: {escape(str(state.get('last_success_at') or 'Not yet checked'))}. Enable JavaScript to view current quote availability.</p></div>
 <p class="muted" id="history-status"></p><p class="muted" id="model-status"></p>{intro}<footer>Fourth &amp; Value · <a href="{rel}/terms.html">Terms &amp; privacy</a> · <a href="{rel}/videos/">Videos</a></footer></main><script src="{rel}/assets/nhl.js?v=3" defer></script></body></html>'''
@@ -96,6 +96,12 @@ def build(state):
             body = body.replace(f'<script src="{rel}/assets/nhl', f'<script src="{rel}/assets/offer-tracker.js?v=1" defer></script><script src="{rel}/assets/nhl', 1)
             body = body.replace('assets/nhl.js?v=3', 'assets/nhl.js?v=7').replace('assets/nhl-candidates.js?v=7', 'assets/nhl-candidates.js?v=11')
         path.write_text(body)
+    try:
+        # The pop-up's track record for the running model version; display only.
+        from nhl.v2.track import write as write_track
+        write_track()
+    except Exception as error:
+        print(f'NHL track record skipped ({type(error).__name__}: {error})', file=sys.stderr)
     try:
         # One search page per player (scripts/nhl/players.py); never blocks the board.
         from nhl.players import build as build_players

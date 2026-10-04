@@ -77,8 +77,8 @@ def annotate(rows,games,players,events,models,manifest,now,history_checked_at,ro
     def matchup(g,records):
         """Display only: the opponent's recency-weighted shots and goals allowed, as the game-line model sees them."""
         last=records[-1]
-        # Trust the player's team only from a recent appearance; an offseason move could name the wrong opponent.
-        if last.get('team_id') not in (g['home_id'],g['away_id']) or (stamp(g['game_date']+'T12:00:00Z')-stamp(last['game_date']+'T12:00:00Z')).days>30:
+        # His team from his previous appearance, when that team is in this game.
+        if last.get('team_id') not in (g['home_id'],g['away_id']):
             return None
         rival=g['away_id'] if last['team_id']==g['home_id'] else g['home_id']
         if g['game_date'] not in defenses:

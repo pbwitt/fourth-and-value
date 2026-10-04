@@ -40,7 +40,7 @@ const server=http.createServer((req,res)=>{
         {label:'Opponent strikeout rate',value:22.6,unit:'%',used:true,detail:'Up to 40 games; K / PA'}],
       note:'Model rates include fixed priors; observed averages do not. Innings are shown in thirds (5⅔ = five innings and two outs).'},
     stat_context:{group:'pitching',innings:'160.2',starts:28,strikeouts:172,k_per_nine:9.63,era:3.42},model_conditional_probability:.55,consensus_probability:.5};
-  const nhl={...common,market:'player_shots_on_goal',market_label:'Shots on goal',line:2.5,projected_mean:3.1,projected_toi:20.4,conditional_probability:.55,market_probability:.5,
+  const nhl={...common,model_version:'nhl-v2.1',market:'player_shots_on_goal',market_label:'Shots on goal',line:2.5,projected_mean:3.1,projected_toi:20.4,conditional_probability:.55,market_probability:.5,
     player_context:{schema_version:1,source:'NHL completed-game logs',through:'2026-09-30',sample_games:164,sample_label:'appearances',stat_label:'SOG',workload_label:'Ice time',workload_unit:'min',
       recent:[{games:5,mean:3.4,workload:21.2},{games:10,mean:3.1,workload:20.9},{games:20,mean:3.2,workload:20.7}],
       games:[{date:'2026-04-16',opp:'vs CHI',toi:'21:05',shots:4,goals:1,assists:0,points:1},{date:'2026-04-14',opp:'@ TOR',toi:'20:41',shots:3,goals:0,assists:1,points:1}],
@@ -90,6 +90,18 @@ const server=http.createServer((req,res)=>{
             await p.screenshot({path:`/tmp/fv-player-pop-${sport}-${width}-${tab}.png`});
           }
           await pop.locator('[data-tab=form]').click();
+        }
+        if(width===1440){
+          // Keyboard tabs, and a chart readout that follows the pointer.
+          await pop.locator('[data-tab=form]').focus();await p.keyboard.press('ArrowRight');
+          assert.equal(await pop.locator('[data-tab=model]').getAttribute('aria-selected'),'true');
+          assert(await pop.locator('#pc-panel-model').isVisible());assert.equal(await pop.locator('#pc-panel-form').isVisible(),false);
+          assert.match(await pop.locator('#pc-panel-model').textContent(),/How the number is built/);
+          await p.keyboard.press('ArrowLeft');
+          const out=pop.locator('.pc-trend .pc-readout'),before=await out.textContent();
+          await pop.locator('.pc-trend .pc-target').last().hover();
+          assert.notEqual(await out.textContent(),before,'hovering a bar shows that game');
+          assert.match(await out.textContent(),sport==='mlb'?/Oct 2 · @ TOR · 5 K/:/Oct 2 · vs CHI · 3 SOG · 20:18 TOI · counts 98%/);
         }
         await p.keyboard.press('Escape');await pop.waitFor({state:'hidden'});
         assert.equal(await p.evaluate(()=>document.activeElement?.classList.contains('pc-name')),true,'focus returns to the name');
