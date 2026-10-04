@@ -28,16 +28,19 @@ def meta(html, attr, name):
     return unescape(c.group(1)) if c else ''
 
 
-def indexed_pages():
-    """Sitemap URLs mapped to their files."""
+def indexed_pages(docs=DOCS):
+    """Sitemap URLs mapped to their files: the main sitemap plus generated sections' own."""
     pages = {}
-    for loc in re.findall(r'<loc>(.*?)</loc>', (DOCS / 'sitemap.xml').read_text()):
+    locs = []
+    for sitemap in [docs / 'sitemap.xml'] + sorted(p for p in docs.rglob('sitemap.xml') if p.parent != docs):
+        locs += re.findall(r'<loc>(.*?)</loc>', sitemap.read_text())
+    for loc in locs:
         rel = loc[len(SITE):].lstrip('/')
         if not rel or rel.endswith('/'):
             rel += 'index.html'
         elif not rel.endswith('.html'):
             rel += '/index.html'
-        pages[rel] = DOCS / rel
+        pages[rel] = docs / rel
     return pages
 
 

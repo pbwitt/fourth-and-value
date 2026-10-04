@@ -13,8 +13,19 @@ DESCRIPTIONS={
 }
 
 
+def section_sitemaps(docs=DOCS):
+    """Generated sections that publish their own sitemap (e.g. nhl/players/), relative to docs."""
+    return sorted(p.relative_to(docs).as_posix() for p in docs.rglob('sitemap.xml') if p.parent != docs)
+
+
+def robots(docs=DOCS):
+    return 'User-agent: *\nAllow: /\n\n'+''.join(f'Sitemap: {SITE}/{s}\n' for s in ['sitemap.xml']+section_sitemaps(docs))
+
+
 def main():
     urls=[]
+    # Pages in a section with its own sitemap are listed there, not twice.
+    own=tuple(s[:-len('sitemap.xml')] for s in section_sitemaps())
     for path in sorted(DOCS.rglob('*.html')):
         rel=path.relative_to(DOCS).as_posix();html=path.read_text()
         if 'template' in path.name and not re.search(r'name=["\']robots',html):
@@ -35,10 +46,10 @@ def main():
         else:
             html=re.sub(r'(<meta name=["\']twitter:card["\'] content=["\'])summary(["\'])',r'\1summary_large_image\2',html)
         path.write_text(html)
-        if not re.search(r'name=["\']robots["\'][^>]*noindex',html) and 'http-equiv="refresh"' not in html:
+        if not re.search(r'name=["\']robots["\'][^>]*noindex',html) and 'http-equiv="refresh"' not in html and not rel.startswith(own or ('\0',)):
             urls.append(canonical)
     (DOCS/'sitemap.xml').write_text('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'+''.join(f'  <url><loc>{escape(u)}</loc></url>\n' for u in urls)+'</urlset>\n')
-    (DOCS/'robots.txt').write_text('User-agent: *\nAllow: /\n\nSitemap: '+SITE+'/sitemap.xml\n')
+    (DOCS/'robots.txt').write_text(robots())
     print(f'Metadata checked; {len(urls)} canonical pages in sitemap.')
 
 if __name__=='__main__':main()

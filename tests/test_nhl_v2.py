@@ -217,6 +217,12 @@ class SiteContractTests(unittest.TestCase):
         rows=compare(rows,NOW)
         out=annotate(copy.deepcopy(rows),past,players,events,models,manifest,NOW,NOW.isoformat())
         self.assertEqual(len(out),7);self.assertTrue(all(r['model_probability'] is not None for r in out))
+        context=out[0]['player_context']
+        self.assertEqual([g['date'] for g in context['games']],['2026-09-25','2026-09-24'],'recent games, newest first')
+        self.assertNotIn('opp',[c[0] for c in context['game_columns']],'no opponent without team abbreviations')
+        labeled=[dict(r,home=True,team_abbrev='HOM') for r in players]+[dict(r,player_id=9,player='Other',home=False,team_abbrev='AWY') for r in players]
+        context=annotate(copy.deepcopy(rows),past,labeled,events,models,manifest,NOW,NOW.isoformat())[0]['player_context']
+        self.assertEqual(context['games'][0]['opp'],'vs AWY')
         self.assertTrue(all(not r['recommendation'] for r in out))
         changed=copy.deepcopy(rows)
         for r in changed:r['price']=250

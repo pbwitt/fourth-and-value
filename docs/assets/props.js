@@ -54,14 +54,14 @@
     const edge=r.edge_bps==null?'—':`${num(r.edge_bps/100)} pp`;
     const warning=isPast?'Game started · historical quote':!fresh?'Saved quote · confirm current price':'Quote checked '+new Date(r.last_update).toLocaleString();
     return `<article class="panel prop-card"><p class="meta">${esc(r.kick_et)} · ${esc(r.game)}</p>
-      <h2>${esc(r.player)}</h2><div>${esc(r.market_label)}</div>
+      <h2>${window.FVPlayerContext?.name?.(r,'NFL',{saved:isPast||!fresh})??esc(r.player)}</h2><div>${esc(r.market_label)}</div>
       <p class="betline">${esc(r.name)} ${r.point==null?'':num(r.point).replace(/\.0$/,'')} · ${odds(r.price)}</p>
       <strong>${esc(r.book_label)}</strong><p class="meta">${esc(warning)}</p>
       <span class="tag">${esc(r.model_status)}</span>
       <dl><dt>Model probability</dt><dd>${pct(r.model_prob)}</dd><dt>Book probability</dt><dd>${pct(r.mkt_prob)}</dd>
       <dt>Model edge</dt><dd class="${r.edge_bps>0?'positive':r.edge_bps<0?'negative':''}">${edge}</dd>
       <dt>Expected profit / $100</dt><dd>${r.ev_per_100==null?'—':'$'+num(r.ev_per_100,2)}</dd></dl>
-      ${window.FVPlayerContext?.render(r,'NFL',{saved:isPast||!fresh})||''}<details><summary>Line comparison &amp; assumptions</summary><dl>
+      <details><summary>Line comparison &amp; assumptions</summary><dl>
       <dt>Model mean</dt><dd>${mean}</dd><dt>Median book line</dt><dd>${num(r.consensus_line)}</dd>
       <dt>Paired fair probability</dt><dd>${pct(r.prob_devig)}</dd><dt>Consensus at this line</dt><dd>${pct(r.consensus_prob)}</dd>
       <dt>Books with paired quotes</dt><dd>${num(r.book_count,0)}</dd><dt>Estimated push probability</dt><dd>${pct(r.push_prob)}</dd></dl>

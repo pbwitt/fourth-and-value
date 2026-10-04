@@ -1,6 +1,7 @@
 """Current-season NHL pages; no embedded historical betting cards."""
 from html import escape
 import re
+import sys
 from pathlib import Path
 from nhl.refresh import ROOT
 from site_metadata import metadata
@@ -50,7 +51,7 @@ def build(state):
         nhl = '..' if '/' in filename else '.'
         links = '<nav class="subnav" aria-label="NHL sections">' + ''.join(
             f'<a href="{nhl}/{f}"' + (' aria-current="page"' if f == filename else '') + f'>{t}</a>'
-            for f,t,_ in pages if f != 'methods.html') + '</nav>'
+            for f,t,_ in pages if f != 'methods.html') + f'<a href="{nhl}/players/">Players</a></nav>'
         if page == 'overview':
             intro = '''<p class="lead">Fresh hockey markets, clear prices, and regular-season context.</p>
 <div class="actions"><a class="button primary" href="totals/">Compare game lines →</a><a class="button" href="props/">Compare player props →</a></div>
@@ -77,7 +78,7 @@ def build(state):
         descriptions = {'overview': 'Explore NHL regular-season matchups, sportsbook lines, player props and experimental forecasts with links to research and model methods.', 'props': 'Compare NHL player props with recent shots, scoring, ice time and model inputs alongside exact sportsbook lines and prices.', 'lines': 'Compare NHL moneylines, puck lines and game totals with exact sportsbook prices, independent forecasts and settlement context.', 'candidates': 'Review NHL research candidates with model probabilities, recent player form, ice time, source analysis and current quote checks.', 'watch': 'Compare NHL offers against other sportsbooks at the same line, with player statistics and clearly labeled market price differences.', 'arbitrage': 'Inspect NHL cross-book price combinations and settlement assumptions, with exact lines, potential returns and quote timestamps.', 'methods': 'Understand NHL count models, recency weighting, projected ice time, uncertainty, settlement rules and experimental forecast limits.'}
         body = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{search_title} | Fourth &amp; Value</title>
 {metadata(path, search_title+' | Fourth & Value', descriptions[page])}
-<link rel="stylesheet" href="{rel}/assets/site.css"><link rel="stylesheet" href="{rel}/assets/player-context.css?v=1"><script src="{rel}/assets/player-context.js?v=1" defer></script><link rel="icon" href="{rel}/assets/logo.svg"></head><body><a class="skip-link" href="#main">Skip to content</a><div id="nav-root"></div><script src="{rel}/nav.js?v=47"></script>
+<link rel="stylesheet" href="{rel}/assets/site.css"><link rel="stylesheet" href="{rel}/assets/player-context.css?v=2"><script src="{rel}/assets/player-context.js?v=2" defer></script><link rel="icon" href="{rel}/assets/logo.svg"></head><body><a class="skip-link" href="#main">Skip to content</a><div id="nav-root"></div><script src="{rel}/nav.js?v=47"></script>
 <main class="wrap" id="main" data-nhl-page="{page}" data-feed="{nhl}/data/latest.json">{links}<p class="eyebrow">NHL · {label}</p><h1>{title}</h1>
 <div class="notice" id="feed-status" role="status"><strong>NHL regular-season market snapshot</strong><p>Last successful check: {escape(str(state.get('last_success_at') or 'Not yet checked'))}. Enable JavaScript to view current quote availability.</p></div>
 <p class="muted" id="history-status"></p><p class="muted" id="model-status"></p>{intro}<footer>Fourth &amp; Value · <a href="{rel}/terms.html">Terms &amp; privacy</a> · <a href="{rel}/videos/">Videos</a></footer></main><script src="{rel}/assets/nhl.js?v=3" defer></script></body></html>'''
@@ -93,5 +94,13 @@ def build(state):
         if page in ('props', 'lines', 'watch', 'candidates'):
             body = body.replace('</head>', f'<link rel="stylesheet" href="{rel}/assets/offer-tracker.css?v=1"></head>')
             body = body.replace(f'<script src="{rel}/assets/nhl', f'<script src="{rel}/assets/offer-tracker.js?v=1" defer></script><script src="{rel}/assets/nhl', 1)
-            body = body.replace('assets/nhl.js?v=3', 'assets/nhl.js?v=6').replace('assets/nhl-candidates.js?v=7', 'assets/nhl-candidates.js?v=10')
+            body = body.replace('assets/nhl.js?v=3', 'assets/nhl.js?v=7').replace('assets/nhl-candidates.js?v=7', 'assets/nhl-candidates.js?v=11')
         path.write_text(body)
+    try:
+        # One search page per player (scripts/nhl/players.py); never blocks the board.
+        from nhl.players import build as build_players
+        result = build_players(state)
+        print(f"NHL player pages: {result.get('players', 0)} players, {result.get('written', 0)} pages updated"
+              + (f" (skipped: {result['skipped']})" if result.get('skipped') else ''))
+    except Exception as error:
+        print(f'NHL player pages skipped ({type(error).__name__}: {error})', file=sys.stderr)
