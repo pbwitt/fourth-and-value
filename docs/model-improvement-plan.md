@@ -6,7 +6,7 @@ Owner: pbwitt. Started 2026-10-05. Update this file as each phase finishes.
 
 | Phase | State | Notes |
 |---|---|---|
-| 0. Audit | Done 2026-10-05 | Findings and proposed plan below. Step 1 (housekeeping) approved and in review; step 2 waits for approval. |
+| 0. Audit | Done 2026-10-05 | Findings and proposed plan below. Step 1 (housekeeping) merged and deployed 2026-10-05; step 2 waits for approval. |
 | 1. News and lineup data | Not started | |
 | 2. Model fixes | Not started | |
 | 3. Market blend before betting | Not started | |
@@ -331,11 +331,16 @@ Robots.txt and terms were read from a GitHub runner (one-off workflow, since rem
 Paid alternatives remain SportsDataIO (Daily Faceoff's data carries FantasyData/SportsDataIO player IDs) and
 MySportsFeeds. The NHL-API-based start-probability model needs no new source.
 
-### Step 1 status (2026-10-05)
+### Step 1 status: done (2026-10-05)
+
+Merged in pbwitt/fourth-and-value#86.
+
 
 - Shared 2,000-credit floor and 2,000 per-run cap (`scripts/odds_budget.py`) wired into every scheduled
-  Odds API caller; `closing-lines` reserve raised from 500 to 2,000 in the repository copy (deploy after
-  merge).
+  Odds API caller. `closing-lines` v2 deployed after the merge: 2,000 reserve (a lower setting is
+  ignored), cost-aware check, 2,000 per-run cap. Its 5-minute runs returned 200 from 14:05 to 15:00 UTC.
+  The deployed `clv.mjs` writes the accent-stripping regex range as literal characters rather than
+  `\u0300-\u036f` escapes; it matches the same characters.
 - `closing-lines` source, migration and schedule committed from Supabase.
 - Bet tickets record NHL game totals as `totals` and write `bets.timestamp` on save. Existing rows unchanged
   (open questions 1 and 3).
