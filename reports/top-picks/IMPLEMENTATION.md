@@ -1,3 +1,5 @@
+> Decisions from October 5, 2026 onward are logged in [RESEARCH_SYSTEM.md](../../RESEARCH_SYSTEM.md#12-decision-log). This file is the earlier record and is not rewritten.
+
 # Research-driven Top Picks — decision log, 2026-09-27
 
 Branch: codex/research-driven-top-picks. Review before deployment. Target: an operational pilot before Tuesday September 29; this is not a claim of profitable or validated picks.

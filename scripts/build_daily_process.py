@@ -15,7 +15,8 @@ WORKFLOWS={
  'afternoon-refresh.yml':('Afternoon market refresh','Refresh NHL and MLB prices, lineups and forecasts before evening games. Each sport refreshes once per afternoon: a backup start skips a sport already refreshed after 4 p.m., and no automatic start runs after midnight. Market pages only; no paid research.'),
  'nhl-daily.yml':('NHL data and models','Refresh regular-season statistics and prices, run inference, publish all qualifying candidates. After a validated refresh, regrade NHL Market Analytics from saved pregame snapshots and grade archived cross-market checks (descriptive research only; not an input to picks). Oct 4–10, 2026: also price anytime-scorer and alternate shots/points lines for games within 24 hours and grade them as a research test that never feeds picks. Later refresh can capture newly posted props.'),
  'editorial-watchdog.yml':('Article recovery monitor','Checks missing article delivery during the morning writing window, with an extra check after the 8:30 a.m. target; no paid writing without fresh model inputs.'),
- 'analyst-daily.yml':('Top Picks discovery and review','Runs once after the morning feeds finish, or as an explicit operator test. No automatic intraday research.')}
+ 'analyst-daily.yml':('Top Picks discovery and review','Runs once after the morning feeds finish, or as an explicit operator test. Recovery starts reuse healthy sports and their unchanged reviews.'),
+ 'late-research.yml':('Late research check (disabled)','Implemented but disabled until release approval. When enabled: free checks for new lineup or availability reporting on shortlisted ideas; a paid re-review only when triggered, under the same daily allowance; separate versioned reassessments.')}
 
 
 def times(cron):
@@ -56,11 +57,12 @@ def render():
         if name=='editorial-daily.yml':schedule='Primary: after morning sports refreshes<br>Recovery / maintenance checks:<br>'+schedule
         if name=='editorial-watchdog.yml':schedule+='; also after scheduled Morning Picks completes'
         if name=='analyst-daily.yml':schedule='After morning data jobs finish; incomplete-edition recovery or explicit manual tests only otherwise'
+        if name=='late-research.yml':schedule='Disabled; when enabled: '+schedule
         rows.append(f'<tr><td>{escape(label)}</td><td>{schedule}</td><td>{escape(description)}</td></tr>')
     paths=[ROOT/'.github/workflows'/n for n in WORKFLOWS]
     paths += [ROOT/p for p in ['config/analyst_review.json','config/nhl_analyst.json',
         'scripts/editorial_schedule.py','scripts/editorial_writer.py','scripts/editorial_diagnostics.py','scripts/analyst_review.py','scripts/research_discovery.py',
-        'scripts/research_budget.py','scripts/morning_card.py','scripts/morning_operations.py','supabase/morning_scheduler.sql',
+        'scripts/research_budget.py','scripts/morning_card.py','scripts/morning_operations.py','scripts/late_research.py','scripts/research_facts.py','scripts/mlb/gates.py','scripts/make_props_edges.py','supabase/morning_scheduler.sql',
         'supabase/afternoon_scheduler.sql','scripts/afternoon_gate.py','scripts/mlb/predict.py','scripts/nhl/v2/candidates.py','docs/assets/briefing-picks.js']]
     fingerprint=hashlib.sha256(b''.join(p.read_bytes() for p in paths)).hexdigest()[:20]
     values=dict(POLICY=config['policy_version'],SCHEDULE=''.join(rows),NHL_EV=f"{nhl['minimum_ev']*100:g}",

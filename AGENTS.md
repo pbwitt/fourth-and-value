@@ -11,6 +11,11 @@ stages, spending limits, freshness rules, or review semantics:
 3. Keep Research and Today's Picks linked to this current process page. Historical
    research results must not be relabeled as evidence for a new selection policy.
 
+4. Keep [RESEARCH_SYSTEM.md](RESEARCH_SYSTEM.md) (architecture, schemas, statuses,
+   provenance, decision log) consistent with the change. Bump
+   `MODEL_VERSION` in `scripts/make_player_prop_params.py` when NFL forecasting logic
+   changes; an artifact fitted for another version is reported as incompatible.
+
 The source-of-truth selector is `docs/assets/briefing-picks.js`, shared by the
 browser and Node research adapter. Preserve exact offered lines/quotes, missing
 probabilities, push semantics and the separation from Market Watch. A count of

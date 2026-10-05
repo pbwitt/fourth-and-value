@@ -1,10 +1,19 @@
 # Daily candidate research
 
+Architecture, schemas, statuses, provenance, commands and the decision log for the
+research system are in [RESEARCH_SYSTEM.md](RESEARCH_SYSTEM.md). This file keeps the
+operating rules.
+
 The current reader-facing description is `/research/daily-process.html`, linked
 from Research and Today's Picks. `scripts/build_daily_process.py` generates its
 schedule and policy fields. After changing a workflow or selection policy,
 review `scripts/research/daily_process.html`, regenerate the page, and run
-`python scripts/build_daily_process.py --check`. PR checks detect drift.
+`python -m unittest discover -s tests -p 'test_research_reliability.py'
+python -m unittest discover -s tests -p 'test_research_evidence.py'
+python -m unittest discover -s tests -p 'test_research_replay.py'
+python -m unittest discover -s tests -p 'test_nfl_validation.py'
+node tests/research_state.cjs
+python scripts/build_daily_process.py --check`. PR checks detect drift.
 
 ## Flow and contracts
 
@@ -21,6 +30,12 @@ review `scripts/research/daily_process.html`, regenerate the page, and run
    Independent discovery ideas are researched early so a large model pool cannot
    consume the allowance before those ideas are assessed.
    Consider/wait/pass assessments precede reliability and numerical ordering.
+   `researchState()` (research-state-1) records model eligibility, evidence
+   verification, direction, unresolved material facts and completion separately.
+   A consider verdict qualifies only as `model_case_only` (no verified evidence) or
+   `verified_context`; a verified consequential concern about the game makes it
+   `adverse_fact` (pass), an unresolved or conflicting consequential fact makes it
+   `material_question` (wait).
    Changed evidence gets rechecked; unchanged price, forecast and evidence can
    reuse a review for three hours with the original timestamp preserved.
 6. Publish a focused daily card of **up to 10 reviewed ideas**, aiming for a
@@ -75,16 +90,24 @@ rules; NFL ties paying 50 cents are not automatically equivalent to pushes.
 Missing forecasts remain unknown. The private paper ledger is not Bet Tracker
 and cannot establish live returns; historical research keeps its original policy.
 
-NFL props require outcome calibration, a known push probability, fresh quotes,
+NFL props require outcome calibration fitted and evaluated for the current
+`MODEL_VERSION` (`make_props_edges.calibration_status`), a known push probability, fresh quotes,
 and at least 3% EV under the smaller of raw and calibrated probabilities where
 both exist. This is a sensitivity heuristic, not a confidence interval. Matching
 calibration extrapolation and possible partial-game workload distortion are
 withheld from model ranking. Missing raw provenance lowers reliability; apparent
 returns above 30% are placed in a lower-priority research tier. These thresholds
 are operating rules, not a profitable subset learned from historical returns.
+Since the October 5, 2026 validation (`reports/nfl-validation/2026-10-05/`) no NFL
+artifact qualifies: the legacy curve predates the cutoff fixes and, at exact 2026 book
+lines, every model version was less accurate than the market. NFL props are research
+only from the next NFL refresh until the requalification rule in that report passes.
 
 MLB keeps applicable predictive validation, supported lines, fresh inputs, two
-paired books and best same-line price. Its 3% EV hurdle remains; the additional
+paired books and best same-line price. `scripts/mlb/gates.py` adds per-side checks: an
+overstated or thin (<30 outcomes) probability range, a projected count more than 5%
+high (blocks Overs) or low (blocks Unders), and, when the report carries it, a
+game-clustered skill interval that must exclude zero. Its 3% EV hurdle remains; the additional
 3-percentage-point gap hurdle is removed. Apparent EV over 30% remains research
 only. NHL retains its coherent scoring/opportunity forecasts, verified settlement,
 2% EV and adverse-scenario minimum-price rule. NHL ranking still uses worst-case
@@ -136,8 +159,14 @@ retrievals. Batch prompts select compact excerpts; they do not claim every fact
 in an archived table was read. Search coverage counts games submitted, not games
 exhaustively researched. Missing, blocked, stale and mismatched sources remain
 explicit. Positive/adverse source statuses require verified excerpts. Numeric
-confidence, unsupported fields and fabricated excerpts are rejected locally.
-All bets should be reviewed before deciding. Missing news alone is not a veto.
+confidence, unsupported fields and fabricated excerpts are rejected locally, per
+candidate: one invalid review no longer discards its batch. Negated cautions such as
+"not a guaranteed workload" are accepted; affirmative guarantees still fail.
+Prompt `sports-research-7` classifies each evidence item (assumption, materiality,
+verification, effect, applies_to); `scripts/research_facts.py` stores research-fact-1
+records with source times and a double-counting guard. Facts never carry a
+probability adjustment. All bets should be reviewed before deciding. Missing news
+alone is not a veto.
 
 ## Schedule, budget and failures
 
@@ -167,7 +196,9 @@ Normal research runs 07:00–12:00 ET, after the feeds complete. Publication has
 promised minute. The whole **$2.75 daily** allowance is available to this morning
 run; there is no afternoon reserve. All charges share
 `artifacts/analyst/daily-budget.json`, including prior/legacy same-day charges.
-No automatic intraday discovery or reassessment runs. Existing odds-feed and
+A bounded late check (`scripts/late_research.py`, `late-research.yml`) is implemented
+but disabled (`late_check.enabled: false`); when enabled it charges this same ledger
+and publishes separate versioned reassessments. No other intraday research runs. Existing odds-feed and
 article-writer costs remain outside this cap. The legacy NHL entry point only
 marks the shared queue and cannot spend independently.
 
@@ -248,8 +279,16 @@ remaining funds even when expected actual cost is small; skip rather than guess.
 CI serializes research jobs and checkpoints the reservation and exact packet to
 origin before payment. Local runs use a file lock; standalone ledger mutations
 are separately locked and atomic. Never run paid local experiments concurrently
-with production or against an isolated test ledger. No API retries follow timeouts.
-Unknown usage retains the entire reservation. Unexpected over-reservation usage
+with production or against an isolated test ledger. No API retries follow timeouts or service errors.
+Unknown usage retains the entire reservation. The durable checkpoint retries its
+rebase/push up to three times; if it still fails, no request is sent and the entry is
+`released_not_sent` (zero actual charge, reserved amount kept). A candidate rejected
+by local validation is retried once per run as a new reservation, within
+`max_review_batches`. Batches record sanitized error categories, affected candidate
+IDs and charges; the card shows them per sport. A recovery start reuses a sport whose
+refresh and research succeeded and whose feed is at most 60 minutes old (NHL always
+refreshes), so unchanged offers keep their reviews; same-day discovery reruns submit
+only new games or new follow-up questions (`reused_same_day`). Unexpected over-reservation usage
 halts further spending for operator investigation. Use actual conservative input
 and output usage to settle; do not assume cache discounts. Credentials remain in
 environment/GitHub Secrets. No new paid feed or hosting service is purchased.
@@ -267,6 +306,11 @@ python -m unittest discover -s tests -p 'test_analyst_review.py'
 python -m unittest discover -s tests -p 'test_nhl*.py'
 python -m unittest discover -s tests -p 'test_mlb*.py'
 python -m unittest discover -s tests -p 'test_editorial_schedule.py'
+python -m unittest discover -s tests -p 'test_research_reliability.py'
+python -m unittest discover -s tests -p 'test_research_evidence.py'
+python -m unittest discover -s tests -p 'test_research_replay.py'
+python -m unittest discover -s tests -p 'test_nfl_validation.py'
+node tests/research_state.cjs
 python scripts/build_daily_process.py --check
 python scripts/replay_top_picks.py
 python scripts/analyst_review.py  # no paid requests; writes current status/archive
@@ -279,7 +323,10 @@ and published results live under `artifacts/analyst/`; CI also uploads them for
 It proves candidate-policy behavior, not predictive improvement or profitability.
 Original dataset hashes are recorded. NHL preseason/empty slates make no picks.
 
-Bet Tracker retains executed price and stake, but does not yet save a structured
+Every published edition also freezes `artifacts/research/decisions/DATE-EDITION.json`
+(decision-ledger-1): baseline, research-filtered and adjusted decisions over one
+universe, including passes, before any start. `scripts/research_grading.py` grades
+ledgers into separate files. Bet Tracker retains executed price and stake, but does not yet save a structured
 review/candidate ID or human intervention timestamp. The Grade Tracked Bets
 workflow (`scripts/grade_bets.cjs`, every 30 minutes) settles pending NFL, MLB, NHL
 and NBA tracker bets, props and game markets, from final box scores once a game

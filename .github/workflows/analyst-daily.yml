@@ -59,6 +59,7 @@ jobs:
           python -m unittest discover -s tests -p 'test_morning*.py'
           python -m unittest discover -s tests -p 'test_research*.py'
           python -m unittest discover -s tests -p 'test_nhl_injuries.py'
+          node tests/research_state.cjs
       - name: Discover opportunities and research the current candidate pool
         id: research
         continue-on-error: true
@@ -79,13 +80,17 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: candidate-research-${{ github.run_id }}
-          path: artifacts/analyst/
+          path: |
+            artifacts/analyst/
+            artifacts/research/
           retention-days: 90
       - name: Publish reviews and durable spending ledger
         run: |
           git config user.name 'Fourth & Value Research'
           git config user.email 'actions@github.com'
           git add docs/briefing/reviews.json docs/briefing/discovery.json docs/nhl/data/candidates.json artifacts/analyst/
+          # Frozen decision ledgers and NHL pilot records (immutable evaluation inputs).
+          if [ -d artifacts/research ]; then git add artifacts/research/; fi
           if [ -f docs/briefing/morning-card.json ]; then git add docs/briefing/morning-card.json docs/briefing/cards/; fi
           if git diff --cached --quiet; then exit 0; fi
           git commit -m 'Research: publish multi-sport discovery and candidate reviews'
