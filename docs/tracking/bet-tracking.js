@@ -78,6 +78,8 @@ async function saveTrackedBet(betData) {
     status: 'pending',
     model_prob: betData.model_prob ?? null,
     edge_bps: betData.edge_bps ?? null,
+    // When the bet was placed: the caller's time if it has one, else this save.
+    timestamp: betData.timestamp || new Date().toISOString(),
   };
   // Sent only when known, so the row matches databases without the column.
   if (betData.player && betData.player_team) row.player_team = String(betData.player_team);
@@ -104,7 +106,7 @@ async function saveTrackedBet(betData) {
   if (error?.code === '23505' && row.id) {
     const existing=await supabaseClient.from('bets').select('*').eq('id',row.id).eq('user_id',user.id).maybeSingle();
     const numeric=new Set(['line','odds','stake_dollars','model_prob','edge_bps']);
-    const same=!existing.error && existing.data && Object.keys(row).filter(k=>k!=='status').every(k=>
+    const same=!existing.error && existing.data && Object.keys(row).filter(k=>k!=='status'&&k!=='timestamp').every(k=>
       numeric.has(k) && row[k]!==null ? existing.data[k]!=null&&Number(existing.data[k])===row[k] : (existing.data[k]??null)===row[k]);
     if (same) return {ok:true,id:row.id};
     return {ok:false,error:'This ticket may already be saved with different details. Check Bet Tracker before logging it again.'};

@@ -15,7 +15,7 @@ from scipy.stats import poisson
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
-from nba.pipeline import OddsClient as BaseOddsClient, FeedError, flatten as base_flatten, iso, normal_name, read_json, save_json, timestamp
+from nba.pipeline import OddsClient as BaseOddsClient, CreditFloorError, FeedError, flatten as base_flatten, iso, normal_name, read_json, save_json, timestamp
 from nhl.v2.pricing import compare
 
 UTC = timezone.utc
@@ -225,8 +225,8 @@ def refresh(client, now, games, history):
         markets = list(PROPS) + (list(ladders.MARKETS) if extra else [])
         try:
             prop = client.get(f"events/{event['id']}/odds", regions='us', markets=','.join(markets), oddsFormat='american')
-        except FeedError:
-            if not extra:
+        except FeedError as error:
+            if not extra or isinstance(error, CreditFloorError):
                 raise
             # The research markets must never cost the published props: ask again without them.
             print('NHL milestone markets refused; requesting the standard props only', file=sys.stderr)

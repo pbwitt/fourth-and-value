@@ -144,8 +144,9 @@
 
   function marketSpec(league, market) {
     const key = norm(market).replace(/ /g, '_');
-    // The briefing saves NHL game totals as "team_total" (the NHL grader's
-    // original name for them), so there it means both teams combined.
+    // Tickets saved before 2026-10-05 recorded NHL game totals as "team_total" (the
+    // NHL grader's original name for them), so there it means both teams combined.
+    // New tickets record "totals".
     if (league === 'NHL' && key === 'team_total') return { game: 'total' };
     if (GAME_MARKETS[key]) return { game: GAME_MARKETS[key] };
     const table = MARKETS[league] || {};

@@ -62,7 +62,7 @@ const server=http.createServer((req,res)=>{
     await p.locator('#search').fill('');assert(await p.locator('[data-fv-ticket]').isDisabled(),'saved state survives filtering');
     // All seven supported market payloads reach the actual save helper from their rendered cards.
     for(const [market,type,side,line] of [['player_goals','goals','Over',.5],['player_assists','assists','Under',1.5],['player_points','points','Over',1.5],
-      ['totals','team_total','Under',6],['spreads','spreads','Toronto Maple Leafs',-1.5],['h2h','h2h','Montreal Canadiens',null]]){
+      ['totals','totals','Under',6],['spreads','spreads','Toronto Maple Leafs',-1.5],['h2h','h2h','Montreal Canadiens',null]]){
       fixture.rows=[{...row,market,market_label:market,side,line,player:market.startsWith('player_')?row.player:''}];
       await p.goto(base+(market.startsWith('player_')?'/nhl/props/':'/nhl/totals/'));await p.waitForSelector('[data-fv-ticket]');
       await open();await fill();await save();await saved();const result=await p.evaluate(()=>db.rows[0]);

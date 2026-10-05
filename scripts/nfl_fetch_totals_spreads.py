@@ -21,11 +21,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 import pandas as pd
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from odds_budget import CreditBudget, CreditFloorReached, estimate_cost, urllib_preflight
+
+# Shared 2,000-credit floor and per-run cap (scripts/odds_budget.py).
+BUDGET = CreditBudget(label="NFL totals and spreads")
+
 
 def fetch_json(url: str, timeout: int = 30):
     """Fetch JSON from URL"""
     req = urllib.request.Request(url, headers={"User-Agent": "fourth-and-value/1.0"})
     with urllib.request.urlopen(req, timeout=timeout) as r:
+        BUDGET.observe(r.headers)
         data = r.read().decode("utf-8", errors="ignore")
 
     # Strip any info lines
@@ -162,6 +169,11 @@ def main():
     url = f"{base_url}/sports/{urllib.parse.quote(args.sport_key)}/odds?{urllib.parse.urlencode(params)}"
 
     print(f"Fetching NFL totals and spreads from The Odds API...", file=sys.stderr)
+    try:
+        BUDGET.ensure(estimate_cost("sports/nfl/odds", {"markets": "h2h,spreads,totals", "regions": args.regions}),
+                      preflight=urllib_preflight(api_key))
+    except CreditFloorReached as error:
+        raise SystemExit(f"[ERR] {error}")
     events = fetch_json(url)
     print(f"✓ Fetched {len(events)} events", file=sys.stderr)
 

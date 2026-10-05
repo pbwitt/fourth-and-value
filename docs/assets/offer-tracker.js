@@ -6,7 +6,7 @@
   const game={h2h:'h2h',spreads:'spreads',totals:'totals'};
   const same=names=>Object.fromEntries(names.map(name=>[name,name]));
   const leagues={
-    NHL:{markets:{player_goals:'goals',player_assists:'assists',player_points:'points',player_shots_on_goal:'sog',...game,totals:'team_total'}},
+    NHL:{markets:{player_goals:'goals',player_assists:'assists',player_points:'points',player_shots_on_goal:'sog',...game}},
     MLB:{markets:{...game,...same(['batter_hits','batter_total_bases','batter_rbis','batter_home_runs','batter_runs_scored','batter_walks',
       'batter_singles','batter_doubles','batter_stolen_bases','batter_strikeouts','batter_hits_runs_rbis','pitcher_strikeouts','pitcher_outs',
       'pitcher_hits_allowed','pitcher_earned_runs','pitcher_walks'])}},

@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from market_math import implied_probability
+from odds_budget import CreditBudget, CreditFloorReached, estimate_cost
 
 UTC = timezone.utc
 SPORT = 'basketball_nba'
@@ -74,20 +75,31 @@ class FeedError(RuntimeError):
     pass
 
 
+class CreditFloorError(FeedError):
+    """A paid request was refused to keep the shared Odds API balance above its floor."""
+
+
 class OddsClient:
-    def __init__(self, key, sport=SPORT):
+    def __init__(self, key, sport=SPORT, budget=None):
         if not key:
             raise FeedError('ODDS_API_KEY is missing')
         self.key = key
         self.sport = sport
         self.quota_remaining = None
         self.requests = 0
+        self.budget = budget or CreditBudget(label=f'{sport} refresh')
 
     def get(self, suffix, **params):
+        # The event list is free and reports the balance before any paid request.
+        try:
+            self.budget.ensure(estimate_cost(f'sports/{self.sport}/{suffix}', params))
+        except CreditFloorReached as error:
+            raise CreditFloorError(str(error)) from None
         try:
             response = requests.get(f'https://api.the-odds-api.com/v4/sports/{self.sport}/{suffix}',
                                     params=dict(params, apiKey=self.key), timeout=25)
             self.requests += 1
+            self.budget.observe(response.headers)
             self.quota_remaining = response.headers.get('x-requests-remaining')
             if not response.ok:
                 raise FeedError(f'Odds provider returned HTTP {response.status_code}')

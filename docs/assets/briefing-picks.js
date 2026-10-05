@@ -112,7 +112,7 @@
       if(finite(win)&&finite(push)&&push>=0&&push<1&&win>=0&&win+push<=1)probability=win/(1-push);
     }
     if(r.model_withheld||!finite(probability)||probability<0||probability>1)probability=null;
-    const nhlMarkets={player_goals:'goals',player_assists:'assists',player_points:'points',player_shots_on_goal:'sog',totals:'team_total'};
+    const nhlMarkets={player_goals:'goals',player_assists:'assists',player_points:'points',player_shots_on_goal:'sog'};
     return {league:r.sport,game_date:day(r.commence_time),team_home:home,team_away:away,
       player:r.player||null,market_type:r.sport==='NFL'?(r.market_std||r.market):r.sport==='NHL'?(nhlMarkets[r.market]||r.market):r.market,
       side:['over','under'].includes(r.side.toLowerCase())?r.side.toLowerCase():r.side,
