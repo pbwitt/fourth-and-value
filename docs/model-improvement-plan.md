@@ -6,7 +6,7 @@ Owner: pbwitt. Started 2026-10-05. Update this file as each phase finishes.
 
 | Phase | State | Notes |
 |---|---|---|
-| 0. Audit | Report delivered 2026-10-05; waiting on owner sign-off | Findings and proposed plan below. No model code changed. |
+| 0. Audit | Done 2026-10-05 | Findings and proposed plan below. Step 1 (housekeeping) approved and in review; step 2 waits for approval. |
 | 1. News and lineup data | Not started | |
 | 2. Model fixes | Not started | |
 | 3. Market blend before betting | Not started | |
@@ -302,7 +302,7 @@ edge. The broader record agrees: the Week 3 review
 game and market from the archived Top Picks. Result: 258 graded, 108–150, ROI −12.9%;
 receptions 52–73, −12.6%. Model Brier 0.2554 against market 0.2512.
 
-**NHL starting goalies, sources (not yet verified; this session's network blocks the sites).**
+**NHL starting goalies, candidate sources (first list, before checking terms).**
 | Source | What it has | Cost and catch |
 |---|---|---|
 | NHL.com daily "projected lineups" previews | Projected goalies, lines, scratches per game | Free and official; terms and structure to check |
@@ -315,3 +315,29 @@ receptions 52–73, −12.6%. Model Brier 0.2554 against market 0.2512.
 Plan regardless of source: goalie game logs from the NHL API → save rate shrunk toward league
 average and a start probability (workload, back-to-backs) → expected goals against for the
 opponent. Confirmations then replace the start probability when a permitted source has them.
+
+### Goalie source check results (2026-10-05)
+
+Robots.txt and terms were read from a GitHub runner (one-off workflow, since removed).
+
+| Source | Robots.txt | Terms | Verdict |
+|---|---|---|---|
+| NHL.com projected lineups | Allows `/news/` | Bans "unauthorized spidering, scraping, or harvesting"; content is for "non-commercial, informational, personal use" | Not usable automatically |
+| RotoWire | Allows most paths | Bans automated access without written consent, and bans AI tools from reading or storing its data | Not usable; licensed feed by quote only. Its goalie page was fetched by the check but deliberately not read |
+| Left Wing Lock | Allows all | Personal, non-commercial viewing only; names Starting Goalies as data it bans scraping | Not usable |
+| Daily Faceoff | Allows `/starting-goalies` (disallows `/api/`, `/cms/`) | No terms of use found at standard paths; the privacy policy names The Nation Network, Inc. as operator | Ask The Nation Network for permission or a license before using it. The page carries structured data (goalie IDs, news status and source) |
+| NHL API (`api-web.nhle.com`) | n/a | Covered by the NHL terms above | Pregame it lists each team's goalies with season stats, not the starter; `right-rail` has a `scratches` field (empty at 9 AM). The site already relies on this API, so the NHL terms question applies to existing pipelines too |
+
+Paid alternatives remain SportsDataIO (Daily Faceoff's data carries FantasyData/SportsDataIO player IDs) and
+MySportsFeeds. The NHL-API-based start-probability model needs no new source.
+
+### Step 1 status (2026-10-05)
+
+- Shared 2,000-credit floor and 2,000 per-run cap (`scripts/odds_budget.py`) wired into every scheduled
+  Odds API caller; `closing-lines` reserve raised from 500 to 2,000 in the repository copy (deploy after
+  merge).
+- `closing-lines` source, migration and schedule committed from Supabase.
+- Bet tickets record NHL game totals as `totals` and write `bets.timestamp` on save. Existing rows unchanged
+  (open questions 1 and 3).
+- Found while testing: a date-dependent NHL player-page test failed every Oct 5 Morning Picks NHL job.
+  Fixed separately in pbwitt/fourth-and-value#85.
