@@ -24,8 +24,21 @@
     ['reason','model_case','price_case','context_case'].every(k=>typeof q.assessment[k]==='string')&&
     Array.isArray(q.assessment.blocking_checks)&&q.assessment.blocking_checks.every(x=>typeof x==='string')?q.assessment:null;
   const displayReview=r=>String(r.review||'').replace(/ · (?:human|analyst) review (?:needed|required)/gi,'');
-  const verdictLabel=a=>({consider:'Consider',wait:'Needs review',pass:'Pass · case not supported'})[a.verdict];
+  const verdictLabel=a=>({consider:'Consider',wait:'Waiting on a material fact',pass:'Pass · case not supported'})[a.verdict];
   const reviewLabel=q=>assessment(q)?verdictLabel(assessment(q)):({research_support:'Sourced support',concern:'Sourced concern · review before deciding',needs_information:'Reporting reviewed · full assessment pending'})[q?.status]||'Qualitative review needed';
+  // Facts can establish a concern only when official or reported; opinion and
+  // conflicting reports raise questions. Mirrors scripts/research_facts.py.
+  const ESTABLISHING=['official','original_report','secondary_report'];
+  const FAILURE_LABELS={checkpoint_failed:'reservation could not be saved',numeric_confidence:'analysis rejected by validation',
+    citation_unsupported:'analysis rejected by validation',excerpt_not_found:'analysis rejected by validation',
+    unsupported_positive_status:'analysis rejected by validation',unsupported_adverse_status:'analysis rejected by validation',
+    consider_with_blockers:'analysis rejected by validation',wait_without_blocker:'analysis rejected by validation',
+    quote_limit_exceeded:'analysis rejected by validation',response_schema_invalid:'analysis rejected by validation',
+    api_timeout:'analysis service timed out',api_http_error:'analysis service error',api_connection_error:'analysis service unreachable'};
+  const STATE_LABELS={model_case_only:'Consider · model case only',verified_context:'Consider · verified context',
+    material_question:'Waiting on a material fact',adverse_fact:'Pass · verified adverse fact',pass:'Pass · case not supported',
+    stale:'Research stale · recheck needed',assessment_pending:'Reporting reviewed · full assessment pending',
+    failed:'Research failed · not assessed',not_reviewed:'Not yet reviewed'};
   const completeReview=q=>q&&['research_support','concern','needs_information'].includes(q.status)&&
     typeof q.countercase==='string'&&Array.isArray(q.open_checks)&&q.open_checks.every(x=>typeof x==='string')&&
     Array.isArray(q.evidence)&&q.evidence.every(e=>e&&['source_id','direction','interpretation','represented_in'].every(k=>typeof e[k]==='string'));
@@ -35,6 +48,35 @@
     !!r.reviewed_candidate);
   const citedEvidence=r=>r.qualitative_review.evidence.map(e=>({e,s:r.review_sources?.find(s=>s.source_id===e.source_id)}))
     .filter(({s})=>s&&safeSourceURL(s.url));
+  // Five separate questions, never collapsed into one verdict (research-state-1):
+  // numerical model eligibility; whether outside evidence was verified; its
+  // direction; whether a material question is unresolved; research completion.
+  function researchState(r,now=Date.now()) {
+    const model=r.model_withheld||comparison(r).model===null?'not_established':'eligible';
+    if(!hasReview(r)) {
+      const failed=!!r.research_failure;
+      return {schema:'research-state-1',model,evidence:'not_reviewed',direction:'none',material:'unknown',
+        completion:failed?'failed':'not_reviewed',gate:failed?'failed':'not_reviewed',facts:0,
+        failure:failed?r.research_failure.category:null,label:STATE_LABELS[failed?'failed':'not_reviewed']};
+    }
+    const q=r.qualitative_review,a=assessment(q),items=citedEvidence(r);
+    const current=r.review_matches_current!==false&&recent(q.reviewed_at,now,3*HOUR);
+    const dirs=new Set(items.map(({e})=>e.direction));
+    const direction=!items.length?'none':dirs.has('supports')&&dirs.has('concern')?'mixed':dirs.has('concern')?'contradicts':dirs.has('supports')?'supports':'neutral';
+    const relevant=items.filter(({e})=>e.materiality==='consequential'&&e.applies_to!=='general_context');
+    const conflicting=relevant.filter(({e})=>e.verification==='conflicting')
+      .concat(relevant.some(({e})=>e.direction==='supports')&&relevant.some(({e})=>e.direction==='concern')?relevant:[]);
+    const adverse=relevant.filter(({e})=>e.direction==='concern'&&ESTABLISHING.includes(e.verification)&&!conflicting.length);
+    const unresolved=relevant.filter(({e})=>e.effect==='unresolved').concat(conflicting);
+    const material=a?.verdict==='wait'||unresolved.length?'unresolved':'none_identified';
+    const gate=!current?'stale':!a?'assessment_pending':a.verdict==='pass'?'pass':adverse.length?'adverse_fact':
+      a.verdict==='wait'||unresolved.length?'material_question':items.length?'verified_context':'model_case_only';
+    let label=STATE_LABELS[gate];
+    if(gate==='verified_context')label+=direction==='supports'?' · supporting':direction==='contradicts'?' · minor concern':direction==='mixed'?' · mixed':'';
+    return {schema:'research-state-1',model,evidence:items.length?'verified':'none_verified',direction,material,
+      completion:current?'completed':'stale',gate,facts:items.length,failure:null,label};
+  }
+  const selectable=state=>['model_case_only','verified_context'].includes(state.gate);
   const probability=n=>finite(n)&&n>=0&&n<=1;
   const pct=n=>probability(n)?(100*n).toFixed(1)+'%':'Unavailable';
   const number=n=>finite(n)?n.toFixed(1):'Unavailable';
@@ -77,7 +119,12 @@
   }
   function researchStatus(sport,feed,selected,now) {
     const rows=selected.filter(r=>r.sport===sport),reviewed=rows.filter(hasReview);
-    if(reviewed.length)return `${sport}: ${reviewed.length}/${rows.length} candidates reviewed${reviewed.some(r=>r.review_matches_current===false)?' · changed offers need recheck':''}`;
+    const failed=rows.filter(r=>!hasReview(r)&&r.research_failure).length;
+    const gates={};for(const r of reviewed){const g=researchState(r,now).gate;gates[g]=(gates[g]||0)+1;}
+    const breakdown=[['model_case_only','model case only'],['verified_context','verified context'],['material_question','waiting on a material fact'],['adverse_fact','verified adverse fact']]
+      .filter(([g])=>gates[g]).map(([g,label])=>`${gates[g]} ${label}`).join(', ');
+    if(reviewed.length)return `${sport}: ${reviewed.length}/${rows.length} candidates reviewed${breakdown?' ('+breakdown+')':''}${failed?` · ${failed} failed`:''}${reviewed.some(r=>r.review_matches_current===false)?' · changed offers need recheck':''}`;
+    if(failed)return `${sport}: ${failed}/${rows.length} candidate research attempts failed`;
     if(!rows.length)return `${sport}: no current candidates`;
     const board=feed?.sports?.[sport];
     const status=board?.decision_date===day(now)?board.review_status:null;
@@ -90,11 +137,17 @@
     if(feed?.schema_version!==1||board?.decision_date!==day(now))return r;
     const previous=records(board.candidates).find(p=>p.review_bet_key===reviewBetKey(r));
     const q=previous?.qualitative_review;
+    if(!completeReview(q)&&previous?.research_failure&&previous.review_key===reviewKey(r)) {
+      // A failed attempt stays visible as a failure, never as an empty successful review.
+      const why=FAILURE_LABELS[String(previous.research_failure.category).split(':')[0]]||'analysis unavailable';
+      return {...r,research_failure:previous.research_failure,review:'Research failed · '+why};
+    }
     if(!completeReview(q)||q.offer_id!==previous.offer_id||q.forecast_id!==previous.forecast_id||
       !recent(q.reviewed_at,now,12*HOUR)||stamp(q.reviewed_at)>=stamp(r.commence_time))return r;
     const exact=previous.review_key===reviewKey(r);
-    return {...r,qualitative_review:q,review_sources:records(board.sources),reviewed_candidate:previous,
-      review_matches_current:exact,review:exact?reviewLabel(q):'Price or forecast changed · research needs recheck'};
+    const attached={...r,qualitative_review:q,review_sources:records(board.sources),reviewed_candidate:previous,
+      review_matches_current:exact};
+    return {...attached,review:exact?(assessment(q)?researchState(attached,now).label:reviewLabel(q)):'Price or forecast changed · research needs recheck'};
   }
 
   function ticketData(r,price,stake) {
@@ -171,8 +224,9 @@
       cardTier(a)-cardTier(b)||(cardValue(b)??-Infinity)-(cardValue(a)??-Infinity)||
       stamp(a.commence_time)-stamp(b.commence_time)||outcomeKey(a).localeCompare(outcomeKey(b)));
     for(const r of ordered) {
-      const a=hasReview(r)&&r.review_matches_current!==false&&recent(r.qualitative_review.reviewed_at,now,3*HOUR)?assessment(r.qualitative_review):null;
-      if(r.human_decision==='pass'||!(r.human_decision==='select'||a?.verdict==='consider'&&!a.blocking_checks.length))continue;
+      // A consider verdict qualifies only without a verified adverse fact or an
+      // unresolved consequential fact; it does not imply outside corroboration.
+      if(r.human_decision==='pass'||!(r.human_decision==='select'||selectable(researchState(r,now))))continue;
       const ideas=[ideaKey(r)];
       // One hit and one total base are the same binary event at 0.5.
       // Display consolidation never overwrites either original forecast.
@@ -181,11 +235,12 @@
       if(ideas.some(v=>seen.has(v)))continue;ideas.forEach(v=>seen.add(v));
       card.push(r);if(card.length>=SHORTLIST_LIMIT)break;
     }
-    return card.map(r=>({...r,card_rank_score:cardValue(r),card_related_candidates:card.filter(q=>q.sport===r.sport&&q.game_id===r.game_id).length-1}));
+    return card.map(r=>({...r,card_rank_score:cardValue(r),research_state:researchState(r,now),card_related_candidates:card.filter(q=>q.sport===r.sport&&q.game_id===r.game_id).length-1}));
   }
-  function rankTier(r) {
+  function rankTier(r,now=Date.now()) {
     const a=hasReview(r)&&r.review_matches_current!==false?assessment(r.qualitative_review):null;
-    return a?.verdict==='pass'?9:a?.verdict==='consider'?0:a?.verdict==='wait'?3:r.discovery_origin==='independent_research'?2:1;
+    const gate=a?researchState(r,now).gate:null;
+    return a?.verdict==='pass'||gate==='adverse_fact'?9:gate==='material_question'?3:a?.verdict==='consider'?0:a?.verdict==='wait'?3:r.discovery_origin==='independent_research'?2:1;
   }
 
   // An edition is a historical assessment. Later quotes and kickoffs must not
@@ -201,6 +256,14 @@
       .map(r=>({...r,card_snapshot_at:edition.published_at,card_edition:edition.kind}));
   }
 
+  // Later reassessments are separate records; they never rewrite the edition row.
+  function lateFor(r,index) {
+    if(index?.schema_version!==1||!Array.isArray(index.reassessments))return null;
+    const same=index.reassessments.filter(x=>x&&x.identity&&x.identity.sport===r.sport&&String(x.identity.game_id)===String(r.game_id)&&
+      (x.identity.player||'')===(r.player||'')&&x.identity.market===(r.market_std||r.market)&&x.identity.side===r.side&&
+      x.identity.line===r.line&&x.identity.book===r.book);
+    return same.sort((a,b)=>stamp(b.reassessed_at)-stamp(a.reassessed_at))[0]||null;
+  }
   function collect(feeds,now=Date.now()) {
     const selected=[],coverage=[],excluded=[];
     for(const sport of ['NFL','MLB','NHL']) {
@@ -264,7 +327,7 @@
       for(const r of healthy) {
         const identity=outcomeKey(r);if(seen.has(identity))continue;seen.add(identity);unique.push(r);
       }
-      unique.sort((a,b)=>rankTier(a)-rankTier(b)||(a.forecast_health.tier-b.forecast_health.tier)||
+      unique.sort((a,b)=>rankTier(a,now)-rankTier(b,now)||(a.forecast_health.tier-b.forecast_health.tier)||
         (b.score||0)-(a.score||0)||stamp(a.commence_time)-stamp(b.commence_time)||outcomeKey(a).localeCompare(outcomeKey(b)));
       for(const r of unique) {
         r.exposure_group=sport+':'+r.game_id;
@@ -279,7 +342,7 @@
     // A reviewed MLB/NHL opportunity must not disappear below the initial
     // twenty unreviewed NFL rows. Compare assessment status across sports;
     // retain each sport's existing numerical order within that status.
-    selected.sort((a,b)=>rankTier(a)-rankTier(b));
+    selected.sort((a,b)=>rankTier(a,now)-rankTier(b,now));
     return {selected,coverage,excluded};
   }
 
@@ -298,14 +361,23 @@
     const q=r.qualitative_review;
     if(!hasReview(r))return '';
     const items=citedEvidence(r).map(({e,s})=>{
-      return `<li><strong>${esc(e.direction)}:</strong> ${esc(e.interpretation)} <a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a> <span class="meta">${esc(global.FVInjuryContext?.sourceTime(s)||`Published ${time(s.published_at)}`)} · may already be reflected in ${esc(e.represented_in.replaceAll('_',' '))}.</span></li>`;
+      const classified=e.materiality?` · ${esc(e.materiality)} · ${esc(String(e.verification).replaceAll('_',' '))}${e.effect&&e.effect!=='none'?' · effect '+esc(e.effect):''}${e.assumption?' · affects '+esc(String(e.assumption).replaceAll('_',' ')):''}`:'';
+      return `<li><strong>${esc(e.direction)}:</strong> ${esc(e.interpretation)} <a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(s.title)}</a> <span class="meta">${esc(global.FVInjuryContext?.sourceTime(s)||`Published ${time(s.published_at)}`)}${classified} · may already be reflected in ${esc(e.represented_in.replaceAll('_',' '))}.</span></li>`;
     }).join('');
+    // Saved editions are judged as of publication, never re-aged by today's clock.
+    const state=researchState(r,r.card_snapshot_at?stamp(r.card_snapshot_at):Date.now());
+    const stateNote={model_case_only:'No outside evidence was verified for this offer. The case rests on the model and the price; that is not independent corroboration.',
+      verified_context:'Relevant outside reporting was verified and does not defeat the case. It is context, not proof of an edge.',
+      material_question:'A consequential fact is unresolved or reports conflict. This offer waits until it is settled.',
+      adverse_fact:'Verified reporting contradicts an assumption the case depends on. This offer is a pass regardless of the model estimate.',
+      stale:'This analysis is older than the three-hour limit or no longer matches the offer.'}[state.gate];
+    const statusLine=stateNote?`<p><strong>Research status: ${esc(state.label)}.</strong> ${esc(stateNote)}</p>`:'';
     const prev=r.reviewed_candidate;
     const original=prev?`<p class="meta">Reviewed ${esc(odds(prev.price))} at ${esc(time(prev.quoted_at))}. ${r.review_matches_current?'Matches this offer and forecast.':'Current price or forecast differs; this is earlier context, not a review of the current offer.'}</p>`:'';
     const correction=oldNFLReview(r)?'<p class="notice">Method correction: this earlier note was given an incorrect description of the NFL model. Its probabilities are calibrated to historical results, not current market prices. Any claim below that it is “market-calibrated” is incorrect. The forecast itself is unchanged.</p>':'';
     const a=assessment(q);
     const judgment=a?`<p><strong>Our assessment: ${esc(verdictLabel(a))}.</strong> ${esc(a.reason)}</p><p><strong>Model case:</strong> ${esc(a.model_case)}</p><p><strong>Price case:</strong> ${esc(a.price_case)}</p><p><strong>Relevant context:</strong> ${esc(a.context_case)}</p>${a.blocking_checks.length?'<p><strong>What needs checking:</strong></p><ul>'+a.blocking_checks.map(s=>`<li>${esc(s)}</li>`).join('')+'</ul>':''}`:'<p class="meta">This earlier review checked reporting only. A full model-and-price assessment is pending.</p>';
-    return `<details class="pick-research"><summary>Fourth &amp; Value analysis · ${esc(time(q.reviewed_at))}</summary><p><strong>Why it surfaced:</strong> ${esc(screenReason(r))}</p>${original}${correction}${judgment}${global.FVInjuryContext?.render(r,r.review_sources)||''}${diagnosticHTML(r)}${items?`<ul>${items}</ul>`:'<p class="meta">No relevant reporting was verified for this review. That does not, by itself, invalidate the model-and-price case.</p>'}<p><strong>Case against:</strong> ${esc(q.countercase)}</p><p><strong>Final checks:</strong></p><ul>${q.open_checks.map(s=>`<li>${esc(s)}</li>`).join('')}</ul><p class="meta">Review the analysis and confirm the current line, price and conditions before deciding. Original model probabilities remain unchanged.</p></details>`;
+    return `<details class="pick-research"><summary>Fourth &amp; Value analysis · ${esc(time(q.reviewed_at))}</summary><p><strong>Why it surfaced:</strong> ${esc(screenReason(r))}</p>${original}${correction}${statusLine}${judgment}${global.FVInjuryContext?.render(r,r.review_sources)||''}${diagnosticHTML(r)}${items?`<ul>${items}</ul>`:'<p class="meta">No relevant reporting was verified for this review. That does not, by itself, invalidate the model-and-price case.</p>'}<p><strong>Case against:</strong> ${esc(q.countercase)}</p><p><strong>Final checks:</strong></p><ul>${q.open_checks.map(s=>`<li>${esc(s)}</li>`).join('')}</ul><p class="meta">Review the analysis and confirm the current line, price and conditions before deciding. Original model probabilities remain unchanged.</p></details>`;
   }
 
   function summaryHTML(selected) {
@@ -322,7 +394,7 @@
     const paragraphs=featured.map(r=>{
       const q=r.qualitative_review,prior=r.reviewed_candidate||r;
       const a=assessment(q);
-      const status=a?`<strong>Our assessment: ${esc(verdictLabel(a))}.</strong> ${esc(a.reason)}`:{research_support:'Our review found relevant supporting reporting; analyst verification is still needed.',concern:'Our review found a concern to resolve.',needs_information:'The earlier review checked reporting only; a full betting assessment is pending.'}[q.status];
+      const status=a?`<strong>Our assessment: ${esc(r.review_matches_current===false?verdictLabel(a):researchState(r,r.card_snapshot_at?stamp(r.card_snapshot_at):Date.now()).label)}.</strong> ${esc(a.reason)}`:{research_support:'Our review found relevant supporting reporting; analyst verification is still needed.',concern:'Our review found a concern to resolve.',needs_information:'The earlier review checked reporting only; a full betting assessment is pending.'}[q.status];
       const evidence=citedEvidence(r).find(({e})=>['supports','concern'].includes(e.direction));
       const source=evidence?` ${esc(evidence.e.interpretation)} <a href="${esc(evidence.s.url)}" target="_blank" rel="noopener noreferrer">Source</a>.`:'';
       const changed=r.review_matches_current===false?' <strong>The price or forecast has changed since this review; reassess the current offer.</strong>':'';
@@ -349,18 +421,19 @@
     const related=r.card_related_candidates??r.related_candidates;
     const exposure=related?'<br>Shared game: '+related+' other '+(r.card_related_candidates!==undefined?'shortlisted bet(s)':'research candidate(s)'):'';
     const dated=r.card_snapshot_at?`<br><strong>${stamp(r.commence_time)<=Date.now()?'Game started · historical assessment':'Published assessment · confirm current conditions'}</strong><br>Analysis and prices preserved from ${esc(time(r.card_snapshot_at))}`:'';
-    return `<tr class="pick-offer-row"><td class="pick-bet"><a href="${esc(r.url)}"><strong>${esc(betLabel(r))}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${esc(displayReview(r))}${reason}${exposure}${dated}${r.discovery_origin?'<br>Origin: '+(r.discovery_origin==='independent_research'?'independent research':'model and independent research'):''}</span></td><td class="pick-estimate pick-model" data-label="Model prediction">${modelHTML(r)}</td><td class="pick-estimate pick-market" data-label="Market consensus">${marketHTML(r)}</td><td class="pick-offer" data-label="Book line / price">${offer}<span class="meta estimate-detail">${pct(comparison(r).breakEven)} break-even*</span></td><td class="pick-quote-time" data-label="Price time (ET)"><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td class="pick-book" data-label="Book">${esc(r.book_label||r.book)}<br><button type="button" class="track-pick secondary" data-track-pick="${index}" ${saved?'disabled':''} aria-label="${esc((saved?'Tracked: ':'Track bet: ')+betLabel(r))}">${saved?'Tracked':'Track bet'}</button></td></tr>${research?`<tr class="pick-research-row" id="pick-review-${index}"><td colspan="6">${research}</td></tr>`:''}`;
+    const late=r.late_reassessment?`<br><strong>Later reassessment v${esc(r.late_reassessment.version)} · ${esc(time(r.late_reassessment.reassessed_at))}:</strong> ${esc(r.late_reassessment.label)} at ${esc(odds(r.late_reassessment.current_price))}. The morning assessment above is unchanged.`:'';
+    return `<tr class="pick-offer-row"><td class="pick-bet"><a href="${esc(r.url)}"><strong>${esc(betLabel(r))}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${esc(displayReview(r))}${reason}${exposure}${dated}${late}${r.discovery_origin?'<br>Origin: '+(r.discovery_origin==='independent_research'?'independent research':'model and independent research'):''}</span></td><td class="pick-estimate pick-model" data-label="Model prediction">${modelHTML(r)}</td><td class="pick-estimate pick-market" data-label="Market consensus">${marketHTML(r)}</td><td class="pick-offer" data-label="Book line / price">${offer}<span class="meta estimate-detail">${pct(comparison(r).breakEven)} break-even*</span></td><td class="pick-quote-time" data-label="Price time (ET)"><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td class="pick-book" data-label="Book">${esc(r.book_label||r.book)}<br><button type="button" class="track-pick secondary" data-track-pick="${index}" ${saved?'disabled':''} aria-label="${esc((saved?'Tracked: ':'Track bet: ')+betLabel(r))}">${saved?'Tracked':'Track bet'}</button></td></tr>${research?`<tr class="pick-research-row" id="pick-review-${index}"><td colspan="6">${research}</td></tr>`:''}`;
   }
 
   async function mount() {
     const root=document.getElementById('daily-picks');if(!root)return;
-    const urls={NFL:'/props/top-picks.json',MLB:'/mlb/data/latest.json',NHL:'/nhl/data/latest.json',NHLBoard:'/nhl/data/candidates.json',NFLContext:'/props/model-context.json',Discovery:'/briefing/discovery.json',Reviews:'/briefing/reviews.json',Card:'/briefing/morning-card.json'};
+    const urls={NFL:'/props/top-picks.json',MLB:'/mlb/data/latest.json',NHL:'/nhl/data/latest.json',NHLBoard:'/nhl/data/candidates.json',NFLContext:'/props/model-context.json',Discovery:'/briefing/discovery.json',Reviews:'/briefing/reviews.json',Card:'/briefing/morning-card.json',Reassess:'/briefing/reassessments.json'};
     let feeds={},checked=null,loading=false,current=[],visibleLimit=20,draft=null,trackingReady=null,saving=false;
     const tickets=new Map(),dialog=document.getElementById('pick-tracker'),form=document.getElementById('track-bet-form');
     const $=id=>document.getElementById(id);
     function render() {
       const now=Date.now(),result=collect(feeds,now);
-      const edition=feeds.Card,card=editionRows(edition,now),cardKeys=new Set(card.map(key)),pool=result.selected.filter(r=>!cardKeys.has(key(r)));
+      const edition=feeds.Card,card=editionRows(edition,now).map(r=>({...r,late_reassessment:feeds.Reassess?.decision_date===edition?.decision_date?lateFor(r,feeds.Reassess):null})),cardKeys=new Set(card.map(key)),pool=result.selected.filter(r=>!cardKeys.has(key(r)));
       current=[...card,...pool];
       const openReviews=new Set(Array.from(root.querySelectorAll('.pick-research[open]')).map(el=>el.closest('tr').dataset.reviewKey));
       const incomplete=edition?.status==='research_incomplete';
@@ -444,6 +517,6 @@
     await load();setInterval(render,30000);setInterval(load,300000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
   }
-  if(typeof module==='object'&&module.exports)module.exports={collect,shortlist,editionRows,ideaKey,SHORTLIST_LIMIT,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus};
+  if(typeof module==='object'&&module.exports)module.exports={collect,shortlist,editionRows,ideaKey,SHORTLIST_LIMIT,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus,researchState,cardValue,lateFor};
   else mount();
 })(typeof window==='undefined'?globalThis:window);

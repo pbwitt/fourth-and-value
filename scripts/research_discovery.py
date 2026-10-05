@@ -155,22 +155,43 @@ def resolve(directions, offers, generated_at):
     return rows
 
 
-def run(feeds, now, config, *, archive, clock, public=PUBLIC, execute=False, questions=()):
-    offers=catalog(feeds,now); games=slate(offers)
+def run(feeds, now, config, *, archive, clock, public=PUBLIC, execute=False, questions=(), sports=None):
+    offers=catalog(feeds,now)
+    if sports is not None:
+        # Recovery runs research only sports whose earlier research is not reusable.
+        offers=[r for r in offers if r['sport'] in sports]
+    games=slate(offers)
     prior=json.loads(public.read_text()) if public.exists() else {}
     result=dict(schema_version=1,generated_at=iso(now),decision_date=budget.day(now),
         evaluation_status='prospective_shadow_only',status='not_requested',
         slate_games=len(games),quoted_offers=len(offers),coverage_basis='games_submitted_not_exhaustively_researched',directions=[],candidates=[],submitted_games=[])
+    asked=[]
     if prior.get('decision_date')==budget.day(now):
         result['directions']=prior.get('directions',[])
         result['submitted_games']=[pair for pair in prior.get('submitted_games',[]) if any(pair==[g['sport'],g['game_id']] for g in games)]
+        asked=list(prior.get('asked_question_ids',[]))
+    result['asked_question_ids']=asked
     if execute and config.get('discovery_enabled') and games:
         if not os.getenv('OPENAI_API_KEY'): result['status']='api_key_unavailable'
         else:
             # A new slate or morning/later session can trigger fresh discovery;
             # individual price ticks do not. Rotating batches cover large slates.
             pending=[g for g in games if [g['sport'],g['game_id']] not in result['submitted_games']]
-            if not pending: pending=games
+            # Idempotent same-day reruns: an already-submitted game is searched again only
+            # for a follow-up question not asked before today, never for a price tick or
+            # a recovery start alone.
+            fresh_questions=[q for q in questions if digest(q)[:16] not in asked]
+            if not pending and fresh_questions:
+                asked_games={(q.get('sport'),str(q.get('game_id'))) for q in fresh_questions}
+                pending=[g for g in games if (g['sport'],g['game_id']) in asked_games]
+                questions=fresh_questions
+            if not pending:
+                result['status']='reused_same_day'
+                result['candidates']=resolve(result['directions'],offers,iso(now))
+                result['budget']=budget.usage_summary(now,path=archive/'daily-budget.json',config=config)
+                immutable(archive/'discovery'/f'{digest(result)[:24]}.json',result)
+                write_json(public,result)
+                return result
             available=budget.usage_summary(now,path=archive/'daily-budget.json',config=config)
             allowance=budget.run_cap(now,config)-available['charged_or_reserved_usd']
             group=[]
@@ -195,7 +216,17 @@ def run(feeds, now, config, *, archive, clock, public=PUBLIC, execute=False, que
             status=budget.reserve(key,now,bounds(request),path=archive/'daily-budget.json',cap=budget.run_cap(now,config),config=config)
             result['status']=status
             if status=='reserved':
-                astra.checkpoint([archive/'daily-budget.json',packet])
+                try:
+                    astra.checkpoint([archive/'daily-budget.json',packet])
+                except Exception as error:
+                    # No request was sent: zero actual charge, reservation kept for audit.
+                    budget.release_unsent(key,astra.error_category(error),path=archive/'daily-budget.json')
+                    result.update(status='discovery_unavailable',error=astra.error_category(error))
+                    result['candidates']=resolve(result['directions'],offers,iso(now))
+                    result['budget']=budget.usage_summary(now,path=archive/'daily-budget.json',config=config)
+                    immutable(archive/'discovery'/f'{digest(result)[:24]}.json',result)
+                    write_json(public,result)
+                    return result
                 response=None
                 try:
                     response=astra.call_api(request)
@@ -204,8 +235,9 @@ def run(feeds, now, config, *, archive, clock, public=PUBLIC, execute=False, que
                     result['directions']=list({digest(d):d for d in result['directions']+found}.values())
                     result['submitted_games'] = [list(pair) for pair in dict.fromkeys(tuple(pair) for pair in result['submitted_games']+[[g['sport'],g['game_id']] for g in group])]
                     result['status']='completed';result['request_id']=request_id
+                    result['asked_question_ids']=list(dict.fromkeys(asked+[digest(q)[:16] for q in questions]))
                 except Exception as error:
-                    result.update(status='discovery_unavailable',error=type(error).__name__)
+                    result.update(status='discovery_unavailable',error=astra.error_category(error))
                 finally:
                     budget.settle(key,response.get('usage') if response else None,path=archive/'daily-budget.json',search_calls=1)
     result['candidates']=resolve(result['directions'],offers,iso(now))

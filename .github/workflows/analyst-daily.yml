@@ -16,6 +16,10 @@ on:
       refresh_results:
         type: string
         default: '{}'
+      reused_sports:
+        description: 'Comma-separated sports whose unchanged feed a recovery start reused'
+        type: string
+        default: ''
       test_edition:
         type: boolean
         default: false
@@ -63,8 +67,10 @@ jobs:
           TEST_EDITION: ${{ inputs.test_edition || false }}
           REPLACE_CARD: ${{ inputs.replace_card || false }}
           REFRESH_RESULTS: ${{ inputs.refresh_results || '{}' }}
+          REUSED_SPORTS: ${{ inputs.reused_sports || '' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          args=(--astra --publish-card --refresh-results "$REFRESH_RESULTS")
+          args=(--astra --publish-card --refresh-results "$REFRESH_RESULTS" --reused-sports "$REUSED_SPORTS")
           if [ "$TEST_EDITION" = 'true' ]; then args+=(--test-edition); fi
           if [ "$REPLACE_CARD" = 'true' ]; then args+=(--replace-card); fi
           python scripts/analyst_review.py "${args[@]}"

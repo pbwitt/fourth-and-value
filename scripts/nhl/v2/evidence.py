@@ -59,6 +59,18 @@ def fetch(url):
     raise ValueError('Too many redirects')
 
 
+def failure_category(error):
+    """Sanitized retrieval failure label: no URL, header or body text is retained."""
+    if isinstance(error, requests.HTTPError) and getattr(error, 'response', None) is not None:
+        return f'http_{error.response.status_code}'
+    if isinstance(error, requests.Timeout):
+        return 'timeout'
+    if isinstance(error, requests.ConnectionError):
+        return 'connection'
+    return {'Publisher not allowed': 'not_allowed', 'Publisher response too large': 'too_large',
+            'Too many redirects': 'redirects'}.get(str(error), 'parse_or_validation')
+
+
 def structured(html):
     def walk(value):
         if isinstance(value, dict):
@@ -204,8 +216,8 @@ def collect(rows, clock=lambda: datetime.now(timezone.utc), sport='NHL'):
                         pool.append(dict(title=plain(title)[:200], url=url.strip(), published_at=iso(date)))
                 except (ValueError, TypeError):
                     continue
-        except (requests.RequestException, ValueError, ET.ParseError):
-            failures.append({'host': urlsplit(feed).hostname, 'stage': 'feed_unavailable'})
+        except (requests.RequestException, ValueError, ET.ParseError) as error:
+            failures.append({'host': urlsplit(feed).hostname, 'stage': 'feed_unavailable', 'category': failure_category(error)})
     try:
         domain = sport.lower()+'.com'
         index = fetch(f'https://www.{domain}/news/')
@@ -213,8 +225,8 @@ def collect(rows, clock=lambda: datetime.now(timezone.utc), sport='NHL'):
             url = urljoin('https://www.'+domain, href)
             if trusted(url) and '/news/' in url and any(matches(r, url) for r in rows):
                 pool.append(dict(url=url, title='', published_at=None))
-    except (requests.RequestException, ValueError):
-        failures.append({'host': 'www.'+domain, 'stage': 'index_unavailable'})
+    except (requests.RequestException, ValueError) as error:
+        failures.append({'host': 'www.'+domain, 'stage': 'index_unavailable', 'category': failure_category(error)})
     if sport == 'NFL':
         domains = list(dict.fromkeys(NFL_TEAM_SITES[t] for r in rows for t in
             (r.get('home_team'), r.get('away_team')) if t in NFL_TEAM_SITES))[:8]
@@ -225,8 +237,8 @@ def collect(rows, clock=lambda: datetime.now(timezone.utc), sport='NHL'):
                     url = urljoin('https://www.'+team_domain, href)
                     if trusted(url) and '/news/' in url and any(matches(r, url) for r in rows):
                         pool.append(dict(url=url, title='', published_at=None))
-            except (requests.RequestException, ValueError):
-                failures.append({'host': team_domain, 'stage': 'team_index_unavailable'})
+            except (requests.RequestException, ValueError) as error:
+                failures.append({'host': team_domain, 'stage': 'team_index_unavailable', 'category': failure_category(error)})
     seen, attempts, counts = set(), 0, {r['candidate_id']: sum(r['candidate_id'] in s['candidate_ids'] for s in sources) for r in rows}
     rejected = []
     # Round-robin by candidate avoids spending every fetch on the first matchup.
@@ -280,8 +292,8 @@ def collect(rows, clock=lambda: datetime.now(timezone.utc), sport='NHL'):
                 sources.append(source)
                 for cid in ids:
                     counts[cid] += 1
-            except (requests.RequestException, ValueError, TypeError):
-                failures.append({'host': urlsplit(source['url']).hostname, 'stage': 'article_unavailable'})
+            except (requests.RequestException, ValueError, TypeError) as error:
+                failures.append({'host': urlsplit(source['url']).hostname, 'stage': 'article_unavailable', 'category': failure_category(error)})
     return sources, dict(status='available' if sources else 'no_usable_reporting', attempts=attempts,
                          failures=failures, rejected=rejected, coverage=counts, injury_tables=injury_status)
 
@@ -318,6 +330,6 @@ def targeted(rows, urls, clock=lambda: datetime.now(timezone.utc)):
             source['source_id']=digest(source)[:20]
             if any(usable(source,r,retrieved) for r in rows): sources.append(source)
             else: raise ValueError('Stale or mismatched article')
-        except (requests.RequestException,ValueError,TypeError):
-            failures.append(dict(url=url,reason='unverified_or_unavailable'))
+        except (requests.RequestException,ValueError,TypeError) as error:
+            failures.append(dict(url=url,reason='unverified_or_unavailable',category=failure_category(error)))
     return sources,failures

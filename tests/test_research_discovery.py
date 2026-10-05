@@ -127,7 +127,8 @@ class DiscoveryRunTests(unittest.TestCase):
             checkpoint.assert_called_once();call.assert_called_once()
             self.assertEqual(len(list((p/'requests').glob('*.json'))),1)
             again=discovery.run(f,NOW,CONFIG,archive=p,clock=lambda:NOW,public=p/'discovery.json',execute=True)
-            self.assertEqual(again['status'],'already_attempted');call.assert_called_once()
+            # A same-day rerun with no new game or question is idempotent: no second paid call.
+            self.assertEqual(again['status'],'reused_same_day');call.assert_called_once()
             self.assertEqual(len(again['submitted_games']),len(result['submitted_games']))
 
 class QueuePriorityTests(unittest.TestCase):

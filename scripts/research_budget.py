@@ -130,3 +130,40 @@ def settle(key, usage=None, *, path=PATH, search_calls=0, model=MODEL):
             entry['status'] = 'uncertain_reservation_retained'
         save(path, ledger)
     return entry
+
+
+def release_unsent(key, reason, *, path=PATH):
+    """Record a zero actual charge for a reservation whose request was provably never sent.
+
+    Only callers that stop before the HTTP request (for example a failed durable
+    checkpoint) may use this. The reserved amount stays on the entry for audit, and an
+    entry that was settled, retained as uncertain or halted is never released.
+    """
+    with locked(path):
+        ledger = read(path, ())
+        entry = next(e for e in ledger['entries'] if e['key'] == key)
+        if entry.get('status') != 'reserved':
+            raise ValueError('Only an unsent reservation can be released')
+        entry.update(status='released_not_sent', charge_usd=0, release_reason=reason)
+        save(path, ledger)
+    return entry
+
+
+def ledger_summary(now, path=PATH, legacy=None, config=None):
+    """Actual, retained-uncertain, outstanding and released amounts for one Eastern day.
+
+    charged_or_reserved_usd (usage_summary) is the cap-enforcement figure: settled
+    actual charges plus every reservation whose outcome is unknown. Released entries
+    contribute zero. Amounts are never double counted: each entry contributes once.
+    """
+    ledger = read(path, legacy)
+    today = [e for e in ledger['entries'] if e.get('day', day(stamp(e['at']))) == day(now)]
+    def total(statuses):
+        return round(sum(e['charge_usd'] for e in today if e.get('status') in statuses), 6)
+    return dict(usage_summary(now, path, legacy, config),
+        settled_actual_usd=total(('settled', 'reservation_overrun_stop')),
+        uncertain_retained_usd=total(('uncertain_reservation_retained',)),
+        outstanding_reserved_usd=total(('reserved',)),
+        released_not_sent_usd=round(sum(e.get('reserved_usd', 0) for e in today if e.get('status') == 'released_not_sent'), 6),
+        legacy_usd=round(sum(e['charge_usd'] for e in today if e.get('legacy')), 6),
+        entries=len(today))

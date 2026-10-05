@@ -56,7 +56,8 @@ def response(b):
         countercase='A lineup change could invalidate the projected opportunity.',
         open_checks=['Verify participation and role before deciding.'], evidence=[dict(source_id='s1',
         excerpt='The starting lineup has not been announced yet', interpretation='Verify the current role.',
-        kind='deployment', direction='context', represented_in='model_features')])
+        kind='deployment', direction='context', represented_in='model_features', assumption='lineup_slot',
+        materiality='minor', verification='secondary_report', effect='unresolved', applies_to='this_game')])
     return dict(status='completed', output=[dict(type='message', content=[dict(type='output_text',
         text=json.dumps({'reviews': [value]}))])], usage=dict(input_tokens=1000, output_tokens=300))
 
@@ -197,7 +198,7 @@ class ResearchTests(unittest.TestCase):
         self.assertEqual(p['model'],'gpt-6.1-sol'); self.assertNotIn('tools',p)
         self.assertIn('NOT current market consensus',p['instructions'])
         self.assertIn('historical game outcomes',p['instructions'])
-        self.assertEqual(analyst.PROMPT_VERSION,'sports-research-6')
+        self.assertEqual(analyst.PROMPT_VERSION,'sports-research-7')
         self.assertLess(astra.bounds(p,CONFIG),1)
         self.assertIsNone(json.loads(p['input'])['candidates'][0].get('independent_probability'))
 
@@ -270,7 +271,14 @@ class ResearchTests(unittest.TestCase):
                  patch.object(evidence,'collect',return_value=([source(b)],{})), \
                  patch.object(astra,'checkpoint',side_effect=checkpoint_error), patch.object(astra,'call_api') as call:
                 if checkpoint_error:
-                    with self.assertRaises(RuntimeError): analyst.review(b,feeds(),CONFIG,Path(td),lambda:NOW)
+                    # The request was never sent: an explicit failure with a zero actual
+                    # charge, the reserved amount kept for audit, and no exception escaping.
+                    result=analyst.review(b,feeds(),CONFIG,Path(td),lambda:NOW)
+                    self.assertEqual((result['review_status'],result['review_error']),('review_unavailable','internal_error:RuntimeError'))
+                    entry=[e for e in json.loads((Path(td)/'daily-budget.json').read_text())['entries'] if not e.get('legacy')][0]
+                    self.assertEqual((entry['status'],entry['charge_usd']),('released_not_sent',0))
+                    self.assertGreater(entry['reserved_usd'],0)
+                    self.assertFalse(result['batch']['request_sent'])
                 else:
                     self.assertEqual(analyst.review(b,feeds(),CONFIG,Path(td),lambda:NOW+elapsed)['review_status'],'expired_during_research')
                 call.assert_not_called()

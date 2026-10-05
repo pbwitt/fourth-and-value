@@ -5,6 +5,7 @@ import json
 import os
 import re
 import subprocess
+import time
 
 import requests
 
@@ -76,6 +77,37 @@ Do not refer to the AI or the packet. Keep factual current-news claims in cited 
 should summarize its relevance or material gaps, not introduce uncited facts. No stake advice.
 '''
 INSTRUCTIONS += ASSESSMENT_INSTRUCTIONS
+
+
+class ReviewError(ValueError):
+    """A sanitized failure category for operators; never contains credentials or raw responses."""
+    def __init__(self, category, message=None, **details):
+        super().__init__(message or category)
+        self.category = category
+        self.details = details
+
+
+class CheckpointError(RuntimeError):
+    """The durable reservation could not be pushed, so no paid request was sent."""
+    category = 'checkpoint_failed'
+
+
+def error_category(error):
+    """Stable, non-sensitive label for an exception raised while reviewing a batch."""
+    category = getattr(error, 'category', None)
+    if category:
+        return category
+    if isinstance(error, requests.Timeout):
+        return 'api_timeout'
+    if isinstance(error, requests.ConnectionError):
+        return 'api_connection_error'
+    if isinstance(error, json.JSONDecodeError):
+        return 'response_invalid_json'
+    return 'internal_error:'+type(error).__name__
+
+
+# "not a guaranteed workload" and similar cautions are negations, not certainty claims.
+NEGATED_CERTAINTY = re.compile(r"\b(?:not|no|never|isn't|is not|without|nothing)\s+(?:(?:a|an|any|the)\s+)?guaranteed\b", re.I)
 
 
 def obj(properties):
@@ -189,7 +221,7 @@ def settle_budget(path, key, usage=None):
     write_json(path, ledger)
 
 
-def checkpoint(paths):
+def checkpoint(paths, attempts=3, sleep=time.sleep):
     if os.getenv('GITHUB_ACTIONS') != 'true':
         return
     if os.getenv('GITHUB_REF') != 'refs/heads/main':
@@ -201,10 +233,20 @@ def checkpoint(paths):
                 ['git', 'commit', '--only', '-m', 'Research: reserve bounded analyst review', '--', *paths],
                 ['git', 'pull', '--rebase', '--autostash', 'origin', 'main'],
                 ['git', 'push', 'origin', 'HEAD:main']]
-    for command in commands:
+    for command in commands[:4]:
         result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
         if result.returncode:
-            raise RuntimeError('Budget checkpoint failed; no API call permitted')
+            raise CheckpointError('Budget checkpoint failed; no API call permitted')
+    # A concurrent push to main (for example editorial publication) rejects a
+    # non-fast-forward push. Rebasing and pushing again is safe: no paid request
+    # has been sent yet. Bounded; the reservation stays local if all attempts fail.
+    for attempt in range(attempts):
+        if all(subprocess.run(c, cwd=ROOT, capture_output=True, text=True).returncode == 0 for c in commands[4:]):
+            return
+        subprocess.run(['git', 'rebase', '--abort'], cwd=ROOT, capture_output=True, text=True)
+        if attempt+1 < attempts:
+            sleep(2*(attempt+1))
+    raise CheckpointError('Budget checkpoint failed; no API call permitted')
 
 
 def call_api(request):
@@ -216,56 +258,95 @@ def call_api(request):
                              headers={'Authorization': 'Bearer '+key, 'Content-Type': 'application/json'},
                              json=request, timeout=(15, 240))
     if not response.ok:
-        raise RuntimeError('Astra HTTP '+str(response.status_code))
+        raise ReviewError('api_http_error', 'Astra HTTP '+str(response.status_code), http_status=response.status_code)
     return response.json()
 
 
-def parse_response(response, board, sources, asof, *, schema=SCHEMA, prompt_version=PROMPT_VERSION):
+def _envelope(response, board, schema):
+    """Batch-level checks. Any failure here rejects every candidate in the batch."""
     if response.get('status') != 'completed':
-        raise ValueError('Incomplete Astra response')
+        raise ReviewError('response_incomplete', 'Incomplete Astra response')
     blocks = [c for item in response.get('output', []) if item.get('type') == 'message' for c in item.get('content', [])]
     if any(c.get('type') == 'refusal' for c in blocks):
-        raise ValueError('Astra refused review')
+        raise ReviewError('response_refusal', 'Astra refused review')
     text = ''.join(c.get('text', '') for c in blocks if c.get('type') == 'output_text')
-    result = json.loads(text)
-    validate_shape(result, schema)
+    try:
+        result = json.loads(text)
+    except ValueError:
+        raise ReviewError('response_invalid_json', 'Review response is not JSON') from None
+    limit = schema['properties']['reviews']['maxItems']
+    if not (isinstance(result, dict) and set(result) == {'reviews'} and isinstance(result['reviews'], list)
+            and len(result['reviews']) <= limit):
+        raise ReviewError('response_schema_invalid', 'Unexpected review fields')
+    candidates = {r['candidate_id'] for r in board['candidates']}
+    ids = [r.get('candidate_id') if isinstance(r, dict) else None for r in result['reviews']]
+    if len(ids) != len(set(ids)) or set(ids) != candidates:
+        raise ReviewError('candidate_identity_mismatch', 'Review candidate identity mismatch')
+    return result
+
+
+def _check_review(review, row, sources, asof, words, item_schema):
+    """Candidate-level checks; a failure rejects only this candidate's review."""
+    try:
+        validate_shape(review, item_schema)
+    except ValueError as error:
+        raise ReviewError('response_schema_invalid', str(error)) from None
+    local = Counter()
+    for item in review['evidence']:
+        source = sources.get(item['source_id'])
+        if not source or not usable(source, row, asof):
+            raise ReviewError('citation_unsupported', 'Unsupported review citation')
+        quote = ' '.join(item['excerpt'].split())
+        if not 3 <= len(quote.split()) <= 20 or quote not in ' '.join(source['excerpt'].split()):
+            raise ReviewError('excerpt_not_found', 'Evidence excerpt not found')
+        local[item['source_id']] += len(quote.split())
+        if words[item['source_id']]+local[item['source_id']] > 25:
+            raise ReviewError('quote_limit_exceeded', 'Source quotation limit exceeded')
+    if review['status'] == 'research_support' and not any(e['direction'] == 'supports' for e in review['evidence']):
+        raise ReviewError('unsupported_positive_status', 'Unsupported positive research status')
+    if review['status'] == 'concern' and not any(e['direction'] == 'concern' for e in review['evidence']):
+        raise ReviewError('unsupported_adverse_status', 'Unsupported adverse research status')
+    assessment = review['assessment']
+    if assessment['verdict'] == 'consider' and assessment['blocking_checks']:
+        raise ReviewError('consider_with_blockers', 'Consider verdict has material blockers')
+    if assessment['verdict'] == 'wait' and not assessment['blocking_checks']:
+        raise ReviewError('wait_without_blocker', 'Wait verdict needs a specific material blocker')
+    # No probability/EV field can pass the schema. Also reject numeric confidence in prose.
+    prose = json.dumps({k: review[k] for k in ('countercase', 'open_checks', 'assessment')})
+    prose += ' '.join(e['interpretation'] for e in review['evidence'])
+    # Explicit cautions ("not a guaranteed workload") are not certainty claims.
+    # Every affirmative guarantee and every numeric percentage still fail closed.
+    certainty_prose = NEGATED_CERTAINTY.sub('', prose)
+    if re.search(r'\d\s*%', prose) or re.search(r'\b(?:guaranteed|lock|sure bet)\b', certainty_prose, re.I):
+        raise ReviewError('numeric_confidence', 'Unsupported numeric confidence or certainty')
+    words.update(local)
+
+
+def parse_response(response, board, sources, asof, *, schema=SCHEMA, prompt_version=PROMPT_VERSION, partial=False):
+    """Validate a review batch.
+
+    With partial=False (legacy NHL callers) any failure raises. With partial=True,
+    batch-level failures still raise, while a candidate whose review fails local
+    validation is returned in `rejected` with a sanitized category; valid reviews of
+    the other candidates are kept. Rejected reviews are never published.
+    """
+    result = _envelope(response, board, schema)
+    item_schema = schema['properties']['reviews']['items']
     candidates = {r['candidate_id']: r for r in board['candidates']}
-    ids = [r['candidate_id'] for r in result['reviews']]
-    if len(ids) != len(set(ids)) or set(ids) != set(candidates):
-        raise ValueError('Review candidate identity mismatch')
     sources = {s['source_id']: s for s in sources}
     words = Counter()
+    accepted, rejected = [], []
     for review in result['reviews']:
         row = candidates[review['candidate_id']]
-        for item in review['evidence']:
-            source = sources.get(item['source_id'])
-            if not source or not usable(source, row, asof):
-                raise ValueError('Unsupported review citation')
-            quote = ' '.join(item['excerpt'].split())
-            if not 3 <= len(quote.split()) <= 20 or quote not in ' '.join(source['excerpt'].split()):
-                raise ValueError('Evidence excerpt not found')
-            words[item['source_id']] += len(quote.split())
-            if words[item['source_id']] > 25:
-                raise ValueError('Source quotation limit exceeded')
-        if review['status'] == 'research_support' and not any(e['direction'] == 'supports' for e in review['evidence']):
-            raise ValueError('Unsupported positive research status')
-        if review['status'] == 'concern' and not any(e['direction'] == 'concern' for e in review['evidence']):
-            raise ValueError('Unsupported adverse research status')
-        assessment = review['assessment']
-        if assessment['verdict'] == 'consider' and assessment['blocking_checks']:
-            raise ValueError('Consider verdict has material blockers')
-        if assessment['verdict'] == 'wait' and not assessment['blocking_checks']:
-            raise ValueError('Wait verdict needs a specific material blocker')
-        # No probability/EV field can pass the schema. Also reject numeric confidence in prose.
-        prose = json.dumps({k: review[k] for k in ('countercase', 'open_checks', 'assessment')})
-        prose += ' '.join(e['interpretation'] for e in review['evidence'])
-        # An explicit caution such as "not guaranteed volume" is not a
-        # certainty claim. Remove only that exact negation; any affirmative
-        # guarantee elsewhere and every numeric percentage still fail closed.
-        certainty_prose = re.sub(r'\bnot guaranteed\b', '', prose, flags=re.I)
-        if re.search(r'\d\s*%', prose) or re.search(r'\b(?:guaranteed|lock|sure bet)\b', certainty_prose, re.I):
-            raise ValueError('Unsupported numeric confidence or certainty')
+        try:
+            _check_review(review, row, sources, asof, words, item_schema)
+        except ReviewError as error:
+            if not partial:
+                raise
+            rejected.append(dict(candidate_id=review['candidate_id'], category=error.category))
+            continue
         review.update(reviewed_at=iso(asof), offer_id=row['offer_id'], forecast_id=row['forecast_id'],
                       model=MODEL, prompt_version=prompt_version, evaluation_status='prospective_shadow_only',
                       human_verified=False, probability_adjustment=None)
-    return result['reviews']
+        accepted.append(review)
+    return (accepted, rejected) if partial else accepted

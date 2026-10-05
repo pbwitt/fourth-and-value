@@ -1,0 +1,68 @@
+name: Late Research Check
+
+# Bounded late check of shortlisted ideas (scripts/late_research.py). It shares the
+# morning research allowance and ledger, never edits the morning edition, and stays a
+# no-op while config/analyst_review.json late_check.enabled is false.
+on:
+  schedule:
+    - cron: '20 11-20 * * *'
+      timezone: America/New_York
+  workflow_dispatch:
+
+# Same group as Morning Candidate Research: one ledger writer at a time.
+concurrency:
+  group: analyst-reviews
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  late-check:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Stop unless the late check is enabled
+        id: enabled
+        run: echo "enabled=$(python3 -c "import json;print(str(json.load(open('config/analyst_review.json')).get('late_check',{}).get('enabled',False)).lower())")" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-python@v5
+        if: steps.enabled.outputs.enabled == 'true'
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        if: steps.enabled.outputs.enabled == 'true'
+        with:
+          node-version: '22'
+      - run: pip install requests==2.32.5
+        if: steps.enabled.outputs.enabled == 'true'
+      - name: Verify research boundaries
+        if: steps.enabled.outputs.enabled == 'true'
+        run: |
+          node tests/briefing_picks.cjs
+          node tests/research_state.cjs
+          python -m unittest discover -s tests -p 'test_research*.py'
+      - name: Check shortlisted ideas for material new information
+        if: steps.enabled.outputs.enabled == 'true'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python scripts/late_research.py --execute
+      - name: Publish reassessments and the shared ledger
+        if: steps.enabled.outputs.enabled == 'true'
+        run: |
+          git config user.name 'Fourth & Value Research'
+          git config user.email 'actions@github.com'
+          for path in artifacts/analyst docs/briefing/reassessments.json docs/briefing/reassessments; do
+            if [ -e "$path" ]; then git add "$path"; fi
+          done
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Research: publish late reassessments'
+          for attempt in 1 2 3; do
+            if ! git pull --rebase origin main; then git rebase --abort || true; exit 1; fi
+            if git push origin HEAD:main; then exit 0; fi
+            sleep 5
+          done
+          exit 1
