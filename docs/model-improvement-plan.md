@@ -325,7 +325,7 @@ Robots.txt and terms were read from a GitHub runner (one-off workflow, since rem
 | NHL.com projected lineups | Allows `/news/` | Bans "unauthorized spidering, scraping, or harvesting"; content is for "non-commercial, informational, personal use" | Not usable automatically |
 | RotoWire | Allows most paths | Bans automated access without written consent, and bans AI tools from reading or storing its data | Not usable; licensed feed by quote only. Its goalie page was fetched by the check but deliberately not read |
 | Left Wing Lock | Allows all | Personal, non-commercial viewing only; names Starting Goalies as data it bans scraping | Not usable |
-| Daily Faceoff | Allows `/starting-goalies` (disallows `/api/`, `/cms/`) | No terms of use found at standard paths; the privacy policy names The Nation Network, Inc. as operator | Ask The Nation Network for permission or a license before using it. The page carries structured data (goalie IDs, news status and source) |
+| Daily Faceoff | Allows `/starting-goalies` (disallows `/api/`, `/cms/`) | None on dailyfaceoff.com, but The Nation Network's Terms of Service (published at oilersnation.com/terms-of-service) cover all its brands and bar "any commercial use of ... any content, materials, or databases from our network" and copying or republishing without written permission (checked 2026-10-05) | Not usable automatically without permission or a license. Owner chose not to ask (2026-10-05). The page carries structured data (goalie IDs, Confirmed/Likely status, reporter) |
 | NHL API (`api-web.nhle.com`) | n/a | Covered by the NHL terms above | Pregame it lists each team's goalies with season stats, not the starter; `right-rail` has a `scratches` field (empty at 9 AM). The site already relies on this API, so the NHL terms question applies to existing pipelines too |
 
 Paid alternatives remain SportsDataIO (Daily Faceoff's data carries FantasyData/SportsDataIO player IDs) and
@@ -395,7 +395,8 @@ pbwitt/fourth-and-value#87.
   A fetch failure leaves the generic text and records `goalie_error`.
 - Next: test whether the opposing goalie's expected save rate improves goals/points/SOG forecasts
   out of sample (Phase 4) before it enters the model. Confirmed starters still need a permitted
-  source (Daily Faceoff permission or a paid feed).
+  source: Daily Faceoff is ruled out by The Nation Network's terms unless it grants permission, so a paid
+  feed (SportsDataIO, MySportsFeeds) or a manual confirmation is the remaining route.
 
 ### Data fixes (2026-10-05)
 
