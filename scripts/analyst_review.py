@@ -150,7 +150,7 @@ def review_payload(board, sources, asof, config):
     request = astra.payload(board, sources, asof, config, instructions=INSTRUCTIONS, schema=SCHEMA,
         prompt_version=PROMPT_VERSION, extra_fields=('sport', 'probability_basis', 'market_reference',
             'model_limitations', 'home_pitcher', 'away_pitcher', 'model_diagnostics',
-            'discovery_origin', 'discovery', 'source_game_forecast', 'original_forecast', 'model_withheld', 'forecast_health', 'screening_ev', 'exposure_group'))
+            'discovery_origin', 'discovery', 'source_game_forecast', 'original_forecast', 'model_withheld', 'forecast_health', 'screening_ev', 'blend', 'exposure_group'))
     packet = json.loads(request['input'])
     limitations = [((r.get('model_diagnostics') or {}).get('projection') or {}).get('limitations') for r in packet['candidates']]
     if limitations and all(v == limitations[0] and v for v in limitations):
@@ -158,6 +158,13 @@ def review_payload(board, sources, asof, config):
         for r in packet['candidates']:
             r['model_diagnostics']['projection'].pop('limitations')
     for r in packet['candidates']:
+        # The market blend, compactly: model, market and book count already travel
+        # in review_context, so only the blended chance, its EV and weight are added.
+        b = r.get('blend')
+        if isinstance(b, dict) and isinstance(b.get('final'), (int, float)):
+            r['blend'] = {k: round(b[k], 4) for k in ('final', 'ev', 'weight') if isinstance(b.get(k), (int, float))}
+        else:
+            r.pop('blend', None)
         d = r.get('model_diagnostics')
         if not d:
             continue

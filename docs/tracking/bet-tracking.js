@@ -57,6 +57,8 @@ async function signOut() {
 
 // Structured result for the briefing dialog; the legacy alert-based wrapper
 // below retains the existing props/totals call contract.
+const BLEND_FIELDS = ['market_prob', 'final_prob', 'blend_weight', 'expected_value', 'decision_at'];
+
 async function saveTrackedBet(betData) {
   const user = await getCurrentUser();
   if (!user) {
@@ -83,6 +85,9 @@ async function saveTrackedBet(betData) {
   };
   // Sent only when known, so the row matches databases without the column.
   if (betData.player && betData.player_team) row.player_team = String(betData.player_team);
+  // What a pick was decided on (supabase/bet_blend_fields.sql): market and blended
+  // probabilities, the model's weight, expected value at the price taken, decision time.
+  for (const k of BLEND_FIELDS) if (betData[k] != null) row[k] = betData[k];
   if (!row.league || !Number.isFinite(row.stake_dollars) || row.stake_dollars <= 0 ||
       !Number.isInteger(row.odds) || Math.abs(row.odds) < 100 ||
       (row.line !== null && !Number.isFinite(row.line))) {
@@ -103,10 +108,15 @@ async function saveTrackedBet(betData) {
     delete row.player_team;
     ({ error } = await supabaseClient.from('bets').insert(row));
   }
+  // Likewise before supabase/bet_blend_fields.sql: the bet itself matters more.
+  if (BLEND_FIELDS.some(k => k in row && new RegExp(k).test(error?.message || ''))) {
+    BLEND_FIELDS.forEach(k => delete row[k]);
+    ({ error } = await supabaseClient.from('bets').insert(row));
+  }
   if (error?.code === '23505' && row.id) {
     const existing=await supabaseClient.from('bets').select('*').eq('id',row.id).eq('user_id',user.id).maybeSingle();
-    const numeric=new Set(['line','odds','stake_dollars','model_prob','edge_bps']);
-    const same=!existing.error && existing.data && Object.keys(row).filter(k=>k!=='status'&&k!=='timestamp').every(k=>
+    const numeric=new Set(['line','odds','stake_dollars','model_prob','edge_bps','market_prob','final_prob','blend_weight','expected_value']);
+    const same=!existing.error && existing.data && Object.keys(row).filter(k=>!['status','timestamp','decision_at'].includes(k)).every(k=>
       numeric.has(k) && row[k]!==null ? existing.data[k]!=null&&Number(existing.data[k])===row[k] : (existing.data[k]??null)===row[k]);
     if (same) return {ok:true,id:row.id};
     return {ok:false,error:'This ticket may already be saved with different details. Check Bet Tracker before logging it again.'};

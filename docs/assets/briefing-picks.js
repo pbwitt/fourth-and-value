@@ -51,6 +51,29 @@
     return {model,market:probability(market)&&finite(books)&&books>0?market:null,
       books,push:probability(push)?push:null,breakEven:1/decimal(r.price)};
   }
+  // Market blend (docs/model-improvement-plan.md, Phase 3). Until per-market weights
+  // are fitted out of sample, the model gets 25% weight in log-odds against the
+  // exact-line no-vig consensus. A pick needs 3% expected value at its own price
+  // and at least two books posting that exact line (a lone alternate line has no
+  // market to blend with). Expected value refunds pushes.
+  const BLEND={version:'market-blend-1',weight:.25,minEV:.03,maxEV:.30,minBooks:2};
+  const logit=p=>Math.log(p/(1-p)),sigmoid=x=>1/(1+Math.exp(-x));
+  const clip=p=>Math.min(1-1e-6,Math.max(1e-6,p));
+  function blend(r,modelOverride) {
+    const c=comparison(r),model=probability(modelOverride)?modelOverride:c.model;
+    if(model===null)return {status:'no_model'};
+    if(c.market===null||!finite(c.books)||c.books<BLEND.minBooks)return {status:'thin_market',model,market:c.market,books:c.books};
+    const final=sigmoid(BLEND.weight*logit(clip(model))+(1-BLEND.weight)*logit(clip(c.market)));
+    const ev=(1-(c.push??0))*(final*decimal(r.price)-1);
+    return {status:ev>=BLEND.minEV?'qualifies':'below_threshold',version:BLEND.version,weight:BLEND.weight,
+      model,market:c.market,books:c.books,final,ev,threshold:BLEND.minEV};
+  }
+  const signedPct=n=>(n>=0?'+':'')+(100*n).toFixed(1)+'%';
+  function blendHTML(r) {
+    const b=r.blend;
+    if(!b||!finite(b.final))return '';
+    return `<span class="meta estimate-detail">Blended ${pct(b.final)} · ${signedPct(b.ev)} expected value</span>`;
+  }
   function modelHTML(r) {
     const c=comparison(r);
     if(r.model_withheld||c.model===null)return `<strong>Not established</strong><span class="estimate-detail">${r.model_withheld?'Forecast withheld: '+esc(r.model_withheld):'Independent research candidate; no eligible probability model'}</span><span class="meta">Prospective research only</span>`;
@@ -73,7 +96,8 @@
     const c=comparison(r);
     if(c.model===null||r.model_withheld)return 'Independent research surfaced this offer. A reliable model win probability and numerical edge are not established.';
     const market=c.market===null?'':`, versus ${pct(c.market)} from ${c.books===1?(r.sport==='NFL'?'one paired book':'one other book'):(r.sport==='NFL'?'the market':'other books')}`;
-    return `The experimental model estimates a ${pct(c.model)} win chance${market}. The offered ${odds(r.price)} needs ${pct(c.breakEven)} to break even, excluding pushes.`;
+    const b=r.blend&&finite(r.blend.final)?` Weighted 25% model and 75% market, that is ${pct(r.blend.final)}, or ${signedPct(r.blend.ev)} expected value at this price.`:'';
+    return `The experimental model estimates a ${pct(c.model)} win chance${market}. The offered ${odds(r.price)} needs ${pct(c.breakEven)} to break even, excluding pushes.${b}`;
   }
   function researchStatus(sport,feed,selected,now) {
     const rows=selected.filter(r=>r.sport===sport),reviewed=rows.filter(hasReview);
@@ -117,7 +141,17 @@
       player:r.player||null,market_type:r.sport==='NFL'?(r.market_std||r.market):r.sport==='NHL'?(nhlMarkets[r.market]||r.market):r.market,
       side:['over','under'].includes(r.side.toLowerCase())?r.side.toLowerCase():r.side,
       line:r.line,book:r.book,odds:price,stake_dollars:stake,model_prob:probability,
-      edge_bps:probability===null?null:(probability-1/decimal(price))*10000};
+      edge_bps:probability===null?null:(probability-1/decimal(price))*10000,
+      ...blendTicket(r,price)};
+  }
+
+  // What the pick was decided on, at the price actually entered.
+  function blendTicket(r,price) {
+    const b=r.blend,decided=r.card_snapshot_at||r.forecast_at||r.quoted_at||null;
+    if(!b||!finite(b.final)||!probability(b.market))return {};
+    const push=comparison(r).push??0;
+    return {market_prob:b.market,final_prob:b.final,blend_weight:b.weight,
+      expected_value:(1-push)*(b.final*decimal(price)-1),decision_at:decided};
   }
 
   function nhlReview(r) {
@@ -145,17 +179,24 @@
   }
   const outcomeKey=r=>JSON.stringify([r.sport,String(r.game_id),r.player||'',r.market_std||r.market,String(r.side).toLowerCase(),r.line,r.settlement_profile||'']);
   const SHORTLIST_LIMIT=10;
+  // Variety without forcing picks: each sport's best eligible bet is taken first,
+  // then the rest in order, at most 4 per sport and 2 per sport and market.
+  const CARD_CAPS={sport:4,market:2};
   function cardValue(r) {
     if(r.model_withheld||r.discovery_origin==='independent_research')return null;
     // NHL already supplies worst-scenario log growth at this fixed fraction.
     // Use the same units for NFL/MLB; sport-specific ranks are not comparable.
-    if(r.sport==='NHL')return finite(r.rank_score)?r.rank_score:null;
-    const push=r.sport==='NFL'?r.push_prob:r.model_push_probability;
-    let win=r.sport==='NFL'?r.model_prob:r.model_probability;
-    if(!probability(win)||!probability(push)||push>=1)return null;
-    if(r.sport==='NFL') {
-      if(probability(r.forecast_health?.raw_probability))win=Math.min(win,r.forecast_health.raw_probability);
-      win*=1-push;
+    const push=comparison(r).push??(r.sport==='NFL'?r.push_prob:r.model_push_probability);
+    let win;
+    if(probability(r.blend?.final)&&probability(push)&&push<1)win=r.blend.final*(1-push);   // blended, unconditional
+    else {
+      if(r.sport==='NHL')return finite(r.rank_score)?r.rank_score:null;
+      win=r.sport==='NFL'?r.model_prob:r.model_probability;
+      if(!probability(win)||!probability(push)||push>=1)return null;
+      if(r.sport==='NFL') {
+        if(probability(r.forecast_health?.raw_probability))win=Math.min(win,r.forecast_health.raw_probability);
+        win*=1-push;
+      }
     }
     const loss=1-win-push;
     if(loss<0||!finite(r.price)||Math.abs(r.price)<100)return null;
@@ -166,21 +207,31 @@
     return JSON.stringify([r.sport,String(r.game_id),r.player||'',r.market_std||r.market,String(r.side).toLowerCase(),r.settlement_profile||'']);
   }
   function shortlist(selected,now=Date.now()) {
-    const seen=new Set(),card=[];
+    const seen=new Set(),taken=new Set(),perSport={},perMarket={};
     const ordered=[...selected].sort((a,b)=>Number(b.human_decision==='select')-Number(a.human_decision==='select')||
       cardTier(a)-cardTier(b)||(cardValue(b)??-Infinity)-(cardValue(a)??-Infinity)||
       stamp(a.commence_time)-stamp(b.commence_time)||outcomeKey(a).localeCompare(outcomeKey(b)));
-    for(const r of ordered) {
+    const eligible=ordered.filter(r=>{
       const a=hasReview(r)&&r.review_matches_current!==false&&recent(r.qualitative_review.reviewed_at,now,3*HOUR)?assessment(r.qualitative_review):null;
-      if(r.human_decision==='pass'||!(r.human_decision==='select'||a?.verdict==='consider'&&!a.blocking_checks.length))continue;
+      return r.human_decision!=='pass'&&(r.human_decision==='select'||a?.verdict==='consider'&&!a.blocking_checks.length);
+    });
+    const marketOf=r=>r.sport+'|'+(r.market_std||r.market);
+    function take(r) {
+      if(taken.size>=SHORTLIST_LIMIT||taken.has(r))return false;
+      if((perSport[r.sport]||0)>=CARD_CAPS.sport||(perMarket[marketOf(r)]||0)>=CARD_CAPS.market)return false;
       const ideas=[ideaKey(r)];
       // One hit and one total base are the same binary event at 0.5.
       // Display consolidation never overwrites either original forecast.
       if(r.sport==='MLB'&&r.line===.5&&['batter_hits','batter_total_bases'].includes(r.market))
         ideas.push(ideaKey({...r,market:'batter_any_hit',market_std:'batter_any_hit'}));
-      if(ideas.some(v=>seen.has(v)))continue;ideas.forEach(v=>seen.add(v));
-      card.push(r);if(card.length>=SHORTLIST_LIMIT)break;
+      if(ideas.some(v=>seen.has(v)))return false;
+      ideas.forEach(v=>seen.add(v));taken.add(r);
+      perSport[r.sport]=(perSport[r.sport]||0)+1;perMarket[marketOf(r)]=(perMarket[marketOf(r)]||0)+1;
+      return true;
     }
+    for(const sport of [...new Set(eligible.map(r=>r.sport))])eligible.filter(r=>r.sport===sport).some(take);
+    for(const r of eligible)take(r);
+    const card=eligible.filter(r=>taken.has(r));
     return card.map(r=>({...r,card_rank_score:cardValue(r),card_related_candidates:card.filter(q=>q.sport===r.sport&&q.game_id===r.game_id).length-1}));
   }
   function rankTier(r) {
@@ -202,7 +253,7 @@
   }
 
   function collect(feeds,now=Date.now()) {
-    const selected=[],coverage=[],excluded=[];
+    const selected=[],coverage=[],excluded=[],leans=[];
     for(const sport of ['NFL','MLB','NHL']) {
       const data=feeds[sport],board=feeds.NHLBoard;
       let available=false,candidates=[];
@@ -239,21 +290,29 @@
       candidates=candidates.filter(r=>priced(r)&&r.game_id&&(r.line===null||finite(r.line))).map(r=>({...r,sport}));
       const discoveryByOutcome=new Map(candidates.filter(r=>r.discovery_origin==='independent_research').map(r=>[outcomeKey(r),r.discovery]));
       for(const r of candidates)if(!r.discovery_origin&&discoveryByOutcome.has(outcomeKey(r))){r.discovery_origin='model_and_independent_research';r.discovery=discoveryByOutcome.get(outcomeKey(r));}
-      const healthy=[];
+      const healthy=[],belowBlend=[];
       for(const r of candidates) {
         r.forecast_health=forecastHealth(r,feeds.NFLContext);
         if(!r.forecast_health.eligible&&r.discovery_origin!=='independent_research') {
           excluded.push({...r,exclusion_reasons:r.forecast_health.reasons});continue;
         }
-        // Lower of raw and calibrated EV is a screening sensitivity heuristic,
-        // not a calibrated confidence bound. Do not rank NFL by probability gap.
-        if(sport==='NFL'&&r.discovery_origin!=='independent_research') {
-          if(!probability(r.push_prob)||r.push_prob>=1){excluded.push({...r,exclusion_reasons:['Push probability unavailable or invalid']});continue;}
-          const p=finite(r.forecast_health.raw_probability)?Math.min(r.model_prob,r.forecast_health.raw_probability):r.model_prob;
-          r.screening_ev=(1-r.push_prob)*(p*decimal(r.price)-1);
-          if(r.screening_ev<.03){excluded.push({...r,exclusion_reasons:['Price case below 3% raw-versus-calibrated EV screen']});continue;}
-          if(r.screening_ev>.30){r.forecast_health.tier=3;r.forecast_health.reasons.push('Unusually large return estimate requires research');r.review='Unusually large estimate · research needed';}
-          r.score=100*r.screening_ev;
+        // Every model candidate must clear the market blend. Independent research
+        // has no model probability to blend and keeps its separate review route.
+        if(r.discovery_origin!=='independent_research') {
+          if(sport==='NFL'&&(!probability(r.push_prob)||r.push_prob>=1)){excluded.push({...r,exclusion_reasons:['Push probability unavailable or invalid']});continue;}
+          // A calibrated 50% is the curve's flat centre: no information at this line.
+          if(sport==='NFL'&&Math.abs(r.model_prob-.5)<1e-9){excluded.push({...r,exclusion_reasons:['Calibrated estimate is exactly 50%, so the model has no information at this line']});continue;}
+          // NFL keeps its sensitivity heuristic: the lower of raw and calibrated.
+          const raw=r.forecast_health.raw_probability;
+          const b=r.blend=blend(r,sport==='NFL'&&probability(raw)?Math.min(r.model_prob,raw):undefined);
+          if(b.status==='thin_market'){excluded.push({...r,exclusion_reasons:['Fewer than two books post this exact line, so there is no market price to blend with']});continue;}
+          if(b.status!=='qualifies'){
+            if(b.status==='below_threshold'&&b.ev>0)belowBlend.push(r);
+            excluded.push({...r,blend_shortfall:true,exclusion_reasons:[b.status==='below_threshold'?`${signedPct(b.ev)} expected value after blending with the market; ${(100*BLEND.minEV).toFixed(0)}% required`:'No model probability']});continue;
+          }
+          if(b.ev>BLEND.maxEV){r.forecast_health.tier=3;r.forecast_health.reasons.push('Unusually large return estimate requires research');r.review='Unusually large estimate · research needed';}
+          if(sport==='NFL')r.screening_ev=b.ev;
+          r.score=100*b.ev;
         }
         healthy.push(attachReview(sport==='NHL'?{...r,review_sources:records(board?.sources)}:r,feeds.Reviews,now));
       }
@@ -266,21 +325,30 @@
       }
       unique.sort((a,b)=>rankTier(a)-rankTier(b)||(a.forecast_health.tier-b.forecast_health.tier)||
         (b.score||0)-(a.score||0)||stamp(a.commence_time)-stamp(b.commence_time)||outcomeKey(a).localeCompare(outcomeKey(b)));
+      // Leans: the sport's best play that is positive after the blend but under the
+      // threshold, for an outcome not already picked at another book. Shown for
+      // interest, never bet, tracked or put on the card.
+      const picked=new Set(unique.map(outcomeKey));
+      const lean=belowBlend.filter(r=>!picked.has(outcomeKey(r)))
+        .sort((a,b)=>b.blend.ev-a.blend.ev||decimal(b.price)-decimal(a.price))[0];
+      if(lean)leans.push({...lean,sport,lean:true});
       for(const r of unique) {
         r.exposure_group=sport+':'+r.game_id;
         r.related_candidates=unique.filter(q=>q.game_id===r.game_id).length-1;
         selected.push(r);
       }
-      const count=unique.length,held=excluded.filter(r=>r.sport===sport).length;
+      const count=unique.length,mine=excluded.filter(r=>r.sport===sport);
+      const short=mine.filter(r=>r.blend_shortfall).length,held=mine.length-short;
       coverage.push({sport,count,available,held,observed_markets:[...new Set(rows(data).map(r=>r.market_std||r.market))],
         message:(!available?'Current model list unavailable or expired. ':'')+(count?`${count} review candidate${count===1?'':'s'}`:'No qualifying offers currently available')+
-          (held?` · ${held} unreliable or sensitivity-failing forecasts withheld`:'')+(sport==='NHL'?' · unposted markets can enter on the next refresh':'')});
+          (short?` · ${short} below the ${(100*BLEND.minEV).toFixed(0)}% market-blend threshold`:'')+
+          (held?` · ${held} withheld (thin market, 50% calibration or unreliable forecast)`:'')+(sport==='NHL'?' · unposted markets can enter on the next refresh':'')});
     }
     // A reviewed MLB/NHL opportunity must not disappear below the initial
     // twenty unreviewed NFL rows. Compare assessment status across sports;
     // retain each sport's existing numerical order within that status.
     selected.sort((a,b)=>rankTier(a)-rankTier(b));
-    return {selected,coverage,excluded};
+    return {selected,coverage,excluded,leans};
   }
 
   function diagnosticHTML(r) {
@@ -349,7 +417,7 @@
     const related=r.card_related_candidates??r.related_candidates;
     const exposure=related?'<br>Shared game: '+related+' other '+(r.card_related_candidates!==undefined?'shortlisted bet(s)':'research candidate(s)'):'';
     const dated=r.card_snapshot_at?`<br><strong>${stamp(r.commence_time)<=Date.now()?'Game started · historical assessment':'Published assessment · confirm current conditions'}</strong><br>Analysis and prices preserved from ${esc(time(r.card_snapshot_at))}`:'';
-    return `<tr class="pick-offer-row"><td class="pick-bet"><a href="${esc(r.url)}"><strong>${esc(betLabel(r))}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${esc(displayReview(r))}${reason}${exposure}${dated}${r.discovery_origin?'<br>Origin: '+(r.discovery_origin==='independent_research'?'independent research':'model and independent research'):''}</span></td><td class="pick-estimate pick-model" data-label="Model prediction">${modelHTML(r)}</td><td class="pick-estimate pick-market" data-label="Market consensus">${marketHTML(r)}</td><td class="pick-offer" data-label="Book line / price">${offer}<span class="meta estimate-detail">${pct(comparison(r).breakEven)} break-even*</span></td><td class="pick-quote-time" data-label="Price time (ET)"><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td class="pick-book" data-label="Book">${esc(r.book_label||r.book)}<br><button type="button" class="track-pick secondary" data-track-pick="${index}" ${saved?'disabled':''} aria-label="${esc((saved?'Tracked: ':'Track bet: ')+betLabel(r))}">${saved?'Tracked':'Track bet'}</button></td></tr>${research?`<tr class="pick-research-row" id="pick-review-${index}"><td colspan="6">${research}</td></tr>`:''}`;
+    return `<tr class="pick-offer-row"><td class="pick-bet"><a href="${esc(r.url)}"><strong>${esc(betLabel(r))}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${esc(displayReview(r))}${reason}${exposure}${dated}${r.discovery_origin?'<br>Origin: '+(r.discovery_origin==='independent_research'?'independent research':'model and independent research'):''}</span></td><td class="pick-estimate pick-model" data-label="Model prediction">${modelHTML(r)}</td><td class="pick-estimate pick-market" data-label="Market consensus">${marketHTML(r)}</td><td class="pick-offer" data-label="Book line / price">${offer}<span class="meta estimate-detail">${pct(comparison(r).breakEven)} break-even*</span>${blendHTML(r)}</td><td class="pick-quote-time" data-label="Price time (ET)"><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td class="pick-book" data-label="Book">${esc(r.book_label||r.book)}<br><button type="button" class="track-pick secondary" data-track-pick="${index}" ${saved?'disabled':''} aria-label="${esc((saved?'Tracked: ':'Track bet: ')+betLabel(r))}">${saved?'Tracked':'Track bet'}</button></td></tr>${research?`<tr class="pick-research-row" id="pick-review-${index}"><td colspan="6">${research}</td></tr>`:''}`;
   }
 
   async function mount() {
@@ -375,6 +443,11 @@
       document.getElementById('picks-status').textContent=validEdition?`${card.length} reviewed picks · ${edition.kind==='test'?'Test':'Morning'} edition for ${edition.decision_date} · Published ${time(edition.published_at)}${edition.decision_date!==day(now)?' · Previous edition; today’s edition is not available':''}${health}. Original prices and analysis; not continuously reassessed.`:'0 reviewed picks · Waiting for the morning edition. Data refreshes are scheduled for 7:05 a.m. Eastern, with recovery starts at 7:35, 8:05 and 8:35.';
       const exposure=$('picks-exposure');if(exposure){const games=new Set(card.map(r=>r.exposure_group||r.sport+':'+r.game_id));exposure.textContent=card.length>1&&games.size===1?'All shortlisted offers are from one game and share exposure. They are not independent signals.':'';}
       document.getElementById('picks-coverage').textContent=result.coverage.map(c=>`${c.sport}: ${c.message}`).join(' · ');
+      const leanList=$('picks-leans'),leanSection=$('picks-leans-section');
+      if(leanList&&leanSection) {
+        leanList.innerHTML=result.leans.map(r=>`<li><strong>${esc(r.sport)}</strong> · ${esc(betLabel(r))} · ${esc(odds(r.price))} at ${esc(r.book_label||r.book)} · ${esc(r.game)} <span class="meta">Blended ${pct(r.blend.final)} · ${signedPct(r.blend.ev)} expected value</span></li>`).join('');
+        leanSection.hidden=!result.leans.length;
+      }
       const budgetStatus=document.getElementById('picks-budget-status'), budget=feeds.Reviews?.budget;
       if(budgetStatus)budgetStatus.textContent=budget&&budget.day===day(now)?`Today’s research: $${budget.charged_or_reserved_usd.toFixed(2)} charged or reserved of $${budget.limit_usd.toFixed(2)} across sports. Research runs in the morning; additional candidates are not automatically reassessed later.`:'Morning research is limited to $2.75 per Eastern calendar day across sports; current spending status is pending.';
       const research=document.getElementById('picks-research-status');
@@ -444,6 +517,6 @@
     await load();setInterval(render,30000);setInterval(load,300000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
   }
-  if(typeof module==='object'&&module.exports)module.exports={collect,shortlist,editionRows,ideaKey,SHORTLIST_LIMIT,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus};
+  if(typeof module==='object'&&module.exports)module.exports={collect,shortlist,editionRows,ideaKey,SHORTLIST_LIMIT,CARD_CAPS,BLEND,blend,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus};
   else mount();
 })(typeof window==='undefined'?globalThis:window);

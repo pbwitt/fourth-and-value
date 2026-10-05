@@ -6,10 +6,10 @@ Owner: pbwitt. Started 2026-10-05. Update this file as each phase finishes.
 
 | Phase | State | Notes |
 |---|---|---|
-| 0. Audit | Done 2026-10-05 | Findings and proposed plan below. Step 1 (housekeeping) merged and deployed 2026-10-05; step 2 waits for approval. |
+| 0. Audit | Done 2026-10-05 | Findings and proposed plan below. Step 1 (housekeeping) merged and deployed 2026-10-05. |
 | 1. News and lineup data | Not started | |
 | 2. Model fixes | Not started | |
-| 3. Market blend before betting | Not started | |
+| 3. Market blend before betting | In progress | Step 2 (blend live on Top Picks at w = 0.25, 3% EV) in review 2026-10-05. Pinnacle reference not yet added. |
 | 4. Backtest and calibration | Not started | |
 | 5. Monitoring and site | Not started | |
 
@@ -346,3 +346,36 @@ Merged in pbwitt/fourth-and-value#86.
   (open questions 1 and 3).
 - Found while testing: a date-dependent NHL player-page test failed every Oct 5 Morning Picks NHL job.
   Fixed separately in pbwitt/fourth-and-value#85.
+
+### Step 2 status (2026-10-05): market blend on Top Picks
+
+Owner approved going ahead ("go ahead and finish"). Live on Top Picks, not a shadow run.
+
+- `docs/assets/briefing-picks.js`: every model candidate is blended,
+  `f = sigmoid(0.25·logit(model) + 0.75·logit(market))`, with `market` the median no-vig
+  probability at the exact line. It needs at least two books at that line (alternate lines with
+  one book have no market) and `(1 − push)(f·decimal − 1) ≥ 3%` at its own price. NFL keeps the
+  smaller of raw and calibrated model chance and withholds calibrated 50% estimates (the curve's
+  flat centre). Card order uses the blended chance for every sport.
+- Variety: each sport's best eligible bet is taken first, then at most 4 per sport and 2 per sport
+  and market. Each sport's best positive-but-below-3% offer is listed as a lean (not a pick, not
+  tracked) for an outcome not already picked.
+- Tickets record `market_prob`, `final_prob`, `blend_weight`, `expected_value` (at the price taken)
+  and `decision_at`; migration `bet_blend_fields` applied 2026-10-05.
+- Editions now carry `morning-edition-2`; earlier editions keep `morning-edition-1`.
+- Replay on the Oct 5, 8:36 AM ET feeds: 2 NFL picks (receptions overs at +150/+160 where the
+  calibrated 54.8% is a plateau level) and 3 MLB picks (two totals, one run line); 44 NFL offers
+  below 3% after the blend, 25 at a calibrated 50%, 23 with fewer than two books at the line.
+  The NFL receptions picks show the 0.25 weight is generous for NFL given its Week 3 record; Phase 4
+  should fit a lower NFL weight if the out-of-sample scores agree.
+- Not done: the Pinnacle (`eu` region) sharp reference, which costs extra credits per request.
+
+### Data fixes (2026-10-05)
+
+- The four NHL `team_total` rows (three settled, one pending) were relabeled `totals`.
+- `bets.timestamp` was backfilled from `created_at` for the 30 rows saved before their game
+  started; two rows saved after the start stay empty. Captured closes were unchanged
+  (average CLV still −5.30% over 24 settled bets).
+- Shared odds balance: unverified. The NHL feed reported 16,033 credits left at 7:21 PM ET Oct 4 and
+  the MLB feed 15,655 at 8:06 AM ET Oct 5, consistent with one shared balance; the floor applies per
+  key either way.
