@@ -60,6 +60,11 @@ def pick_reason(row, report, now):
     audit = report.get('regular' if row['game_type']=='R' else 'postseason', {}).get(market, {})
     if not audit.get('passed'):
         return 'Research forecast: this market did not pass the applicable validation checks'
+    # Aggregate checks cannot hide side- or probability-range errors (scripts/mlb/gates.py).
+    from mlb.gates import reasons
+    blocked = reasons(audit, row)
+    if blocked:
+        return blocked[0]
     line = row['line']
     if market != 'h2h' and not min(LINES[market]) <= line <= max(LINES[market]):
         return 'Research forecast: line outside the validation range'

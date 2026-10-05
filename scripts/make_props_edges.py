@@ -47,6 +47,30 @@ def load_calibration(path: str = CALIBRATION_PATH) -> dict | None:
         return json.load(f)
 
 
+def calibration_status(calibration: dict | None, model_version: str | None = None) -> dict:
+    """Whether a calibration artifact may be presented as fitted for the current forecasts.
+
+    Artifacts without provenance (fitted before the forecast-cutoff corrections) or
+    fitted for another MODEL_VERSION are labelled incompatible. Their mapping is still
+    applied for display continuity, but the status cannot start with "Calibration
+    fitted", so the shared selector never treats those rows as Top Picks candidates.
+    """
+    if model_version is None:
+        from make_player_prop_params import MODEL_VERSION as model_version
+    provenance = (calibration or {}).get('_provenance') or {}
+    if calibration is None:
+        return dict(compatible=False, label='Uncalibrated', version=None)
+    if not provenance:
+        return dict(compatible=False, version=None,
+                    label='Legacy calibration (fitted before forecast-cutoff fixes); not validated for this model')
+    if provenance.get('model_version') != model_version:
+        return dict(compatible=False, version=provenance.get('run_id'),
+                    label=f"Incompatible calibration (fitted for {provenance.get('model_version')}); not validated for {model_version}")
+    status = (provenance.get('evaluation') or {}).get('status', 'not evaluated')
+    return dict(compatible=True, version=provenance.get('run_id'), evaluation=status,
+                label=f"Calibration fitted ({provenance.get('run_id')}); chronological evaluation only; not prospectively validated")
+
+
 def apply_calibration(df: pd.DataFrame, calibration: dict | None) -> pd.Series:
     """
     Map raw model_prob through the fitted market-specific isotonic curve
@@ -361,10 +385,11 @@ def main():
     no_data_mask |= merged["market_std"].astype(str).eq("anytime_td")
     merged.loc[no_data_mask, ["model_prob_raw", "model_prob", "push_prob"]] = np.nan
     eligible = set(calibration.get("_eligible_markets", [])) if calibration else set()
+    status = calibration_status(calibration)
     merged["model_status"] = np.where(no_data_mask | merged["model_prob"].isna(),
                                       "Insufficient player data",
-                                      np.where(merged["market_std"].isin(eligible),
-                                               "Calibration fitted; not prospectively validated", "Uncalibrated"))
+                                      np.where(merged["market_std"].isin(eligible), status["label"], "Uncalibrated"))
+    merged["calibration_version"] = status["version"]
     merged["edge_bps"] = (merged["model_prob"] - merged["mkt_prob"]) * 10000.0
     merged["ev_per_100"] = merged.apply(lambda r: expected_profit(r["model_prob"], r["price"], r["push_prob"]), axis=1)
     merged["generated_at"] = datetime.now(timezone.utc).isoformat()

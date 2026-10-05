@@ -71,7 +71,29 @@ def score(prob,actual,reference,game_ids,post=False):
     return dict(samples=len(y),games=n_games,brier=round(brier,6),reference_brier=round(ref,6),
         brier_skill=round(1-brier/ref,4) if ref else None,ece=round(float(ece),6),
         log_loss=round(float(-np.mean(y*np.log(np.clip(p,1e-6,1-1e-6))+(1-y)*np.log(np.clip(1-p,1e-6,1-1e-6)))),6),
-        passed=bool(passed),calibration_bins=bins)
+        passed=bool(passed),calibration_bins=bins,brier_difference=clustered_difference(p,b,y,game_ids))
+
+
+def clustered_difference(p,b,y,game_ids,reps=1000,seed=20261005):
+    """Model minus reference Brier with a game-clustered bootstrap interval.
+
+    Thresholds from one game are correlated, so games, not rows, are resampled."""
+    keys,inverse=np.unique(np.asarray(game_ids),return_inverse=True)
+    diff=np.bincount(inverse,weights=(p-y)**2-(b-y)**2,minlength=len(keys));n=np.bincount(inverse,minlength=len(keys))
+    draws=np.random.default_rng(seed).integers(0,len(keys),(reps,len(keys)))
+    estimates=diff[draws].sum(axis=1)/n[draws].sum(axis=1)
+    return dict(estimate=round(float(diff.sum()/n.sum()),6),ci95=[round(float(v),6) for v in np.quantile(estimates,[.025,.975])],
+                games=int(len(keys)),basis='game-clustered bootstrap, 1000 replicates')
+
+
+def clustered_mean_bias(mu,actual,game_ids,reps=1000,seed=20261005):
+    """Mean projected count minus mean outcome, resampling games."""
+    keys,inverse=np.unique(np.asarray(game_ids),return_inverse=True)
+    err=np.bincount(inverse,weights=np.asarray(mu,dtype=float)-np.asarray(actual,dtype=float),minlength=len(keys))
+    n=np.bincount(inverse,minlength=len(keys))
+    draws=np.random.default_rng(seed).integers(0,len(keys),(reps,len(keys)))
+    estimates=err[draws].sum(axis=1)/n[draws].sum(axis=1)
+    return dict(estimate=round(float(err.sum()/n.sum()),4),ci95=[round(float(v),4) for v in np.quantile(estimates,[.025,.975])])
 
 
 def evaluate(models,samples,post=False):
@@ -87,6 +109,7 @@ def evaluate(models,samples,post=False):
         report[target]=score(prob,actual,reference,ids,post)
         report[target].update(forecasts=len(rows),mae=round(float(np.mean(np.abs(mu-[r['y'] for r in rows]))),4),
             mean_prediction=round(float(mu.mean()),4),mean_actual=round(float(np.mean([r['y'] for r in rows])),4),
+            mean_bias=clustered_mean_bias(mu,[r['y'] for r in rows],[r['game_id'] for r in rows]),
             lines=LINES[target])
     totals={market:dict(p=[],y=[],b=[],ids=[]) for market in ['totals','h2h','spreads']}
     model=models['team_runs'];rows=samples['team_runs'];mass=pmf(means(model,rows),model)
@@ -101,6 +124,9 @@ def evaluate(models,samples,post=False):
                 y=int(home+away>line) if market=='totals' else int(home>away) if market=='h2h' else int(home-away+line>0)
                 values['p'].append(p);values['y'].append(y);values['b'].append(b);values['ids'].append(game_id)
     for market,v in totals.items():report[market]={**score(v['p'],v['y'],v['b'],v['ids'],post),'lines':LINES[market]}
+    from mlb.gates import summary
+    for market,metrics in report.items():
+        if metrics.get('samples'):metrics['gate']=summary(metrics,market)
     return report
 
 
@@ -158,6 +184,12 @@ def train_models(refresh_history=True):
         test_start=(date.fromisoformat(cal_end)+timedelta(days=1)).isoformat(),test_end=latest.isoformat(),
         postseason_year=prior_year,postseason_training_through=post_train_end,postseason_calibration_through=reg_end,
         regular=regular,postseason=postseason,postseason_error=postseason_error,
+        provenance=dict(regular=dict(artifact='live model bundle (the same fitted models that produce current forecasts)',
+                                     training_through=train_end,calibration_through=cal_end,game_type='regular season only'),
+                        postseason=dict(artifact='separate earlier fit with the same specification; never used for live forecasts',
+                                        training_through=post_train_end,calibration_through=reg_end,season=prior_year,
+                                        game_type='postseason only'),
+                        market_comparison='unavailable: no timestamped historical bookmaker prices are archived for this audit'),
         models={k:dict(kind=m['kind'],train_n=m['train_n'],calibration_n=m['cal_n'],features=m['features'],
                        dispersion=m['alpha'],outs_sigma=m['sigma'] if k=='pitcher_outs' else None) for k,m in models.items()},
         reference='Empirical outcome distribution in the training partition, independent of sportsbook prices',

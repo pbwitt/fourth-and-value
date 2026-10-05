@@ -289,6 +289,10 @@ HOME_AWAY_MULTIPLIERS = {
 # minimal sample size before trusting player-specific numbers
 MIN_GAMES_STRICT = 4       # prefer at least this many games for strong trust
 MIN_GAMES_LOOSE  = 2       # if <strict but >=loose, still use but add shrinkage
+# Forecast specification identity. Bump whenever forecasting logic changes (not for
+# comments or I/O): a calibration artifact fitted for another version is reported as
+# incompatible and cannot qualify for Top Picks (see make_props_edges.calibration_status).
+MODEL_VERSION = 'nfl-props-2026-10-04'
 WINDOW_GAMES     = 17      # lookback window (last N games) across seasons
 
 
