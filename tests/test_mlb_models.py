@@ -29,7 +29,8 @@ def game(day,game_id=1,runs=4):
 
 
 def lineup_box():
-    return dict(teams={side:dict(team={'id':team_id},teamStats={},players={str(slot):dict(person={'id':team_id*100+slot,'fullName':f'Batter {team_id} {slot}'},battingOrder=str(slot*100)) for slot in range(1,10)}) for side,team_id in [('home',1),('away',2)]})
+    spots=['C','1B','2B','3B','SS','LF','CF','RF','DH']
+    return dict(teams={side:dict(team={'id':team_id},teamStats={},players={str(slot):dict(person={'id':team_id*100+slot,'fullName':f'Batter {team_id} {slot}'},battingOrder=str(slot*100),position={'abbreviation':spots[slot-1]}) for slot in range(1,10)}) for side,team_id in [('home',1),('away',2)]})
 
 
 class ModelTests(unittest.TestCase):
@@ -153,12 +154,33 @@ class ModelTests(unittest.TestCase):
         self.assertLessEqual(sum(r['is_model_pick'] for r in rows if r['market']=='h2h'),1)
         self.assertGreater(next(r for r in rows if r['market']=='totals')['model_push_probability'],0)
         self.assertTrue(all(r['player_context'] for r in rows if r['market'].startswith(('batter_','pitcher_'))))
+        self.assertEqual({r['player_position'] for r in rows if r['market'].startswith('pitcher_')},{'SP'},'probable starters')
+        self.assertEqual({r['player_position'] for r in rows if r['market'].startswith('batter_')},{'C'},'today’s lineup position')
         # Missing display-only context cannot suppress or reprice a valid forecast.
         with patch('mlb.predict.mlb_context',side_effect=ValueError('Malformed display context')):
             without=attach(dict(rows=copy.deepcopy(rows),events=[g]),NOW,lambda endpoint:lineup_box(),bundle)
         fields=['model_probability','model_push_probability','model_mean','model_ev_pct','is_model_pick','model_status']
         self.assertEqual([[r[k] for k in fields] for r in rows],[[r[k] for k in fields] for r in without['rows']])
         self.assertTrue(all(r['player_context'] is None for r in without['rows']))
+
+    def test_primary_positions_match_names_within_the_game(self):
+        from mlb.refresh import add_positions, FeedError
+        people=[dict(fullName='Will Smith',primaryPosition={'abbreviation':'C'},currentTeam={'id':1}),
+                dict(fullName='Will Smith',primaryPosition={'abbreviation':'P'},currentTeam={'id':9}),
+                dict(fullName='José Ramírez',primaryPosition={'abbreviation':'3B'},currentTeam={'id':2}),
+                dict(fullName='No Position',currentTeam={'id':1}),'not a person',None]
+        calls=[]
+        def fetch(endpoint,**params):
+            calls.append((endpoint,params));return {'people':people}
+        state=dict(season=2026,events=[dict(mlb_game_id=5,home_team_id=1,away_team_id=2)],
+                   rows=[dict(mlb_game_id=5,market='batter_hits',player='Will Smith'),dict(mlb_game_id=5,market='batter_hits',player='Jose Ramirez'),
+                         dict(mlb_game_id=5,market='batter_hits',player='No Position'),dict(mlb_game_id=5,market='totals',player='')])
+        add_positions(state,fetch)
+        self.assertEqual([r.get('player_position') for r in state['rows']],['C','3B',None,None],'namesakes resolved by the game’s teams')
+        self.assertEqual(calls,[('sports/1/players',{'season':2026})])
+        def broken(endpoint,**params):raise FeedError('MLB official feed unavailable')
+        quiet=dict(season=2026,events=[],rows=[dict(mlb_game_id=5,market='batter_hits',player='Will Smith')])
+        self.assertIsNone(add_positions(quiet,broken)['rows'][0].get('player_position'),'a feed error leaves positions blank')
 
     def test_stale_model_bundle_is_rejected(self):
         with patch('mlb.predict.MODEL_PATH') as path,patch('mlb.predict.joblib.load',return_value={'source_signature':'test','history_fetched_date':'2026-09-19'}),patch('mlb.predict.signature',return_value='test'):

@@ -151,8 +151,11 @@ Top Picks research or its recovery starts. Explicit test editions skip the
 automatic editorial handoff.
 Parent job results travel with the card. A failed sport or expired feed marks
 the run incomplete; completed assessments from healthy boards remain visible.
-NHL/MLB standalone schedules are **16:30 Eastern**. Existing NFL game-day updates
-remain. Neither later updates nor editorial publication trigger paid research.
+NHL/MLB afternoon refreshes start at **16:30 Eastern** through `Afternoon Market
+Refresh`, dispatched by the Supabase timer in `supabase/afternoon_scheduler.sql`.
+Its 16:45 GitHub schedule is only a backup: the gate (`scripts/afternoon_gate.py`)
+skips a sport already published since 16:00 and starts nothing after midnight.
+Existing NFL game-day updates remain. Neither later updates nor editorial publication trigger paid research.
 There is no hourly MLB refresh. The article watchdog uses scheduled recovery
 eligibility, not the manual full-refresh path. Automatic articles require
 post-7:05 model checks within 90 minutes and remain subject to per-story data
@@ -206,16 +209,17 @@ date, kind and status, using unique query strings and no-cache requests. It trie
 cannot be proven. The next recovery start verifies/rebuilds a completed edition
 without paid research. Browser/CDN caches can still delay visibility for readers.
 
-All four existing scheduled starts depend on GitHub cron. The September 28
-incident confirmed that none arrived during the morning. An independent Supabase
-trigger is now implemented in `supabase/morning_scheduler.sql`, with four bounded
-dispatches to the same workflow and existing idempotency/budget gates. **Activation
-is pending a Supabase administrator's setup and live verification**; a Git merge
-alone does not install it. See [MORNING_SCHEDULER.md](MORNING_SCHEDULER.md) for the
+The September 28 incident confirmed that GitHub cron can miss the morning
+entirely. The independent Supabase trigger in `supabase/morning_scheduler.sql` has
+been **active since September 29, 2026** (24 of 24 dispatches accepted through
+October 4), with four bounded dispatches to the same workflow and the existing
+idempotency/budget gates; GitHub's four scheduled starts remain as backups. From
+September 29 to October 4 GitHub's 16:30 schedule started the NHL/MLB afternoon
+refresh between 19:11 and 20:27, so `supabase/afternoon_scheduler.sql` starts it
+with the same mechanism. See [MORNING_SCHEDULER.md](MORNING_SCHEDULER.md) for the
 incident evidence, installation, receipt checks and rollback. Workflow summaries
-record the trigger source and gate execution time. Until activated, all automatic
-starts still share GitHub's scheduler. GitHub documents timezone support and
-delayed/dropped cron events:
+record the trigger source and gate execution time. GitHub documents timezone
+support and delayed/dropped cron events:
 https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule
 
 Owner-authorized release testing on **September 27, 2026 only** uses a **$20

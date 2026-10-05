@@ -36,7 +36,8 @@ def prepare_records(path):
     d = d.drop_duplicates(['game_id', 'player', 'market_std', 'name', 'point', 'bookmaker'] if 'game_id' in d else ['commence_time', 'player', 'market_std', 'name', 'point', 'bookmaker'])
     cols = ['game_id','game','player','bookmaker','book_label','market_std','market_label','name','point','price',
             'mu','model_prob','push_prob','mkt_prob','prob_devig','consensus_prob','consensus_line','book_count',
-            'edge_bps','ev_per_100','model_status','last_update','commence_time','kick_et','home_team','away_team','projection_diagnostics']
+            'edge_bps','ev_per_100','model_status','last_update','commence_time','kick_et','home_team','away_team','projection_diagnostics',
+            'player_position']
     for c in cols:
         if c not in d:
             d[c] = None
@@ -48,7 +49,7 @@ def static_card(r):
     line = '' if r['point'] is None else f"{r['point']:g}"
     odds = '—' if r['price'] is None else f"{r['price']:+g}"
     return f'''<article class="panel prop-card"><p class="meta">{escape(r['kick_et'] or '')} · {escape(r['game'] or '')}</p>
-+<h2>{escape(r['player'])}</h2><p>{escape(r['market_label'])}</p>
++<h2>{escape(r['player'])}{f' <span class="pc-pos">{escape(r["player_position"])}</span>' if r.get('player_position') else ''}</h2><p>{escape(r['market_label'])}</p>
 +<p class="betline">{escape(r['name'].title())} {line} · {odds}</p><p>{escape(r['book_label'])}</p>
 +<p class="meta">{escape(r['model_status'])}</p></article>'''.replace('\n+', '\n')
 
@@ -85,7 +86,7 @@ def build_page(args, top_only=False):
     payload = json.dumps({'fields':fields, 'dictionary':dictionary, 'rows':packed, 'topOnly':top_only, 'root':rel, 'snapshotUpcoming':len(future), 'snapshotVerified':verified, 'lastKickoff':max((r['commence_time'] for r in future), default=None)}, separators=(',', ':'), allow_nan=False).replace('<', '\\u003c').replace('&', '\\u0026')
     html = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{escape(title)} | Fourth &amp; Value</title>{metadata(args.out,title+' | Fourth & Value',description)}
-<link rel="icon" href="{rel}/assets/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="{rel}/assets/site.css"><link rel="stylesheet" href="{rel}/assets/player-context.css?v=3"><script src="{rel}/assets/player-context.js?v=4" defer></script><link rel="stylesheet" href="{rel}/assets/offer-tracker.css?v=1"></head>
+<link rel="icon" href="{rel}/assets/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="{rel}/assets/site.css"><link rel="stylesheet" href="{rel}/assets/player-context.css?v=4"><script src="{rel}/assets/player-context.js?v=5" defer></script><link rel="stylesheet" href="{rel}/assets/offer-tracker.css?v=1"></head>
 <body><a class="skip-link" href="#main">Skip to props</a><div id="nav-root"></div><script src="{rel}/nav.js?v=47"></script>
 <main id="main" class="wrap">{nfl_links(rel, 'Top picks' if top_only else 'Player props')}
 <p class="eyebrow">{context}</p><h1>{title}</h1>

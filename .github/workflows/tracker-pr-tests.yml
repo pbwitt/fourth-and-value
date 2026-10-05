@@ -10,6 +10,7 @@ on:
       - 'docs/tracking/live-stats.js'
       - 'docs/tracking/live-feeds.js'
       - 'docs/tracking/manual-bet.js'
+      - 'docs/tracking/performance.js'
       - 'docs/tracking/index.html'
       - 'scripts/grade_bets.cjs'
       - 'scripts/mlb/site.py'
@@ -18,6 +19,7 @@ on:
       - 'scripts/nfl_build_totals_page.py'
       - 'tests/offer_tracker*.cjs'
       - 'tests/manual_bet*.cjs'
+      - 'tests/tracker_performance*.cjs'
       - '.github/workflows/tracker-pr-tests.yml'
 permissions:
   contents: read
@@ -34,8 +36,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node tests/offer_tracker.cjs && node tests/tracker_saves.cjs && node tests/live_stats.cjs && node tests/manual_bet.cjs
+      - run: node tests/offer_tracker.cjs && node tests/tracker_saves.cjs && node tests/live_stats.cjs && node tests/manual_bet.cjs && node tests/tracker_performance.cjs
       - run: npm install --no-save --package-lock=false playwright@1.55.1
       - run: npx playwright install --with-deps chromium
       - run: node tests/offer_tracker_browser.cjs
       - run: node tests/manual_bet_browser.cjs
+      - run: node tests/tracker_performance_browser.cjs

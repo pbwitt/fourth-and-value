@@ -166,16 +166,20 @@
     return v.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
   }
   const withUnit=(v,unit,sport)=>fmt(v,unit,sport)+(!unit||unit==='min'&&sport==='NHL'?'':unit==='%'||unit==='×'?unit:' '+esc(unit));
+  // The player's listed position (WR, D, SS, G-F ...), shown beside every name; display only.
+  const position=r=>typeof r?.player_position==='string'&&r.player_position.trim()?r.player_position.trim():'';
+  const positionTag=r=>position(r)?` <span class="pc-pos" title="Position">${esc(position(r))}</span>`:'';
   function name(r,sport=r?.sport,options={}){
     const text=esc(r?.player??'');
-    if(!r||!r.player||r.model_withheld)return text;
+    if(!r||!r.player)return text;
+    if(r.model_withheld)return text+positionTag(r);
     const c=contextFor(r,sport);
-    if(!c&&!options.season?.c)return text;
+    if(!c&&!options.season?.c)return text+positionTag(r);
     let id=ids.get(r);
     if(!id){id='pc'+(++seq);ids.set(r,id);}
     entries.set(id,{r,sport,options,c});
     install();
-    return `<button type="button" class="pc-name" data-pc="${id}" aria-haspopup="dialog" aria-expanded="false">${text}<span class="pc-cue" aria-hidden="true"></span></button>`;
+    return `<button type="button" class="pc-name" data-pc="${id}" aria-haspopup="dialog" aria-expanded="false">${text}<span class="pc-cue" aria-hidden="true"></span></button>${positionTag(r)}`;
   }
   function seasonLine(s){
     if(!s?.c)return '';
@@ -442,7 +446,8 @@
     const body=tabs.length>1?`<div class="pc-tabs" role="tablist" aria-label="Player snapshot sections">${tabs.map(([k,l])=>`<button type="button" role="tab" id="pc-tab-${k}" data-tab="${k}" aria-controls="pc-panel-${k}" aria-selected="${k===pick}" tabindex="${k===pick?0:-1}">${l}</button>`).join('')}</div>`
       +tabs.map(([k,,html])=>`<div class="pc-panel" role="tabpanel" id="pc-panel-${k}" aria-labelledby="pc-tab-${k}"${k===pick?'':' hidden'}>${html}</div>`).join('')
       :tabs.map(([,,html])=>html).join('');
-    return `<div class="pc-pop-head"><div><strong>${esc(r.player)}</strong>${r.game?`<span>${esc(r.game)}</span>`:''}</div><button type="button" class="pc-close" aria-label="Close player snapshot">×</button></div>`
+    const sub=[position(r),r.game].filter(Boolean).map(esc).join(' · ');
+    return `<div class="pc-pop-head"><div><strong>${esc(r.player)}</strong>${sub?`<span>${sub}</span>`:''}</div><button type="button" class="pc-close" aria-label="Close player snapshot">×</button></div>`
       +projection+marketStrip(r,sport)+body
       +(source?`<p class="pc-source">${source}</p>`:'')+'<p class="pc-pop-link" hidden></p>';
   }

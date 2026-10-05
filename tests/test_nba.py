@@ -57,6 +57,44 @@ class NBATests(unittest.TestCase):
         self.assertEqual(rows[0]['baseline_push'],1)
         self.assertIsNone(rows[0]['model_probability'])
 
+    def test_positions_by_player_id_then_unique_name(self):
+        history=[dict(GAME_ID=str(i),PLAYER_ID=1,PLAYER_NAME='Test Player',MIN=30,PTS=20,
+                      GAME_DATE=(NOW-timedelta(days=i+1)).date().isoformat()) for i in range(3)]
+        positions=[dict(id=1,name='Test Player',position='F'),dict(id=1,name='Test Player',position='G-F'),
+                   dict(id=7,name='Rookie Guard',position='G'),dict(id=8,name='Same Name',position='C'),dict(id=9,name='Same Name',position='F')]
+        rows=[quote(line=20),dict(quote(),player='Rookie Guard'),dict(quote(),player='Same Name'),dict(quote(),player='Nobody'),
+              quote(market='totals',line=220.5)]
+        rows=add_baselines(rows,{'players':history,'positions':positions},NOW)
+        self.assertEqual([r.get('player_position') for r in rows],['G-F','G',None,None,None],
+                         'history ID first (latest season wins), then a unique name; namesakes stay blank')
+        self.assertIsNone(add_baselines([quote()],{'players':history},NOW)[0]['player_position'],'no positions saved yet')
+
+    def test_failed_position_lookup_keeps_saved_positions(self):
+        import json, tempfile
+        from unittest.mock import patch
+        from nba import pipeline
+        with tempfile.TemporaryDirectory() as root:
+            path=Path(root)/'data/nba/history/2026-27.json';path.parent.mkdir(parents=True)
+            path.write_text(json.dumps(dict(players=[],teams=[],positions=[dict(id=1,name='Saved Player',position='C')])))
+            with patch.object(pipeline,'ROOT',Path(root)),patch.object(pipeline,'fetch_history',return_value=dict(players=[],teams=[],positions=[])), \
+                 patch.object(sys,'argv',['pipeline.py','--history-season','2026-27','--offline']),patch.object(pipeline,'load_dotenv'), \
+                 patch('nba.site.build',return_value=None):
+                pipeline.main()
+            self.assertEqual(json.loads(path.read_text())['positions'],[dict(id=1,name='Saved Player',position='C')])
+
+    def test_position_fetch_is_best_effort(self):
+        from unittest.mock import patch, MagicMock
+        from nba.pipeline import fetch_positions
+        table={'resultSets':[{'name':'PlayerIndex','headers':['PERSON_ID','PLAYER_LAST_NAME','PLAYER_FIRST_NAME','POSITION'],
+                              'rowSet':[[201939,'Curry','Stephen','G'],[1,'Unknown','No',''],[2,'Big','Center','C']]}]}
+        with patch('nba.pipeline.requests.get',return_value=MagicMock(ok=True,json=lambda:table)) as get:
+            self.assertEqual(fetch_positions('2026-27'),[dict(id=201939,name='Stephen Curry',position='G'),dict(id=2,name='Center Big',position='C')])
+            self.assertEqual(get.call_args.kwargs['params']['Season'],'2026-27')
+        with patch('nba.pipeline.requests.get',return_value=MagicMock(ok=False)):
+            self.assertEqual(fetch_positions('2026-27'),[])
+        with patch('nba.pipeline.requests.get',return_value=MagicMock(ok=True,json=lambda:{'resultSets':[]})):
+            self.assertEqual(fetch_positions('2026-27'),[],'a changed response leaves positions blank')
+
     def test_no_events_is_success_and_does_not_spend_on_props(self):
         class Empty:
             requests=1

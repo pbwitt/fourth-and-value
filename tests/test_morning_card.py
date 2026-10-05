@@ -209,10 +209,15 @@ class MorningCardTests(unittest.TestCase):
         self.assertEqual(morning.count("if: needs.gate.outputs.refresh == 'true'"),3)
         self.assertIn("needs.gate.result == 'success'",morning)
         self.assertIn('needs.mlb.result',morning)
+        # The 4:30 PM refresh is started by the Supabase timer through Afternoon Market Refresh;
+        # its GitHub schedule is a later, gated backup, and the sport workflows carry none.
+        afternoon=(workflow/'afternoon-refresh.yml').read_text()
+        self.assertIn("cron: '45 16 * * *'\n      timezone: America/New_York",afternoon)
         for sport in ('nhl','mlb'):
             source=(workflow/f'{sport}-daily.yml').read_text()
-            self.assertIn("cron: '30 16 * * *'",source)
-            self.assertIn('timezone: America/New_York',source)
+            self.assertNotIn('cron:',source)
+            self.assertIn('workflow_call:',source)
+            self.assertIn(f"if: needs.gate.outputs.{sport} == 'true'\n    uses: ./.github/workflows/{sport}-daily.yml",afternoon)
         research=(workflow/'analyst-daily.yml').read_text()
         self.assertNotIn('workflow_run:',research)
         self.assertNotIn('cron:',research)

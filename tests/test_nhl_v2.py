@@ -274,6 +274,7 @@ class SiteContractTests(unittest.TestCase):
             out=enrich(state,NOW)
         self.assertIsNone(out['rows'][0]['independent_probability']);self.assertIsNone(out['rows'][0]['estimated_ev'])
         self.assertIsNone(out['rows'][0]['forecast_id']);self.assertEqual(out['rows'][0]['price'],-110)
+        self.assertIsNone(out['rows'][0]['player_position'])
         self.assertIn('AttributeError',out['model_error'])
 
     def test_live_adapter_models_all_markets_independently_and_fails_on_stale_inputs(self):
@@ -291,6 +292,8 @@ class SiteContractTests(unittest.TestCase):
         out=annotate(copy.deepcopy(rows),past,players,events,models,manifest,NOW,NOW.isoformat())
         self.assertEqual(len(out),7);self.assertTrue(all(r['model_probability'] is not None for r in out))
         context=out[0]['player_context']
+        self.assertEqual({r.get('player_position') for r in out if r['market'] in PROPS},{'C'},'position from his latest appearance')
+        self.assertTrue(all(r.get('player_position') is None for r in out if r['market'] not in PROPS))
         self.assertEqual([g['date'] for g in context['games']],['2026-09-25','2026-09-24'],'recent games, newest first')
         self.assertNotIn('opp',[c[0] for c in context['game_columns']],'no opponent without team abbreviations')
         labeled=[dict(r,home=True,team_abbrev='HOM') for r in players]+[dict(r,player_id=9,player='Other',home=False,team_abbrev='AWY') for r in players]

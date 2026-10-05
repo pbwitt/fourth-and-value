@@ -113,4 +113,12 @@ assert.match(far,/146–160 rec yds: 0\.1%/);assert.match(far,/161\+ rec yds: &l
 const nba=snapshot({player:'Guard',market:'player_points',line:21.5,side:'Over',baseline_probability:.556,fair_probability:.5,book_probability:.52,player_context:{schema_version:1,source:'NBA',stat_label:'Points',
   distribution:{empirical:[18,19,20,22,23,24,25,26,27,30]},trend:{label:'PTS',note:'',rows:[['2026-03-01',22,null,'vs BOS',33],['2026-03-02',19,null,'@ BOS',30]]}}},'NBA');
 assert.match(nba,/Past hit rate 55\.6%/);assert.match(nba,/7 over 21\.5 · 3 under/);assert.doesNotMatch(nba,/data-tab="record"/,'no model, no track record');
+// Positions sit beside every name, with or without a snapshot, and in the snapshot header.
+assert.equal(name({player:'Plain',player_position:'WR',market_std:'first_td'},'NFL'),'Plain <span class="pc-pos" title="Position">WR</span>');
+assert.equal(name({player:'Held',player_position:'D',model_withheld:'x'},'NHL'),'Held <span class="pc-pos" title="Position">D</span>');
+assert.match(name({...row,player_position:'SP'},'MLB'),/<\/button> <span class="pc-pos" title="Position">SP<\/span>$/);
+assert.equal(name({player:'Odd',player_position:'<b>'},'NBA'),'Odd <span class="pc-pos" title="Position">&lt;b&gt;</span>','escaped');
+assert.equal(name({player:'Blank',player_position:'  '},'NBA'),'Blank','blank positions are not shown');
+assert.match(snapshot({...row,player_position:'SP',game:'NYY @ BOS'},'MLB'),/<strong>Test Player<\/strong><span>SP · NYY @ BOS<\/span>/);
+assert.match(snapshot({...row,player_position:'SP'},'MLB'),/<strong>Test Player<\/strong><span>SP<\/span>/);
 console.log('PASS: player context preserves missing values, zeros, units, input labels, archived context and escaped content; name pop-up snapshots.');

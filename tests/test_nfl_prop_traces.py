@@ -68,6 +68,35 @@ class TraceTests(unittest.TestCase):
         self.assertEqual(qb['current_sample'][-1]['opponent_team'], 'NE')
 
 
+class PositionTests(unittest.TestCase):
+    def test_params_keep_each_players_position(self):
+        params = build_params(CANDS, LOGS, 2026, 5, career_df=pd.DataFrame())
+        self.assertEqual(dict(zip(params.player, params.position)), {'Run Back': 'RB', 'Wide Out': 'WR', 'Quarter Back': 'QB'})
+
+    def test_every_market_of_a_player_gets_his_position(self):
+        from make_props_edges import attach_positions
+        merged = pd.DataFrame(dict(player_key=['runback', 'runback', 'nobody'], market_std=['rush_yds', 'first_td', 'rush_yds']))
+        params = pd.DataFrame(dict(player_key=['runback', 'runback'], market_std=['rush_yds', 'rush_attempts'], position=['RB', 'RB']))
+        out = attach_positions(merged, params, 'player_key')
+        self.assertEqual(out.player_position.tolist()[:2], ['RB', 'RB'], 'unmodeled markets too')
+        self.assertTrue(pd.isna(out.player_position.iloc[2]))
+        self.assertNotIn('player_position', attach_positions(merged, params.drop(columns='position'), 'player_key'))
+
+    def test_board_rows_and_static_cards_show_the_position(self):
+        import tempfile
+        import build_props_site
+        row = dict(game_id='g', game='A @ B', player='Run Back', bookmaker='draftkings', bookmaker_title='DraftKings', market_std='rush_yds',
+                   name='over', point=70.5, price=-110, mu=72.2, model_prob=.47, push_prob=0, model_status='Uncalibrated',
+                   last_update='2026-10-04T12:00:00Z', commence_time='2026-10-04T17:00:00Z', home_team='B', away_team='A',
+                   player_position='RB')
+        with tempfile.NamedTemporaryFile('w', suffix='.csv', delete=False) as f:
+            pd.DataFrame([row, dict(row, player='Other Back', player_position=None)]).to_csv(f.name, index=False)
+        records = build_props_site.prepare_records(f.name)
+        self.assertEqual([r['player_position'] for r in records], ['RB', None])
+        self.assertIn('<h2>Run Back <span class="pc-pos">RB</span></h2>', build_props_site.static_card(records[0]))
+        self.assertIn('<h2>Other Back</h2>', build_props_site.static_card(records[1]))
+
+
 class DefensiveRatingTests(unittest.TestCase):
     def test_yards_allowed_and_data_season_are_kept_for_display(self):
         import os, tempfile

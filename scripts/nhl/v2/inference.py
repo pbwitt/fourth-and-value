@@ -18,6 +18,7 @@ from .review import apply_review, validate_review
 from player_context import describe, nhl_context, versus, opposing
 
 MARKETS=['player_shots_on_goal','player_goals','player_assists','player_points']
+POSITIONS={'C':'C','L':'LW','R':'RW','D':'D'}
 MODEL_DIR=ROOT/'models/nhl/v2'
 
 
@@ -124,6 +125,8 @@ def annotate(rows,games,players,events,models,manifest,now,history_checked_at,ro
             pid=next(iter(identity)); records=state.players[pid]
             if not records:
                 row['model_status']='No pre-decision player history'; continue
+            # Position from his latest appearance (C, LW, RW or D); display only.
+            row['player_position']=POSITIONS.get(records[-1].get('position'))
             # Roster is optional sourced live context; old team membership is never asserted current.
             if roster is not None and not any(pid in roster.get(t,[]) for t in ids):
                 row['model_status']='Player not matched to this game’s current roster'; continue
@@ -223,7 +226,8 @@ def enrich(state,now,offline_inputs=None):
         for row in state['rows']:
             for field in ['forecast_id','estimated_ev','fair_odds','fair_decimal','minimum_acceptable_odds',
                           'minimum_acceptable_decimal','push_probability','loss_probability','conditional_probability',
-                          'rank_score','analyst_probability','independent_market_difference','model_inputs','player_context','player_team_id']:
+                          'rank_score','analyst_probability','independent_market_difference','model_inputs','player_context','player_team_id',
+                          'player_position']:
                 row[field]=None
             row.update(model_probability=None,independent_probability=None,final_probability=None,
                        model_status=state['model_error'],validation_status='unavailable',recommendation=False,

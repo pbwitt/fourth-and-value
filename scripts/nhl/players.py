@@ -155,9 +155,13 @@ def links(current):
             '<a href="/nhl/props/">Compare every prop</a><a href="/nhl/methods.html">Methods</a></nav>')
 
 
+POSITION_NAMES = {'C': 'Center', 'L': 'Left wing', 'R': 'Right wing', 'D': 'Defense'}
+
+
 def player_page(slug, entry, offer, recent, seasons, mates, team_names):
     name, url = entry['name'], f'{SITE}/nhl/players/{slug}/'
     team = team_names.get(entry.get('team')) or entry.get('team')
+    position = POSITION_NAMES.get(entry.get('position'))
     lines, sections, tickets = (offer or {}).get('lines', {}), [], []
     game = next(iter(sorted((offer or {}).get('games', {}).values(), key=lambda r: r['commence_time'])), None)
     if game:
@@ -229,7 +233,8 @@ def player_page(slug, entry, offer, recent, seasons, mates, team_names):
                         + ''.join(f'<li><a href="/nhl/players/{m}/">{escape(n)}</a></li>' for m, n in mates) + '</ul></section>')
     data = json.dumps(tickets, separators=(',', ':')).replace('</', '<\\/')
     html = (head(title, description, url, [('NHL', '/nhl/'), ('Player props', '/nhl/players/'), (name, f'/nhl/players/{slug}/')])
-            + f'<main class="wrap player-page" id="main">{links("player")}<header><p class="eyebrow">NHL player props{f" · {escape(team)}" if team else ""}</p>'
+            + f'<main class="wrap player-page" id="main">{links("player")}<header><p class="eyebrow">NHL player props{f" · {escape(team)}" if team else ""}'
+            f'{f" · {position}" if position else ""}</p>'
             f'<h1>{escape(name)} props</h1><p class="lead">{lead}</p></header>{"".join(sections)}'
             '<p><a href="/nhl/players/">Every NHL player’s props →</a> · <a href="/nhl/props/">Compare every NHL prop →</a> · '
             '<a href="/nhl/methods.html">How we price NHL props →</a></p>'
@@ -319,6 +324,9 @@ def build(state, out=OUT, now=None, data=None):
         mine = sorted(by_player.get(pid, []), key=lambda r: r['game_date'])
         if mine:
             entry['team'] = mine[-1].get('team_abbrev')
+            position = next((r['position'] for r in reversed(mine) if r.get('position') in POSITION_NAMES), None)
+            if position:
+                entry['position'] = position
         offer = next((o for o in current.values() if o['slug'] == slug), None)
         seasons = defaultdict(lambda: dict(games=0, shots=0, goals=0, assists=0, points=0))
         for r in mine:
