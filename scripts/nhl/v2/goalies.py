@@ -103,7 +103,10 @@ def upcoming(events, now):
 
 
 def rosters(events, now):
-    """Goalie ids on each playing team's official current roster; a team that fails is left out."""
+    """Goalie ids on each playing team's official current roster; a team that fails is left out.
+
+    The first network failure stops further requests so a slow API cannot stall the refresh.
+    """
     import requests
     out = {}
     for event in upcoming(events, now):
@@ -112,10 +115,12 @@ def rosters(events, now):
             if tid in out or not abbrev:
                 continue
             try:
-                response = requests.get(f'https://api-web.nhle.com/v1/roster/{abbrev}/current', timeout=20)
+                response = requests.get(f'https://api-web.nhle.com/v1/roster/{abbrev}/current', timeout=10)
                 response.raise_for_status()
                 out[tid] = {int(g['id']) for g in response.json()['goalies']}
-            except (requests.RequestException, ValueError, KeyError, TypeError):
+            except requests.RequestException:
+                return {t: ids for t, ids in out.items() if ids}
+            except (ValueError, KeyError, TypeError):
                 out[tid] = None
     return {tid: ids for tid, ids in out.items() if ids}
 

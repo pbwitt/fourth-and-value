@@ -108,6 +108,10 @@ class ProjectionTests(unittest.TestCase):
             out = goalies.rosters(events, NOW)
         self.assertEqual(out, {1: {30, 31}}, 'a failed team is left out, never guessed')
         self.assertEqual(get.call_count, 2, 'only teams playing within 48 hours are fetched')
+        events.insert(0, dict(events[0], nhl_game_id=6, home_id=5, away_id=6, home_abbrev='TOR', away_abbrev='NYR'))
+        with patch('requests.get', side_effect=lambda url, timeout: Response(url)) as get:
+            self.assertEqual(goalies.rosters(events, NOW), {})
+        self.assertEqual(get.call_count, 1, 'a network failure stops further requests')
 
     def test_save_rate_is_shrunk_toward_league(self):
         hot = [dict(shots_against=100, goals_against=2)]
