@@ -41,7 +41,7 @@ def fetch_report(kind, season, root, through=None, after=None):
     start = 0
     while True:
         params = dict(isAggregate='false', isGame='true', start=start, limit=-1,
-                      sort=json.dumps([dict(property='gameId',direction='ASC'), dict(property='playerId' if kind == 'skater' else 'teamId',direction='ASC')]),
+                      sort=json.dumps([dict(property='gameId',direction='ASC'), dict(property='playerId' if kind in ('skater', 'goalie') else 'teamId',direction='ASC')]),
                       cayenneExp=f'seasonId={season} and gameTypeId=2')
         if through:
             params['cayenneExp'] += f' and gameDate<"{through}"'
