@@ -17,25 +17,28 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-nhl.txt
       - run: pip install -r requirements-nhl.txt
-      - name: Dry run of goalie projections on live data (no odds calls, nothing published)
+      - name: Roster responses per team (no odds calls)
         run: |
           python - <<'PY'
-          import sys; sys.path.insert(0, 'scripts')
+          import sys, time; sys.path.insert(0, 'scripts')
           from datetime import datetime, timezone
-          from nhl.v2.inference import live_history
+          import requests
           from nhl.v2 import goalies
-          from nhl.refresh import schedule, season_for
+          from nhl.refresh import schedule
           now = datetime.now(timezone.utc)
-          games, players, checked = live_history(now)
-          apps = goalies.live('data/nhl/v2/history', games, now, season_for(now))
-          print('appearances', len(apps), 'by season', {s: sum(a['season'] == s for a in apps) for s in sorted({a['season'] for a in apps})})
-          events = schedule(now)
-          up = goalies.upcoming(events, now)
-          rost = goalies.rosters(events, now)
-          print('games in 48h', len(up), 'rosters', len(rost))
-          state = goalies.attach(dict(events=events, rows=[dict(nhl_game_id=e['nhl_game_id'], player='') for e in up]), apps, now, rost)
-          for row in state['rows']:
-              print(row['nhl_game_id'], row['goalie_assumption'], len(row['goalie_assumption']))
-          p = next(iter(state['goalie_projections'].values()), None)
-          if p: print('basis', (p['home'] or {}).get('basis'))
+          up = goalies.upcoming(schedule(now), now)
+          teams = []
+          for e in up:
+              for side in ('home', 'away'):
+                  pair = (e[side + '_id'], e.get(side + '_abbrev'), e[side + '_team'])
+                  if pair not in teams: teams.append(pair)
+          print('teams', len(teams))
+          for tid, abbrev, name in teams:
+              t = time.time()
+              try:
+                  r = requests.get(f'https://api-web.nhle.com/v1/roster/{abbrev}/current', timeout=10)
+                  body = r.json() if r.ok else r.text[:120]
+                  print(tid, abbrev, name, r.status_code, round(time.time() - t, 2), [g['id'] for g in body['goalies']] if r.ok else body, r.headers.get('Retry-After'))
+              except Exception as error:
+                  print(tid, abbrev, name, 'ERROR', type(error).__name__, str(error)[:120])
           PY
