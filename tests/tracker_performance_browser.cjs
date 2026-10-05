@@ -1,5 +1,5 @@
-// Bet Tracker performance panel on the real page with sample bets: win rate against
-// break-even, ROI against winning bettors, running profit, by sport, filters, two widths.
+// Bet Tracker performance panel on the real page with sample bets: break-even under the Win Rate
+// tile, ROI against winning bettors, running profit, by sport, share images, filters, two widths.
 const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('node:http'),path=require('node:path');
 const {chromium}=require('playwright');
 const root=path.resolve(__dirname,'..','docs');
@@ -42,8 +42,8 @@ const rows=[
       const text=(await panel.textContent()).replace(/\s+/g,' ');
       // 5 wins of 8 decided; ROI = (3.57+6.25+7.4+4.76+4.31-15)/40.
       assert.match(text,/8 settled bets in this view, 1 pending/);
-      assert.match(text,/62\.5%\s?Bets won/);assert.match(text,/Break-even win rate at the prices you took/);
-      assert.match(text,/\+28\.2%\s?ROI on \$40\.00 risked/);
+      assert.doesNotMatch(text,/Bets won|ROI on \$/,'win rate and ROI are the tiles above');
+      assert.equal(await p.locator('#winRateNote').textContent(),'Break-even at your prices: 48.9%','break-even sits with the win rate');
       assert.equal(await panel.locator('[data-perf=path] .perf-dot').count(),8);
       assert.match(await panel.locator('[data-perf=scale]').textContent(),/You \+28\.2%/);
       assert.deepEqual((await panel.locator('.perf-sports tbody th').allTextContents()),['NFL','NHL','MLB']);
@@ -53,6 +53,35 @@ const rows=[
       assert.match(await readout.textContent(),/Oct 1 · NFL · Receiver <b>X<\/b> receptions over 1\.5 · Won \+\$6\.25/,'escaped text, not markup');
       assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,`overflow at ${width}`);
       await p.screenshot({path:`/tmp/fv-tracker-performance-${width}.png`,fullPage:true});
+      // The summary and each part share as branded images through the tracker's share sheet.
+      const heights=await panel.locator('.perf-share').evaluateAll(buttons=>buttons.map(b=>b.getBoundingClientRect().height));
+      assert.equal(heights.length,4);assert.ok(heights.every(h=>h>=32),`tap targets ${heights}`);
+      for(const [kind,file] of [['summary','summary'],['roi','roi'],['path','running-profit'],['sports','by-sport']]){
+        await panel.locator(`[data-perf-share=${kind}]`).click();
+        await p.waitForFunction(()=>{const i=document.getElementById('shareImage');
+          return document.getElementById('shareSheet').classList.contains('open')&&i.src.startsWith('blob:')&&i.complete&&i.naturalWidth>0;});
+        const image=await p.evaluate(()=>{const i=document.getElementById('shareImage');
+          return {width:i.naturalWidth,height:i.naturalHeight,alt:i.alt,name:document.getElementById('shareSaveLink').download};});
+        assert.equal(image.width,1200,'600 px drawn at 2x');
+        assert.ok(image.height>(kind==='summary'?1600:400),`${kind} height ${image.height}`);
+        assert.equal(image.name,`fourth-and-value-performance-${file}-2026-10-04.png`);
+        assert.doesNotMatch(image.alt,/undefined|NaN|null/);assert.ok(image.alt.length>20);
+        if(kind==='summary')assert.equal(image.alt,'Bet Tracker performance, Sep 29 – Oct 4 · 8 settled bets: 62.5% won, ROI +28.2%, profit +$11.29.');
+        if(width===390){
+          const png=await p.evaluate(async()=>{const bytes=new Uint8Array(await (await fetch(document.getElementById('shareImage').src)).arrayBuffer());
+            let s='';for(const b of bytes)s+=String.fromCharCode(b);return btoa(s);});
+          fs.writeFileSync(`/tmp/fv-performance-share-${kind}.png`,Buffer.from(png,'base64'));
+        }
+        await p.locator('#shareSheet button',{hasText:'Close'}).click();
+        await p.waitForFunction(()=>!document.getElementById('shareSheet').classList.contains('open'));
+      }
+      if(width===390){
+        // The bet slips share through the same sheet.
+        await p.locator('[data-share-bet]').first().click();
+        await p.waitForFunction(()=>{const i=document.getElementById('shareImage');return i.alt==='Bet slip image'&&i.complete&&i.naturalWidth===1200;});
+        assert.match(await p.locator('#shareSaveLink').getAttribute('download'),/^fourth-and-value-bet-2026-\d\d-\d\d\.png$/);
+        await p.locator('#shareSheet button',{hasText:'Close'}).click();
+      }
       // The panel follows the filters.
       await p.locator('#f-sport').selectOption('NFL');
       await p.waitForFunction(()=>/3 settled bets in this view/.test(document.getElementById('performance').textContent));
@@ -60,6 +89,6 @@ const rows=[
       assert.deepEqual(errors,[]);
       await p.close();
     }
-    console.log('PASS: tracker performance panel renders from the shown bets, follows filters, escapes text and fits phone and desktop widths.');
+    console.log('PASS: tracker performance panel renders from the shown bets without repeating the tiles, shares four branded images, follows filters, escapes text and fits phone and desktop widths.');
   }finally{await browser.close();server.close();}
 })().catch(error=>{console.error(error);server.close();process.exitCode=1;});
