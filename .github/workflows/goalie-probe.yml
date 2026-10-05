@@ -1,0 +1,35 @@
+name: Goalie source probe (temporary)
+on:
+  push:
+    branches: [claude/amazing-albattani-kui7sr]
+    paths: ['.github/workflows/goalie-probe.yml']
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - run: |
+          python3 - <<'PY'
+          import json, urllib.request, urllib.parse
+          def get(url):
+              with urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': 'fourth-and-value probe'}), timeout=30) as r:
+                  return json.load(r)
+          q = urllib.parse.urlencode(dict(isAggregate='false', isGame='true', start=0, limit=3,
+              sort=json.dumps([dict(property='gameId', direction='ASC'), dict(property='playerId', direction='ASC')]),
+              cayenneExp='seasonId=20252026 and gameTypeId=2'))
+          d = get('https://api.nhle.com/stats/rest/en/goalie/summary?' + q)
+          print('GOALIE total', d.get('total')); print('GOALIE keys', sorted(d['data'][0])); print('GOALIE row', json.dumps(d['data'][0]))
+          q2 = q.replace('20252026', '20262027')
+          print('GOALIE 2026-27 total', get('https://api.nhle.com/stats/rest/en/goalie/summary?' + q2).get('total'))
+          r = get('https://api-web.nhle.com/v1/roster/BOS/current')
+          print('ROSTER keys', sorted(r)); print('ROSTER goalie', json.dumps(r.get('goalies', [{}])[0])[:600])
+          s = get('https://api-web.nhle.com/v1/schedule/now')
+          games = [g for w in s.get('gameWeek', []) for g in w.get('games', []) if g.get('gameType') == 2]
+          print('SCHEDULE first regular game', games[0]['id'] if games else None, games[0].get('startTimeUTC') if games else None)
+          if games:
+              l = get(f"https://api-web.nhle.com/v1/gamecenter/{games[0]['id']}/landing")
+              print('LANDING keys', sorted(l)); m = l.get('matchup') or {}
+              print('MATCHUP keys', sorted(m)); print('GOALIE COMPARISON', json.dumps(m.get('goalieComparison'))[:1500])
+          PY
