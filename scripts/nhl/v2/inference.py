@@ -193,7 +193,7 @@ def annotate(rows,games,players,events,models,manifest,now,history_checked_at,ro
     return rows
 
 
-def enrich(state,now,offline_inputs=None):
+def enrich(state,now,offline_inputs=None,goalie_inputs=None):
     """A modeling failure cannot hide an otherwise healthy market snapshot."""
     state['schema_version']=2
     state['recommendations']=[]
@@ -218,6 +218,22 @@ def enrich(state,now,offline_inputs=None):
         state['model_data_checked_at']=checked
         state['model_prediction_at']=iso(decision_now)
         state['model_error']=None
+        # Projected starting goalies are context only and never change a forecast. Offline runs
+        # skip the fetch unless given appearances; a failure keeps the generic assumption.
+        state['goalie_projections']=None
+        state['goalie_error']=None
+        if goalie_inputs is not None or not offline_inputs:
+            try:
+                from .goalies import attach, live as goalie_history, rosters
+                from nhl.refresh import season_for
+                if goalie_inputs is not None:
+                    attach(state,goalie_inputs,decision_now)
+                else:
+                    appearances=goalie_history(ROOT/'data/nhl/v2/history',games,decision_now,season_for(decision_now))
+                    attach(state,appearances,decision_now,rosters(state.get('events',[]),decision_now))
+            except Exception as error:
+                state['goalie_projections']=None
+                state['goalie_error']=f'Goalie projections unavailable ({type(error).__name__})'
     except Exception as error:
         # No exception URL or credentials; no stale model fallback.
         state['model_error']=f'Independent model unavailable ({type(error).__name__})'

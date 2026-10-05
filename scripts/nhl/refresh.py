@@ -86,7 +86,8 @@ def schedule(now):
                     continue
                 games[game['id']] = dict(nhl_game_id=game['id'], season=game['season'], game_type=2,
                     commence_time=iso(start), home_team=team_name(game['homeTeam']),
-                    away_team=team_name(game['awayTeam']),home_id=game['homeTeam'].get('id'),away_id=game['awayTeam'].get('id'))
+                    away_team=team_name(game['awayTeam']),home_id=game['homeTeam'].get('id'),away_id=game['awayTeam'].get('id'),
+                    home_abbrev=game['homeTeam'].get('abbrev'),away_abbrev=game['awayTeam'].get('abbrev'))
     return sorted(games.values(), key=lambda g:g['commence_time'])
 
 

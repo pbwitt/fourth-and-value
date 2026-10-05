@@ -146,6 +146,12 @@ publication time and retain `published_at: null`; they are live-only snapshots,
 usable for 90 minutes. Full matched injury rows stay archived and expandable;
 request excerpts may contain a labeled subset. Absence never proves health.
 NFL injury-table parsing preserves actual rows instead of JSON-LD legends.
+NHL rows carry projected starting goalies in `goalie_assumption`: each team's start
+chances from recency-weighted official box-score starts (last night's starter discounted
+on a back-to-back) and a save rate shrunk toward league average, computed only from box
+scores available at decision time (`scripts/nhl/v2/goalies.py`). They are labeled
+"Projected, not confirmed", are context for review only and change no forecast, price or
+eligibility. The snapshot keeps them, with their as-of time, in `goalie_projections`.
 
 Free source collection remains bounded (16 articles, up to eight NFL team indexes,
 and direct injury tables); targeted search leads allow up to 24 additional

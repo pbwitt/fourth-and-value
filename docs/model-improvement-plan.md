@@ -7,9 +7,9 @@ Owner: pbwitt. Started 2026-10-05. Update this file as each phase finishes.
 | Phase | State | Notes |
 |---|---|---|
 | 0. Audit | Done 2026-10-05 | Findings and proposed plan below. Step 1 (housekeeping) merged and deployed 2026-10-05. |
-| 1. News and lineup data | Not started | |
+| 1. News and lineup data | In progress | NHL projected starting goalies (start chance and shrunk save rate from official box scores) as context only, 2026-10-05. Confirmed starters still need a permitted source. |
 | 2. Model fixes | Not started | |
-| 3. Market blend before betting | In progress | Step 2 (blend live on Top Picks at w = 0.25, 3% EV) in review 2026-10-05. Pinnacle reference not yet added. |
+| 3. Market blend before betting | In progress | Step 2 (blend live on Top Picks at w = 0.25, 3% EV) merged 2026-10-05 in pbwitt/fourth-and-value#87. Pinnacle reference not yet added. |
 | 4. Backtest and calibration | Not started | |
 | 5. Monitoring and site | Not started | |
 
@@ -347,9 +347,10 @@ Merged in pbwitt/fourth-and-value#86.
 - Found while testing: a date-dependent NHL player-page test failed every Oct 5 Morning Picks NHL job.
   Fixed separately in pbwitt/fourth-and-value#85.
 
-### Step 2 status (2026-10-05): market blend on Top Picks
+### Step 2 status: done (2026-10-05): market blend on Top Picks
 
-Owner approved going ahead ("go ahead and finish"). Live on Top Picks, not a shadow run.
+Owner approved going ahead ("go ahead and finish"). Live on Top Picks, not a shadow run. Merged in
+pbwitt/fourth-and-value#87.
 
 - `docs/assets/briefing-picks.js`: every model candidate is blended,
   `f = sigmoid(0.25·logit(model) + 0.75·logit(market))`, with `market` the median no-vig
@@ -369,6 +370,32 @@ Owner approved going ahead ("go ahead and finish"). Live on Top Picks, not a sha
   The NFL receptions picks show the 0.25 weight is generous for NFL given its Week 3 record; Phase 4
   should fit a lower NFL weight if the out-of-sample scores agree.
 - Not done: the Pinnacle (`eu` region) sharp reference, which costs extra credits per request.
+
+### Phase 1, NHL goalies: projected starters as context (2026-10-05)
+
+- `scripts/nhl/v2/goalies.py` reads the official per-game goalie report (`api.nhle.com` stats
+  `goalie/summary`, the source family the skater history already uses; 2,768 rows for 2025-26).
+  Last season is collected once, the current season at most every 12 hours, checksummed in the
+  cached history.
+- For each game in the next 48 hours: each team's start chances from recency-weighted starts over
+  its last 20 games (10-game half-life), last night's starter cut to 35% of his share on a
+  back-to-back. A goalie whose latest box score is for another team is dropped, and the list is
+  limited to the official current roster (`api-web.nhle.com` `roster/{team}/current`) so offseason
+  moves don't leak in. Save rate is shrunk toward .903 with 1,000 shots of prior weight.
+- Live dry run on a GitHub runner (Oct 5, 11:46 AM ET, nothing published): 13 games in the next
+  48 hours, row text 135–205 characters, e.g. "Boston Bruins: likely Jeremy Swayman 88% (sv 0.906),
+  Michael DiPietro 12%". All 25 roster requests answered 200 in a separate check; an earlier
+  burst run got 19, which led to spacing and one retry on 429/5xx.
+- Point in time: only box scores available by the decision (next day 12:00 UTC, the history's
+  convention) count, so the 7:05 AM run does not yet see last night's starter; the 4:30 PM
+  refresh does.
+- Output: `goalie_assumption` on every row in that window ("Projected, not confirmed", the
+  opposing goalie for a skater, both for a game line) and `goalie_projections` with `as_of` on the
+  snapshot, archived with each run. **Context only**: no probability, price or eligibility changes.
+  A fetch failure leaves the generic text and records `goalie_error`.
+- Next: test whether the opposing goalie's expected save rate improves goals/points/SOG forecasts
+  out of sample (Phase 4) before it enters the model. Confirmed starters still need a permitted
+  source (Daily Faceoff permission or a paid feed).
 
 ### Data fixes (2026-10-05)
 
