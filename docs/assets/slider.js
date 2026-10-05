@@ -4,7 +4,22 @@
 (() => {
   document.querySelectorAll('.slider').forEach(root => {
     const track = root.querySelector('.slider-track');
+    // Expire explicitly scheduled opinion promotions even between site rebuilds.
+    const originalDots = [...root.querySelectorAll('.slider-dots button')];
+    [...track.children].forEach((slide, i) => {
+      const expiry = Date.parse(slide.dataset.featuredUntil || '');
+      if (Number.isFinite(expiry) && Date.now() >= expiry) {
+        slide.remove();
+        originalDots[i]?.remove();
+      }
+    });
     const slides = [...track.children];
+    slides.forEach((slide, i) => slide.setAttribute('aria-label', `${i + 1} of ${slides.length}`));
+    if (slides.length < 2) {
+      const controls = root.querySelector('.slider-controls');
+      if (controls) controls.hidden = true;
+    }
+
     const dots = [...root.querySelectorAll('.slider-dots button')];
     if (slides.length < 2) return;
     let index = 0, paused = false, stopped = false;

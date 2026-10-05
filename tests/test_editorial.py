@@ -68,6 +68,22 @@ class EditorialTests(unittest.TestCase):
         self.assertEqual(m.home_slides([blog]+articles,fallback)[0],blog)
         self.assertEqual(m.home_slides(articles,fallback),articles[:3])
         self.assertEqual(m.home_slides([],fallback),[fallback])
+    def test_opinion_promotion_expires_without_entering_analysis(self):
+        opinion=dict(title='Opinion',kind='Opinion',date='2026-09-22',
+                     url='/editorial/articles/opinion.html',featured=True,
+                     featured_until=(NOW+timedelta(days=3)).isoformat())
+        self.assertEqual(m.featured_opinions([opinion],NOW),[opinion])
+        self.assertFalse(m.featured_now(opinion,NOW))
+        self.assertEqual(m.featured_opinions([opinion],NOW+timedelta(days=3)),[])
+        self.assertEqual(m.featured_opinions([dict(opinion,featured=False)],NOW),[])
+        self.assertEqual(m.featured_opinions([dict(opinion,featured_until=None)],NOW),[])
+        articles=[dict(title=f'New {i}',url=f'/editorial/articles/{i}.html',featured=True) for i in range(4)]
+        blog=dict(title='Blog',url='/blog/feature.html',featured=True)
+        slides=m.home_slides(articles+[blog,opinion],{'url':'/briefing/'})
+        self.assertEqual(len(slides),3)
+        self.assertIn(opinion,slides)
+        self.assertIn(blog,slides)
+        self.assertIn(articles[0],slides)
     def test_started_and_stale_quotes_excluded(self):
         e=event();e['commence_time']=(NOW-timedelta(seconds=1)).isoformat()
         self.assertEqual(m.summarize_events('NFL',[e],NOW,{}),[])

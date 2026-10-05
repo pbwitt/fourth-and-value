@@ -257,7 +257,17 @@ def home_slides(current,fallback):
     slides=(eligible or current)[:3] or [fallback]
     blog=next((a for a in eligible if a['url'].startswith('/blog/')),None)
     if blog and blog not in slides:slides=slides[:2]+[blog]
+    # An editor may reserve one slider slot for a time-limited opinion feature.
+    opinion=next((a for a in eligible if a.get('kind')=='Opinion'),None)
+    if opinion and opinion not in slides:
+        replace=next((i for i in range(len(slides)-1,-1,-1) if slides[i]!=blog),len(slides)-1)
+        slides[replace]=opinion
     return slides
+
+def featured_opinions(catalog,now):
+    # Explicit opt-in and expiry only; never include these in market analysis.
+    return [a for a in catalog if a.get('kind')=='Opinion' and a.get('featured')
+            and a.get('featured_until') and now<stamp(a['featured_until'])]
 
 def render_home(data,now):
     catalog=list(CFG['articles'])
@@ -266,7 +276,8 @@ def render_home(data,now):
     catalog.sort(key=lambda a:(a['date'],a.get('published_at','')),reverse=True)
     current=[a for a in catalog if featured_now(a,now)]
     fallback=dict(title='The daily market briefing',excerpt='Compare current prices across the leagues and follow what changes next.',sport='Sports',kind='Market watch',url='/briefing/',date=now.astimezone(ETZ).date().isoformat())
-    slides=home_slides(current,fallback)
+    slider_current=sorted(current+featured_opinions(catalog,now),key=lambda a:(a['date'],a.get('published_at','')),reverse=True)
+    slides=home_slides(slider_current,fallback)
     lead=slides[0];shown={a['url'] for a in slides}
     ctx=context(data,now)
     ctx.update(lead=lead,slides=slides,features=[a for a in current if a['url'] not in shown][:6],opinions=[a for a in catalog if a['kind']=='Opinion'][:2])
