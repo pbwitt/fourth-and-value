@@ -175,21 +175,20 @@
     }
     .stat-value.positive { color: #66BB6A; }
     .stat-value.negative { color: #ff6b6b; }
+    .stat-note { color: #999; font-size: 0.8rem; margin-top: 0.35rem; line-height: 1.35; }
+    .stat-note:empty { display: none; }
 
     /* Performance (docs/tracking/performance.js) */
     .perf { background:#1a1a1a; border:1px solid #2a2a2a; border-radius:8px; padding:1.5rem; margin-bottom:2rem; display:grid; gap:1.1rem; }
     .perf h3 { color:#4FC3F7; margin:0; font-size:1.15rem; }
-    .perf-head { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:.25rem 1rem; }
+    .perf-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.5rem 1rem; }
+    .perf-head .perf-note { margin-top:.2rem; }
     .perf-note { color:#999; font-size:.85rem; line-height:1.5; margin:0; }
-    .perf-facts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.75rem; }
-    .perf-facts div { border-left:2px solid #2a2a2a; padding-left:.75rem; min-width:0; }
-    .perf-facts b { display:block; font-size:1.35rem; font-weight:700; color:#fff; font-variant-numeric:tabular-nums; }
-    .perf-facts b.positive { color:#66BB6A; } .perf-facts b.negative { color:#ff6b6b; }
-    .perf-facts span { display:block; color:#999; font-size:.8rem; line-height:1.35; }
+    .perf-share { display:inline-flex; align-items:center; gap:.35rem; min-height:34px; padding:.3rem .8rem; border:1px solid #4FC3F7; border-radius:999px; background:none; color:#4FC3F7; font:inherit; font-size:.8rem; font-weight:600; cursor:pointer; flex:none; }
+    .perf-share:hover, .perf-share:focus-visible { background:rgba(79,195,247,.12); }
     .perf-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
-    .perf-card { margin:0; background:#141414; border:1px solid #2a2a2a; border-radius:8px; padding:1rem; min-width:0; display:grid; gap:.6rem; align-content:start; }
-    .perf-card figcaption, .perf-sports caption { color:#fff; font-weight:600; font-size:.95rem; text-align:left; }
-    .perf-sports caption { padding-bottom:.5rem; }
+    .perf-card { margin:0; background:#141414; border:1px solid #2a2a2a; border-radius:8px; padding:1rem; min-width:0; display:grid; grid-template-columns:minmax(0,1fr); gap:.6rem; align-content:start; }
+    .perf-cap { display:flex; align-items:center; justify-content:space-between; gap:.5rem; color:#fff; font-weight:600; font-size:.95rem; }
     .perf-svg svg { display:block; width:100%; height:auto; overflow:visible; }
     .perf-svg text { fill:#999; font:12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-variant-numeric:tabular-nums; }
     .perf-svg text.perf-lab, .perf-svg text.perf-end { fill:#fff; font-weight:600; }
@@ -221,7 +220,11 @@
     @media (max-width: 700px) {
       .perf { padding:1rem; }
       .perf-grid { grid-template-columns:1fr; }
-      .perf-facts { grid-template-columns:1fr; }
+      .perf-sports th, .perf-sports td { padding-right:.35rem; font-size:.85rem; }
+      .perf-sports .r { padding-left:.4rem; }
+      .perf-sports small { display:block; white-space:nowrap; }
+      .perf-barcell { width:20%; padding-left:.5rem !important; }
+      .perf-bar { min-width:36px; }
     }
 
     /* Bet Table */
@@ -443,6 +446,7 @@
       .stat-card { padding: 0.8rem 0.9rem; }
       .stat-label { font-size: 0.75rem; margin-bottom: 0.2rem; }
       .stat-value { font-size: 1.3rem; }
+      .stat-note { font-size: 0.7rem; margin-top: 0.2rem; }
       .add-bet-section { padding: 1.1rem; margin-bottom: 1.25rem; }
       .form-grid { grid-template-columns: repeat(2, 1fr); gap: 0.7rem; }
       .form-group label { font-size: 0.75rem; margin-bottom: 0.25rem; }
@@ -585,6 +589,7 @@
         <div class="stat-card">
           <div class="stat-label">Win Rate</div>
           <div class="stat-value" id="winRate">0%</div>
+          <div class="stat-note" id="winRateNote"></div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Profit/Loss</div>
@@ -695,7 +700,7 @@
   </div>
 
   <!-- Share preview: image is drawn on-device, so nothing leaves the account unless you send it -->
-  <div class="share-sheet" id="shareSheet" role="dialog" aria-modal="true" aria-label="Share bets">
+  <div class="share-sheet" id="shareSheet" role="dialog" aria-modal="true" aria-label="Share image">
     <div class="share-sheet-inner">
       <img id="shareImage" alt="Bet slip image" />
       <div class="share-actions">
@@ -709,7 +714,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="bet-tracking.js?v=5"></script>
-  <script src="performance.js?v=1"></script>
+  <script src="performance.js?v=2"></script>
   <script src="live-feeds.js?v=1"></script>
   <script src="live-stats.js?v=4"></script>
   <script src="../assets/offer-tracker.js?v=2"></script>
@@ -1126,14 +1131,17 @@
 
     function openShareSheet(bets, date) {
       if (!bets.length) return;
-      const canvas=drawBetSlip(bets, date);
-      const name=`fourth-and-value-${bets.length===1?'bet':'bets'}-${date||'undated'}.png`;
+      showShareImage(drawBetSlip(bets, date), `fourth-and-value-${bets.length===1?'bet':'bets'}-${date||'undated'}.png`, 'Bet slip image');
+    }
+
+    function showShareImage(canvas, name, alt) {
       canvas.toBlob(blob=>{
         if (!blob) return alert('Could not create the image on this device.');
         if (shareUrl) URL.revokeObjectURL(shareUrl);
         shareUrl=URL.createObjectURL(blob);
         shareFile=new File([blob],name,{type:'image/png'});
-        document.getElementById('shareImage').src=shareUrl;
+        const image=document.getElementById('shareImage');
+        image.src=shareUrl; image.alt=alt;
         const save=document.getElementById('shareSaveLink');
         save.href=shareUrl; save.download=name;
         const canShare=!!(navigator.canShare && navigator.canShare({files:[shareFile]}));
@@ -1158,6 +1166,18 @@
     });
     document.getElementById('shareSheet').addEventListener('click', e=>{
       if (e.target.id==='shareSheet') closeShareSheet();
+    });
+
+    // Performance summary and charts, as branded images (docs/tracking/performance.js).
+    document.getElementById('performance').addEventListener('click', e=>{
+      const btn=e.target.closest('[data-perf-share]');
+      if (!btn) return;
+      try {
+        const {canvas,name,alt}=window.FVPerformance.shareImage(e.currentTarget, btn.dataset.perfShare);
+        showShareImage(canvas, name, alt);
+      } catch (error) {
+        alert('Could not create the image on this device.');
+      }
     });
 
 
@@ -1319,9 +1339,13 @@
       plEl.textContent = (profitLoss >= 0 ? '+' : '') + '$' + profitLoss.toFixed(2);
       plEl.className = 'stat-value ' + (profitLoss > 0 ? 'positive' : profitLoss < 0 ? 'negative' : '');
 
-      // Win rate against break-even, ROI against winning bettors, running profit, by sport.
-      try { window.FVPerformance?.render(document.getElementById('performance'), visibleBets()); }
+      // ROI against winning bettors, running profit and results by sport; the win rate
+      // needed to break even at the prices taken sits under the Win Rate tile.
+      let perf=null;
+      try { perf=window.FVPerformance?.render(document.getElementById('performance'), visibleBets()); }
       catch (error) { console.warn('Performance panel unavailable', error); }
+      document.getElementById('winRateNote').textContent=perf&&perf.settled&&Number.isFinite(perf.breakEven)
+        ? `Break-even at your prices: ${(perf.breakEven*100).toFixed(1).replace(/\.0$/,'')}%` : '';
     }
 
     // ---- Filters + CSV download ---------------------------------------------
