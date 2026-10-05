@@ -249,11 +249,69 @@ for owner approval.
 
 1. NHL "team_total" rows: evidence says they are game totals. Relabel the three settled rows (and
    today's pending one) to `totals`, or leave history as is and fix only new tickets?
-2. Step 2 changes what Top Picks publishes and will likely cut the card sharply, mostly NFL
-   plus-money props. Go ahead before the Phase 4 backtest, or shadow-run it alongside the current
-   selector for a week first?
+2. Step 2 changes what Top Picks publishes and will cut the card sharply in every sport (see the
+   blend check below). Go ahead before the Phase 4 backtest, or shadow-run it alongside the current
+   selector for a week first? The owner wants variety on the card: proposed one slot per sport,
+   caps per sport and market, and an optional labeled "Leans" row that is not bet or tracked.
 3. `bets.timestamp` for existing rows: backfill from `created_at` where it precedes
    `commence_time`, and leave the rest null?
 4. The odds keys used by the GitHub workflows (`NFL_ODDS_API_KEY`, `MLB_ODDS_API_KEY`,
    `NHL_ODDS_API_KEY`, `NBA_ODDS_API_KEY`, `ODDS_API_KEY`): do they all draw on the same 15,700
    credits as the Vault key? The 2,000 floor has to be enforced against the shared balance.
+
+### Follow-up checks (2026-10-05)
+
+**Market blend by sport.** w = 0.25 and EV ≥ 3% at the best price, applied to each sport's latest
+committed board. It thins every sport rather than leaving mostly NFL:
+
+| Board | Raw model, EV ≥ 3% | Blended, EV ≥ 3% |
+|---|---|---|
+| NHL, Oct 4 afternoon run (110 priced outcomes) | 29 | 2 (moneyline, puck line) |
+| MLB, Oct 5 morning run (38) | 13 | 4 (outs, run line, 2 totals) |
+| NFL, Oct 5 pre-screened feed only (14) | 11 | 2 (receptions) |
+
+**NHL shots on goal, every graded line.** 530 SOG lines from Sept 29 to Oct 3, all priced by
+v2.1, against official results (`docs/markets/data/nhl.json`, last pregame snapshot):
+
+| | Over hit rate |
+|---|---|
+| Actual | 44.9% |
+| Market expected | 49.0% |
+| Model expected | 42.1% |
+
+Log loss: model 0.711, market 0.691, coin flip 0.693. Unders did hit a little more often than the
+market expected in week 1, but on the 176 lines where the model was 10+ points below the market on
+the Over, Overs hit 48.9% against a market 48.8% and a model 31.8%. The model's strongest Under
+calls, which are the ones the selector picks, carried no information beyond the market. The
+current v2.3 board (Oct 4 afternoon) still leans Under on SOG: on 80 lines it favors the Under by
+more than 2 points on 48, the Over on 11, with an average gap of −3.3 points on the Over. This is
+much smaller than v2.1's gap; v2.2's re-forecast of Sept 29 to Oct 2 put the median model mean at
+0.958 of the market's, against 0.846 for v2.1.
+
+More current-season games will mostly update ice time and roles (14-game half-life). They will not
+remove the remaining lean: shrinkage toward a position-wide prior pulls the high-volume shooters
+books post props on downward, and ranking by disagreement selects the largest errors. The fixes
+are the market blend (Phase 3), each player's own prior instead of the position average, and the
+even-strength/power-play ice-time split (Phase 2).
+
+**NFL record is mostly luck.** Our six NFL bets went 5–1. By closing-market probabilities we
+expected 2.4 wins (chance of 5+: about 4%); by the model's own probabilities, 3.1 (about 13%).
+Three of the six had a calibrated probability of exactly 0.50, so the model was not claiming an
+edge. The broader record agrees: the Week 3 review
+(`reports/nfl-weekly/2026/week-3/review/summary.json`) graded the highest-EV offer per player,
+game and market from the archived Top Picks. Result: 258 graded, 108–150, ROI −12.9%;
+receptions 52–73, −12.6%. Model Brier 0.2554 against market 0.2512.
+
+**NHL starting goalies, sources (not yet verified; this session's network blocks the sites).**
+| Source | What it has | Cost and catch |
+|---|---|---|
+| NHL.com daily "projected lineups" previews | Projected goalies, lines, scratches per game | Free and official; terms and structure to check |
+| Daily Faceoff starting goalies | Confirmed / Likely / Unconfirmed with reporter | Free page; terms may forbid automated use |
+| MySportsFeeds | NHL feeds, lineups likely | From $25/month commercial, but the non-live tier may not cover pregame lineups |
+| SportsDataIO | "Starting Goaltenders by Date", projected and confirmed | Self-serve $99–149/month is next-day and personal use; real-time commercial is quoted, estimated $500–1,000+/month |
+| RotoWire | Starting goalies and lineups | Custom quote through sales |
+| NHL API | Who started each past game | Free; no pregame announcement |
+
+Plan regardless of source: goalie game logs from the NHL API → save rate shrunk toward league
+average and a start probability (workload, back-to-backs) → expected goals against for the
+opponent. Confirmations then replace the start probability when a permitted source has them.
