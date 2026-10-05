@@ -196,8 +196,18 @@ const readyRow=r=>({...r,reviewed_candidate:r,review_matches_current:true,qualit
 const ready=collect(fixture(),now).selected.filter(r=>r.sport==='MLB').map(readyRow)[0];
 assert.equal(shortlist(collect(fixture(),now).selected,now).length,0);
 const large=Array.from({length:25},(_,i)=>({...ready,player:'Player '+i}));
-assert.equal(shortlist(large,now).length,10);
-assert.equal(shortlist(large,now)[0].card_related_candidates,9);
+// One sport and one market: the card stops at 2 per sport and market.
+assert.equal(shortlist(large,now).length,2);
+assert.equal(shortlist(large,now)[0].card_related_candidates,1);
+// Variety: at most 4 per sport, and every sport with an eligible bet is represented.
+const markets=['batter_hits','batter_total_bases','batter_home_runs','batter_rbis','pitcher_strikeouts','pitcher_outs'];
+const mlbMany=markets.flatMap(m=>[0,1].map(i=>({...ready,market:m,player:m+i,line:1.5})));
+const nhlReady=collect(fixture(),now).selected.filter(r=>r.sport==='NHL').map(readyRow)[0];
+const nhlLast={...nhlReady,blend:{...nhlReady.blend,final:.5}};   // the weakest bet still gets the NHL slot
+const varied=shortlist([...mlbMany,nhlLast],now);
+assert.equal(varied.filter(r=>r.sport==='MLB').length,4);
+assert.equal(varied.filter(r=>r.sport==='NHL').length,1);
+assert.equal(varied.length,5,'caps never fill slots with ineligible or capped bets');
 assert.equal(large[0].card_related_candidates,undefined);
 for(const verdict of ['wait','pass'])assert.equal(shortlist([{...ready,qualitative_review:{...ready.qualitative_review,assessment:{...ready.qualitative_review.assessment,verdict}}}],now).length,0);
 assert.equal(shortlist([{...ready,review_matches_current:false}],now).length,0);
@@ -208,28 +218,78 @@ assert.equal(equivalent.length,3,'research records remain intact');
 assert.equal(shortlist([ready],now).length,1,'no daily minimum');
 assert.equal(shortlist([{...ready,human_decision:'pass'}],now).length,0);
 assert.equal(shortlist([{...ready,qualitative_review:null,human_decision:'select'}],now).length,1);
-assert.equal(shortlist([...large,{...ready,player:'Analyst choice',qualitative_review:null,human_decision:'select'}],now)[0].player,'Analyst choice');
+assert.equal(shortlist([...large,{...ready,player:'Analyst choice',market:'pitcher_outs',qualitative_review:null,human_decision:'select'}],now)[0].player,'Analyst choice');
 console.log('PASS: bounded reviewed card, independent research pool, equivalent bets, review age and no forced picks.');
 
 // Main-card ranks share units across sports; feed order/source scores cannot dominate.
 const pool=collect(fixture(),now).selected.map(readyRow);
-const nflCard={...pool.find(r=>r.sport==='NFL'),forecast_health:{tier:1,raw_probability:.58},score:99999};
-const mlbCard={...pool.find(r=>r.sport==='MLB'),forecast_health:{tier:1},model_probability:.64,score:-999};
-const nhlCard={...pool.find(r=>r.sport==='NHL'),rank_score:.01,score:-99999};
-assert.deepEqual(shortlist([nflCard,mlbCard,nhlCard],now).map(r=>r.sport),['NHL','MLB','NFL']);
-assert.deepEqual(shortlist([mlbCard,nhlCard,nflCard],now).map(r=>r.sport),['NHL','MLB','NFL']);
-assert(Math.abs(shortlist([nflCard,mlbCard,nhlCard],now)[2].card_rank_score-
+// Card order uses the blended probability in one unit across sports; feed scores never decide it.
+const withFinal=(r,final)=>({...r,blend:{...r.blend,final}});
+const nflCard=withFinal({...pool.find(r=>r.sport==='NFL'),forecast_health:{tier:1,raw_probability:.7},score:99999},.58);
+const mlbCard=withFinal({...pool.find(r=>r.sport==='MLB'),forecast_health:{tier:1},score:-999},.64);
+const nhlCard=withFinal({...pool.find(r=>r.sport==='NHL'),rank_score:9,score:-99999},.52);
+assert.deepEqual(shortlist([nflCard,mlbCard,nhlCard],now).map(r=>r.sport),['MLB','NFL','NHL']);
+assert.deepEqual(shortlist([nhlCard,nflCard,mlbCard],now).map(r=>r.sport),['MLB','NFL','NHL']);
+assert(Math.abs(shortlist([nflCard,mlbCard,nhlCard],now)[1].card_rank_score-
  (.58*Math.log1p(.0025*1.1)+.42*Math.log1p(-.0025)))<1e-12);
-const fairNormal={...mlbCard,player:'Normal',price:100,model_probability:.6};
-const fairLong={...mlbCard,player:'Longshot',price:300,model_probability:.3};
+const fairNormal=withFinal({...mlbCard,player:'Normal',price:100},.6);
+const fairLong=withFinal({...mlbCard,player:'Longshot',price:300,market:'pitcher_outs'},.3);
 assert.equal(shortlist([fairLong,fairNormal],now)[0].player,'Normal','equal EV does not promote longshot payout');
-const refunded={...mlbCard,model_probability:.55,model_push_probability:.1};
-assert(Math.abs(shortlist([refunded],now)[0].card_rank_score-(.55*Math.log1p(.0025*1.1)+.35*Math.log1p(-.0025)))<1e-12);
-const absent={...mlbCard,player:'Unknown',model_withheld:'No model',model_probability:null};
+const refunded=withFinal({...mlbCard,model_push_probability:.1},.6);
+assert(Math.abs(shortlist([refunded],now)[0].card_rank_score-(.54*Math.log1p(.0025*1.1)+.36*Math.log1p(-.0025)))<1e-12);
+const absent={...mlbCard,player:'Unknown',market:'pitcher_outs',model_withheld:'No model',model_probability:null,blend:undefined};
 assert.equal(shortlist([absent,mlbCard],now)[0].player,mlbCard.player);
 assert.equal(shortlist([absent],now)[0].card_rank_score,null);
 assert.equal(shortlist([{...absent,human_decision:'select'},mlbCard],now)[0].player,'Unknown');
 console.log('PASS: cross-sport card order, comparable units, conservative NFL probability, pushes and missing models.');
+
+// Market blend (Phase 3): 25% model in log-odds, exact-line market, 3% EV at the price.
+{
+  const {blend,BLEND}=require('../docs/assets/briefing-picks.js');
+  assert.deepEqual([BLEND.weight,BLEND.minEV,BLEND.minBooks],[.25,.03,2]);
+  // The brief's example: an SOG Under at -140, model 71%, market 52% -> about 57%, no bet.
+  const sog={sport:'NHL',price:-140,final_probability:.71,push_probability:0,market_probability:.52,other_books:4};
+  const b=blend(sog);
+  assert(Math.abs(b.final-.5705)<5e-4,b.final);assert(b.ev<0);assert.equal(b.status,'below_threshold');
+  // Thin market: fewer than two books at this exact line.
+  assert.equal(blend({...sog,other_books:1}).status,'thin_market');
+  assert.equal(blend({...sog,market_probability:null}).status,'thin_market');
+  assert.equal(blend({...sog,final_probability:null}).status,'no_model');
+  // EV refunds pushes.
+  const pushed=blend({...sog,price:150,final_probability:.6,push_probability:.1,market_probability:.5});
+  const fin=1/(1+Math.exp(-(.25*Math.log((.6/.9)/(1-.6/.9)))));
+  assert(Math.abs(pushed.final-fin)<1e-12);assert(Math.abs(pushed.ev-.9*(fin*2.5-1))<1e-12);
+  // In collect: a qualifying bet carries its blend; a thin or 50% NFL estimate is withheld.
+  let g=fixture();let out=collect(g,now);
+  assert(out.selected.every(r=>r.blend.status==='qualifies'&&r.blend.ev>=.03&&Math.abs(r.score-100*r.blend.ev)<1e-9));
+  g=fixture();g.NFL.rows[0].book_count=1;out=collect(g,now);
+  assert(!out.selected.some(r=>r.sport==='NFL'));assert.match(out.excluded[0].exclusion_reasons[0],/Fewer than two books/);
+  g=fixture();g.NFL.rows[0].model_prob=.5;out=collect(g,now);
+  assert(!out.selected.some(r=>r.sport==='NFL'));assert.match(out.excluded[0].exclusion_reasons[0],/exactly 50%/);
+  // Below the bar but positive: excluded from picks, offered as that sport's lean.
+  g=fixture();Object.assign(g.MLB.rows[0],{price:-110,model_probability:.56,other_book_probability:.52});
+  out=collect(g,now);
+  assert(!out.selected.some(r=>r.sport==='MLB'));
+  assert.deepEqual(out.leans.map(r=>r.sport),['MLB']);assert(out.leans[0].blend.ev>0&&out.leans[0].blend.ev<.03);
+  assert.match(out.coverage.find(c=>c.sport==='MLB').message,/1 below the 3% market-blend threshold/);
+  // A worse price for an outcome already picked is not a lean.
+  g=fixture();g.MLB.rows.push({...g.MLB.rows[0],book:'worse',price:-110,model_probability:.56,other_book_probability:.52});
+  Object.assign(g.MLB.rows[0],{model_probability:.56,other_book_probability:.52});
+  out=collect(g,now);
+  assert.equal(out.selected.filter(r=>r.sport==='MLB').length,1);assert.equal(out.leans.length,0);
+  // Negative after the blend: no lean.
+  g=fixture();Object.assign(g.MLB.rows[0],{price:-130,model_probability:.56,other_book_probability:.52});
+  assert.equal(collect(g,now).leans.length,0);
+  // Tickets record what the pick was decided on, at the price actually taken.
+  const pick=collect(fixture(),now).selected.find(r=>r.sport==='MLB');
+  const t=ticketData(pick,105,10);
+  assert.equal(t.market_prob,.52);assert.equal(t.blend_weight,.25);assert(Math.abs(t.final_prob-pick.blend.final)<1e-12);
+  assert(Math.abs(t.expected_value-(pick.blend.final*2.05-1))<1e-12);assert.equal(t.decision_at,pick.forecast_at);
+  assert.match(rowHTML(pick),/Blended \d+\.\d% · \+\d+\.\d% expected value/);
+  const research=ticketData({...pick,blend:undefined},110,10);
+  assert.equal(research.final_prob,undefined);assert.equal(research.decision_at,undefined,'research tickets keep the existing ledger contract');
+}
+console.log('PASS: market blend, thin markets, 50% calibrations, leans, coverage and ticket fields.');
 // Editions keep the exact published assessment after prices expire or games start.
 {
   const {editionRows}=require('../docs/assets/briefing-picks.js');

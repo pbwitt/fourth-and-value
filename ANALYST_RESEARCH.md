@@ -90,21 +90,38 @@ only. NHL retains its coherent scoring/opportunity forecasts, verified settlemen
 2% EV and adverse-scenario minimum-price rule. NHL ranking still uses worst-case
 fixed-fraction log growth; the fraction is not stake advice.
 
+**Market blend (since October 5, 2026; edition policy `morning-edition-2`).** After
+each sport's screen above, every model candidate is blended with the market:
+`f = sigmoid(0.25 * logit(model) + 0.75 * logit(market))`, where `market` is the
+median no-vig probability at the exact line (NFL consensus may include the offered
+book; MLB/NHL use other books) and at least two books must post that line. A
+candidate needs `(1 - push) * (f * decimal - 1) >= 3%` at its own price; above 30%
+it drops to the research tier. NFL uses the smaller of raw and calibrated model
+probability, and withholds a calibrated 50% (the curve's flat centre, no
+information). The 0.25 weight and 3% bar are starting values from
+`docs/model-improvement-plan.md` until fitted out of sample per market. The best
+positive-but-below-threshold offer per sport is shown as a lean (not a pick, not
+tracked). Tickets record `market_prob`, `final_prob`, `blend_weight`,
+`expected_value` (at the price taken) and `decision_at` beside `model_prob`
+(`supabase/bet_blend_fields.sql`). Earlier editions keep `morning-edition-1` and
+are not regraded as evidence for the blend.
+
 A current consider assessment ranks before pending/wait/pass across all sports,
 so a reviewed MLB/NHL offer appears before unreviewed NFL rows in the initial table.
 The research pool retains each sport's numerical order. The main ten-idea card
 sorts across sports by explicit analyst selection, forecast reliability, then
-expected log growth at the NHL ranker's fixed 0.0025 fraction. NFL uses the lower
-of raw/calibrated probability where available; MLB uses unconditional win/push
-mass; NHL retains its existing worst-scenario score. Refunds contribute zero.
+expected log growth at a fixed 0.0025 fraction, computed from the blended
+probability for every sport (unconditional, refunds contribute zero).
 This common scale prevents feed order or incomparable source ranks from filling
 the card with one sport. It is an operational ordering heuristic, not a stake
 recommendation, confidence score or validated cross-sport performance claim.
 Missing independent forecasts receive no numerical score and rank after eligible
-models, unless explicitly selected by an analyst. There are no sport quotas. Later review batches
+models, unless explicitly selected by an analyst. Each sport's best eligible bet is
+taken first, then the rest in order, with at most four per sport and two per sport
+and market; a sport appears only when one of its bets qualifies. Later review batches
 prioritize previously reviewed offers needing new context/price assessment.
 Multiple bets in the same game remain possible and are not assumed independent.
-No new numerical model/market/qualitative blending weight is introduced.
+The fixed model/market blend above is the only weighting; no qualitative weight is added.
 
 All displayed comparison probabilities condition on no push. NFL already emits
 that quantity; MLB/NHL win mass is divided by one minus push mass. Missing push

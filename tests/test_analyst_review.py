@@ -26,11 +26,13 @@ def feeds():
         market='batter_hits', market_label='Hits', quoted_at=iso(NOW-timedelta(minutes=2)))
     mlb = dict(base, event_id='mlb1', mlb_game_id=123, is_model_pick=True,
         model_probability=.55, model_push_probability=.01, model_ev_pct=16.5,
+        other_book_probability=.5, other_books=3,
         model_inputs={'Lineup slot': 2}, lineup_status='Both batting orders published')
     nfl = dict(base, game_id='nfl1', game='Dallas Cowboys @ New York Giants',
         home_team='New York Giants', away_team='Dallas Cowboys', bookmaker='test',
         market_std='receptions', market_label='Receptions', name='over', point=1.5,
         model_prob=.55, push_prob=.01, ev_per_100=15, edge_bps=100, model_status='Calibration fitted',
+        consensus_prob=.5, book_count=3,
         last_update=base['quoted_at'])
     return dict(MLB=dict(status='ready', last_success_at=iso(NOW), model_checked_at=iso(NOW), rows=[mlb]),
         NFL=dict(schema_version=1, status='ready', generated_at=iso(NOW), rows=[nfl]))
