@@ -16,8 +16,13 @@ import xml.etree.ElementTree as ET
 from zoneinfo import ZoneInfo
 from urllib.parse import urlsplit
 
+import sys
+
 import requests
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from odds_budget import CreditBudget, CreditFloorReached, estimate_cost, requests_preflight
 
 ROOT=Path(__file__).resolve().parents[1]
 DOCS=ROOT/'docs'
@@ -97,13 +102,20 @@ def fetch_news(now):
 
 def refresh(now):
     previous=json.loads((PUBLIC/'latest.json').read_text()) if (PUBLIC/'latest.json').exists() else {}
-    games=[];coverage={}
+    games=[];coverage={};budget=CreditBudget(label='Editorial prices')
     for sport,key in CFG['sports'].items():
         secret=os.getenv(f'{sport}_ODDS_API_KEY') or os.getenv('ODDS_API_KEY')
         if not secret:coverage[sport]='No odds credential; no prices published';continue
+        params={'regions':'us','markets':'totals','oddsFormat':'american'}
+        try:
+            # Shared 2,000-credit floor (scripts/odds_budget.py); a refusal withholds prices.
+            budget.ensure(estimate_cost(f'sports/{key}/odds',params),preflight=requests_preflight(secret))
+        except CreditFloorReached as error:
+            print(error);coverage[sport]='Odds credit floor reached; no prices published';continue
         try:
             r=requests.get(f'https://api.the-odds-api.com/v4/sports/{key}/odds',
-                params={'apiKey':secret,'regions':'us','markets':'totals','oddsFormat':'american'},timeout=35)
+                params={'apiKey':secret,**params},timeout=35)
+            budget.observe(r.headers)
             if r.status_code==404:coverage[sport]='No active market returned';continue
             r.raise_for_status()
             selected=summarize_events(sport,r.json(),now,previous)

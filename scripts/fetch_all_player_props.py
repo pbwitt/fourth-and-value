@@ -15,6 +15,12 @@ from typing import List, Dict, Any, Tuple
 from pathlib import Path
 import requests
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from odds_budget import CreditBudget, CreditFloorReached
+
+# Shared 2,000-credit floor and per-run cap (scripts/odds_budget.py).
+BUDGET = CreditBudget(label="NFL props")
+
 DEFAULT_MARKETS = [
     "player_anytime_td","player_1st_td","player_last_td",
     "player_pass_yds","player_pass_tds","player_pass_attempts","player_pass_completions","player_pass_interceptions",
@@ -49,6 +55,7 @@ def get_api_key(override: str = None) -> str:
 
 def req_json(url: str, timeout: float = 20.0) -> Any:
     r = requests.get(url, timeout=timeout)
+    BUDGET.observe(r.headers)
     if r.status_code == 422:
         try:
             return {"__422__": True, "body": r.json()}
@@ -57,6 +64,7 @@ def req_json(url: str, timeout: float = 20.0) -> Any:
     if r.status_code == 429:
         time.sleep(2.0)
         r = requests.get(url, timeout=timeout)
+        BUDGET.observe(r.headers)
     r.raise_for_status()
     return r.json()
 
@@ -107,7 +115,9 @@ def filter_events_to_week(events: List[Dict[str, Any]], start, end) -> List[Dict
 def fetch_event_props(api_key: str, sport_key: str, event_id: str,
                       markets: List[str], regions: str, chunk: int, sleep: float) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
+    region_count = len([r for r in regions.split(",") if r.strip()]) or 1
     for mchunk in chunks(markets, chunk):
+        BUDGET.ensure(len(mchunk) * region_count)
         markets_param = ",".join(mchunk)
         url = (
             f"https://api.the-odds-api.com/v4/sports/{sport_key}/events/{event_id}/odds"
@@ -182,15 +192,21 @@ def main():
                   f"fetching all {len(events)} events instead", file=sys.stderr)
 
     all_rows: List[Dict[str, Any]] = []
-    for i, ev in enumerate(events, 1):
-        ev_id = ev.get("id")
-        if not ev_id:
-            continue
-        rows = fetch_event_props(api_key, args.sport_key, ev_id, markets, args.regions, args.chunk, args.sleep)
-        if rows:
-            all_rows.extend(rows)
-        if i % 10 == 0:
-            print(f"[info] processed {i}/{len(events)} events ...")
+    try:
+        for i, ev in enumerate(events, 1):
+            ev_id = ev.get("id")
+            if not ev_id:
+                continue
+            rows = fetch_event_props(api_key, args.sport_key, ev_id, markets, args.regions, args.chunk, args.sleep)
+            if rows:
+                all_rows.extend(rows)
+            if i % 10 == 0:
+                print(f"[info] processed {i}/{len(events)} events ...")
+    except CreditFloorReached as error:
+        # Fail before writing: a partial board must not replace the published one.
+        print(f"[ERR] {error}", file=sys.stderr)
+        sys.exit(3)
+    print(f"[info] Odds API credits: {BUDGET.spent:.0f} spent this run, {BUDGET.remaining} left")
 
     out_path = Path(args.out); out_path.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = [

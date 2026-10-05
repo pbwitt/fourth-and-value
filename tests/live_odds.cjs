@@ -170,7 +170,7 @@ assert.equal(O.signed(-115),'−115');assert.equal(O.signed(120),'+120');assert.
     team_home:HOME,team_away:AWAY,player:'Tage Thompson',market_type:'sog',side:'over',line:2.5,book:'fanduel',odds:-105,
     stake_dollars:25,model_prob:null,edge_bps:null},'the price you received and no invented model probability');
   const total=ticket('totals||6|Under',-115,10);
-  assert.deepEqual([total.market_type,total.side,total.line,total.player],['team_total','under',6,null],'the NHL ledger names the game total team_total');
+  assert.deepEqual([total.market_type,total.side,total.line,total.player],['totals','under',6,null],'the NHL ledger names the game total totals (team_total is the pre-2026-10-05 label)');
   const ml=ticket('h2h|||'+AWAY,130,10);assert.deepEqual([ml.market_type,ml.side,ml.line],['h2h',AWAY,null]);
   const pl=ticket('spreads||-1.5|'+AWAY,-190,10);assert.deepEqual([pl.market_type,pl.side,pl.line],['spreads',AWAY,1.5]);
   const row=O.ticket(game,q('player_shots_on_goal|Tage Thompson|2.5|Over'));

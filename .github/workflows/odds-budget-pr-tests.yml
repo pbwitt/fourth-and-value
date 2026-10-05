@@ -1,0 +1,37 @@
+name: Odds credit floor and closing-lines tests
+on:
+  pull_request:
+    paths:
+      - 'scripts/odds_budget.py'
+      - 'scripts/nba/pipeline.py'
+      - 'scripts/nhl/refresh.py'
+      - 'scripts/mlb/refresh.py'
+      - 'scripts/fetch_all_player_props.py'
+      - 'scripts/fetch_odds.py'
+      - 'scripts/nfl_fetch_totals_spreads.py'
+      - 'scripts/editorial.py'
+      - 'supabase/functions/closing-lines/**'
+      - 'tests/test_odds_budget.py'
+      - 'tests/closing_lines.cjs'
+      - '.github/workflows/odds-budget-pr-tests.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements-nhl.txt
+      - run: pip install -r requirements-nhl.txt
+      - run: python -m unittest tests/test_odds_budget.py
+      - name: Every Odds API caller still compiles with the shared floor
+        run: python -m py_compile scripts/fetch_all_player_props.py scripts/fetch_odds.py scripts/nfl_fetch_totals_spreads.py scripts/editorial.py scripts/mlb/refresh.py scripts/nhl/refresh.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tests/closing_lines.cjs

@@ -8,7 +8,7 @@ const row={sport:'NHL',event_id:'game',game:'Montreal Canadiens @ Toronto Maple 
   quoted_at:new Date(now).toISOString(),model_data_checked_at:new Date(now).toISOString(),
   player:'Auston Matthews',market:'player_shots_on_goal',side:'Over',line:3,book:'caesars',price:-110,
   independent_probability:.45,final_probability:.45,push_probability:.1};
-for(const [market,type] of Object.entries({player_goals:'goals',player_assists:'assists',player_points:'points',player_shots_on_goal:'sog',totals:'team_total',h2h:'h2h',spreads:'spreads'})){
+for(const [market,type] of Object.entries({player_goals:'goals',player_assists:'assists',player_points:'points',player_shots_on_goal:'sog',totals:'totals',h2h:'h2h',spreads:'spreads'})){
   const r={...row,market,player:market.startsWith('player_')?row.player:'',side:['h2h','spreads'].includes(market)?'Toronto Maple Leafs':'Under',line:market==='h2h'?null:market==='spreads'?-1.5:6};
   const ticket=ticketData(r,-120,25,now);
   assert.equal(ticket.market_type,type);assert.equal(ticket.game_date,'2026-10-08','ET date, not UTC date');
