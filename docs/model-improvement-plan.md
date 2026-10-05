@@ -379,9 +379,13 @@ pbwitt/fourth-and-value#87.
   cached history.
 - For each game in the next 48 hours: each team's start chances from recency-weighted starts over
   its last 20 games (10-game half-life), last night's starter cut to 35% of his share on a
-  back-to-back, limited to goalies on the official current roster (`api-web.nhle.com`
-  `roster/{team}/current`) so offseason moves don't leak in. Save rate is shrunk toward .903 with
-  1,000 shots of prior weight.
+  back-to-back. A goalie whose latest box score is for another team is dropped, and the list is
+  limited to the official current roster (`api-web.nhle.com` `roster/{team}/current`) so offseason
+  moves don't leak in. Save rate is shrunk toward .903 with 1,000 shots of prior weight.
+- Live dry run on a GitHub runner (Oct 5, 11:46 AM ET, nothing published): 13 games in the next
+  48 hours, row text 135–205 characters, e.g. "Boston Bruins: likely Jeremy Swayman 88% (sv 0.906),
+  Michael DiPietro 12%". All 25 roster requests answered 200 in a separate check; an earlier
+  burst run got 19, which led to spacing and one retry on 429/5xx.
 - Point in time: only box scores available by the decision (next day 12:00 UTC, the history's
   convention) count, so the 7:05 AM run does not yet see last night's starter; the 4:30 PM
   refresh does.

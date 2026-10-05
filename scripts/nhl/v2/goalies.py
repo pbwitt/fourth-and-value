@@ -105,8 +105,10 @@ def upcoming(events, now):
 def rosters(events, now):
     """Goalie ids on each playing team's official current roster; a team that fails is left out.
 
-    The first network failure stops further requests so a slow API cannot stall the refresh.
+    Requests are spaced and a 429 or 5xx is retried once. A network failure (timeout, refused
+    connection) stops further requests so a slow API cannot stall the refresh.
     """
+    import time
     import requests
     out = {}
     for event in upcoming(events, now):
@@ -114,15 +116,29 @@ def rosters(events, now):
             tid, abbrev = event[side + '_id'], event.get(side + '_abbrev')
             if tid in out or not abbrev:
                 continue
+            for attempt in range(2):
+                try:
+                    response = requests.get(f'https://api-web.nhle.com/v1/roster/{abbrev}/current', timeout=10)
+                except requests.RequestException:
+                    return {t: ids for t, ids in out.items() if ids}
+                if attempt == 0 and (response.status_code == 429 or response.status_code >= 500):
+                    time.sleep(retry_after(response.headers.get('Retry-After')))
+                    continue
+                break
             try:
-                response = requests.get(f'https://api-web.nhle.com/v1/roster/{abbrev}/current', timeout=10)
                 response.raise_for_status()
                 out[tid] = {int(g['id']) for g in response.json()['goalies']}
-            except requests.RequestException:
-                return {t: ids for t, ids in out.items() if ids}
-            except (ValueError, KeyError, TypeError):
+            except (requests.RequestException, ValueError, KeyError, TypeError):
                 out[tid] = None
+            time.sleep(.15)
     return {tid: ids for tid, ids in out.items() if ids}
+
+
+def retry_after(value):
+    try:
+        return min(max(float(value), 0), 5)
+    except (TypeError, ValueError):
+        return 1
 
 
 def save_rate(appearances):
@@ -136,9 +152,9 @@ def project(appearances, team_id, game_date, asof, current=None):
 
     Only appearances available by `asof` and before `game_date` are used. Start shares are
     recency-weighted over the team's last 20 games; the previous night's starter is discounted
-    on a back-to-back. `current` (the team's goalie ids from a live source) drops goalies who have
-    left; without it last season's starts can name a goalie who moved in the offseason, which the
-    basis text says. Returns None when nothing is known about the team's goalies.
+    on a back-to-back. A goalie whose latest known box score is for another team has moved and is
+    dropped; `current` (the team's goalie ids from the official roster) also drops goalies who left
+    before playing elsewhere. Returns None when nothing is known about the team's goalies.
     """
     known = [a for a in appearances if stamp(a['available_at']) <= asof and a['game_date'] < game_date]
     team = [a for a in known if a['team_id'] == team_id]
@@ -152,7 +168,10 @@ def project(appearances, team_id, game_date, asof, current=None):
         if g in age and a['started']:
             weights[a['player_id']] += 2 ** (-age[g] / START_HALF_LIFE)
     total = sum(2 ** (-n / START_HALF_LIFE) for n in age.values())
-    share = {pid: w / total for pid, w in weights.items()}
+    latest = {}
+    for a in sorted(known, key=lambda a: (a['game_date'], a['game_id'])):
+        latest[a['player_id']] = a['team_id']
+    share = {pid: w / total for pid, w in weights.items() if latest[pid] == team_id}
     if current is not None:
         share = {pid: s for pid, s in share.items() if pid in current}
     if not share:
@@ -179,7 +198,7 @@ def project(appearances, team_id, game_date, asof, current=None):
     if current is not None:
         basis += ' Limited to goalies on the current roster.'
     elif len(seasons) > 1:
-        basis += ' Includes last season; offseason moves are not reflected.'
+        basis += ' Includes last season without a current roster: a goalie who moved but has not yet played for his new team may still be listed.'
     return dict(team_id=team_id, as_of=iso(asof), back_to_back=back_to_back, confirmed=False,
                 goalies=goalies, expected_save_pct=round(sum(g['start_probability'] * g['save_pct'] for g in goalies), 4),
                 basis=basis)

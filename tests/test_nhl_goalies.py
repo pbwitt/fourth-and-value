@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from nhl.v2 import goalies
@@ -80,11 +80,18 @@ class ProjectionTests(unittest.TestCase):
         self.assertEqual([(g['player_id'], g['start_probability']) for g in p['goalies']], [(31, 1.0)])
         self.assertIsNone(project(apps, 1, '2026-01-19', NOW, current={55}))
 
+    def test_a_goalie_who_played_for_another_team_since_is_dropped(self):
+        games = [game(1, '2026-01-02'), game(2, '2026-01-04'), game(3, '2026-01-06', home=9, away=2)]
+        apps = normalize([report(1, 30, True, True), report(2, 31, True, True), report(3, 30, True, True)], games)
+        p = project(apps, 1, '2026-01-19', NOW)
+        self.assertEqual([g['player_id'] for g in p['goalies']], [31], 'goalie 30 has since started for team 9')
+        self.assertEqual(project(apps, 9, '2026-01-19', NOW)['goalies'][0]['player_id'], 30)
+
     def test_last_season_is_labeled_without_a_roster(self):
         old = [game(1, '2025-04-10', season=20242025)]
         new = [game(2, '2025-10-10')]
         apps = normalize([report(1, 30, True, True)], old) + normalize([report(2, 31, True, True)], new)
-        self.assertIn('offseason moves are not reflected', project(apps, 1, '2025-10-20', NOW)['basis'])
+        self.assertIn('without a current roster', project(apps, 1, '2025-10-20', NOW)['basis'])
         rostered = project(apps, 1, '2025-10-20', NOW, current={30, 31})['basis']
         self.assertNotIn('offseason', rostered)
         self.assertIn('current roster', rostered)
@@ -95,21 +102,29 @@ class ProjectionTests(unittest.TestCase):
                   dict(nhl_game_id=8, commence_time='2026-02-20T23:00:00Z', home_id=3, away_id=4,
                        home_abbrev='MTL', away_abbrev='OTT')]
 
+        import requests
+        throttled = []
+
         class Response:
             def __init__(self, url):
-                self.url = url
+                self.url, self.headers = url, {}
+                self.status_code = 404 if 'TOR' in url else 429 if 'BOS' in url and not throttled else 200
+                if self.status_code == 429:
+                    throttled.append(url)
+                    self.headers = {'Retry-After': '120'}
             def raise_for_status(self):
-                if 'TOR' in self.url:
-                    import requests
-                    raise requests.HTTPError('503')
+                if self.status_code >= 400:
+                    raise requests.HTTPError(str(self.status_code))
             def json(self):
                 return dict(goalies=[dict(id=30), dict(id='31')], forwards=[dict(id=99)])
-        with patch('requests.get', side_effect=lambda url, timeout: Response(url)) as get:
+        with patch('requests.get', side_effect=lambda url, timeout: Response(url)) as get, \
+             patch('time.sleep') as sleep:
             out = goalies.rosters(events, NOW)
-        self.assertEqual(out, {1: {30, 31}}, 'a failed team is left out, never guessed')
-        self.assertEqual(get.call_count, 2, 'only teams playing within 48 hours are fetched')
-        events.insert(0, dict(events[0], nhl_game_id=6, home_id=5, away_id=6, home_abbrev='TOR', away_abbrev='NYR'))
-        with patch('requests.get', side_effect=lambda url, timeout: Response(url)) as get:
+        self.assertEqual(out, {1: {30, 31}}, 'a refused team is left out, never guessed')
+        self.assertEqual(get.call_count, 3, 'one retry after a 429; only games within 48 hours are fetched')
+        self.assertIn(call(5), sleep.call_args_list, 'Retry-After is capped at five seconds')
+        events.insert(0, dict(events[0], nhl_game_id=6, home_id=5, away_id=6, home_abbrev='NYR', away_abbrev='NYI'))
+        with patch('requests.get', side_effect=requests.ConnectTimeout('slow')) as get, patch('time.sleep'):
             self.assertEqual(goalies.rosters(events, NOW), {})
         self.assertEqual(get.call_count, 1, 'a network failure stops further requests')
 
