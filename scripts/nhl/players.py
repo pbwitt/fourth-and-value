@@ -158,7 +158,7 @@ def links(current):
 POSITION_NAMES = {'C': 'Center', 'L': 'Left wing', 'R': 'Right wing', 'D': 'Defense'}
 
 
-def player_page(slug, entry, offer, recent, seasons, mates, team_names):
+def player_page(slug, entry, offer, recent, seasons, mates, team_names, now=None):
     name, url = entry['name'], f'{SITE}/nhl/players/{slug}/'
     team = team_names.get(entry.get('team')) or entry.get('team')
     position = POSITION_NAMES.get(entry.get('position'))
@@ -166,7 +166,8 @@ def player_page(slug, entry, offer, recent, seasons, mates, team_names):
     game = next(iter(sorted((offer or {}).get('games', {}).values(), key=lambda r: r['commence_time'])), None)
     if game:
         start = eastern(game['commence_time'])
-        today = timestamp(game['commence_time']).astimezone(EASTERN).date() == datetime.now(EASTERN).date()
+        # "Today" is the build's date, so a test or replay with a fixed clock renders the same page.
+        today = timestamp(game['commence_time']).astimezone(EASTERN).date() == (now or datetime.now(timezone.utc)).astimezone(EASTERN).date()
         when = ' Today' if today else ''
         title = seo_title(f'{name} Props{when}: Shots, Goals & Points Odds')
         day = eastern(game['commence_time'], '%b %-d')
@@ -344,7 +345,7 @@ def build(state, out=OUT, now=None, data=None):
                 label = f"{row['away_team']} at {row['home_team']}"
                 today.setdefault(game, (label, row['commence_time'], []))[2].append((slug, summary))
         html, _, _ = player_page(slug, entry, offer, recent_games(mine, games, teams),
-                                 sorted(seasons.items(), reverse=True)[:2], sorted(set(mates), key=lambda m: m[1]), names)
+                                 sorted(seasons.items(), reverse=True)[:2], sorted(set(mates), key=lambda m: m[1]), names, now)
         if write(out / slug / 'index.html', html, f'nhl/players/{slug}/index.html'):
             written += 1
             entry['updated'] = stamp_day
