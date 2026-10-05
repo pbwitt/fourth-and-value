@@ -102,7 +102,8 @@
       const label=r.sport==='MLB'?r.model_mean_label||'Projected '+r.market_label.toLowerCase():'Projected '+r.market_label.toLowerCase();
       projection=`<span class="estimate-detail">${esc(label)}: ${esc(number(mean))}</span>`;
     }
-    const basis=r.sport==='NFL'?'Historical outcome calibration':r.sport==='NHL'&&r.final_probability!==r.independent_probability?'Final model estimate':'Independent model';
+    // NFL rows kept eligible by owner policy say so instead of implying validation.
+    const basis=r.sport==='NFL'?(/not validated/i.test(r.model_status||'')?'Calibration not validated for this model':'Historical outcome calibration'):r.sport==='NHL'&&r.final_probability!==r.independent_probability?'Final model estimate':'Independent model';
     return `<strong>${pct(c.model)}</strong><span class="estimate-detail">Win chance*</span>${projection}<span class="meta estimate-detail">${basis} · experimental${c.push>0?'<br>Push: '+pct(c.push):''}</span>`;
   }
   function marketHTML(r) {

@@ -47,25 +47,40 @@ def load_calibration(path: str = CALIBRATION_PATH) -> dict | None:
         return json.load(f)
 
 
-def calibration_status(calibration: dict | None, model_version: str | None = None) -> dict:
+POLICY_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "nfl_calibration.json")
+
+
+def calibration_policy(path: str = POLICY_PATH) -> dict:
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def calibration_status(calibration: dict | None, model_version: str | None = None, policy: dict | None = None) -> dict:
     """Whether a calibration artifact may be presented as fitted for the current forecasts.
 
     Artifacts without provenance (fitted before the forecast-cutoff corrections) or
-    fitted for another MODEL_VERSION are labelled incompatible. Their mapping is still
-    applied for display continuity, but the status cannot start with "Calibration
-    fitted", so the shared selector never treats those rows as Top Picks candidates.
+    fitted for another MODEL_VERSION are never labelled as validated. By default their
+    status cannot start with "Calibration fitted", so the shared selector excludes them
+    from Top Picks. The owner policy in config/nfl_calibration.json can keep them
+    eligible; the label then says plainly that the calibration is not validated.
     """
     if model_version is None:
         from make_player_prop_params import MODEL_VERSION as model_version
+    policy = calibration_policy() if policy is None else policy
+    allowed = bool(policy.get('allow_incompatible_for_top_picks'))
     provenance = (calibration or {}).get('_provenance') or {}
     if calibration is None:
         return dict(compatible=False, label='Uncalibrated', version=None)
-    if not provenance:
-        return dict(compatible=False, version=None,
-                    label='Legacy calibration (fitted before forecast-cutoff fixes); not validated for this model')
-    if provenance.get('model_version') != model_version:
+    if not provenance or provenance.get('model_version') != model_version:
+        fitted_for = provenance.get('model_version') or 'a model version before the forecast-cutoff fixes'
+        if allowed:
+            return dict(compatible=False, eligible_by_owner_policy=True, version=provenance.get('run_id'),
+                        label=f'Calibration fitted for {fitted_for}; not validated for the current model')
         return dict(compatible=False, version=provenance.get('run_id'),
-                    label=f"Incompatible calibration (fitted for {provenance.get('model_version')}); not validated for {model_version}")
+                    label=f'Incompatible calibration (fitted for {fitted_for}); not validated for {model_version}')
     status = (provenance.get('evaluation') or {}).get('status', 'not evaluated')
     return dict(compatible=True, version=provenance.get('run_id'), evaluation=status,
                 label=f"Calibration fitted ({provenance.get('run_id')}); chronological evaluation only; not prospectively validated")

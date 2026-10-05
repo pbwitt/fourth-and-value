@@ -4,7 +4,7 @@ A static sports-analysis site published from `docs/`, with Python pipelines for 
 
 Read the [NFL site review and traffic plan](reports/NFL_SITE_REVIEW_2026-09-09.md) for the September 2026 changes, validation results and remaining model limitations.
 
-Research pipeline, research statuses, failure diagnostics, model-validation provenance, decision ledgers and the decision log: [RESEARCH_SYSTEM.md](RESEARCH_SYSTEM.md). NFL props are research-only after the [October 2026 validation](reports/nfl-validation/2026-10-05/README.md).
+Research pipeline, research statuses, failure diagnostics, model-validation provenance, decision ledgers and the decision log: [RESEARCH_SYSTEM.md](RESEARCH_SYSTEM.md). NFL props stay in Top Picks by owner decision but are labelled not validated after the [October 2026 validation](reports/nfl-validation/2026-10-05/README.md).
 
 NBA market pages, preseason behavior, scheduled updates and prediction-readiness notes are documented in [NBA operations](NBA_README.md). Run `make nba_daily PY=.venv/bin/python` to refresh NBA markets.
 

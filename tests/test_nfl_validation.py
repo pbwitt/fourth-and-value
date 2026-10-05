@@ -15,13 +15,28 @@ import nfl_validation as v
 
 
 class CalibrationCompatibilityTests(unittest.TestCase):
-    def test_legacy_and_mismatched_artifacts_are_not_presented_as_fitted(self):
+    def test_legacy_and_mismatched_artifacts_are_not_presented_as_validated(self):
         legacy = json.loads((ROOT/'models/nfl_prop_calibration.json').read_text())
-        status = edges.calibration_status(legacy)
+        strict = {}
+        status = edges.calibration_status(legacy, policy=strict)
         self.assertFalse(status['compatible'])
         self.assertFalse(status['label'].startswith('Calibration fitted'))
         other = dict(legacy, _provenance=dict(model_version='nfl-props-old', run_id='r0'))
-        self.assertFalse(edges.calibration_status(other)['label'].startswith('Calibration fitted'))
+        self.assertFalse(edges.calibration_status(other, policy=strict)['label'].startswith('Calibration fitted'))
+        # Owner policy keeps NFL in Top Picks, with a label that never claims validation.
+        owner = dict(allow_incompatible_for_top_picks=True)
+        for artifact in (legacy, other):
+            status = edges.calibration_status(artifact, policy=owner)
+            self.assertTrue(status['label'].startswith('Calibration fitted'))
+            self.assertIn('not validated', status['label'])
+            self.assertFalse(status['compatible'])
+
+    def test_repository_policy_keeps_nfl_eligible_and_labelled(self):
+        policy = edges.calibration_policy()
+        self.assertTrue(policy['allow_incompatible_for_top_picks'])
+        self.assertEqual(policy['decided_by'], 'owner')
+        legacy = json.loads((ROOT/'models/nfl_prop_calibration.json').read_text())
+        self.assertIn('not validated', edges.calibration_status(legacy)['label'])
         current = dict(legacy, _provenance=dict(model_version=mpp.MODEL_VERSION, run_id='r1', evaluation=dict(status='x')))
         status = edges.calibration_status(current)
         self.assertTrue(status['compatible'])

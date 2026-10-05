@@ -69,3 +69,14 @@ assert.equal(lateFor({...row,line:3.5},index),null);
 const html=rowHTML({...row,card_snapshot_at:iso(now-3600e3),late_reassessment:lateFor(row,index)});
 assert.match(html,/Later reassessment v2/);assert.match(html,/morning assessment above is unchanged/);
 console.log('PASS: research state separates verification, direction, material facts, failures and later reassessments.');
+// NFL rows kept in Top Picks by owner policy are eligible but labelled as not validated.
+{
+  const {fixture}=require('./briefing_picks.cjs');
+  const f=fixture();f.NFL.rows[0].model_status='Calibration fitted for a model version before the forecast-cutoff fixes; not validated for the current model';
+  const nflRow=collect(f,now).selected.find(r=>r.sport==='NFL');
+  assert(nflRow,'NFL stays eligible under the owner policy');
+  assert.match(rowHTML(nflRow),/Calibration not validated for this model/);
+  f.NFL.rows[0].model_status='Incompatible calibration (fitted for x); not validated for y';
+  assert(!collect(f,now).selected.some(r=>r.sport==='NFL'),'strict policy excludes NFL');
+  console.log('PASS: NFL owner policy keeps eligibility with an explicit not-validated label.');
+}

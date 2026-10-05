@@ -36,10 +36,10 @@ Book-line calibration diagnostic (fit on weeks [2, 3], scored on week 4, 15 game
 
 ## Decision
 
-- Installed: False. legacy models/nfl_prop_calibration.json retained for display; labelled incompatible.
+- Installed: False. legacy models/nfl_prop_calibration.json retained; labelled not validated for the current model.
 - Reason: At exact 2026 book lines the legacy artifact is no better than a constant 50% and worse than the market; the grid refit is worse still. No artifact supports NFL Top Picks.
-- Effect: NFL props become research-only (model_status no longer starts with "Calibration fitted") from the next NFL refresh.
-- Requalification: Book-line calibration fitted on earlier timestamped weeks must, on at least 60 later games, score below a constant 50% and have a 95% interval for (model - market) Brier whose upper bound is below +0.002.
+- Effect: Owner decision (config/nfl_calibration.json): NFL props stay in Top Picks with a "not validated for the current model" status and row label. Setting the policy false makes them research only.
+- Requalification: The not-validated label is removed only when a book-line calibration fitted on earlier timestamped weeks scores below a constant 50% on at least 60 later games and the 95% interval for (model - market) Brier has an upper bound below +0.002.
 
 ## Limitations
 

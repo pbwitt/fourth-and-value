@@ -62,7 +62,7 @@ def render():
     paths=[ROOT/'.github/workflows'/n for n in WORKFLOWS]
     paths += [ROOT/p for p in ['config/analyst_review.json','config/nhl_analyst.json',
         'scripts/editorial_schedule.py','scripts/editorial_writer.py','scripts/editorial_diagnostics.py','scripts/analyst_review.py','scripts/research_discovery.py',
-        'scripts/research_budget.py','scripts/morning_card.py','scripts/morning_operations.py','scripts/late_research.py','scripts/research_facts.py','scripts/mlb/gates.py','scripts/make_props_edges.py','supabase/morning_scheduler.sql',
+        'scripts/research_budget.py','scripts/morning_card.py','scripts/morning_operations.py','scripts/late_research.py','scripts/research_facts.py','scripts/mlb/gates.py','scripts/make_props_edges.py','config/nfl_calibration.json','supabase/morning_scheduler.sql',
         'supabase/afternoon_scheduler.sql','scripts/afternoon_gate.py','scripts/mlb/predict.py','scripts/nhl/v2/candidates.py','docs/assets/briefing-picks.js']]
     fingerprint=hashlib.sha256(b''.join(p.read_bytes() for p in paths)).hexdigest()[:20]
     values=dict(POLICY=config['policy_version'],SCHEDULE=''.join(rows),NHL_EV=f"{nhl['minimum_ev']*100:g}",

@@ -90,8 +90,9 @@ rules; NFL ties paying 50 cents are not automatically equivalent to pushes.
 Missing forecasts remain unknown. The private paper ledger is not Bet Tracker
 and cannot establish live returns; historical research keeps its original policy.
 
-NFL props require outcome calibration fitted and evaluated for the current
-`MODEL_VERSION` (`make_props_edges.calibration_status`), a known push probability, fresh quotes,
+NFL props require an outcome-calibration status from `make_props_edges.calibration_status`
+(validated for the current `MODEL_VERSION`, or allowed by the owner policy and labelled
+not validated), a known push probability, fresh quotes,
 and at least 3% EV under the smaller of raw and calibrated probabilities where
 both exist. This is a sensitivity heuristic, not a confidence interval. Matching
 calibration extrapolation and possible partial-game workload distortion are
@@ -99,9 +100,11 @@ withheld from model ranking. Missing raw provenance lowers reliability; apparent
 returns above 30% are placed in a lower-priority research tier. These thresholds
 are operating rules, not a profitable subset learned from historical returns.
 Since the October 5, 2026 validation (`reports/nfl-validation/2026-10-05/`) no NFL
-artifact qualifies: the legacy curve predates the cutoff fixes and, at exact 2026 book
-lines, every model version was less accurate than the market. NFL props are research
-only from the next NFL refresh until the requalification rule in that report passes.
+artifact is validated: the legacy curve predates the cutoff fixes and, at exact 2026
+book lines, every model version was less accurate than the market. By owner decision
+(`config/nfl_calibration.json`, `allow_incompatible_for_top_picks: true`) NFL props stay
+eligible with a "not validated for the current model" status and row label. Setting it
+false makes them research only. A future MODEL_VERSION mismatch is labelled either way.
 
 MLB keeps applicable predictive validation, supported lines, fresh inputs, two
 paired books and best same-line price. `scripts/mlb/gates.py` adds per-side checks: an

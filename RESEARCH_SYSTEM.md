@@ -13,7 +13,8 @@ Three different things are kept apart throughout:
 2. **Predictive validation**: probability accuracy against outcomes and baselines.
 3. **Evidence of a betting edge**: performance at recorded prices against the market.
 
-No part of this change establishes (3) for any sport. NFL now fails (2) at book lines.
+No part of this change establishes (3) for any sport. NFL fails (2) at book lines; by
+owner decision it stays in Top Picks with an explicit not-validated label.
 
 ## 1. Findings and what changed
 
@@ -27,7 +28,7 @@ The audited commit was HEAD, so every finding was current.
 | 2c | Failed NFL batch | 8:39:53 ET: reservation committed, no response, never settled. Settlement sits in a `finally` around the API call, so the exception came from the durable checkpoint (git rebase/push racing a concurrent editorial push at 8:39:52); no request was sent. The $0.121 stayed `reserved`. | Checkpoint retries rebase/push 3 times; on failure the entry is `released_not_sent` at zero actual cost with the reserved amount kept. Discovery gets the same handling. | Fixed |
 | 2d | NHL refresh failure | A date-dependent NHL player-page test (fixed in `d3e5564`) failed “Verify NHL math”, so NHL never refreshed. Each edition was therefore `research_incomplete`, and the 7:35, 8:05 and 8:35 recovery starts re-pulled NFL/MLB and re-ran paid discovery and review for sports that had completed at 7:08 (11/11 NFL, 8/8 MLB). The 7:11 card had 10 rows; the 8:41 card had 5. | Recovery scope: a healthy sport with a feed ≤60 minutes old is reused (no refresh, so unchanged offers keep their reviews); discovery reruns only for new games/questions. Card shows run URL and categories. | Fixed |
 | 2e | ~$1.89 remaining | $0.8627 charged or reserved across four runs, including the $0.121 never sent. | `ledger_summary` splits settled, uncertain, outstanding and released amounts. | Fixed |
-| 3 | NFL calibration not refitted/validated after cutoff fixes | Confirmed; artifact had no provenance. | Point-in-time reconstruction, cutoff verification, separated windows, refit, exact-line market comparison (`reports/nfl-validation/2026-10-05/`). Result: model worse than market at book lines; no artifact installed; NFL props research-only from the next refresh. | Fixed / blocked on evidence |
+| 3 | NFL calibration not refitted/validated after cutoff fixes | Confirmed; artifact had no provenance. | Point-in-time reconstruction, cutoff verification, separated windows, refit, exact-line market comparison (`reports/nfl-validation/2026-10-05/`). Result: model worse than market at book lines; no artifact installed. Owner decision: NFL stays in Top Picks, labelled “not validated for the current model” (`config/nfl_calibration.json`). | Fixed (labelling) / blocked on evidence (skill) |
 | 4 | MLB postseason pitcher-outs passes despite calibration error | The postseason report is a separate 2025 fit (training through 2025-09-07, calibration through 2025-09-28), not the live artifact. It overpredicts outs by 1.87 (16.17 vs 14.30); the 0.85 bin observes 0.55 (n = 49), but aggregate ECE 0.118 ≤ 0.12 passes. The regular-season live artifact also overpredicts outs by 6%. | Side/range/bias gates (`scripts/mlb/gates.py`), clustered intervals and provenance in training reports. Today it would withhold pitcher-outs Overs and 3 of 8 postseason picks. | Fixed (intervals arrive with the next training run) |
 | 5 | NHL lines, power play, goalies not numerical | Confirmed: team-level save rate, “Line and power-play assignment not verified”. | Facts captured; shadow ice-time pilot; goalie facts captured, effect not validated. | Mitigated (shadow) |
 | 6 | Extend existing tracking | NHL decisions/grading and line movement existed. | Cross-sport decision ledger + grading reuse their definitions. | Done |
@@ -160,8 +161,10 @@ transport/service errors (possibly billed).
   Grid 2025: raw 0.1864, refit 0.1861, legacy 0.2283, empirical reference 0.2099.
   Book lines (46 games, 1,547 forecasts): market 0.2474, legacy 0.2513, refit 0.2724,
   raw 0.2775; constant 50% 0.2500. **No artifact installed.** `calibration_status()`
-  labels the legacy file incompatible, so NFL props fail the selector's
-  `Calibration fitted` requirement from the next NFL refresh.
+  labels the legacy file as not validated for the current model. Under the owner
+  policy (`config/nfl_calibration.json`) the label still starts with “Calibration
+  fitted”, so NFL stays in Top Picks, and rows show “Calibration not validated for
+  this model”. With the policy off, NFL props fail the selector's requirement.
   Requalification: a book-line calibration fit on earlier timestamped weeks must,
   on ≥60 later games, score below a constant 50% with the 95% interval of
   (model − market) Brier entirely below +0.002.
@@ -226,9 +229,10 @@ python -c "import json;c=json.load(open('docs/briefing/morning-card.json'));prin
 * Merge → next morning run uses prompt 7, new gates and ledgers. Verify: card
   `decision_ledger.status == 'frozen'`, labels, batch diagnostics, no duplicate spend
   on recovery starts.
-* NFL: after the next NFL refresh, `docs/props/top-picks.json` rows read “Legacy
-  calibration …”; NFL leaves Top Picks. Rollback: revert the
-  `make_props_edges.calibration_status` commit (evidence says this is not advised).
+* NFL: after the next NFL refresh, `docs/props/top-picks.json` rows read
+  “Calibration fitted for a model version before the forecast-cutoff fixes; not
+  validated for the current model”; NFL stays in Top Picks with that label. To make
+  NFL research only, set `allow_incompatible_for_top_picks` to false.
 * MLB gates take effect at the next MLB refresh (retrain adds intervals). Rollback:
   remove the `reasons()` call in `mlb/predict.pick_reason`.
 * Late check: set `late_check.enabled: true` (and optionally `later_reserve_usd`),
@@ -270,7 +274,8 @@ python -c "import json;c=json.load(open('docs/briefing/morning-card.json'));prin
 | 2026-10-05 | Release unsent reservations at zero | Checkpoint failure precedes the request, so no charge can exist | Keep as `reserved` forever (misstates spend); retry API on timeouts (may double bill) |
 | 2026-10-05 | Recovery reuses healthy sports | An unrelated NHL failure triggered three paid reruns that produced a worse card | Treat any incomplete edition as fully re-runnable (status quo) |
 | 2026-10-05 | NFL calibration on fixed grids for fitting/evaluation; exact lines for market comparison | 2025 page lines are selected on the old model's edge, untimestamped | Fit on 2025 page subsets (selection bias) |
-| 2026-10-05 | Install no NFL artifact; NFL props research-only | Every version loses to the market at book lines; legacy ≈ constant 50% | Install grid refit (worse at book lines); keep legacy labelled “fitted” (misleading) |
+| 2026-10-05 | Install no NFL artifact; label NFL not validated | Every version loses to the market at book lines; legacy ≈ constant 50% | Install grid refit (worse at book lines); keep the old “fitted; not prospectively validated” label (implied it was fitted for this model) |
+| 2026-10-05 | Owner: keep NFL in Top Picks (`config/nfl_calibration.json`) | Product continuity while the book-line calibration is rebuilt; labels disclose the evidence | Make NFL research-only (initial proposal, overruled by owner) |
 | 2026-10-05 | MLB side/range/bias gates with a-priori thresholds | Aggregate ECE hid one-sided errors | Subtract ECE from EV (different quantities); tune thresholds on returns (no prices; overfitting) |
 | 2026-10-05 | NHL pilot shadow-only, minutes only when stated in the source | No validated minutes-per-promotion effect | Assume fixed TOI bumps for line changes |
 | 2026-10-05 | Late check shipped disabled | New paid path not exercised live from here | Enable by default |
