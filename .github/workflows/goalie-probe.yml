@@ -8,28 +8,34 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - run: |
-          python3 - <<'PY'
-          import json, urllib.request, urllib.parse
-          def get(url):
-              with urllib.request.urlopen(urllib.request.Request(url, headers={'User-Agent': 'fourth-and-value probe'}), timeout=30) as r:
-                  return json.load(r)
-          q = urllib.parse.urlencode(dict(isAggregate='false', isGame='true', start=0, limit=3,
-              sort=json.dumps([dict(property='gameId', direction='ASC'), dict(property='playerId', direction='ASC')]),
-              cayenneExp='seasonId=20252026 and gameTypeId=2'))
-          d = get('https://api.nhle.com/stats/rest/en/goalie/summary?' + q)
-          print('GOALIE total', d.get('total')); print('GOALIE keys', sorted(d['data'][0])); print('GOALIE row', json.dumps(d['data'][0]))
-          q2 = q.replace('20252026', '20262027')
-          print('GOALIE 2026-27 total', get('https://api.nhle.com/stats/rest/en/goalie/summary?' + q2).get('total'))
-          r = get('https://api-web.nhle.com/v1/roster/BOS/current')
-          print('ROSTER keys', sorted(r)); print('ROSTER goalie', json.dumps(r.get('goalies', [{}])[0])[:600])
-          s = get('https://api-web.nhle.com/v1/schedule/now')
-          games = [g for w in s.get('gameWeek', []) for g in w.get('games', []) if g.get('gameType') == 2]
-          print('SCHEDULE first regular game', games[0]['id'] if games else None, games[0].get('startTimeUTC') if games else None)
-          if games:
-              l = get(f"https://api-web.nhle.com/v1/gamecenter/{games[0]['id']}/landing")
-              print('LANDING keys', sorted(l)); m = l.get('matchup') or {}
-              print('MATCHUP keys', sorted(m)); print('GOALIE COMPARISON', json.dumps(m.get('goalieComparison'))[:1500])
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: requirements-nhl.txt
+      - run: pip install -r requirements-nhl.txt
+      - name: Dry run of goalie projections on live data (no odds calls, nothing published)
+        run: |
+          python - <<'PY'
+          import sys; sys.path.insert(0, 'scripts')
+          from datetime import datetime, timezone
+          from nhl.v2.inference import live_history
+          from nhl.v2 import goalies
+          from nhl.refresh import schedule, season_for
+          now = datetime.now(timezone.utc)
+          games, players, checked = live_history(now)
+          apps = goalies.live('data/nhl/v2/history', games, now, season_for(now))
+          print('appearances', len(apps), 'by season', {s: sum(a['season'] == s for a in apps) for s in sorted({a['season'] for a in apps})})
+          events = schedule(now)
+          up = goalies.upcoming(events, now)
+          rost = goalies.rosters(events, now)
+          print('games in 48h', len(up), 'rosters', len(rost))
+          state = goalies.attach(dict(events=events, rows=[dict(nhl_game_id=e['nhl_game_id'], player='') for e in up]), apps, now, rost)
+          for row in state['rows']:
+              print(row['nhl_game_id'], row['goalie_assumption'], len(row['goalie_assumption']))
+          p = next(iter(state['goalie_projections'].values()), None)
+          if p: print('basis', (p['home'] or {}).get('basis'))
           PY
