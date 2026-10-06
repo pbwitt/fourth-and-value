@@ -38,6 +38,11 @@ class History:
         self.teams = defaultdict(lambda:deque(maxlen=164))
         self.players = defaultdict(lambda:deque(maxlen=164))
         self.max_available = None
+        # Forecast ledger (schema nhl-pit-4): per player, actual shots, goals, assists and points
+        # and the opportunity means his features gave before each of those games. A game counts
+        # once its results arrive, so a forecast sees only earlier games' outcomes.
+        self.ledger = {}
+        self.pending = {}
 
     def add_game(self, g):
         for side, opp in [('home','away'),('away','home')]:
@@ -51,6 +56,9 @@ class History:
 
     def add_player(self, r):
         self.players[r['player_id']].append(r)
+        expected = self.pending.pop((r.get('game_id'), r['player_id']), None) if self.pending else None
+        if expected is not None:
+            self.ledger[r['player_id']] = self.ledger.get(r['player_id'], np.zeros(8)) + np.r_[[r[s] for s in PLAYER_STATS], expected]
 
     def team_features(self, g, asof):
         if self.max_available and stamp(self.max_available) > asof:
@@ -82,11 +90,14 @@ class History:
         records_rate = [{**r, **{s:r[s]/r['toi'] for s in PLAYER_STATS[:3]}} for r in records]
         rates = weighted(records_rate,day,PLAYER_STATS[:3],np.asarray(priors)/(18 if position=='D' else 15),
                          half_life=PLAYER_HALF_LIVES['rate'],ages=games)
+        ledger = self.ledger.get(pid)
         return dict(player_id=pid, history_games=len(records), projected_toi=float(toi),
                     last_game=records[-1]['game_date'] if records else None,
                     base_means=[*means,float(means[1]+means[2])],
                     opportunity_means=[*(toi*rates),float(toi*(rates[1]+rates[2]))],
-                    feature_cutoff=records[-1]['available_at'] if records else None)
+                    feature_cutoff=records[-1]['available_at'] if records else None,
+                    player_actual=[float(x) for x in ledger[:4]] if ledger is not None else None,
+                    player_expected=[float(x) for x in ledger[4:]] if ledger is not None else None)
 
 
 def matchup(team_rows, g, team_id):
@@ -128,11 +139,52 @@ def build(games, players):
             prior = history.players[r['player_id']]
             position = prior[-1]['position'] if prior else 'U'
             f = history.player_features(r['player_id'],position,g['game_date'],asof)
+            history.pending[(g['game_id'],r['player_id'])] = [float(x) for x in f['opportunity_means']]
             f.update(matchup(features, g, prior[-1].get('team_id') if prior else None))
             player_rows.append(dict(**f,game_id=g['game_id'],season=g['season'], game_date=g['game_date'],
                 decision_at=iso(asof), player=r['player'],position=position,
                 targets=[r[s] for s in PLAYER_STATS],actual_toi=r['toi']))
     return team_rows,player_rows
+
+
+def ledger_rows(rows):
+    """Each player's ledger after every row: the archive total a trained bundle carries."""
+    out = {}
+    for r in rows:
+        out[r['player_id']] = out.get(r['player_id'], np.zeros(8)) + np.r_[r['targets'], r['opportunity_means']]
+    return {int(k): [float(x) for x in v] for k, v in out.items()}
+
+
+def forecast_ledger(games, players, asof, base=None, after=None):
+    """The forecast ledger at `asof`: the archive totals in `base`, plus appearances in seasons after
+    `after` whose pre-game features are rebuilt here exactly as `build` makes them."""
+    history = History()
+    history.ledger = {int(k): np.asarray(v, dtype=float) for k, v in (base or {}).items()}
+    by_game = defaultdict(list)
+    for r in players:
+        by_game[r['game_id']].append(r)
+    arrivals = sorted((g for g in games if stamp(g['available_at']) <= asof), key=lambda g:(g['available_at'],g['game_id']))
+    cursor = 0
+    for g in sorted(games,key=lambda g:(g['game_date'],g['game_id'])):
+        when = decision_time(g['game_date'])
+        if when > asof:
+            break
+        while cursor < len(arrivals) and stamp(arrivals[cursor]['available_at']) <= when:
+            past = arrivals[cursor]
+            history.add_game(past)
+            for r in by_game[past['game_id']]: history.add_player(r)
+            cursor += 1
+        if after is None or g['season'] > after:
+            for r in by_game[g['game_id']]:
+                prior = history.players[r['player_id']]
+                f = history.player_features(r['player_id'], prior[-1]['position'] if prior else 'U', g['game_date'], when)
+                history.pending[(g['game_id'],r['player_id'])] = [float(x) for x in f['opportunity_means']]
+    while cursor < len(arrivals):
+        past = arrivals[cursor]
+        history.add_game(past)
+        for r in by_game[past['game_id']]: history.add_player(r)
+        cursor += 1
+    return history.ledger
 
 
 def history_at(games,players,asof):

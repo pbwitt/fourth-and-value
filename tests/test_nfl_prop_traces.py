@@ -68,6 +68,34 @@ class TraceTests(unittest.TestCase):
         self.assertEqual(qb['current_sample'][-1]['opponent_team'], 'NE')
 
 
+class VersusTests(unittest.TestCase):
+    def test_games_against_this_weeks_opponent_are_context_only(self):
+        base = dict(rushing_yards=0, rushing_attempts=0, rushing_tds=0, carries=0, receptions=0, receiving_yards=0, receiving_tds=0,
+                    targets=0, passing_yards=0, passing_tds=0, interceptions=0, attempts=0, completions=0)
+        career = pd.DataFrame([dict(base, player='Run Back', recent_team='BUF', team='BUF', position='RB', gsis_id='Run Back', season=s, week=w,
+                                    season_type='REG', opponent_team=o, rushing_yards=y, carries=c, rushing_attempts=c, game_id=g)
+                               for s, w, o, y, c, g in [(2023, 3, 'NE', 40, 10, None), (2024, 7, 'NYJ', 99, 20, '2024_07_BUF_NYJ'),
+                                                        (2025, 9, 'NE', 110, 22, '2025_09_NE_BUF'), (2026, 2, 'NE', 72, 16, '2026_02_BUF_NE'),
+                                                        (2026, 6, 'NE', 500, 40, '2026_06_NE_BUF')]])
+        args = dict(defensive_ratings=RATINGS, opponent_map={'Run Back': 'NE', 'Wide Out': 'BUF', 'Quarter Back': 'NE'},
+                    home_away_map={'Run Back': True, 'Wide Out': False, 'Quarter Back': True})
+        with_history = build_params(CANDS, LOGS, 2026, 5, career_df=career, **args)
+        relabeled = build_params(CANDS, LOGS, 2026, 5, career_df=career.assign(opponent_team='MIA'), **args)
+        trace = {(r.player, r.market_std): json.loads(r.projection_diagnostics) for r in with_history.itertuples()
+                 if isinstance(r.projection_diagnostics, str)}
+        rush = trace[('Run Back', 'rush_yds')]['versus']
+        self.assertEqual(rush['team'], 'NE')
+        self.assertEqual(rush['values'], [40.0, 110.0, 72.0], 'only NE games, oldest first, none from this week on')
+        self.assertEqual(rush['since'], '2023 Wk 3')
+        self.assertEqual(rush['home'], [None, True, False], 'venue from the game id; unknown without one')
+        self.assertEqual(trace[('Run Back', 'rush_attempts')]['versus']['values'], [10.0, 22.0, 16.0])
+        self.assertIsNone(trace[('Wide Out', 'recv_yds')].get('versus'), 'no meetings, no section')
+        self.assertEqual(list(with_history.mu), list(relabeled.mu), 'history against the opponent never changes a forecast')
+        again = {(r.player, r.market_std): json.loads(r.projection_diagnostics) for r in relabeled.itertuples()
+                 if isinstance(r.projection_diagnostics, str)}
+        self.assertIsNone(again[('Run Back', 'rush_yds')].get('versus'))
+
+
 class PositionTests(unittest.TestCase):
     def test_params_keep_each_players_position(self):
         params = build_params(CANDS, LOGS, 2026, 5, career_df=pd.DataFrame())

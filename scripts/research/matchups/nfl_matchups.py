@@ -35,9 +35,14 @@ MARKETS = {
     'rush_attempts': ('carries', 'carries', {'RB'}, 'rush', 8),
     'recv_yds': ('receiving_yards', 'targets', {'WR', 'TE', 'RB'}, 'pass', 3.5),
     'receptions': ('receptions', 'targets', {'WR', 'TE', 'RB'}, 'pass', 3.5),
+    # Touchdowns and interceptions get no opponent-defense rating in production.
+    'pass_tds': ('passing_tds', 'attempts', {'QB'}, None, 20),
+    'pass_interceptions': ('passing_interceptions', 'attempts', {'QB'}, None, 20),
+    'anytime_td': ('total_tds', 'touches', {'RB', 'WR', 'TE'}, None, 5),
 }
 # Production's fixed multipliers (make_player_prop_params.HOME_AWAY_MULTIPLIERS); none for attempts/completions.
-FIXED_HOME = {'pass_yds': 1.06, 'rush_yds': 1.04, 'rush_attempts': 1.02, 'recv_yds': 1.06, 'receptions': 1.03}
+FIXED_HOME = {'pass_yds': 1.06, 'rush_yds': 1.04, 'rush_attempts': 1.02, 'recv_yds': 1.06, 'receptions': 1.03,
+              'pass_tds': 1.06, 'pass_interceptions': .95, 'anytime_td': 1.05}
 RENAME = {'OAK': 'LV', 'SD': 'LAC', 'STL': 'LA', 'LAR': 'LA'}
 GRID = [1, 3, 10, 30, 100, 300, INF]     # prior strength in games of league-average output
 TRAIN, VALID = range(2012, 2022), range(2022, 2024)   # test: 2024 onward
@@ -56,8 +61,11 @@ def load(data):
     d = d.merge(g[['game_id', 'home_team', 'location']], on='game_id', how='left')
     d['venue'] = np.where(d.location == 'Neutral', 'neutral', np.where(d.team == d.home_team, 'home', 'away'))
     d = d[d.position.isin({'QB', 'RB', 'WR', 'TE'})].copy()
-    for c in ['passing_yards', 'attempts', 'completions', 'rushing_yards', 'carries', 'receiving_yards', 'receptions', 'targets']:
+    for c in ['passing_yards', 'attempts', 'completions', 'rushing_yards', 'carries', 'receiving_yards', 'receptions', 'targets',
+              'passing_tds', 'passing_interceptions', 'rushing_tds', 'receiving_tds']:
         d[c] = d[c].fillna(0).astype(float)
+    d['total_tds'] = d.rushing_tds + d.receiving_tds
+    d['touches'] = d.carries + d.targets
     return d.sort_values(['season', 'week', 'game_id', 'player_id']).reset_index(drop=True)
 
 
@@ -249,7 +257,7 @@ def main():
     dm = defense(d)
     report = dict(baseline='production recipe: EWMA(4) + career blend, opponent-defense rating, fixed home multipliers',
                   seasons=dict(train='2012-2021', validation='2022-2023', test='2024-2026 wk4'), markets={})
-    for market in MARKETS:
+    for market in [m for m in MARKETS if MARKETS[m][3] is not None]:
         rows, f, raw, result, fitted, prod = run_market(d, market, dm)
         if market == 'pass_yds':
             result['storyline'] = {'Patrick Mahomes vs DEN': named(rows, raw, fitted, market, 'Patrick Mahomes', 'DEN')}

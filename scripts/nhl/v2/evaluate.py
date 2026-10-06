@@ -18,7 +18,7 @@ if __package__ in (None,''):
     __package__='nhl.v2'
 from . import VERSION, FEATURE_SCHEMA, evidence_dir
 from .data import ROOT, load, write_json, digest
-from .features import build, PLAYER_STATS
+from .features import build, ledger_rows, PLAYER_STATS
 from .models import TeamModel, PlayerModel, TEAM_CANDIDATES, PLAYER_CANDIDATES, game_outcome
 
 
@@ -151,8 +151,8 @@ def run(history_root,output,model_dir):
             m=TeamModel(name).fit(train,tg)
             report['final']['team'][name]=team_metrics(m,test,fg,save)
     with gzip.open(output/'player-predictions.jsonl.gz','wt') as save:
-        # The previous production kind is scored too, for a paired comparison on the same games.
-        for name in dict.fromkeys(['rate_poisson','opportunity_nb',selected_shots,selected_scoring]):
+        # The previous production kind (v2.3) is scored too, for a paired comparison on the same games.
+        for name in dict.fromkeys(['rate_poisson','opportunity_nb_opp',selected_shots,selected_scoring]):
             m=PlayerModel(name).fit(pt)
             report['final']['player'][name]=player_metrics(m,pv,save)
     report['selection']=selection
@@ -160,7 +160,9 @@ def run(history_root,output,model_dir):
         net_units=None,roi=None,drawdown=None,odds_distribution=None,execution_sensitivity=None,clv=None)
     # Same selected algorithms; refit on all now-completed seasons for live use only.
     bundle=dict(team=TeamModel(selected_team).fit(tr,games),shots=PlayerModel(selected_shots).fit(pr),
-                scoring=PlayerModel(selected_scoring).fit(pr))
+                scoring=PlayerModel(selected_scoring).fit(pr),
+                # Forecast ledger through the archive; inference adds later seasons' games (features.forecast_ledger).
+                ledger=ledger_rows(pr),ledger_through_season=max(g['season'] for g in games))
     model_dir=Path(model_dir); model_dir.mkdir(parents=True,exist_ok=True)
     joblib.dump(bundle,model_dir/'models.joblib',compress=3)
     import hashlib

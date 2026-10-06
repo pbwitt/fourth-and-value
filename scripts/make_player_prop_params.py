@@ -273,17 +273,22 @@ PRIORS = {
     "pass_interceptions":{"lam": 0.8},
 }
 
-# Home/Away performance multipliers (applied to mu)
-# Based on typical NFL home field advantage patterns
+# Home/Away performance multipliers (applied to mu or lambda). Fitted on every completed regular
+# season 2012-2025 (nflverse): actual / expected output at home and away, each over the overall
+# ratio, so they measure the venue gap alone. Neutral sites get none. The earlier fixed values
+# (pass and receiving yards ±6%) were about four times the measured gap; on 2024-26 games held out
+# from fitting, these values gave lower squared error for passing and receiving yards.
+# Evidence and 95% intervals: reports/matchups/nfl_venue.json. Pass attempts and completions keep
+# no multiplier: their measured gaps are under 1% and indistinguishable from zero.
 HOME_AWAY_MULTIPLIERS = {
-    "pass_yds":          {"home": 1.06, "away": 0.94},   # QBs ~6% better at home
-    "pass_tds":          {"home": 1.06, "away": 0.94},
-    "pass_interceptions":{"home": 0.95, "away": 1.05},   # Fewer INTs at home
-    "rush_yds":          {"home": 1.04, "away": 0.96},   # RBs ~4% better at home
-    "rush_attempts":     {"home": 1.02, "away": 0.98},   # Slight volume boost
-    "recv_yds":          {"home": 1.06, "away": 0.94},   # WRs benefit like QBs
-    "receptions":        {"home": 1.03, "away": 0.97},   # Catch rate advantage
-    "anytime_td":        {"home": 1.05, "away": 0.95},   # TD scoring boost
+    "pass_yds":          {"home": 1.014, "away": 0.986},
+    "pass_tds":          {"home": 1.046, "away": 0.954},
+    "pass_interceptions":{"home": 0.982, "away": 1.018},   # Fewer INTs at home
+    "rush_yds":          {"home": 1.024, "away": 0.976},
+    "rush_attempts":     {"home": 1.017, "away": 0.983},
+    "recv_yds":          {"home": 1.014, "away": 0.986},
+    "receptions":        {"home": 1.007, "away": 0.993},
+    "anytime_td":        {"home": 1.054, "away": 0.947},
 }
 
 # minimal sample size before trusting player-specific numbers
@@ -940,9 +945,9 @@ def apply_home_away_adjustment(mu: float, market_std: str, is_home: Optional[boo
         Adjusted mu
 
     Logic:
-        - Home games: boost offensive production ~2-6% depending on market
-        - Away games: decrease by similar amount
-        - Unknown: no adjustment (use base mu)
+        - Home games: the fitted home factor for the market (about +1% to +5%)
+        - Away games: the fitted away factor
+        - Unknown or neutral site: no adjustment (use base mu)
     """
     if pd.isna(mu) or is_home is None:
         return mu
@@ -1925,6 +1930,30 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
 
     family_of = {'rush_attempts': 'rush', 'rush_yds': 'rush', 'receptions': 'receive', 'recv_yds': 'receive'}
 
+    # Display only, never a model input: each player's earlier games against this week's opponent,
+    # from the career logs (games before this week). Relocated franchises keep their history.
+    versus_stat = {'pass_yds': 'passing_yards', 'pass_attempts': 'attempts', 'pass_completions': 'completions',
+                   'rush_yds': 'rushing_yards', 'rush_attempts': 'carries', 'recv_yds': 'receiving_yards', 'receptions': 'receptions'}
+    franchise = {'OAK': 'LV', 'SD': 'LAC', 'STL': 'LA', 'LAR': 'LA'}
+    careers = {}
+    if career_df is not None and not career_df.empty and {'player', 'opponent_team', 'season', 'week'} <= set(career_df.columns):
+        board = career_df[career_df['player'].isin(set(player_idx))]
+        careers = {name: g.sort_values(['season', 'week']) for name, g in board.groupby('player')}
+
+    def versus_trace(m, p):
+        from player_context import meetings
+        opp, col, games = (opponent_map or {}).get(p), versus_stat.get(m), careers.get(p)
+        if not opp or col is None or games is None or col not in games.columns:
+            return None
+        rows = games[games['opponent_team'].map(lambda t: franchise.get(t, t)) == opp].to_dict('records')
+        label = lambda r: f"{int(r['season'])} {'playoffs' if str(r.get('season_type', 'REG')).upper() == 'POST' else 'Wk ' + str(int(r['week']))}"
+
+        def at_home(r):
+            # nflverse game ids read season_week_away_home, e.g. 2024_07_KC_DEN.
+            parts, own = str(r.get('game_id') or '').split('_'), r.get('team') or r.get('recent_team')
+            return own == parts[3] if len(parts) == 4 and own else None
+        return meetings(rows, label, lambda r: float(r[col]) if r.get(col) is not None else None, opp, at_home)
+
     def trace_row(row):
         p, m = row['player'], row['market_std']
         if m in ('pass_attempts', 'pass_completions', 'pass_yds'):
@@ -1941,7 +1970,7 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
         try:
             trace.update(clean_diagnostic(dict(sigma=float(row['sigma']) if pd.notna(row.get('sigma')) else None,
                 opponent=opponent_trace(m, p, opponent_map, defensive_ratings),
-                home=(home_away_map or {}).get(p))))
+                home=(home_away_map or {}).get(p), versus=versus_trace(m, p))))
         except Exception:
             pass
         return json.dumps(trace, separators=(',', ':'), allow_nan=False)

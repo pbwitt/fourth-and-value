@@ -11,9 +11,14 @@ from .features import TEAM_FEATURES, CORE_FEATURES
 
 SUPPORT = np.arange(48)
 TEAM_CANDIDATES = ['rate', 'opponent', 'poisson_core', 'poisson_context', 'boosting']
-PLAYER_CANDIDATES = ['rate_poisson', 'opportunity_poisson', 'opportunity_nb', 'opportunity_hurdle', 'opportunity_nb_opp']
-NB_KINDS = ('opportunity_nb', 'opportunity_nb_opp')
+PLAYER_CANDIDATES = ['rate_poisson', 'opportunity_poisson', 'opportunity_nb', 'opportunity_hurdle', 'opportunity_nb_opp',
+                     'opportunity_nb_opp_player']
+NB_KINDS = ('opportunity_nb', 'opportunity_nb_opp', 'opportunity_nb_opp_player')
+OPPONENT_KINDS = ('opportunity_nb_opp', 'opportunity_nb_opp_player')
 OPPONENT_GRID = np.round(np.arange(0, 2.0001, .05), 2)
+# Player-adjustment prior strength, in expected events (shots, or points for scoring). inf = off.
+PLAYER_GRID = [10., 30., 100., 300., 1000., 3000., np.inf]
+PLAYER_FACTOR_LIMITS = (.5, 2.)
 
 
 def count_pmf(mean, alpha=0):
@@ -99,8 +104,10 @@ class PlayerModel:
 
     def fit(self,rows):
         y = np.array([r['targets'] for r in rows])
-        if self.kind=='opportunity_nb_opp':
+        if self.kind in OPPONENT_KINDS:
             self.fit_opponent(rows,y)
+            if self.kind=='opportunity_nb_opp_player':
+                self.fit_player(rows,y)
             means = np.array([self.means(r) for r in rows])
         else:
             means = np.array([r['opportunity_means'] for r in rows])
@@ -127,8 +134,41 @@ class PlayerModel:
             ll = [float(np.sum(t*np.log(np.maximum(m*x**b,1e-9))-m*x**b)) for b in OPPONENT_GRID]
             setattr(self,'beta_'+name,float(OPPONENT_GRID[int(np.argmax(ll))]) if known.any() else 0.)
 
+    def fit_player(self,rows,y):
+        """Player adjustment strength by Poisson likelihood on training rows only (nhl-v2.4).
+
+        Each row carries the player's forecast ledger from earlier games: actual shots and points,
+        and the opportunity means his features gave before those games. His factor is
+        (actual + k) / (expected + k), clipped to [0.5, 2]: with little history it stays near 1,
+        and with a long record of beating (or missing) his forecasts it moves toward that ratio.
+        Shots and scoring get separate k; goals, assists and points share the scoring factor.
+        """
+        self.k_shots = self.k_scoring = np.inf
+        opponent = np.array([self.means(r) for r in rows])
+        for col,name in [(0,'shots'),(3,'scoring')]:
+            ll = []
+            for k in PLAYER_GRID:
+                setattr(self,'k_'+name,k)
+                factor = np.array([self.player_factors(r)[0 if col==0 else 1] for r in rows])
+                m = np.maximum(opponent[:,col]*factor,1e-9)
+                ll.append(float(np.sum(y[:,col]*np.log(m)-m)))
+            setattr(self,'k_'+name,PLAYER_GRID[int(np.argmax(ll))])
+
+    def player_factors(self,row):
+        """(shots, scoring) multipliers from the player's forecast ledger; 1 without one."""
+        if self.kind!='opportunity_nb_opp_player':
+            return 1.,1.
+        actual,expected = row.get('player_actual'),row.get('player_expected')
+        if not actual or not expected:
+            return 1.,1.
+        def factor(col,k):
+            if not np.isfinite(k):
+                return 1.
+            return float(np.clip((actual[col]+k)/(expected[col]+k),*PLAYER_FACTOR_LIMITS))
+        return factor(0,self.k_shots),factor(3,self.k_scoring)
+
     def factors(self,row):
-        if self.kind!='opportunity_nb_opp':
+        if self.kind not in OPPONENT_KINDS:
             return 1.,1.
         sa,ga = row.get('opp_shots_against'),row.get('opp_goals_against')
         shots = (sa/self.league_shots)**self.beta_shots if sa else 1.
@@ -136,9 +176,11 @@ class PlayerModel:
         return float(shots),float(scoring)
 
     def means(self,row):
-        """The forecast means this kind uses: opportunity means times the opponent factors."""
+        """The forecast means this kind uses: opportunity means times the opponent and player factors."""
         base = row['base_means'] if self.kind=='rate_poisson' else row['opportunity_means']
         shots,scoring = self.factors(row)
+        own_shots,own_scoring = self.player_factors(row)
+        shots,scoring = shots*own_shots,scoring*own_scoring
         return [base[0]*shots,base[1]*scoring,base[2]*scoring,base[3]*scoring]
 
     def pmfs(self,row):
