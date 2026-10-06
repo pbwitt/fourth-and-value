@@ -121,4 +121,7 @@ assert.equal(name({player:'Odd',player_position:'<b>'},'NBA'),'Odd <span class="
 assert.equal(name({player:'Blank',player_position:'  '},'NBA'),'Blank','blank positions are not shown');
 assert.match(snapshot({...row,player_position:'SP',game:'NYY @ BOS'},'MLB'),/<strong>Test Player<\/strong><span>SP · NYY @ BOS<\/span>/);
 assert.match(snapshot({...row,player_position:'SP'},'MLB'),/<strong>Test Player<\/strong><span>SP<\/span>/);
-console.log('PASS: player context preserves missing values, zeros, units, input labels, archived context and escaped content; name pop-up snapshots.');
+// Every snapshot carries a share button beside close, and a live status line for "Link copied".
+assert.match(pop,/<div class="pc-pop-actions"><button type="button" class="pc-share" aria-label="Share player snapshot"><svg[^>]*aria-hidden="true"[^>]*>.*?<\/svg>Share<\/button><button type="button" class="pc-close"/);
+assert.match(pop,/<p class="pc-share-status" role="status"><\/p>/);
+console.log('PASS: player context preserves missing values, zeros, units, input labels, archived context and escaped content; name pop-up snapshots with a share button.');

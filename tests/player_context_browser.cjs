@@ -115,6 +115,28 @@ const server=http.createServer((req,res)=>{
           await pop.hover();await p.waitForTimeout(400);assert(await pop.isVisible(),'moving into the snapshot keeps it open');
           await p.mouse.move(2,1000);await pop.waitFor({state:'hidden'});
         }
+        if(sport==='nhl'&&width===1440){
+          // Share with a mouse copies a link; the link filters the board and reopens the snapshot.
+          await p.evaluate(()=>{window.__copied=[];Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async t=>{window.__copied.push(t);}}});});
+          await name.click();await pop.waitFor({state:'visible'});
+          await pop.locator('.pc-share').click();await pop.locator('.pc-share-status',{hasText:'Link copied'}).waitFor();
+          const link=new URL((await p.evaluate(()=>window.__copied))[0]);
+          assert.equal(link.pathname,'/nhl/props/');
+          assert.equal(link.search,'?q=Example+Player&market=player_shots_on_goal&side=over&line=2.5&snapshot=1');
+          await p.keyboard.press('Escape');await pop.waitFor({state:'hidden'});
+          const moved=new URL(link);moved.searchParams.set('line','3.5');
+          for(const href of [link.href,moved.href]){  // the exact offer, then a line that has moved
+            await p.goto(href);await pop.waitFor({state:'visible'});
+            assert.equal(await pop.locator('.pc-pop-head strong').textContent(),'Example Player');
+            assert.equal(await p.locator('.prop-card .pc-name').first().getAttribute('aria-expanded'),'true','opened from the link, pinned');
+            assert.equal(await p.inputValue('#search'),'Example Player','the board filters to the player');
+            assert.doesNotMatch(await p.evaluate(()=>location.search),/snapshot|side=|line=/,'the address drops the one-time open');
+            await p.keyboard.press('Escape');await pop.waitFor({state:'hidden'});
+          }
+          await p.goto(base+'/nhl/props/?q=Someone+Else&snapshot=1');await p.locator('#result-count',{hasText:'0 matching offers'}).waitFor();
+          assert.equal(await pop.isVisible(),false,'no snapshot opens for a player who is not listed');
+          await p.goto(base+'/nhl/props/');await p.waitForSelector('.prop-card');
+        }
         assert(await p.locator('.prop-card button.track-offer,.prop-card .fv-track-actions button').count()>0,'Tracking control retained');
       }
       if(sport==='nhl'){
@@ -122,6 +144,26 @@ const server=http.createServer((req,res)=>{
         await p.reload();await p.waitForSelector('.prop-card');assert.equal(await p.locator('.pc-name').count(),0,'Expired NHL model context hidden');
       }
     }
+    // Phones: Share opens the native share sheet with the player, the bet and the link.
+    const phone=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
+    try{
+      const m=await phone.newPage();m.on('pageerror',e=>errors.push(e.message));
+      await m.addInitScript(()=>{window.__shared=[];navigator.share=async d=>{window.__shared.push(d);};navigator.canShare=()=>true;});
+      await m.route('**/nhl/data/latest.json',route=>route.fulfill({json:{status:'ready',last_success_at:now,history_checked_at:now,model_checked_at:now,history_through_date:'2026-09-30',season:2026,events:[],rows:[nhl]}}));
+      await m.route('**/nhl/players/players.json',route=>route.fulfill({json:{players:{}}}));
+      await m.goto(base+'/nhl/props/');await m.locator('.prop-card .pc-name').first().tap();
+      const sheet=m.locator('.pc-pop');await sheet.waitFor({state:'visible'});
+      assert.match(await sheet.getAttribute('class'),/pc-sheet/);
+      const head=await sheet.locator('.pc-pop-head').boundingBox(),button=await sheet.locator('.pc-share').boundingBox();
+      assert(button.x+button.width<=head.x+head.width&&button.height>=32,'share button fits the sheet header');
+      await m.screenshot({path:'/tmp/fv-player-pop-share-390.png'});
+      await sheet.locator('.pc-share').tap();await m.waitForFunction(()=>window.__shared.length===1);
+      const sent=await m.evaluate(()=>window.__shared[0]);
+      assert.equal(sent.title,'Example Player · Over 2.5 Shots on goal');
+      assert.equal(sent.text,'Example Player · Over 2.5 Shots on goal. Model projection: 3.1 SOG. Player snapshot on Fourth & Value.');
+      assert.equal(new URL(sent.url).search,'?q=Example+Player&market=player_shots_on_goal&side=over&line=2.5&snapshot=1');
+      assert(await sheet.isVisible(),'the sheet stays open after sharing');
+    }finally{await phone.close();}
     // NFL: rushing and receiving traces from the saved params, with the forecast's bell curve.
     const fields=['game_id','game','player','bookmaker','book_label','market_std','market_label','name','point','price','mu','model_prob','push_prob','mkt_prob','prob_devig',
       'consensus_prob','consensus_line','book_count','edge_bps','ev_per_100','model_status','last_update','commence_time','kick_et','home_team','away_team','projection_diagnostics','player_position'];
@@ -140,7 +182,7 @@ const server=http.createServer((req,res)=>{
           current_sample:[{season:2026,week:4,opponent_team:'MIA',targets:6,receptions:4,receiving_yards:52}],mean_stages:{before_adjustments:4.69,after_defense:4.69,after_venue:4.69,final:4.69}})})]};
     const propsHTML=fs.readFileSync(path.join(root,'props/index.html'),'utf8')
       .replace(/(<script type="application\/json" id="props-data">)[\s\S]*?(<\/script>)/,(_,a,b)=>a+JSON.stringify(payload).replace(/</g,'\\u003c')+b);
-    await p.route(base+'/props/',route=>route.fulfill({contentType:'text/html',body:propsHTML}));
+    await p.route(url=>url.pathname==='/props/',route=>route.fulfill({contentType:'text/html',body:propsHTML}));
     for(const width of [390,1440]){
       await p.setViewportSize({width,height:1050});await p.goto(base+'/props/');await p.waitForSelector('.prop-card .pc-name');
       const name=p.locator('.prop-card .pc-name',{hasText:'Example Back'}),pop=p.locator('.pc-pop');
@@ -163,6 +205,12 @@ const server=http.createServer((req,res)=>{
       assert.match(await pop.locator('#pc-panel-model').textContent(),/Expected targets7\.1×Catch rate66%=Before matchup4\.7 receptions/);
       assert.equal(await pop.locator('.pc-dist .pc-ticks span').count(),12,'one bin per catch count, 0 to 11+');
       await pop.locator('[data-tab=form]').click();await p.keyboard.press('Escape');await pop.waitFor({state:'hidden'});
+      // A shared NFL link: the board reads q and market, and the snapshot opens on the Under.
+      await p.goto(base+'/props/?q=Example+Back&market=rush_yds&side=under&line=70.5&snapshot=1');await pop.waitFor({state:'visible'});
+      assert.equal(await pop.locator('.pc-pop-head strong').textContent(),'Example Back');
+      assert.equal(await p.inputValue('#q'),'Example Back');assert.equal(await p.locator('.prop-card').count(),1,'filtered to the shared player');
+      assert.equal(await p.evaluate(()=>location.search),'?q=Example+Back&market=rush_yds','the board keeps its filters');
+      await p.keyboard.press('Escape');await pop.waitFor({state:'hidden'});
     }
     for(const width of [320,390,768,1440]){
       await p.setViewportSize({width,height:1000});await p.goto(base+'/briefing/');
@@ -176,6 +224,6 @@ const server=http.createServer((req,res)=>{
       assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,`Daily picks context overflow at ${width}`);
     }
     assert.deepEqual(errors,[]);
-    console.log('PASS: name pop-up (click, hover, Escape, outside click, close), game logs, inputs and tracking at four widths; stale NHL context hidden; NFL rushing and receiving curves; daily-picks context.');
+    console.log('PASS: name pop-up (click, hover, Escape, outside click, close), game logs, inputs and tracking at four widths; stale NHL context hidden; share links (copy, native sheet, reopen); NFL rushing and receiving curves; daily-picks context.');
   }finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);server.close();process.exitCode=1;});
