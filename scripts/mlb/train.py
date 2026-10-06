@@ -19,8 +19,8 @@ from datetime import date, datetime, timedelta, timezone
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT/'scripts'))
 from nba.pipeline import save_json,iso
-from mlb.model_data import load,update
-from mlb.models import TARGETS,SUPPORT,LINES,VERSION,dataset,baseline,means,raw_cdf,pmf,joint,game_outcome
+from mlb.model_data import load,update,update_players,load_players
+from mlb.models import TARGETS,SUPPORT,LINES,VERSION,PLATOON_LIVE,dataset,baseline,means,raw_cdf,pmf,joint,game_outcome
 
 MODEL_PATH=ROOT/'data/mlb/models/current.joblib'
 REPORT_PATH=ROOT/'docs/mlb/data/validation.json'
@@ -74,20 +74,18 @@ def score(prob,actual,reference,game_ids,post=False):
         passed=bool(passed),calibration_bins=bins)
 
 
-def evaluate(models,samples,post=False):
-    report={};games=default_game_pairs(samples['team_runs'])
+def forecasts(models,samples):
+    """Every threshold forecast by market: probabilities, outcomes, reference and game ids."""
+    result={}
     for target in TARGETS[1:]:
-        rows=samples[target];model=models[target]
-        if not rows:report[target]=dict(samples=0,games=0,passed=False);continue
-        mu=means(model,rows);mass=pmf(mu,model);prob=[];actual=[];reference=[];ids=[]
+        rows=samples[target];model=models[target];values=result[target]=dict(p=[],y=[],b=[],ids=[])
+        if not rows:continue
+        mu=means(model,rows);mass=pmf(mu,model);values['mu']=mu
         for index,row in enumerate(rows):
             for line in LINES[target]:
-                prob.append(float(mass[index,int(line)+1:].sum()));actual.append(int(row['y']>line))
-                reference.append(float(model['reference_pmf'][int(line)+1:].sum()));ids.append(row['game_id'])
-        report[target]=score(prob,actual,reference,ids,post)
-        report[target].update(forecasts=len(rows),mae=round(float(np.mean(np.abs(mu-[r['y'] for r in rows]))),4),
-            mean_prediction=round(float(mu.mean()),4),mean_actual=round(float(np.mean([r['y'] for r in rows])),4),
-            lines=LINES[target])
+                values['p'].append(float(mass[index,int(line)+1:].sum()));values['y'].append(int(row['y']>line))
+                values['b'].append(float(model['reference_pmf'][int(line)+1:].sum()));values['ids'].append(row['game_id'])
+    games=default_game_pairs(samples['team_runs'])
     totals={market:dict(p=[],y=[],b=[],ids=[]) for market in ['totals','h2h','spreads']}
     model=models['team_runs'];rows=samples['team_runs'];mass=pmf(means(model,rows),model)
     reference=joint(model['reference_pmf'],model['reference_pmf'])
@@ -100,7 +98,21 @@ def evaluate(models,samples,post=False):
                 p,_=game_outcome(matrix,market,line);b,_=game_outcome(reference,market,line)
                 y=int(home+away>line) if market=='totals' else int(home>away) if market=='h2h' else int(home-away+line>0)
                 values['p'].append(p);values['y'].append(y);values['b'].append(b);values['ids'].append(game_id)
-    for market,v in totals.items():report[market]={**score(v['p'],v['y'],v['b'],v['ids'],post),'lines':LINES[market]}
+    result.update(totals)
+    return result
+
+
+def evaluate(models,samples,post=False):
+    report={};values=forecasts(models,samples)
+    for target in TARGETS[1:]:
+        rows=samples[target];v=values[target]
+        if not rows:report[target]=dict(samples=0,games=0,passed=False);continue
+        report[target]=score(v['p'],v['y'],v['b'],v['ids'],post)
+        report[target].update(forecasts=len(rows),mae=round(float(np.mean(np.abs(v['mu']-[r['y'] for r in rows]))),4),
+            mean_prediction=round(float(v['mu'].mean()),4),mean_actual=round(float(np.mean([r['y'] for r in rows])),4),
+            lines=LINES[target])
+    for market in ['totals','h2h','spreads']:
+        v=values[market];report[market]={**score(v['p'],v['y'],v['b'],v['ids'],post),'lines':LINES[market]}
     return report
 
 
@@ -119,6 +131,19 @@ def partition(samples,train_end,cal_end,test_end,post_only=False):
     return train,cal,test
 
 
+def chronology(games):
+    """Weights through 60 days before the latest game, calibration the next 30, test the last 30."""
+    latest=date.fromisoformat(games[-1]['date'])
+    return latest,(latest-timedelta(days=60)).isoformat(),(latest-timedelta(days=30)).isoformat()
+
+
+def postseason_dates(games,latest):
+    """The prior postseason audit trains through three weeks before that regular season ended."""
+    prior_year=latest.year-1
+    reg_end=max(g['date'] for g in games if g['season']==prior_year and g['game_type']=='R')
+    return prior_year,(date.fromisoformat(reg_end)-timedelta(days=21)).isoformat(),reg_end
+
+
 def train_models(refresh_history=True):
     if refresh_history:update()
     games,manifest=load()
@@ -129,9 +154,11 @@ def train_models(refresh_history=True):
         cached=joblib.load(MODEL_PATH)
         if cached.get('source_signature')==signature() and cached.get('history_fetched_date')==manifest['through_date']:
             save_json(REPORT_PATH,cached['report']);return cached
+    hands=None
+    if PLATOON_LIVE:hands=update_players(games) if refresh_history else load_players()
     print('MLB model: building strictly pre-date features',flush=True)
-    samples,state=dataset(games)
-    latest=date.fromisoformat(games[-1]['date']);train_end=(latest-timedelta(days=60)).isoformat();cal_end=(latest-timedelta(days=30)).isoformat()
+    samples,state=dataset(games,hands)
+    latest,train_end,cal_end=chronology(games)
     training,calibration,test=partition(samples,train_end,cal_end,latest.isoformat())
     models={}
     for target in TARGETS:
@@ -139,9 +166,7 @@ def train_models(refresh_history=True):
         models[target]=fit_model(target,training[target],calibration[target])
     regular=evaluate(models,test)
     # Historical postseason audit uses an entirely earlier model, trained BEFORE that postseason.
-    prior_year=latest.year-1
-    reg_dates=[g['date'] for g in games if g['season']==prior_year and g['game_type']=='R']
-    reg_end=max(reg_dates);post_train_end=(date.fromisoformat(reg_end)-timedelta(days=21)).isoformat()
+    prior_year,post_train_end,reg_end=postseason_dates(games,latest)
     pt,pc,pe=partition(samples,post_train_end,reg_end,f'{prior_year}-12-31',post_only=True)
     postseason_error=None
     try:

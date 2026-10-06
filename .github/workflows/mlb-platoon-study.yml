@@ -1,0 +1,44 @@
+name: MLB Platoon Study
+# Platoon (batter side vs pitcher hand) with vs without, on the production box-score
+# history and train.py's own chronological splits. Reruns when the model code changes.
+on:
+  pull_request:
+    paths:
+      - 'scripts/mlb/models.py'
+      - 'scripts/mlb/train.py'
+      - 'scripts/mlb/model_data.py'
+      - 'scripts/mlb/platoon_study.py'
+      - '.github/workflows/mlb-platoon-study.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  study:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Restore the daily MLB game history (read only)
+        uses: actions/cache/restore@v4
+        with:
+          # Same paths as mlb-daily.yml, so its cache version matches.
+          path: |
+            data/mlb/history
+            data/mlb/model_data
+            data/mlb/models
+          key: mlb-models-v1-${{ runner.os }}-study
+          restore-keys: mlb-models-v1-${{ runner.os }}-
+      - name: Compare validation with and without platoon
+        run: python scripts/mlb/platoon_study.py --out reports/mlb-platoon/results.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mlb-platoon-study-${{ github.run_id }}
+          path: reports/mlb-platoon/results.json
+          if-no-files-found: ignore
+          retention-days: 30

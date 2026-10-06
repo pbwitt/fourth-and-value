@@ -2,6 +2,7 @@
 
 State is updated only after an entire historical date has been forecast.
 No current-game box score or market price enters any feature vector.
+Platoon features (batter side vs pitcher hand) exist only when State is given handedness.
 """
 from collections import defaultdict
 from datetime import date, timedelta
@@ -19,6 +20,11 @@ LINES = {'totals':[6.5,7.5,8.5,9.5,10.5], 'h2h':[0], 'spreads':[-1.5,1.5],
          'pitcher_strikeouts':[2.5,3.5,4.5,5.5,6.5,7.5,8.5],
          'pitcher_outs':[12.5,15.5,17.5,18.5], 'batter_hits':[.5,1.5,2.5],
          'batter_total_bases':[.5,1.5,2.5,3.5], 'batter_home_runs':[.5], 'batter_rbis':[.5,1.5]}
+# Batter side vs pitcher hand. Off in production until it beats the model without it
+# on the same chronological splits (scripts/mlb/platoon_study.py, reports/mlb-platoon).
+PLATOON_LIVE = False
+PLATOON = ('starter_left', 'opp_starter_left', 'team_adv_share', 'opp_adv_share',
+           'batter_same_hand', 'batter_switch', 'batter_same_share')
 
 
 def avg(rows, key, prior, weight=0):
@@ -29,13 +35,28 @@ def rate(rows, num, den, prior, weight):
     return (sum(r.get(num,0) for r in rows)+weight*prior)/(sum(r.get(den,0) for r in rows)+weight)
 
 
+def left(throws):
+    return {'L':1., 'R':0.}.get(throws, .5)
+
+
+def same_hand(bats, throws):
+    """1 for a same-handed matchup, 0 for opposite hands or a switch hitter, .5 if unknown."""
+    if bats not in ('L','R','S') or throws not in ('L','R'):return .5
+    return float(bats==throws)
+
+
 class State:
-    def __init__(self):
+    def __init__(self, hands=None):
         self.batters=defaultdict(list)
         self.pitchers=defaultdict(list)
         self.teams=defaultdict(list)
         self.parks=defaultdict(list)
         self.last_date=None
+        # Player id -> {'bats','throws'}; None leaves every platoon feature out.
+        self.hands=hands
+
+    def hand(self, player_id, key):
+        return ((getattr(self,'hands',None) or {}).get(player_id) or {}).get(key)
 
     def past(self, collection, key, day, limit):
         cutoff=(date.fromisoformat(day)-timedelta(days=370)).isoformat()
@@ -63,6 +84,26 @@ class State:
             hr_rate=rate(rows,'homeRuns','battersFaced',.03,100),
             ra9=27*rate(rows,'runs','outs',4.3/27,90), rest=rest)
 
+    def advantage_share(self, team_id, day, throws):
+        """Share of the team's PA from batters with the platoon edge against this pitcher hand.
+
+        Lineups shift against left-handers, so games against starters of the same hand
+        count first, shrunk toward the team's overall batting mix.
+        """
+        if throws not in ('L','R'):return .5
+        rows=self.past(self.teams,team_id,day,40)
+        def edge(selected):
+            pa=sum(r.get('pa_L',0)+r.get('pa_R',0)+r.get('pa_S',0) for r in selected)
+            return sum(r.get('pa_S',0)+r.get('pa_R' if throws=='L' else 'pa_L',0) for r in selected),pa
+        hits,pa=edge(rows);overall=(hits+50)/(pa+100)
+        hits,pa=edge([r for r in rows if r.get('vs')==throws])
+        return (hits+200*overall)/(pa+200)
+
+    def bullpen_left(self, team_id, day):
+        rows=self.past(self.teams,team_id,day,40)
+        lefties=sum(r.get('bull_bf_L',0) for r in rows)
+        return (lefties+30)/(lefties+sum(r.get('bull_bf_R',0) for r in rows)+100)
+
     def features(self, game, side, player_id=None, slot=0):
         day=game['date'];other='away' if side=='home' else 'home'
         team_id=game[side+'_id'];opp_id=game[other+'_id']
@@ -76,6 +117,12 @@ class State:
         base.update({'opp_'+k:v for k,v in opp.items()})
         base.update({'starter_'+k:v for k,v in pitcher.items()})
         base.update({'opp_starter_'+k:v for k,v in op.items()})
+        platoon=getattr(self,'hands',None) is not None
+        if platoon:
+            throws,opp_throws=self.hand(starter,'throws'),self.hand(opponent,'throws')
+            base.update(starter_left=left(throws),opp_starter_left=left(opp_throws),
+                team_adv_share=self.advantage_share(team_id,day,opp_throws),
+                opp_adv_share=self.advantage_share(opp_id,day,throws))
         if player_id is not None:
             rows=self.past(self.batters,player_id,day,60)
             starts=[r for r in rows if r['slot']>0][-20:]
@@ -88,6 +135,15 @@ class State:
                 batter_rbi_rate=rate(rows,'rbi','plateAppearances',.11,100),
                 batter_k_rate=rate(rows,'strikeOuts','plateAppearances',.225,100),
                 batter_bb_rate=rate(rows,'baseOnBalls','plateAppearances',.085,100))
+            if platoon:
+                bats=self.hand(player_id,'bats');same=same_hand(bats,opp_throws)
+                # The starter takes roughly his share of the opponent's batters faced; the
+                # opposing bullpen's recent left/right mix covers the rest.
+                lefty=self.bullpen_left(opp_id,day)
+                bullpen={'L':lefty,'R':1-lefty,'S':0.}.get(bats,.5)
+                share=min(.85,max(.2,op['bf']/38))
+                base.update(batter_same_hand=same,batter_switch=float(bats=='S'),
+                    batter_same_share=share*same+(1-share)*bullpen)
         return base
 
     def update(self, game):
@@ -96,10 +152,19 @@ class State:
             team=game['teams'][side];other=game['teams']['away' if side=='home' else 'home']
             starter=next(p for p in team['pitchers'] if p['id']==team['starter'])
             b,p=team['batting'],team['pitching']
-            self.teams[team['id']].append(dict(date=day,runs=b['runs'],allowed=other['batting']['runs'],
+            log=dict(date=day,runs=b['runs'],allowed=other['batting']['runs'],
                 pa=b['plateAppearances'],k=b['strikeOuts'],hits=b['hits'],hr=b['homeRuns'],bb=b['baseOnBalls'],
                 tb=b['totalBases'],bull_runs=max(0,p['runs']-starter['runs']),
-                bull_outs=max(0,p['outs']-starter['outs']),bull_pitches=max(0,p['numberOfPitches']-starter['numberOfPitches'])))
+                bull_outs=max(0,p['outs']-starter['outs']),bull_pitches=max(0,p['numberOfPitches']-starter['numberOfPitches']))
+            if getattr(self,'hands',None) is not None:
+                # Batting mix by side and bullpen batters faced by hand; unknown hands are left out.
+                log['vs']=self.hand(other['starter'],'throws')
+                for code in 'LRS':
+                    log['pa_'+code]=sum(x['plateAppearances'] for x in team['batters'] if self.hand(x['id'],'bats')==code)
+                for code in 'LR':
+                    log['bull_bf_'+code]=sum(x['battersFaced'] for x in team['pitchers']
+                                             if x['id']!=starter['id'] and self.hand(x['id'],'throws')==code)
+            self.teams[team['id']].append(log)
             # Opponent fields label game logs only; no feature reads them.
             seen=dict(date=day,opponent_id=other['id'],at_home=side=='home')
             self.pitchers[starter['id']].append({**starter,**seen})
@@ -113,8 +178,8 @@ def game_input(game):
     return {**game, 'home_starter':game['teams']['home']['starter'], 'away_starter':game['teams']['away']['starter']}
 
 
-def dataset(games):
-    state=State();samples={target:[] for target in TARGETS};by_day=defaultdict(list)
+def dataset(games, hands=None):
+    state=State(hands);samples={target:[] for target in TARGETS};by_day=defaultdict(list)
     for game in games:by_day[game['date']].append(game)
     for day in sorted(by_day):
         for game in by_day[day]:
@@ -139,6 +204,12 @@ def dataset(games):
         # All games on a date share exactly the same pre-date information.
         for game in by_day[day]:state.update(game)
     return samples,state
+
+
+def without_platoon(samples):
+    """The same rows and outcomes with every platoon feature removed."""
+    return {target:[{**row,'x':{k:v for k,v in row['x'].items() if k not in PLATOON}} for row in rows]
+            for target,rows in samples.items()}
 
 
 def baseline(x,target):
