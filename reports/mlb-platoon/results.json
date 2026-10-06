@@ -1,0 +1,1164 @@
+{
+  "created_at": "2026-10-06T21:43:11.082904Z",
+  "games": 3285,
+  "input_through": "2026-10-05",
+  "features": [
+    "starter_left",
+    "opp_starter_left",
+    "team_adv_share",
+    "opp_adv_share",
+    "batter_same_hand",
+    "batter_switch",
+    "batter_same_share"
+  ],
+  "rule": {
+    "comparison": "Platoon minus no platoon, paired on the same held-out forecasts; negative is better.",
+    "interval": "95% percentile interval from 2,000 bootstrap resamples of whole games.",
+    "worse": "A market is worse when its pooled Brier or log-loss interval lies entirely above zero.",
+    "better": "A market is better when its pooled Brier interval lies entirely below zero.",
+    "neutral": "The precision-weighted average of the pooled Brier changes is at or below zero; a market whose forecasts are identical with and without platoon carries no weight.",
+    "calibration": "No market's pooled calibration gap rises by more than 0.005 with an interval entirely above zero, and no market that passes train.py's regular-season or postseason checks without platoon fails them with it.",
+    "ship": "Ship when no market is worse, the calibration guard holds, and at least one market is better or the result is neutral.",
+    "amended": "2026-10-06, before any production result: a synthetic no-effect run tripped the original guard (any calibration-gap rise above 0.005) on moneylines by chance, and the unweighted average of Brier changes was driven by the noisy game markets. The guard now also requires the rise to be outside its interval and the average is precision-weighted."
+  },
+  "coverage": {
+    "players": 1841,
+    "starters_with_hand": 1.0,
+    "batter_pa_with_side": 1.0,
+    "batter_pa_share_by_side": {
+      "L": 0.4018,
+      "R": 0.4896,
+      "S": 0.1086
+    },
+    "direction": {
+      "batter_hits": {
+        "opposite hand or switch": {
+          "rows": 31112,
+          "actual_over_baseline": 0.9666
+        },
+        "same hand": {
+          "rows": 19890,
+          "actual_over_baseline": 0.9855
+        }
+      },
+      "batter_total_bases": {
+        "opposite hand or switch": {
+          "rows": 31112,
+          "actual_over_baseline": 0.9695
+        },
+        "same hand": {
+          "rows": 19890,
+          "actual_over_baseline": 0.9723
+        }
+      },
+      "batter_home_runs": {
+        "opposite hand or switch": {
+          "rows": 31112,
+          "actual_over_baseline": 0.9796
+        },
+        "same hand": {
+          "rows": 19890,
+          "actual_over_baseline": 0.9695
+        }
+      }
+    }
+  },
+  "windows": [
+    {
+      "fold": 0,
+      "training_through": "2026-08-06",
+      "calibration_through": "2026-09-05",
+      "test_start": "2026-09-06",
+      "test_end": "2026-10-05"
+    },
+    {
+      "fold": 1,
+      "training_through": "2026-07-07",
+      "calibration_through": "2026-08-06",
+      "test_start": "2026-08-07",
+      "test_end": "2026-09-05"
+    },
+    {
+      "fold": 2,
+      "training_through": "2026-06-07",
+      "calibration_through": "2026-07-07",
+      "test_start": "2026-07-08",
+      "test_end": "2026-08-06"
+    },
+    {
+      "fold": 3,
+      "training_through": "2026-05-08",
+      "calibration_through": "2026-06-07",
+      "test_start": "2026-06-08",
+      "test_end": "2026-07-07"
+    }
+  ],
+  "pooled_windows": "2026-06-08 to 2026-10-05 (4 windows, regular season)",
+  "model_kinds": {
+    "with": {
+      "team_runs": "boosted",
+      "pitcher_strikeouts": "rolling",
+      "pitcher_outs": "boosted",
+      "batter_hits": "boosted",
+      "batter_total_bases": "boosted",
+      "batter_home_runs": "boosted",
+      "batter_rbis": "boosted"
+    },
+    "without": {
+      "team_runs": "boosted",
+      "pitcher_strikeouts": "rolling",
+      "pitcher_outs": "boosted",
+      "batter_hits": "boosted",
+      "batter_total_bases": "boosted",
+      "batter_home_runs": "boosted",
+      "batter_rbis": "boosted"
+    }
+  },
+  "pooled": {
+    "pitcher_strikeouts": {
+      "forecasts": 18760,
+      "games": 1437,
+      "brier": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "log_loss": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "ece": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "with_platoon": {
+        "brier": 0.158894,
+        "log_loss": 0.4829,
+        "ece": 0.011188,
+        "brier_skill": 0.1003
+      },
+      "without_platoon": {
+        "brier": 0.158894,
+        "log_loss": 0.4829,
+        "ece": 0.011188,
+        "brier_skill": 0.1003
+      }
+    },
+    "pitcher_outs": {
+      "forecasts": 10720,
+      "games": 1437,
+      "brier": {
+        "mean": 0.0001386300151908322,
+        "low": -0.00027418347584411975,
+        "high": 0.0005492904217663575
+      },
+      "log_loss": {
+        "mean": 0.00013650667897216804,
+        "low": -0.0008717755124418334,
+        "high": 0.0011547081814090134
+      },
+      "ece": {
+        "mean": -0.0001779999999999976,
+        "low": -0.0019966951234224295,
+        "high": 0.003024195422615479
+      },
+      "with_platoon": {
+        "brier": 0.187023,
+        "log_loss": 0.553358,
+        "ece": 0.031675,
+        "brier_skill": 0.0608
+      },
+      "without_platoon": {
+        "brier": 0.186884,
+        "log_loss": 0.553222,
+        "ece": 0.031853,
+        "brier_skill": 0.0615
+      }
+    },
+    "batter_hits": {
+      "forecasts": 74676,
+      "games": 1448,
+      "brier": {
+        "mean": 3.36624298169221e-05,
+        "low": -7.988537025402069e-05,
+        "high": 0.00013910431257835402
+      },
+      "log_loss": {
+        "mean": 0.00011860202522852897,
+        "low": -0.00027420625907202364,
+        "high": 0.0004965601240326732
+      },
+      "ece": {
+        "mean": -0.0004969999999999998,
+        "low": -0.0016809308102412595,
+        "high": 0.0013448180601107263
+      },
+      "with_platoon": {
+        "brier": 0.149563,
+        "log_loss": 0.456983,
+        "ece": 0.001707,
+        "brier_skill": 0.012
+      },
+      "without_platoon": {
+        "brier": 0.149529,
+        "log_loss": 0.456864,
+        "ece": 0.002204,
+        "brier_skill": 0.0122
+      }
+    },
+    "batter_total_bases": {
+      "forecasts": 99568,
+      "games": 1448,
+      "brier": {
+        "mean": -7.982810027693763e-05,
+        "low": -0.00017666482245024006,
+        "high": 1.9731553201631484e-05
+      },
+      "log_loss": {
+        "mean": -0.00026134942444383524,
+        "low": -0.0005554795480408695,
+        "high": 4.083768725289178e-05
+      },
+      "ece": {
+        "mean": 0.00017200000000000028,
+        "low": -0.0015309111455246408,
+        "high": 0.0021172630898457227
+      },
+      "with_platoon": {
+        "brier": 0.187629,
+        "log_loss": 0.557766,
+        "ece": 0.005091,
+        "brier_skill": 0.0107
+      },
+      "without_platoon": {
+        "brier": 0.187709,
+        "log_loss": 0.558027,
+        "ece": 0.004919,
+        "brier_skill": 0.0103
+      }
+    },
+    "batter_home_runs": {
+      "forecasts": 24892,
+      "games": 1448,
+      "brier": {
+        "mean": 4.6755555022817286e-06,
+        "low": -8.901099817099469e-05,
+        "high": 0.00010662162951550118
+      },
+      "log_loss": {
+        "mean": 2.6493012651122936e-05,
+        "low": -0.0003896688196784444,
+        "high": 0.0004868680962223781
+      },
+      "ece": {
+        "mean": -0.0008830000000000001,
+        "low": -0.002163786895469668,
+        "high": 0.0012293652714089754
+      },
+      "with_platoon": {
+        "brier": 0.104039,
+        "log_loss": 0.360282,
+        "ece": 0.002692,
+        "brier_skill": 0.011
+      },
+      "without_platoon": {
+        "brier": 0.104034,
+        "log_loss": 0.360256,
+        "ece": 0.003575,
+        "brier_skill": 0.011
+      }
+    },
+    "batter_rbis": {
+      "forecasts": 49784,
+      "games": 1448,
+      "brier": {
+        "mean": 8.219975363789926e-05,
+        "low": -6.334542935463392e-05,
+        "high": 0.00022433023516653323
+      },
+      "log_loss": {
+        "mean": 0.0003659793206084771,
+        "low": -9.304330844468682e-05,
+        "high": 0.0008607058236697338
+      },
+      "ece": {
+        "mean": -0.0007829999999999998,
+        "low": -0.0027976764145450916,
+        "high": 0.0014385133998288551
+      },
+      "with_platoon": {
+        "brier": 0.150975,
+        "log_loss": 0.470749,
+        "ece": 0.005011,
+        "brier_skill": 0.0062
+      },
+      "without_platoon": {
+        "brier": 0.150893,
+        "log_loss": 0.470383,
+        "ece": 0.005794,
+        "brier_skill": 0.0068
+      }
+    },
+    "totals": {
+      "forecasts": 7240,
+      "games": 1448,
+      "brier": {
+        "mean": -0.0017736891072103592,
+        "low": -0.003958361776149715,
+        "high": 0.0005288502657156244
+      },
+      "log_loss": {
+        "mean": -0.003786097854525704,
+        "low": -0.008574367065749629,
+        "high": 0.0012479219760320845
+      },
+      "ece": {
+        "mean": -0.0019819999999999977,
+        "low": -0.011721114300569935,
+        "high": 0.003862018881718491
+      },
+      "with_platoon": {
+        "brier": 0.233416,
+        "log_loss": 0.659463,
+        "ece": 0.020261,
+        "brier_skill": 0.0044
+      },
+      "without_platoon": {
+        "brier": 0.23519,
+        "log_loss": 0.663249,
+        "ece": 0.022243,
+        "brier_skill": -0.0031
+      }
+    },
+    "h2h": {
+      "forecasts": 1448,
+      "games": 1448,
+      "brier": {
+        "mean": 0.0019956727393839807,
+        "low": -0.000992715669338459,
+        "high": 0.005073909233237185
+      },
+      "log_loss": {
+        "mean": 0.004123822545639013,
+        "low": -0.0019823710981655552,
+        "high": 0.010369524985817839
+      },
+      "ece": {
+        "mean": 0.0017619999999999997,
+        "low": -0.007535261428588652,
+        "high": 0.020211448342730746
+      },
+      "with_platoon": {
+        "brier": 0.250421,
+        "log_loss": 0.694111,
+        "ece": 0.034814,
+        "brier_skill": -0.0017
+      },
+      "without_platoon": {
+        "brier": 0.248425,
+        "log_loss": 0.689987,
+        "ece": 0.033052,
+        "brier_skill": 0.0063
+      }
+    },
+    "spreads": {
+      "forecasts": 2896,
+      "games": 1448,
+      "brier": {
+        "mean": 0.0012790313814274267,
+        "low": -0.0011646550916849991,
+        "high": 0.0036243591486360984
+      },
+      "log_loss": {
+        "mean": 0.0026711646454389256,
+        "low": -0.002523225027109573,
+        "high": 0.007649258420504817
+      },
+      "ece": {
+        "mean": -0.006581,
+        "low": -0.014099659249283296,
+        "high": 0.0062713483292011945
+      },
+      "with_platoon": {
+        "brier": 0.231052,
+        "log_loss": 0.654644,
+        "ece": 0.02886,
+        "brier_skill": 0.0007
+      },
+      "without_platoon": {
+        "brier": 0.229773,
+        "log_loss": 0.651973,
+        "ece": 0.035441,
+        "brier_skill": 0.0063
+      }
+    }
+  },
+  "primary": {
+    "pitcher_strikeouts": {
+      "forecasts": 3745,
+      "games": 288,
+      "brier": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "log_loss": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "ece": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "with_platoon": {
+        "brier": 0.163316,
+        "log_loss": 0.492272,
+        "ece": 0.023815,
+        "brier_skill": 0.1001
+      },
+      "without_platoon": {
+        "brier": 0.163316,
+        "log_loss": 0.492272,
+        "ece": 0.023815,
+        "brier_skill": 0.1001
+      }
+    },
+    "pitcher_outs": {
+      "forecasts": 2140,
+      "games": 288,
+      "brier": {
+        "mean": -0.0008366098449586731,
+        "low": -0.002070062777289944,
+        "high": 0.00046477613447550356
+      },
+      "log_loss": {
+        "mean": -0.002360568647020312,
+        "low": -0.0054557869093343914,
+        "high": 0.0008215477849970218
+      },
+      "ece": {
+        "mean": -0.00014100000000000223,
+        "low": -0.010144525979945829,
+        "high": 0.0059036937211556905
+      },
+      "with_platoon": {
+        "brier": 0.190298,
+        "log_loss": 0.560381,
+        "ece": 0.058273,
+        "brier_skill": 0.0759
+      },
+      "without_platoon": {
+        "brier": 0.191134,
+        "log_loss": 0.562742,
+        "ece": 0.058414,
+        "brier_skill": 0.0718
+      }
+    },
+    "batter_hits": {
+      "forecasts": 15039,
+      "games": 290,
+      "brier": {
+        "mean": 0.00014446337545504062,
+        "low": -8.949210681171407e-05,
+        "high": 0.0004058373344786312
+      },
+      "log_loss": {
+        "mean": 0.0007027867504008713,
+        "low": -0.0001465217164120551,
+        "high": 0.0016696722814486967
+      },
+      "ece": {
+        "mean": 0.000686,
+        "low": -0.0017725109312973348,
+        "high": 0.0029577211866576867
+      },
+      "with_platoon": {
+        "brier": 0.149981,
+        "log_loss": 0.458205,
+        "ece": 0.007035,
+        "brier_skill": 0.0198
+      },
+      "without_platoon": {
+        "brier": 0.149837,
+        "log_loss": 0.457502,
+        "ece": 0.006349,
+        "brier_skill": 0.0208
+      }
+    },
+    "batter_total_bases": {
+      "forecasts": 20052,
+      "games": 290,
+      "brier": {
+        "mean": 0.0001540543221385819,
+        "low": -3.284408099845392e-05,
+        "high": 0.0003468966262660313
+      },
+      "log_loss": {
+        "mean": 0.00036415177791488393,
+        "low": -0.00013770031879481613,
+        "high": 0.0008784998510519206
+      },
+      "ece": {
+        "mean": -0.0009639999999999996,
+        "low": -0.0023864545892931083,
+        "high": 0.0013734033082033375
+      },
+      "with_platoon": {
+        "brier": 0.186381,
+        "log_loss": 0.554576,
+        "ece": 0.010799,
+        "brier_skill": 0.0171
+      },
+      "without_platoon": {
+        "brier": 0.186227,
+        "log_loss": 0.554212,
+        "ece": 0.011763,
+        "brier_skill": 0.0179
+      }
+    },
+    "batter_home_runs": {
+      "forecasts": 5013,
+      "games": 290,
+      "brier": {
+        "mean": -3.0429542054697095e-06,
+        "low": -0.0002540130929235423,
+        "high": 0.0002556105747889992
+      },
+      "log_loss": {
+        "mean": -5.998627090271099e-05,
+        "low": -0.0010726381564291317,
+        "high": 0.0008820977380831845
+      },
+      "ece": {
+        "mean": -0.0023359999999999995,
+        "low": -0.005093220513125159,
+        "high": 0.0016265045223033258
+      },
+      "with_platoon": {
+        "brier": 0.102001,
+        "log_loss": 0.352993,
+        "ece": 0.008225,
+        "brier_skill": 0.0178
+      },
+      "without_platoon": {
+        "brier": 0.102004,
+        "log_loss": 0.353053,
+        "ece": 0.010561,
+        "brier_skill": 0.0177
+      }
+    },
+    "batter_rbis": {
+      "forecasts": 10026,
+      "games": 290,
+      "brier": {
+        "mean": 0.00021087089061179283,
+        "low": -0.00013294178902330576,
+        "high": 0.0005877660696820713
+      },
+      "log_loss": {
+        "mean": 0.0010908409459040455,
+        "low": -0.00026908788340201354,
+        "high": 0.002696763878507634
+      },
+      "ece": {
+        "mean": 0.0007359999999999997,
+        "low": -0.003789305938946711,
+        "high": 0.0042284898731331875
+      },
+      "with_platoon": {
+        "brier": 0.150143,
+        "log_loss": 0.468577,
+        "ece": 0.005954,
+        "brier_skill": 0.0124
+      },
+      "without_platoon": {
+        "brier": 0.149933,
+        "log_loss": 0.467486,
+        "ece": 0.005218,
+        "brier_skill": 0.0138
+      }
+    },
+    "totals": {
+      "forecasts": 1450,
+      "games": 290,
+      "brier": {
+        "mean": 0.00047029258486575037,
+        "low": -0.0017510892681337114,
+        "high": 0.002732854615305109
+      },
+      "log_loss": {
+        "mean": 0.0010199675248393461,
+        "low": -0.003774844572260059,
+        "high": 0.005950650424553095
+      },
+      "ece": {
+        "mean": -0.000895,
+        "low": -0.010232679664196975,
+        "high": 0.00841100436104543
+      },
+      "with_platoon": {
+        "brier": 0.225241,
+        "log_loss": 0.641841,
+        "ece": 0.01489,
+        "brier_skill": 0.0265
+      },
+      "without_platoon": {
+        "brier": 0.224771,
+        "log_loss": 0.640821,
+        "ece": 0.015785,
+        "brier_skill": 0.0285
+      }
+    },
+    "h2h": {
+      "forecasts": 290,
+      "games": 290,
+      "brier": {
+        "mean": 0.0036113958292622503,
+        "low": 0.0004520374217574296,
+        "high": 0.006569073801275451
+      },
+      "log_loss": {
+        "mean": 0.007398420613320283,
+        "low": 0.0009438248924713751,
+        "high": 0.013415542035456857
+      },
+      "ece": {
+        "mean": 0.0030020000000000047,
+        "low": -0.018324402755542268,
+        "high": 0.04500443255783396
+      },
+      "with_platoon": {
+        "brier": 0.249252,
+        "log_loss": 0.691778,
+        "ece": 0.065208,
+        "brier_skill": 0.003
+      },
+      "without_platoon": {
+        "brier": 0.245641,
+        "log_loss": 0.684379,
+        "ece": 0.062206,
+        "brier_skill": 0.0174
+      }
+    },
+    "spreads": {
+      "forecasts": 580,
+      "games": 290,
+      "brier": {
+        "mean": 0.0032050852097717927,
+        "low": 0.0008090752824975191,
+        "high": 0.005538913011234993
+      },
+      "log_loss": {
+        "mean": 0.006826133578054648,
+        "low": 0.0017247600583866472,
+        "high": 0.011717539683898074
+      },
+      "ece": {
+        "mean": 0.0010919999999999958,
+        "low": -0.015153992096011985,
+        "high": 0.016346628756891197
+      },
+      "with_platoon": {
+        "brier": 0.230115,
+        "log_loss": 0.652835,
+        "ece": 0.042098,
+        "brier_skill": 0.0011
+      },
+      "without_platoon": {
+        "brier": 0.22691,
+        "log_loss": 0.646009,
+        "ece": 0.041006,
+        "brier_skill": 0.015
+      }
+    }
+  },
+  "primary_validation": {
+    "with": {
+      "pitcher_strikeouts": {
+        "passed": true,
+        "brier": 0.163316,
+        "ece": 0.023815
+      },
+      "pitcher_outs": {
+        "passed": true,
+        "brier": 0.190298,
+        "ece": 0.058273
+      },
+      "batter_hits": {
+        "passed": true,
+        "brier": 0.149981,
+        "ece": 0.007035
+      },
+      "batter_total_bases": {
+        "passed": true,
+        "brier": 0.186381,
+        "ece": 0.010799
+      },
+      "batter_home_runs": {
+        "passed": true,
+        "brier": 0.102001,
+        "ece": 0.008225
+      },
+      "batter_rbis": {
+        "passed": true,
+        "brier": 0.150143,
+        "ece": 0.005954
+      },
+      "totals": {
+        "passed": true,
+        "brier": 0.225241,
+        "ece": 0.01489
+      },
+      "h2h": {
+        "passed": false,
+        "brier": 0.249252,
+        "ece": 0.065208
+      },
+      "spreads": {
+        "passed": true,
+        "brier": 0.230115,
+        "ece": 0.042098
+      }
+    },
+    "without": {
+      "pitcher_strikeouts": {
+        "passed": true,
+        "brier": 0.163316,
+        "ece": 0.023815
+      },
+      "pitcher_outs": {
+        "passed": true,
+        "brier": 0.191134,
+        "ece": 0.058414
+      },
+      "batter_hits": {
+        "passed": true,
+        "brier": 0.149837,
+        "ece": 0.006349
+      },
+      "batter_total_bases": {
+        "passed": true,
+        "brier": 0.186227,
+        "ece": 0.011763
+      },
+      "batter_home_runs": {
+        "passed": true,
+        "brier": 0.102004,
+        "ece": 0.010561
+      },
+      "batter_rbis": {
+        "passed": true,
+        "brier": 0.149933,
+        "ece": 0.005218
+      },
+      "totals": {
+        "passed": true,
+        "brier": 0.224771,
+        "ece": 0.015785
+      },
+      "h2h": {
+        "passed": false,
+        "brier": 0.245641,
+        "ece": 0.062206
+      },
+      "spreads": {
+        "passed": true,
+        "brier": 0.22691,
+        "ece": 0.041006
+      }
+    }
+  },
+  "postseason_year": 2025,
+  "postseason": {
+    "pitcher_strikeouts": {
+      "forecasts": 609,
+      "games": 46,
+      "brier": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "log_loss": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "ece": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "with_platoon": {
+        "brier": 0.177065,
+        "log_loss": 0.529402,
+        "ece": 0.051706,
+        "brier_skill": 0.1573
+      },
+      "without_platoon": {
+        "brier": 0.177065,
+        "log_loss": 0.529402,
+        "ece": 0.051706,
+        "brier_skill": 0.1573
+      }
+    },
+    "pitcher_outs": {
+      "forecasts": 348,
+      "games": 46,
+      "brier": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "log_loss": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "ece": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "with_platoon": {
+        "brier": 0.221001,
+        "log_loss": 0.638303,
+        "ece": 0.11812,
+        "brier_skill": 0.0425
+      },
+      "without_platoon": {
+        "brier": 0.221001,
+        "log_loss": 0.638303,
+        "ece": 0.11812,
+        "brier_skill": 0.0425
+      }
+    },
+    "batter_hits": {
+      "forecasts": 2487,
+      "games": 47,
+      "brier": {
+        "mean": 0.0004198585904835398,
+        "low": -0.00032200215698188636,
+        "high": 0.0011234099244056422
+      },
+      "log_loss": {
+        "mean": 0.00145307399144214,
+        "low": -0.0009050557796600451,
+        "high": 0.0036706075068168673
+      },
+      "ece": {
+        "mean": -0.002496,
+        "low": -0.008685752172927929,
+        "high": 0.005931580429464569
+      },
+      "with_platoon": {
+        "brier": 0.148728,
+        "log_loss": 0.453803,
+        "ece": 0.011177,
+        "brier_skill": 0.0112
+      },
+      "without_platoon": {
+        "brier": 0.148308,
+        "log_loss": 0.45235,
+        "ece": 0.013673,
+        "brier_skill": 0.014
+      }
+    },
+    "batter_total_bases": {
+      "forecasts": 3316,
+      "games": 47,
+      "brier": {
+        "mean": -1.04056516862681e-05,
+        "low": -0.0009440305006639546,
+        "high": 0.000892163297453114
+      },
+      "log_loss": {
+        "mean": 0.00035019779083606635,
+        "low": -0.0022678550612453873,
+        "high": 0.002801407269022642
+      },
+      "ece": {
+        "mean": -0.006464000000000001,
+        "low": -0.012327475311288333,
+        "high": 0.006111371321567823
+      },
+      "with_platoon": {
+        "brier": 0.183409,
+        "log_loss": 0.547444,
+        "ece": 0.01183,
+        "brier_skill": 0.0148
+      },
+      "without_platoon": {
+        "brier": 0.183419,
+        "log_loss": 0.547094,
+        "ece": 0.018294,
+        "brier_skill": 0.0148
+      }
+    },
+    "batter_home_runs": {
+      "forecasts": 829,
+      "games": 47,
+      "brier": {
+        "mean": 0.0037613926435218483,
+        "low": -0.0018213817663603582,
+        "high": 0.010108309098349665
+      },
+      "log_loss": {
+        "mean": 0.019893124128939746,
+        "low": -0.0020537707780546527,
+        "high": 0.046514164639235765
+      },
+      "ece": {
+        "mean": -0.0026219999999999993,
+        "low": -0.01640715679032522,
+        "high": 0.026362097187783377
+      },
+      "with_platoon": {
+        "brier": 0.108945,
+        "log_loss": 0.380401,
+        "ece": 0.015067,
+        "brier_skill": -0.0174
+      },
+      "without_platoon": {
+        "brier": 0.105184,
+        "log_loss": 0.360508,
+        "ece": 0.017689,
+        "brier_skill": 0.0177
+      }
+    },
+    "batter_rbis": {
+      "forecasts": 1658,
+      "games": 47,
+      "brier": {
+        "mean": -0.00041690991730581445,
+        "low": -0.0012552648367076887,
+        "high": 0.00044285582173913114
+      },
+      "log_loss": {
+        "mean": -0.00043444376301425634,
+        "low": -0.0031771919369298876,
+        "high": 0.0023716853047157575
+      },
+      "ece": {
+        "mean": -0.009935,
+        "low": -0.019805458508698016,
+        "high": 0.0018332753718581602
+      },
+      "with_platoon": {
+        "brier": 0.13703,
+        "log_loss": 0.434967,
+        "ece": 0.01302,
+        "brier_skill": 0.0223
+      },
+      "without_platoon": {
+        "brier": 0.137447,
+        "log_loss": 0.435402,
+        "ece": 0.022955,
+        "brier_skill": 0.0193
+      }
+    },
+    "totals": {
+      "forecasts": 235,
+      "games": 47,
+      "brier": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "log_loss": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "ece": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "with_platoon": {
+        "brier": 0.215973,
+        "log_loss": 0.621194,
+        "ece": 0.046435,
+        "brier_skill": 0.1533
+      },
+      "without_platoon": {
+        "brier": 0.215973,
+        "log_loss": 0.621194,
+        "ece": 0.046435,
+        "brier_skill": 0.1533
+      }
+    },
+    "h2h": {
+      "forecasts": 47,
+      "games": 47,
+      "brier": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "log_loss": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "ece": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "with_platoon": {
+        "brier": 0.246184,
+        "log_loss": 0.685544,
+        "ece": 0.047317,
+        "brier_skill": 0.0153
+      },
+      "without_platoon": {
+        "brier": 0.246184,
+        "log_loss": 0.685544,
+        "ece": 0.047317,
+        "brier_skill": 0.0153
+      }
+    },
+    "spreads": {
+      "forecasts": 94,
+      "games": 47,
+      "brier": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "log_loss": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "ece": {
+        "mean": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "with_platoon": {
+        "brier": 0.232226,
+        "log_loss": 0.657063,
+        "ece": 0.031757,
+        "brier_skill": 0.0102
+      },
+      "without_platoon": {
+        "brier": 0.232226,
+        "log_loss": 0.657063,
+        "ece": 0.031757,
+        "brier_skill": 0.0102
+      }
+    }
+  },
+  "postseason_validation": {
+    "with": {
+      "pitcher_strikeouts": {
+        "passed": true,
+        "brier": 0.177065,
+        "ece": 0.051706
+      },
+      "pitcher_outs": {
+        "passed": true,
+        "brier": 0.221001,
+        "ece": 0.11812
+      },
+      "batter_hits": {
+        "passed": true,
+        "brier": 0.148728,
+        "ece": 0.011177
+      },
+      "batter_total_bases": {
+        "passed": true,
+        "brier": 0.183409,
+        "ece": 0.01183
+      },
+      "batter_home_runs": {
+        "passed": false,
+        "brier": 0.108945,
+        "ece": 0.015067
+      },
+      "batter_rbis": {
+        "passed": true,
+        "brier": 0.13703,
+        "ece": 0.01302
+      },
+      "totals": {
+        "passed": true,
+        "brier": 0.215973,
+        "ece": 0.046435
+      },
+      "h2h": {
+        "passed": true,
+        "brier": 0.246184,
+        "ece": 0.047317
+      },
+      "spreads": {
+        "passed": true,
+        "brier": 0.232226,
+        "ece": 0.031757
+      }
+    },
+    "without": {
+      "pitcher_strikeouts": {
+        "passed": true,
+        "brier": 0.177065,
+        "ece": 0.051706
+      },
+      "pitcher_outs": {
+        "passed": true,
+        "brier": 0.221001,
+        "ece": 0.11812
+      },
+      "batter_hits": {
+        "passed": true,
+        "brier": 0.148308,
+        "ece": 0.013673
+      },
+      "batter_total_bases": {
+        "passed": true,
+        "brier": 0.183419,
+        "ece": 0.018294
+      },
+      "batter_home_runs": {
+        "passed": true,
+        "brier": 0.105184,
+        "ece": 0.017689
+      },
+      "batter_rbis": {
+        "passed": true,
+        "brier": 0.137447,
+        "ece": 0.022955
+      },
+      "totals": {
+        "passed": true,
+        "brier": 0.215973,
+        "ece": 0.046435
+      },
+      "h2h": {
+        "passed": true,
+        "brier": 0.246184,
+        "ece": 0.047317
+      },
+      "spreads": {
+        "passed": true,
+        "brier": 0.232226,
+        "ece": 0.031757
+      }
+    }
+  },
+  "decision": {
+    "ship": false,
+    "worse": [],
+    "better": [],
+    "weighted_brier_change": -2.991958850740294e-07,
+    "calibration_worse": [],
+    "validation_flips": [
+      "postseason:batter_home_runs"
+    ],
+    "calibration_ok": false
+  }
+}

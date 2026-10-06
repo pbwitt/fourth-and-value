@@ -54,7 +54,8 @@ platoon effect tripped the original calibration guard (any rise above 0.005) on 
 chance, and the unweighted average was decided by the noisy game markets. The original rule gives
 the same verdict here. After the production run, one bug was fixed: pitcher strikeouts gives
 identical forecasts either way, and its zero-width interval swamped the weighted average. It now
-gets no weight. This does not change the verdict.
+gets no weight. The corrected weighted change is −0.003 ×10⁻⁴ (neutral), and the verdict is
+unchanged.
 
 On a synthetic league with a planted platoon effect the same study ships (total bases
 significantly better). With no effect it does not.
