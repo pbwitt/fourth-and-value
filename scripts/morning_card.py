@@ -78,7 +78,7 @@ def publish_card(feeds,reviews,now,*,root=ROOT,kind='morning',refresh_results=No
     rows=selected['card']
     health=research_health(feeds,reviews,selected,now,refresh_results or {})
     card=dict(schema_version=1,kind=kind,decision_date=now.astimezone(ET).date().isoformat(),
-        published_at=iso(now),policy_version='morning-edition-2',rows=rows,
+        published_at=iso(now),policy_version='morning-edition-3',rows=rows,
         coverage=selected['coverage'],budget=reviews.get('budget'),
         discovery_status=reviews.get('discovery_status'),
         discovery_coverage=reviews.get('discovery_coverage'),
