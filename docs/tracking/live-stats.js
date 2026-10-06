@@ -86,9 +86,10 @@
   // ---- Markets -------------------------------------------------------------
   // Alias -> stats summed for the bet. `moves` marks stats that can go down
   // during a game (yardage), so an over is never "locked" before the final.
+  // `pitcher` markets also show the pitcher's running pitch count.
 
   const M = (stats, label, extra) => ({ stats: [].concat(stats), label, ...extra });
-  const YDS = { moves: true };
+  const YDS = { moves: true }, PITCHER = { pitcher: true };
   const MARKETS = {
     NHL: {
       goals: M('goals', 'G'), goal_scorer_anytime: M('goals', 'G'), anytime_goal: M('goals', 'G'),
@@ -104,9 +105,9 @@
       stolen_bases: M('stolen_bases', 'SB'), singles: M('singles', '1B'), doubles: M('doubles', '2B'),
       triples: M('triples', '3B'), strikeouts: M('batter_strikeouts', 'K'),
       hits_runs_rbis: M(['hits', 'runs', 'rbis'], 'H+R+RBI'),
-      pitcher_strikeouts: M('pitcher_strikeouts', 'K'), pitcher_outs: M('pitcher_outs', 'Outs'),
-      pitcher_hits_allowed: M('hits_allowed', 'H allowed'), pitcher_earned_runs: M('earned_runs', 'ER'),
-      pitcher_walks: M('walks_allowed', 'BB allowed'),
+      pitcher_strikeouts: M('pitcher_strikeouts', 'K', PITCHER), pitcher_outs: M('pitcher_outs', 'Outs', PITCHER),
+      pitcher_hits_allowed: M('hits_allowed', 'H allowed', PITCHER), pitcher_earned_runs: M('earned_runs', 'ER', PITCHER),
+      pitcher_walks: M('walks_allowed', 'BB allowed', PITCHER),
     },
     NFL: {
       pass_yds: M('pass_yds', 'Pass yds', YDS), passing_yds: M('pass_yds', 'Pass yds', YDS),
@@ -231,7 +232,9 @@
     if (side === 'yes') side = 'over';
     if (side === 'no') side = 'under';
     if (line == null && ['over', 'under'].includes(side)) line = 0.5;   // anytime / yes-no props
-    const view = { ...base, kind: 'player', value, unit: spec.label, playerName: player.name, playerTeam: teamCode(g[player.side]) };
+    const view = { ...base, kind: 'player', value, unit: spec.label, playerName: player.name, playerTeam: teamCode(g[player.side]),
+      playerPosition: player.position || null };
+    if (spec.pitcher && Number.isFinite(player.stats.pitches)) view.pitches = player.stats.pitches;
     if (!['over', 'under'].includes(side) || !Number.isFinite(line)) return view;
     const verdict = overUnder(value, line, side, { final, moves: !!spec.moves });
     const clear = Number.isInteger(line) ? line + 1 : Math.ceil(line);

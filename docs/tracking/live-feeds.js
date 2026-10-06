@@ -3,11 +3,12 @@
 
    game:   {id, league, start, state: pre|live|final|off, detail, elapsed,
            home:{name, abbrev, short, score}, away:{...}}
-   box:    {game, players:[{name, side: home|away, played, stats:{canonical: n}}]}
+   box:    {game, players:[{name, side: home|away, played, position, stats:{canonical: n}}]}
 //
    `elapsed` is the share of regulation played (0-1), or null where a clock
-   fraction means little (MLB). Stats are live and unofficial; grading still
-   uses the official post-game pipeline.
+   fraction means little (MLB). `position` is a short label ("RW", "D", "SP",
+   "WR") or '' when the feed has none. Stats are live and unofficial; grading
+   still uses the official post-game pipeline.
 
    MLB and ESPN (NFL, NBA) allow browser requests, so viewers fetch them
    directly. The NHL feed sends no CORS header and goes through the
@@ -52,17 +53,23 @@ function nhlGame(g) {
     home: nhlTeam(g.homeTeam), away: nhlTeam(g.awayTeam) };
 }
 
+// The NHL box score writes wingers as "L" and "R".
+const NHL_POSITION = { L: 'LW', R: 'RW' };
+
 function nhlPlayers(box) {
   const out = [];
   for (const side of ['home', 'away']) {
     const t = box.playerByGameStats?.[side + 'Team'] || {};
-    for (const p of [...(t.forwards || []), ...(t.defense || [])]) {
-      out.push({ name: p.name?.default || '', side, played: true, stats: {
-        goals: num(p.goals), assists: num(p.assists), points: num(p.points), sog: num(p.sog),
-        hits: num(p.hits), blocks: num(p.blockedShots), pim: num(p.pim), pp_goals: num(p.powerPlayGoals) } });
+    const position = (p, fallback) => NHL_POSITION[p.position] || p.position || fallback;
+    for (const [group, fallback] of [[t.forwards, 'F'], [t.defense, 'D']]) {
+      for (const p of group || []) {
+        out.push({ name: p.name?.default || '', side, played: true, position: position(p, fallback), stats: {
+          goals: num(p.goals), assists: num(p.assists), points: num(p.points), sog: num(p.sog),
+          hits: num(p.hits), blocks: num(p.blockedShots), pim: num(p.pim), pp_goals: num(p.powerPlayGoals) } });
+      }
     }
     for (const p of t.goalies || []) {
-      out.push({ name: p.name?.default || '', side, played: true, stats: {
+      out.push({ name: p.name?.default || '', side, played: true, position: 'G', stats: {
         saves: num(p.saves), shots_against: num(p.shotsAgainst), goals_against: num(p.goalsAgainst) } });
     }
   }
@@ -103,6 +110,9 @@ function mlbPlayers(box) {
     for (const p of Object.values(t.players || {})) {
       const id = p.person?.id, b = p.stats?.batting || {}, pi = p.stats?.pitching || {};
       const played = appeared.has(id);
+      // Pitchers are listed in order of appearance, so the first one started.
+      let position = p.position?.abbreviation || '';
+      if (position === 'P' && (t.pitchers || []).includes(id)) position = t.pitchers[0] === id ? 'SP' : 'RP';
       const stats = {};
       if (played && (t.batters || []).includes(id)) {
         const hits = num(b.hits);
@@ -116,7 +126,7 @@ function mlbPlayers(box) {
           hits_allowed: num(pi.hits), earned_runs: num(pi.earnedRuns), walks_allowed: num(pi.baseOnBalls),
           pitches: num(pi.numberOfPitches) });
       }
-      out.push({ name: p.person?.fullName || '', side, played, stats });
+      out.push({ name: p.person?.fullName || '', side, played, position, stats });
     }
   }
   return out;
@@ -174,8 +184,9 @@ function espnPlayers(summary) {
       const keys = cat.keys || [];
       for (const a of cat.athletes || []) {
         const name = a.athlete?.displayName || '';
-        if (!byName.has(name + side)) byName.set(name + side, { name, side, played: false, stats: {} });
+        if (!byName.has(name + side)) byName.set(name + side, { name, side, played: false, position: '', stats: {} });
         const p = byName.get(name + side);
+        p.position ||= a.athlete?.position?.abbreviation || '';
         if (a.didNotPlay || !(a.stats || []).length) continue;
         p.played = true;
         keys.forEach((key, i) => {
