@@ -327,3 +327,24 @@ console.log('PASS: market blend, thin markets, 50% calibrations, leans, coverage
   assert.equal(editionRows({...card,rows:[{...row,qualitative_review:{...row.qualitative_review,assessment:{...row.qualitative_review.assessment,verdict:'wait'}}}]},now).length,0);
 }
 console.log('PASS: immutable edition, review-at-publication validity, future/invalid dates and started games.');
+// The home page features the first card pick whose game has not started.
+{
+  const {featuredPick,featuredHTML}=require('../docs/assets/briefing-picks.js');
+  const review={...sample.qualitative_review,reviewed_at:iso(now),countercase:'Carries could rise.',
+    assessment:{verdict:'consider',reason:'Projection below the line.',model_case:'Model',price_case:'Price',context_case:'Context',blocking_checks:[]}};
+  const row=o=>({...sample,commence_time:iso(now+3600e3),quoted_at:iso(now-60e3),human_decision:'unreviewed',review_matches_current:true,qualitative_review:review,...o});
+  const first=row({player:'First <b>Player</b>'}),second=row({player:'Second Player',commence_time:iso(now+7200e3)});
+  const card={schema_version:1,kind:'morning',decision_date:day(now),published_at:iso(now),status:'published',rows:[first,second]};
+  assert.equal(featuredPick(card,now).player,'First <b>Player</b>');
+  assert.equal(featuredPick(card,now+3600e3+1).player,'Second Player','a started game passes the slot to the next pick');
+  const html=featuredHTML(card,now);
+  assert.match(html,/First &lt;b&gt;Player&lt;\/b&gt;/);assert.doesNotMatch(html,/<b>Player/);
+  assert.match(html,/Break-even/);assert.match(html,/Consider:<\/strong> Projection below the line\./);
+  assert.match(html,/The case against:<\/strong> Carries could rise\./);assert.match(html,/\/research\/daily-process\.html/);
+  assert.match(featuredHTML({...card,rows:[],status:'no_reviewed_candidates'},now),/No pick cleared today’s review/);
+  assert.match(featuredHTML({...card,rows:[],status:'research_incomplete'},now),/Morning research did not finish/);
+  assert.match(featuredHTML(card,now+7200e3+1),/Today’s picks have started/);
+  assert.match(featuredHTML({...card,decision_date:'2000-01-01'},now),/not published yet/);
+  assert.match(featuredHTML(null,now),/not published yet/);
+}
+console.log('PASS: featured pick follows the published card, skips started games and says why when empty.');

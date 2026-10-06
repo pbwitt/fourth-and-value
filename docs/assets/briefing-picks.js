@@ -536,6 +536,40 @@
     await load();setInterval(render,30000);setInterval(load,300000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
   }
-  if(typeof module==='object'&&module.exports)module.exports={collect,shortlist,editionRows,ideaKey,SHORTLIST_LIMIT,CARD_CAPS,BLEND,blend,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus};
-  else mount();
+  // Home page: the first pick on today's published card whose game has not started.
+  // It reads the same edition through editionRows, so it can never disagree with
+  // Today's Picks; it never promotes a research-pool offer.
+  function featuredPick(edition,now=Date.now()) {
+    if(edition?.decision_date!==day(now))return null;
+    return editionRows(edition,now).find(r=>stamp(r.commence_time)>now)||null;
+  }
+  const shortTime=s=>new Date(s).toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' ET';
+  function pickTitle(r) {
+    const line=r.line===null||r.line===undefined?'':r.market==='spreads'&&r.line>0?'+'+r.line:String(r.line);
+    const side=String(r.side||'');
+    return [r.player,side.charAt(0).toUpperCase()+side.slice(1),line,String(r.market_label||'').toLowerCase()].filter(Boolean).join(' ');
+  }
+  function featuredHTML(edition,now=Date.now()) {
+    const links='<p class="pick-links"><a href="/briefing/#daily-picks">Today’s Picks →</a><a href="/research/daily-process.html">How picks are chosen →</a></p>';
+    const r=featuredPick(edition,now);
+    if(!r) {
+      const current=edition?.decision_date===day(now);
+      const [head,body]=!current?['Today’s card is not published yet.','The morning edition publishes after the sports refresh. Until then nothing is featured.']:
+        edition.status==='research_incomplete'?['Morning research did not finish.','This is not a no-pick day. Today’s Picks shows the research status.']:
+        editionRows(edition,now).length?['Today’s picks have started.','The next card publishes tomorrow morning.']:
+        ['No pick cleared today’s review.','The model flagged ideas, but none passed both the price check and the research review. We would rather show nothing than force one.'];
+      return `<p class="eyebrow">Featured pick</p><h2>${esc(head)}</h2><p class="muted">${esc(body)}</p>${links}`;
+    }
+    const c=comparison(r),conf=confidenceOf(r.blend),a=assessment(r.qualitative_review);
+    const tile=(label,value)=>`<div><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`;
+    return `<div class="pick-head"><p class="eyebrow">Featured pick · ${esc(r.sport)}</p>${conf?`<span class="pick-chip">${esc(CONFIDENCE[conf])}</span>`:''}</div>`+
+      `<h2>${esc(pickTitle(r))}</h2>`+
+      `<p class="meta">${esc(r.game)} · <strong>${esc(r.book_label||r.book)} ${esc(odds(r.price))}</strong> · quoted ${esc(shortTime(r.quoted_at))} · starts ${esc(shortTime(r.commence_time))}</p>`+
+      `<div class="pick-tiles">${tile('Model',c.model===null?'Not established':pct(c.model))}${tile('Market',pct(c.market))}${tile('Break-even',pct(c.breakEven))}</div>`+
+      (a?`<p><strong>${esc(verdictLabel(a))}:</strong> ${esc(a.reason)}</p>`:'')+
+      `<p class="muted"><strong>The case against:</strong> ${esc(r.qualitative_review.countercase)}</p>`+
+      `<p class="meta">Original price and analysis from the ${esc(shortTime(r.card_snapshot_at))} edition. Confirm the current line before deciding.</p>${links}`;
+  }
+  if(typeof module==='object'&&module.exports)module.exports={collect,shortlist,editionRows,ideaKey,SHORTLIST_LIMIT,CARD_CAPS,BLEND,blend,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus,featuredPick,featuredHTML};
+  else {global.FVPicks={featuredPick,featuredHTML};mount();}
 })(typeof window==='undefined'?globalThis:window);
