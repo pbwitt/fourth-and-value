@@ -170,7 +170,7 @@
       const p=new URLSearchParams(global.location?.search||''),get=k=>p.get(k)||'';
       return p.get('snapshot')==='1'&&get('q')?{player:person(get('q')),market:get('market'),side:get('side').toLowerCase(),line:get('line')}:null;
     }catch{return null;}
-  })(),found=null,bestScore=0,seekTimer=0,shareTimer=0;
+  })(),found=null,bestScore=0,seekTimer=0;
   function shareData({r,sport,c}){
     const line=lineOf(r),market=marketKey(r);
     const bet=[sideText(r),line!==null?lineText(line):'',r.market_label||(c?statName(c):'')].filter(Boolean).join(' ');
@@ -185,24 +185,158 @@
     url.searchParams.set('snapshot','1');
     return {title,text,url:url.href};
   }
-  async function shareSnapshot(){
-    const entry=owner&&entries.get(owner.dataset.pc),status=pop?.querySelector('.pc-share-status');
-    if(!entry||!status||typeof navigator==='undefined')return;
-    const data=shareData(entry);
-    clearTimeout(shareTimer);status.textContent='';
-    const touch=!!global.matchMedia?.('(hover: none), (pointer: coarse)').matches;
-    if(touch&&typeof navigator.share==='function'&&(!navigator.canShare||navigator.canShare(data))){
-      try{await navigator.share(data);return;}
-      catch(e){if(e?.name==='AbortError')return;}
+  // ---- Share sheet (SEO_POLICY 12), as on Market Analytics: Share sends a branded image of the
+  // snapshot and nothing else; Copy link is separate, for sending with your own note; social
+  // buttons post text plus a link to this exact snapshot, tagged by network.
+  const SOCIAL=[
+    ['x','X',(t,u)=>`https://twitter.com/intent/tweet?text=${encodeURIComponent(t)}&url=${encodeURIComponent(u)}`],
+    ['facebook','Facebook',(t,u)=>`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(u)}`],
+    ['linkedin','LinkedIn',(t,u)=>`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(u)}`],
+    ['reddit','Reddit',(t,u)=>`https://www.reddit.com/submit?url=${encodeURIComponent(u)}&title=${encodeURIComponent(t)}`],
+    ['bluesky','Bluesky',(t,u)=>`https://bsky.app/intent/compose?text=${encodeURIComponent(t+' '+u)}`],
+    ['threads','Threads',(t,u)=>`https://www.threads.net/intent/post?text=${encodeURIComponent(t+' '+u)}`],
+  ];
+  const SHARE_W=900,SHARE_SCALE=2,FONT='system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
+  const INK='#e7eef9',MUTED='#b8c5d6',EDGE='#314159',PAGE='#0f141c',MINT='#7ce2bd',GRAY='#8b93a1',AMBER='#e0a23a';
+  let sheet=null,shareState={},sheetReturn=null;
+  const tagged=(url,network)=>{const u=new URL(url);u.searchParams.set('utm_source',network);u.searchParams.set('utm_medium','social');u.searchParams.set('utm_campaign','player_snapshot');return u.href;};
+  function wrapText(ctx,text,maxW){
+    const lines=[];let line='';
+    for(const word of String(text).split(/\s+/).filter(Boolean)){
+      const next=line?line+' '+word:word;
+      if(ctx.measureText(next).width>maxW&&line){lines.push(line);line=word;}else line=next;
     }
+    if(line)lines.push(line);
+    return lines;
+  }
+  // The branded image: the bet, the projection and chances, the last five games and the history
+  // against tonight's opponent, drawn from the same data as the snapshot.
+  function drawSnapshot({r,sport,c}){
+    const PAD=40,inner=SHARE_W-PAD*2,line=lineOf(r),side=sideOf(r),focus=c?.game_focus;
+    const mean=sport==='MLB'?r.model_mean:sport==='NFL'?r.mu:r.projected_mean;
+    const v=stripValues(r,sport),vs=c?versusParts(c,r,sport):null;
+    const bet=[sideText(r),line!==null?lineText(line):'',r.market_label||(c?statName(c):'')].filter(Boolean).join(' ');
+    const sub=[position(r),r.game].filter(Boolean).join(' · ');
+    const tiles=[c&&finite(mean)?['Model projection',`${fmt(mean,'',sport)} ${c.stat_label}`]:null,
+      v?[sport==='NBA'?'Past hit rate':'Model chance',odds(v[0])]:null,v&&finite(v[1])?['Market',odds(v[1])]:null,v?['Break-even',odds(v[2])]:null].filter(Boolean);
+    const games=(Array.isArray(c?.games)?c.games:[]).filter(g=>g&&g[focus]!==undefined&&g[focus]!==null).slice(0,5);
+    const label=focus&&Array.isArray(c?.game_columns)?(c.game_columns.find(x=>x[0]===focus)||[])[1]:'';
+    const measure=document.createElement('canvas').getContext('2d');
+    measure.font='600 30px Georgia,serif';const titleLines=wrapText(measure,r.player,inner);
+    measure.font=`400 15px ${FONT}`;
+    const vsLines=vs?wrapText(measure,vs.mean+vs.rest,inner):[];
+    const source=c?[c.source,date(c.through)?'through '+date(c.through):''].filter(Boolean).join(' · '):'';
+    // Height from the same steps the drawing takes below, plus the two footer lines.
+    const H=86+titleLines.length*36+(sub?24:0)+34+(tiles.length?104:0)+(games.length?28+games.length*32+14:0)
+      +(vs?28+vsLines.length*22+vs.split.length*24+10:0)+56;
+    const canvas=document.createElement('canvas');
+    canvas.width=SHARE_W*SHARE_SCALE;canvas.height=H*SHARE_SCALE;
+    const ctx=canvas.getContext('2d');ctx.scale(SHARE_SCALE,SHARE_SCALE);
+    ctx.fillStyle='#0b0e13';ctx.fillRect(0,0,SHARE_W,H);ctx.fillStyle=MINT;ctx.fillRect(0,0,SHARE_W,5);
+    ctx.textBaseline='alphabetic';ctx.textAlign='left';
+    ctx.font=`800 13px ${FONT}`;ctx.fillStyle=MINT;ctx.fillText('FOURTH & VALUE',PAD,42);
+    ctx.font=`600 13px ${FONT}`;ctx.fillStyle=GRAY;ctx.textAlign='right';ctx.fillText(`${sport||''} PLAYER SNAPSHOT`.trim(),SHARE_W-PAD,42);ctx.textAlign='left';
+    let y=86;
+    ctx.font='600 30px Georgia,serif';ctx.fillStyle=INK;for(const l of titleLines){ctx.fillText(l,PAD,y);y+=36;}
+    if(sub){ctx.font=`400 15px ${FONT}`;ctx.fillStyle=MUTED;ctx.fillText(sub,PAD,y-6);y+=24;}
+    ctx.font=`700 19px ${FONT}`;ctx.fillStyle=MINT;ctx.fillText(bet,PAD,y+4);y+=34;
+    const box=(x,top,w,h)=>{ctx.fillStyle=PAGE;ctx.strokeStyle=EDGE;ctx.lineWidth=1;ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x,top,w,h,10);else ctx.rect(x,top,w,h);ctx.fill();ctx.stroke();};
+    if(tiles.length){
+      const gap=12,w=(inner-gap*(tiles.length-1))/tiles.length;
+      tiles.forEach(([name,value],i)=>{
+        const x=PAD+i*(w+gap);box(x,y,w,84);
+        ctx.font=`500 13px ${FONT}`;ctx.fillStyle=MUTED;ctx.fillText(name,x+14,y+28);
+        ctx.font=`700 24px ${FONT}`;ctx.fillStyle=i===0?MINT:INK;ctx.fillText(value,x+14,y+64);
+      });
+      y+=104;
+    }
+    const heading=t=>{ctx.font=`700 13px ${FONT}`;ctx.fillStyle=MINT;ctx.fillText(t.toUpperCase(),PAD,y+14);y+=28;};
+    if(games.length){
+      heading(`Last ${games.length} games${label?' · '+label:''}`);
+      games.forEach(g=>{
+        const value=g[focus],n=Number(value),win=finite(n)&&line!==null?winner(n,line,side):null;
+        ctx.fillStyle=EDGE;ctx.fillRect(PAD,y,inner,1);
+        ctx.font=`500 15px ${FONT}`;ctx.fillStyle=INK;ctx.fillText(plain(g.date??g.week??''),PAD,y+21);
+        ctx.fillStyle=MUTED;ctx.fillText(String(g.opp??''),PAD+150,y+21);
+        ctx.textAlign='right';ctx.font=`700 16px ${FONT}`;ctx.fillStyle=win==='push'?AMBER:win===true?MINT:win===false?GRAY:INK;
+        ctx.fillText(String(value),SHARE_W-PAD,y+21);ctx.textAlign='left';
+        y+=32;
+      });
+      y+=12;
+    }
+    if(vs){
+      heading(`Against ${vs.team}`);
+      ctx.font=`400 15px ${FONT}`;ctx.fillStyle=INK;for(const l of vsLines){ctx.fillText(l,PAD,y+8);y+=22;}
+      ctx.fillStyle=MUTED;for(const x of vs.split){ctx.fillText(`${x.label}: ${x.mean}${x.rest}`,PAD,y+10);y+=24;}
+      y+=10;
+    }
+    ctx.font=`500 12.5px ${FONT}`;ctx.fillStyle=GRAY;ctx.fillText(source+(vs?' · Against history is context, not a model input.':''),PAD,H-44);
+    ctx.fillStyle='#6b7380';ctx.textAlign='center';
+    ctx.fillText('fourthandvalue.com  ·  Analysis, not a guarantee. Bet responsibly.',SHARE_W/2,H-18);
+    return canvas;
+  }
+  function shareSheet(){
+    if(sheet)return sheet;
+    sheet=document.createElement('div');
+    sheet.className='pc-share-sheet';sheet.setAttribute('role','dialog');sheet.setAttribute('aria-modal','true');sheet.setAttribute('aria-label','Share player snapshot');
+    sheet.innerHTML='<div class="pc-share-inner"><img alt="Player snapshot image to share"><div class="pc-share-actions">'
+      +'<button type="button" class="pc-share-primary" data-act="share">Share</button>'
+      +'<button type="button" data-act="copy">Copy link</button>'
+      +'<a data-act="save" download>Save image</a>'
+      +'<button type="button" data-act="close">Close</button></div>'
+      +'<div class="pc-share-social"><span>Post with a link</span>'+SOCIAL.map(([id,label])=>`<button type="button" data-social="${id}">${label}</button>`).join('')+'</div>'
+      +'<p class="pc-share-hint">Share sends the image only. Copy link to send this snapshot with your own note; it opens on the same player and bet. On a phone you can also press and hold the image.</p></div>';
+    document.body.append(sheet);
+    sheet.addEventListener('click',async e=>{
+      if(e.target===sheet)return closeShare();
+      const social=e.target.closest('[data-social]');
+      if(social){
+        const [id,,intent]=SOCIAL.find(x=>x[0]===social.dataset.social);
+        global.open(intent(shareState.text,tagged(shareState.url,id)),'_blank','noopener,width=620,height=680');
+        return;
+      }
+      const act=e.target.closest('[data-act]');
+      if(!act)return;
+      if(act.dataset.act==='close')closeShare();
+      if(act.dataset.act==='copy'){
+        try{await navigator.clipboard.writeText(shareState.url);act.textContent='Link copied';}
+        catch{global.prompt('Copy this link:',shareState.url);}
+      }
+      if(act.dataset.act==='share'){
+        try{
+          // Image only: a link here would add a second preview card in most apps.
+          const canFile=shareState.file&&navigator.canShare&&navigator.canShare({files:[shareState.file]});
+          await navigator.share(canFile?{files:[shareState.file]}:{title:shareState.title,url:shareState.url});
+        }catch(err){if(err&&err.name!=='AbortError')global.alert('Sharing isn’t available here. Use Copy link or Save image.');}
+      }
+    });
+    return sheet;
+  }
+  async function openShare(){
+    const entry=owner&&entries.get(owner.dataset.pc);
+    if(!entry||typeof document==='undefined')return;
+    const el=shareSheet(),d=shareData(entry);
+    shareState={url:d.url,title:d.title,text:d.text};sheetReturn=pop?.querySelector('.pc-share');
+    el.querySelector('[data-act=copy]').textContent='Copy link';
+    el.querySelector('[data-act=share]').hidden=typeof navigator==='undefined'||!navigator.share;
+    const img=el.querySelector('img'),save=el.querySelector('[data-act=save]');
     try{
-      await navigator.clipboard.writeText(data.url);
-      status.textContent='Link copied';
-      shareTimer=setTimeout(()=>{if(status.textContent==='Link copied')status.textContent='';},3000);
+      const canvas=drawSnapshot(entry),blob=await new Promise(done=>canvas.toBlob(done,'image/png'));
+      if(shareState.objectUrl)URL.revokeObjectURL(shareState.objectUrl);
+      const name=`fourth-and-value-${person(entry.r.player).replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')}-${marketKey(entry.r).replace(/_/g,'-')||'snapshot'}.png`;
+      shareState.objectUrl=URL.createObjectURL(blob);shareState.file=new File([blob],name,{type:'image/png'});
+      img.src=shareState.objectUrl;save.href=shareState.objectUrl;save.download=name;save.hidden=false;
     }catch{
-      status.innerHTML=`<label>Copy this link<input class="pc-share-url" type="url" readonly value="${esc(data.url)}"></label>`;
-      status.querySelector('input').select();
+      // The link still works when this browser cannot draw the image.
+      img.removeAttribute('src');save.removeAttribute('href');save.hidden=true;shareState.file=null;
     }
+    el.classList.add('open');
+    (el.querySelector('[data-act=share]:not([hidden])')||el.querySelector('[data-act=copy]')).focus();
+  }
+  function closeShare(){
+    if(!sheet||!sheet.classList.contains('open'))return;
+    sheet.classList.remove('open');
+    if(sheetReturn?.isConnected)sheetReturn.focus();
   }
   // A shared link opens its snapshot once, on the first board render: the exact offer if it is
   // still listed, else the same player, market and side, else the same player and market.
@@ -272,25 +406,33 @@
   const statName=c=>({att:'Attempts',cmp:'Completions'})[c.stat_label]||String(c.stat_label||'').replace(/^[a-z]/,x=>x.toUpperCase());
   // Results against tonight's opponent: history only, never a model input. One sentence over
   // every recorded meeting, then home and away lines; each counts results at tonight's line.
-  function versusHTML(c,r,sport){
+  // Plain-text parts, shared by the snapshot and its share image; null without history.
+  function versusParts(c,r,sport){
     const v=c?.versus,venue=Array.isArray(v?.home)?v.home:[];
     const pairs=(Array.isArray(v?.values)?v.values:[]).map((x,i)=>[x,venue[i]]).filter(([x])=>finite(x));
-    if(!v||!v.team||!pairs.length)return '';
+    if(!v||!v.team||!pairs.length)return null;
     const line=lineOf(r),side=sideOf(r),per=c.sample_label==='starts'?'start':'game';
     const record=values=>{
       if(line===null)return '';
       const wins=values.filter(x=>winner(x,line,side)===true).length,push=values.filter(x=>x===line).length;
       return ` · ${side} ${lineText(line)} in ${wins} of ${values.length}${push?` (${push} push${push===1?'':'es'})`:''}`;
     };
-    const values=pairs.map(([x])=>x),team=esc(v.team);
-    const since=/^\d{4}-\d{2}-\d{2}$/.test(v.since||'')?date(v.since):esc(v.since||'');
+    const values=pairs.map(([x])=>x),team=String(v.team);
+    const since=/^\d{4}-\d{2}-\d{2}$/.test(v.since||'')?date(v.since):String(v.since||'');
     const split=[[true,'Home','vs'],[false,'Away','@']].map(([home,label,word])=>{
       const xs=pairs.filter(([,h])=>h===home).map(([x])=>x);
-      return xs.length?`<div><dt>${label} · ${word} ${team}</dt><dd><strong>${fmt(avgOf(xs),'',sport)}</strong> per ${per} in ${xs.length}${record(xs)}</dd></div>`:'';
-    }).join('');
-    return `<h4>Against ${team}</h4><p class="pc-vs-sum"><strong>${fmt(avgOf(values),'',sport)}</strong> ${esc(c.stat_label)} per ${per} in ${values.length} meeting${values.length===1?'':'s'}${since?` since ${since}`:''}${record(values)}</p>`
-      +(split?`<dl class="pc-vs-split">${split}</dl>`:'')
-      +`<p class="pc-chart-note">${esc(v.note||'History only, not a model input.')} <a href="/research/player-matchups-and-home-field.html">Read the research</a></p>`;
+      return xs.length?{label:`${label} · ${word} ${team}`,mean:fmt(avgOf(xs),'',sport),rest:` per ${per} in ${xs.length}${record(xs)}`}:null;
+    }).filter(Boolean);
+    return {team,mean:fmt(avgOf(values),'',sport),
+      rest:` ${c.stat_label} per ${per} in ${values.length} meeting${values.length===1?'':'s'}${since?` since ${since}`:''}${record(values)}`,
+      split,note:v.note||'History only, not a model input.'};
+  }
+  function versusHTML(c,r,sport){
+    const v=versusParts(c,r,sport);
+    if(!v)return '';
+    return `<h4>Against ${esc(v.team)}</h4><p class="pc-vs-sum"><strong>${v.mean}</strong>${esc(v.rest)}</p>`
+      +(v.split.length?`<dl class="pc-vs-split">${v.split.map(x=>`<div><dt>${esc(x.label)}</dt><dd><strong>${x.mean}</strong>${esc(x.rest)}</dd></div>`).join('')}</dl>`:'')
+      +`<p class="pc-chart-note">${esc(v.note)} <a href="/research/player-matchups-and-home-field.html">Read the research</a></p>`;
   }
   const avgOf=values=>values.reduce((a,b)=>a+b,0)/values.length;
   const workName=(c,sport)=>({IP:'IP',min:sport==='NHL'?'TOI':'Minutes',PA:'PA',att:'Attempts',car:'Carries',tgt:'Targets'})[c.workload_unit]||c.workload_label||'Workload';
@@ -429,13 +571,18 @@
       line!==null?`${over} over ${lineText(line)} · ${under} under`:`${values.length} games`,'Past results, not a forecast.');
   }
   // Our number next to the market's and the break-even for this price, on one scale.
-  function marketStrip(r,sport){
+  // [model, market, break-even] chances, or null; shared by the strip and the share image.
+  function stripValues(r,sport){
     const cond=(w,p)=>finite(w)?(finite(p)&&p<1?w/(1-p):w):null;
     const v={NHL:[r.conditional_probability??cond(r.independent_probability,r.push_probability),r.market_probability,r.book_probability],
       MLB:[r.model_conditional_probability,r.consensus_probability??r.fair_probability,r.book_probability],
       NFL:[r.model_prob,r.consensus_prob??r.prob_devig,r.mkt_prob],
       NBA:[r.baseline_probability,r.consensus_probability??r.fair_probability,r.book_probability]}[sport];
-    if(!v||!finite(v[0])||!finite(v[2]))return '';
+    return v&&finite(v[0])&&finite(v[2])?v:null;
+  }
+  function marketStrip(r,sport){
+    const v=stripValues(r,sport);
+    if(!v)return '';
     const shown=v.filter(finite),span=Math.max(.24,Math.max(...shown)-Math.min(...shown)+.12),mid=(Math.max(...shown)+Math.min(...shown))/2;
     const lo=Math.max(0,Math.min(1-span,mid-span/2)),hi=Math.min(1,lo+span),x=p=>((p-lo)/(hi-lo)*(W-16)+8).toFixed(1);
     const model=sport==='NBA'?'Past hit rate':'Model';
@@ -535,7 +682,7 @@
       +tabs.map(([k,,html])=>`<div class="pc-panel" role="tabpanel" id="pc-panel-${k}" aria-labelledby="pc-tab-${k}"${k===pick?'':' hidden'}>${html}</div>`).join('')
       :tabs.map(([,,html])=>html).join('');
     const sub=[position(r),r.game].filter(Boolean).map(esc).join(' · ');
-    return `<div class="pc-pop-head"><div><strong>${esc(r.player)}</strong>${sub?`<span>${sub}</span>`:''}</div><div class="pc-pop-actions"><button type="button" class="pc-share" aria-label="Share player snapshot">${SHARE_ICON}Share</button><button type="button" class="pc-close" aria-label="Close player snapshot">×</button></div></div><p class="pc-share-status" role="status"></p>`
+    return `<div class="pc-pop-head"><div><strong>${esc(r.player)}</strong>${sub?`<span>${sub}</span>`:''}</div><div class="pc-pop-actions"><button type="button" class="pc-share" aria-label="Share player snapshot">${SHARE_ICON}Share</button><button type="button" class="pc-close" aria-label="Close player snapshot">×</button></div></div>`
       +projection+marketStrip(r,sport)+body
       +(source?`<p class="pc-source">${source}</p>`:'')+'<p class="pc-pop-link" hidden></p>';
   }
@@ -599,7 +746,7 @@
         const tab=e.target.closest('[role=tab]');
         if(e.target.closest('.pc-close'))return close(true);
         pinned=true;
-        if(e.target.closest('.pc-share'))return void shareSnapshot();
+        if(e.target.closest('.pc-share'))return void openShare();
         if(tab)selectTab(tab.dataset.tab);
         const mark=e.target.closest?.('[data-readout]');
         if(mark)readout(mark);
@@ -653,7 +800,7 @@
     document.addEventListener('click',e=>{
       const t=e.target.closest?.('.pc-name');
       if(t){e.preventDefault();if(owner===t&&pinned)close(true);else open(t,true);return;}
-      if(pop&&!pop.hidden&&!pop.contains(e.target))close(false);
+      if(pop&&!pop.hidden&&!pop.contains(e.target)&&!sheet?.contains(e.target))close(false);
     });
     document.addEventListener('pointerover',e=>{
       if(!hover())return;
@@ -671,8 +818,12 @@
       leaveTimer=setTimeout(()=>close(false),220);
     });
     // Keyboard: Escape closes and returns focus; tabbing away closes a pinned snapshot.
-    document.addEventListener('keydown',e=>{if(e.key==='Escape'&&pop&&!pop.hidden){e.preventDefault();close(true);}});
-    document.addEventListener('focusin',e=>{if(pop&&!pop.hidden&&pinned&&!pop.contains(e.target)&&e.target!==owner)close(false);});
+    document.addEventListener('keydown',e=>{
+      if(e.key!=='Escape')return;
+      if(sheet?.classList.contains('open')){e.preventDefault();closeShare();return;}
+      if(pop&&!pop.hidden){e.preventDefault();close(true);}
+    });
+    document.addEventListener('focusin',e=>{if(pop&&!pop.hidden&&pinned&&!pop.contains(e.target)&&!sheet?.contains(e.target)&&e.target!==owner)close(false);});
     global.addEventListener('resize',place);
     global.addEventListener('scroll',place,{passive:true,capture:true});
   }
