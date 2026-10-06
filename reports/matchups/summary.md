@@ -46,14 +46,22 @@ samples:
 Our models already use the opponent's defense, park and venue. They lack platoon in MLB and implied
 team totals in NFL props.
 
-**Candidate changes** (not implemented; each needs its own validation in the production pipeline):
-1. NFL: replace the fixed home/away multipliers with fitted ones. The fitted gap is about
-   ±1.1% for passing yards and ±1.5% for receiving yards, against ±6% now.
-2. MLB: add platoon (batter side vs pitcher hand) to the batter and pitcher prop models.
-3. NHL: add a shrunk correction for players the model consistently over- or under-projects. A
-   league home/away factor (shots ±2%, scoring ±4%) is a smaller, not yet significant gain.
-4. Do not add head-to-head or personal home/away splits to any model. If useful, show
-   "vs this opponent" history in the player snapshot as context labeled as not used by the model.
+**What changed (2026-10-06).** Published as research report FV-2026-03
+(`docs/research/player-matchups-and-home-field.html`).
+1. NFL: the home/away multipliers were refitted on every completed season 2012–2025
+   (`nfl_venue.py`, `nfl_venue.json`): passing and receiving yards ±1.4% (was ±6%), rushing yards
+   ±2.4% (was ±4%), receptions ±0.7% (was ±3%). On 2024–26 games held out from fitting, gaps fitted
+   on 2012–2021 beat the fixed values for passing and receiving yards. Shipped in
+   `scripts/make_player_prop_params.py`.
+2. NHL: the player correction went through the hockey model's locked protocol as nhl-v2.4
+   (`reports/nhl-v2.4/README.md`); it was selected on both validation folds and improved shots,
+   assists and points on the final test. The league home/away factor (shots ±2%, scoring ±4%) is
+   not significant on its own and was not added.
+3. MLB: platoon is the strongest remaining candidate. Not shipped yet: it must be compared with
+   and without platoon on the production model's own box-score data before it goes live.
+4. Head-to-head and personal home/away splits are not model inputs anywhere. The player snapshot
+   shows past meetings with tonight's opponent (overall, home and away, and the record at
+   tonight's line) as context, labeled as not used by the model.
 
 **Limitations.**
 - These are tests of predictive accuracy (log loss, squared error, Brier score). They are not

@@ -46,14 +46,22 @@ samples:
 Our models already use the opponent's defense, park and venue. They lack platoon in MLB and implied
 team totals in NFL props.
 
-**Candidate changes** (not implemented; each needs its own validation in the production pipeline):
-1. NFL: replace the fixed home/away multipliers with fitted ones. The fitted gap is about
-   ±1.1% for passing yards and ±1.5% for receiving yards, against ±6% now.
-2. MLB: add platoon (batter side vs pitcher hand) to the batter and pitcher prop models.
-3. NHL: add a shrunk correction for players the model consistently over- or under-projects. A
-   league home/away factor (shots ±2%, scoring ±4%) is a smaller, not yet significant gain.
-4. Do not add head-to-head or personal home/away splits to any model. If useful, show
-   "vs this opponent" history in the player snapshot as context labeled as not used by the model.
+**What changed (2026-10-06).** Published as research report FV-2026-03
+(`docs/research/player-matchups-and-home-field.html`).
+1. NFL: the home/away multipliers were refitted on every completed season 2012–2025
+   (`nfl_venue.py`, `nfl_venue.json`): passing and receiving yards ±1.4% (was ±6%), rushing yards
+   ±2.4% (was ±4%), receptions ±0.7% (was ±3%). On 2024–26 games held out from fitting, gaps fitted
+   on 2012–2021 beat the fixed values for passing and receiving yards. Shipped in
+   `scripts/make_player_prop_params.py`.
+2. NHL: the player correction went through the hockey model's locked protocol as nhl-v2.4
+   (`reports/nhl-v2.4/README.md`); it was selected on both validation folds and improved shots,
+   assists and points on the final test. The league home/away factor (shots ±2%, scoring ±4%) is
+   not significant on its own and was not added.
+3. MLB: platoon is the strongest remaining candidate. Not shipped yet: it must be compared with
+   and without platoon on the production model's own box-score data before it goes live.
+4. Head-to-head and personal home/away splits are not model inputs anywhere. The player snapshot
+   shows past meetings with tonight's opponent (overall, home and away, and the record at
+   tonight's line) as context, labeled as not used by the model.
 
 **Limitations.**
 - These are tests of predictive accuracy (log loss, squared error, Brier score). They are not
@@ -173,6 +181,23 @@ Chosen shrinkage, in games of prior (none = ignored), and Brier score at the lin
 | 2024 | 10 | home | 266 | 251 | 12 | 0.953 |
 | 2025 | 11 | away | 276 | 243 | 13 | 0.96 |
 | 2026 | 1 | home | 184 | 239 | 14 | 0.971 |
+
+## NFL home/away multipliers (venue study)
+
+Research for make_player_prop_params.HOME_AWAY_MULTIPLIERS. For each market the gap is the ratio of actual to baseline expected output at home and away, each divided by the overall ratio, so an era-level bias in the baseline is not counted as a venue effect. Neutral sites are excluded.
+
+| Market | Previous fixed (home / away) | Fitted 2012–2021 | Holdout 2024–26: fitted − fixed squared error | Fitted 2012–2025 | Home 95% interval |
+|---|---|---|---|---|---|
+| pass_yds | 1.060 / 0.940 | 1.0113 / 0.9887 | better -99.558 (-198.881 to -7.778) | 1.0142 / 0.9858 | 1.0064 to 1.0219 |
+| pass_attempts | 1.000 / 1.000 | 0.9953 / 1.0048 | no detectable change +0.052 (-0.120 to +0.222) | 0.9978 / 1.0022 | 0.9894 to 1.0063 |
+| completions | 1.000 / 1.000 | 1.0043 / 0.9957 | no detectable change -0.036 (-0.107 to +0.032) | 1.0082 / 0.9918 | 0.9994 to 1.0164 |
+| rush_yds | 1.040 / 0.960 | 1.0323 / 0.9685 | no detectable change -1.770 (-3.745 to +0.333) | 1.0240 / 0.9762 | 1.0091 to 1.0378 |
+| rush_attempts | 1.020 / 0.980 | 1.0175 / 0.9828 | no detectable change -0.001 (-0.025 to +0.023) | 1.0171 / 0.9830 | 1.0067 to 1.0267 |
+| recv_yds | 1.060 / 0.940 | 1.0151 / 0.9851 | better -5.324 (-9.621 to -1.178) | 1.0142 / 0.9859 | 1.0049 to 1.0215 |
+| receptions | 1.030 / 0.970 | 1.0077 / 0.9924 | no detectable change -0.008 (-0.020 to +0.004) | 1.0068 / 0.9932 | 0.9987 to 1.0141 |
+| pass_tds | 1.060 / 0.940 | 1.0432 / 0.9565 | no detectable change -0.001 (-0.005 to +0.002) | 1.0458 / 0.9538 | 1.0279 to 1.0636 |
+| pass_interceptions | 0.950 / 1.050 | 0.9896 / 1.0105 | no detectable change -0.001 (-0.003 to +0.002) | 0.9819 / 1.0183 | 0.9493 to 1.0122 |
+| anytime_td | 1.050 / 0.950 | 1.0552 / 0.9453 | no detectable change +0.000 (-0.000 to +0.000) | 1.0535 / 0.9468 | 1.0375 to 1.0684 |
 
 ## MLB plate appearances
 

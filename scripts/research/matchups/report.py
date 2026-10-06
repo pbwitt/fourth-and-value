@@ -77,6 +77,18 @@ def nfl(r):
     return lines
 
 
+def venue(r):
+    lines = ['## NFL home/away multipliers (venue study)', '', r['method'], '',
+             '| Market | Previous fixed (home / away) | Fitted 2012–2021 | Holdout 2024–26: fitted − fixed squared error | Fitted 2012–2025 | Home 95% interval |',
+             '|---|---|---|---|---|---|']
+    for m, x in r['markets'].items():
+        f, a, b = x['production_fixed'], x['fitted_2012_2021'], x['fitted_2012_2025']
+        lines.append(f"| {m} | {f['home']:.3f} / {f['away']:.3f} | {a['home']:.4f} / {a['away']:.4f} | "
+                     f"{verdict(x['test_fitted_minus_fixed'])} {ci(x['test_fitted_minus_fixed'], digits=3)} | {b['home']:.4f} / {b['away']:.4f} | "
+                     f"{x['interval_2012_2025']['home'][0]:.4f} to {x['interval_2012_2025']['home'][1]:.4f} |")
+    return lines
+
+
 def mlb(r):
     lines = ['## MLB plate appearances', '', f"Source: {r['source']}. {r['plate_appearances']:,} plate appearances. Seasons: {r['seasons']}. "
              'Log loss per plate appearance (lower is better), change vs. the production-like baseline.', '',
@@ -110,7 +122,7 @@ def main():
     parts += ['Research only. No production model, pick rule or published page reads these files. '
               'Every adjustment uses games before the one forecast; shrinkage is chosen on validation seasons and scored once on later test seasons. '
               'Scripts: `scripts/research/matchups/`; regenerate this page with `python scripts/research/matchups/report.py`.', '']
-    for name, fn in [('nhl', nhl), ('nfl', nfl), ('mlb', mlb)]:
+    for name, fn in [('nhl', nhl), ('nfl', nfl), ('nfl_venue', venue), ('mlb', mlb)]:
         path = OUT / f'{name}.json'
         if path.exists():
             parts += fn(json.loads(path.read_text())) + ['']
