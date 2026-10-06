@@ -35,10 +35,16 @@ RULE = dict(
     interval='95% percentile interval from 2,000 bootstrap resamples of whole games.',
     worse='A market is worse when its pooled Brier or log-loss interval lies entirely above zero.',
     better='A market is better when its pooled Brier interval lies entirely below zero.',
-    calibration=f'No market\'s pooled calibration gap rises by more than {ECE_TOLERANCE}, and no market that '
-                'passes train.py\'s regular-season or postseason checks without platoon fails them with it.',
-    ship='Ship when no market is worse, the calibration guard holds, and either at least one market '
-         'is better or the average pooled Brier change across the nine markets is at or below zero.')
+    neutral='The precision-weighted average of the nine pooled Brier changes is at or below zero.',
+    calibration=f'No market\'s pooled calibration gap rises by more than {ECE_TOLERANCE} with an interval entirely '
+                'above zero, and no market that passes train.py\'s regular-season or postseason checks without '
+                'platoon fails them with it.',
+    ship='Ship when no market is worse, the calibration guard holds, and at least one market is better '
+         'or the result is neutral.',
+    amended='2026-10-06, before any production result: a synthetic no-effect run tripped the original guard '
+            '(any calibration-gap rise above 0.005) on moneylines by chance, and the unweighted average of '
+            'Brier changes was driven by the noisy game markets. The guard now also requires the rise to be '
+            'outside its interval and the average is precision-weighted.')
 
 
 def fold_dates(games, k):
@@ -53,15 +59,29 @@ def fit_all(training, calibration):
     return {target: fit_model(target, training[target], calibration[target]) for target in TARGETS}
 
 
-def interval(deltas, ids, rng):
-    """Mean paired change and a game-resampled 95% interval."""
-    deltas = np.asarray(deltas, float)
+def resample(ids, rng):
+    """Each forecast's game index and each bootstrap draw's game multiplicities."""
     _, inverse = np.unique(np.asarray(ids), return_inverse=True)
-    sums = np.bincount(inverse, weights=deltas); counts = np.bincount(inverse).astype(float)
-    draws = rng.integers(0, len(sums), size=(BOOTSTRAP, len(sums)))
-    means = sums[draws].sum(axis=1)/counts[draws].sum(axis=1)
-    low, high = np.percentile(means, [2.5, 97.5])
-    return dict(mean=float(deltas.mean()), low=float(low), high=float(high))
+    games = int(inverse.max())+1
+    draws = rng.integers(0, games, size=(BOOTSTRAP, games))
+    return inverse, np.stack([np.bincount(d, minlength=games) for d in draws]).astype(float)
+
+
+def interval(values, inverse, weights):
+    """Mean paired change and its game-resampled 95% interval."""
+    values = np.asarray(values, float); games = weights.shape[1]
+    draws = (weights@np.bincount(inverse, weights=values, minlength=games))/(weights@np.bincount(inverse, minlength=games))
+    low, high = np.percentile(draws, [2.5, 97.5])
+    return dict(mean=float(values.mean()), low=float(low), high=float(high))
+
+
+def calibration_gaps(p, y, inverse, weights):
+    """score()'s ten-bin calibration gap for every bootstrap draw."""
+    p = np.asarray(p, float); games = weights.shape[1]
+    bins = np.clip(np.searchsorted(np.arange(0, 1, .1), p, side='right')-1, 0, 9)
+    key = inverse*10+bins
+    gap = (np.bincount(key, weights=p, minlength=10*games)-np.bincount(key, weights=np.asarray(y, float), minlength=10*games))
+    return np.abs(weights@gap.reshape(games, 10)).sum(axis=1)/(weights@np.bincount(inverse, minlength=games))
 
 
 def losses(p, y):
@@ -80,8 +100,12 @@ def paired(with_values, without_values, rng, post=False):
             raise ValueError(f'{market}: the two variants were not scored on identical forecasts')
         brier_a, log_a = losses(a['p'], a['y']); brier_b, log_b = losses(b['p'], b['y'])
         with_score = score(a['p'], a['y'], a['b'], a['ids'], post); without_score = score(b['p'], b['y'], b['b'], b['ids'], post)
+        inverse, weights = resample(a['ids'], rng)
+        ece = calibration_gaps(a['p'], a['y'], inverse, weights)-calibration_gaps(b['p'], b['y'], inverse, weights)
+        low, high = np.percentile(ece, [2.5, 97.5])
         result[market] = dict(forecasts=len(a['y']), games=len(set(a['ids'])),
-            brier=interval(brier_a-brier_b, a['ids'], rng), log_loss=interval(log_a-log_b, a['ids'], rng),
+            brier=interval(brier_a-brier_b, inverse, weights), log_loss=interval(log_a-log_b, inverse, weights),
+            ece=dict(mean=with_score['ece']-without_score['ece'], low=float(low), high=float(high)),
             with_platoon={k: with_score[k] for k in ['brier', 'log_loss', 'ece', 'brier_skill']},
             without_platoon={k: without_score[k] for k in ['brier', 'log_loss', 'ece', 'brier_skill']})
     return result
@@ -120,16 +144,17 @@ def coverage(games, hands, samples):
 
 
 def decide(pool, primary, postseason):
-    worse = [m for m, r in pool.items() if r.get('forecasts') and (r['brier']['low'] > 0 or r['log_loss']['low'] > 0)]
-    better = [m for m, r in pool.items() if r.get('forecasts') and r['brier']['high'] < 0]
-    average = float(np.mean([r['brier']['mean'] for r in pool.values() if r.get('forecasts')]))
-    ece = [m for m, r in pool.items() if r.get('forecasts')
-           and r['with_platoon']['ece']-r['without_platoon']['ece'] > ECE_TOLERANCE]
+    scored = {m: r for m, r in pool.items() if r.get('forecasts')}
+    worse = [m for m, r in scored.items() if r['brier']['low'] > 0 or r['log_loss']['low'] > 0]
+    better = [m for m, r in scored.items() if r['brier']['high'] < 0]
+    precision = {m: (3.92/max(r['brier']['high']-r['brier']['low'], 1e-12))**2 for m, r in scored.items()}
+    average = float(sum(precision[m]*r['brier']['mean'] for m, r in scored.items())/sum(precision.values()))
+    ece = [m for m, r in scored.items() if r['ece']['mean'] > ECE_TOLERANCE and r['ece']['low'] > 0]
     flips = [f'{name}:{m}' for name, report in [('regular', primary), ('postseason', postseason)]
              for m in MARKETS if report['without'].get(m, {}).get('passed') and not report['with'].get(m, {}).get('passed')]
     calibration_ok = not ece and not flips
     ship = not worse and calibration_ok and (bool(better) or average <= 0)
-    return dict(ship=ship, worse=worse, better=better, average_brier_change=average,
+    return dict(ship=ship, worse=worse, better=better, weighted_brier_change=average,
                 calibration_worse=ece, validation_flips=flips, calibration_ok=calibration_ok)
 
 
@@ -138,15 +163,16 @@ def summary(results):
         return f"{1e4*r['mean']:+.2f} ({1e4*r['low']:+.2f} to {1e4*r['high']:+.2f})"
     lines = ['# MLB platoon study', '', f"Games {results['games']:,}, through {results['input_through']}. "
              f"Pooled regular-season test: {results['pooled_windows']}.", '',
-             '| Market | Forecasts | Games | Brier change ×10⁻⁴ | Log-loss change ×10⁻⁴ | ECE without → with |',
+             '| Market | Forecasts | Games | Brier change ×10⁻⁴ | Log-loss change ×10⁻⁴ | Calibration gap without → with (change interval) |',
              '|---|---|---|---|---|---|']
     for market, r in results['pooled'].items():
         if r.get('forecasts'):
             lines.append(f"| {market} | {r['forecasts']:,} | {r['games']} | {fmt(r['brier'])} | {fmt(r['log_loss'])} | "
-                         f"{r['without_platoon']['ece']:.4f} → {r['with_platoon']['ece']:.4f} |")
+                         f"{r['without_platoon']['ece']:.4f} → {r['with_platoon']['ece']:.4f} "
+                         f"({r['ece']['low']:+.4f} to {r['ece']['high']:+.4f}) |")
     d = results['decision']
     lines += ['', f"Decision: {'SHIP' if d['ship'] else 'RESEARCH ONLY'}. Worse: {d['worse'] or 'none'}. "
-              f"Better: {d['better'] or 'none'}. Average Brier change ×10⁻⁴: {1e4*d['average_brier_change']:+.2f}. "
+              f"Better: {d['better'] or 'none'}. Precision-weighted Brier change ×10⁻⁴: {1e4*d['weighted_brier_change']:+.2f}. "
               f"Calibration guard: {'holds' if d['calibration_ok'] else 'fails'} "
               f"({d['calibration_worse'] or 'no ECE rise'}; {d['validation_flips'] or 'no pass/fail flips'})."]
     return '\n'.join(lines)

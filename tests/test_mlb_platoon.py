@@ -138,10 +138,10 @@ class HandednessCacheTests(unittest.TestCase):
 
 
 class StudyRuleTests(unittest.TestCase):
-    def market(self,brier,log_loss=None,ece=(.01,.01)):
+    def market(self,brier,log_loss=None,ece=(0,-.01,.01)):
         log_loss=log_loss or brier
-        return dict(forecasts=100,games=50,brier=dict(zip(['mean','low','high'],brier)),log_loss=dict(zip(['mean','low','high'],log_loss)),
-                    without_platoon=dict(ece=ece[0]),with_platoon=dict(ece=ece[1]))
+        names=['mean','low','high']
+        return dict(forecasts=100,games=50,brier=dict(zip(names,brier)),log_loss=dict(zip(names,log_loss)),ece=dict(zip(names,ece)))
 
     def reports(self,flip=None):
         passed={m:{'passed':True} for m in study.MARKETS}
@@ -158,17 +158,30 @@ class StudyRuleTests(unittest.TestCase):
         self.assertEqual(study.decide(log_hurt,self.reports(),self.reports())['worse'],['batter_hits'])
         slightly_worse={m:self.market((1e-5,-1e-4,1e-4)) for m in study.MARKETS}
         self.assertFalse(study.decide(slightly_worse,self.reports(),self.reports())['ship'],'positive average and no gain')
+        # A noisy market's large negative change cannot outvote precise small harms.
+        noisy={**slightly_worse,'h2h':self.market((-20e-4,-60e-4,20e-4))}
+        self.assertGreater(study.decide(noisy,self.reports(),self.reports())['weighted_brier_change'],0)
         better={**slightly_worse,'batter_home_runs':self.market((-3e-4,-5e-4,-1e-4))}
         self.assertTrue(study.decide(better,self.reports(),self.reports())['ship'])
-        drift={**better,'totals':self.market((0,-1e-4,1e-4),ece=(.01,.02))}
+        drift={**better,'totals':self.market((0,-1e-4,1e-4),ece=(.01,.002,.018))}
         self.assertFalse(study.decide(drift,self.reports(),self.reports())['ship'],'calibration gap rose')
+        noise={**better,'h2h':self.market((0,-1e-4,1e-4),ece=(.006,-.01,.02))}
+        self.assertTrue(study.decide(noise,self.reports(),self.reports())['ship'],'a rise within its interval is noise')
         self.assertFalse(study.decide(better,self.reports(),self.reports('batter_rbis'))['ship'],'postseason check flipped')
 
     def test_paired_intervals_resample_games(self):
         rng=np.random.default_rng(1)
-        result=study.interval([.1,.1,-.1,-.1,0,0],[1,1,2,2,3,3],rng)
+        inverse,weights=study.resample([1,1,2,2,3,3],rng)
+        self.assertEqual(weights.shape,(study.BOOTSTRAP,3))
+        np.testing.assert_array_equal(weights.sum(axis=1),3)
+        result=study.interval([.1,.1,-.1,-.1,0,0],inverse,weights)
         self.assertAlmostEqual(result['mean'],0)
         self.assertLessEqual(result['low'],0);self.assertGreaterEqual(result['high'],0)
+        # Bootstrap gaps use exactly score()'s bins: unit weights reproduce its calibration gap.
+        p=np.random.default_rng(2).random(60);y=(p>.5).astype(int);ids=np.repeat(np.arange(20),3)
+        inverse,_=study.resample(ids,rng)
+        gap=study.calibration_gaps(p,y,inverse,np.ones((1,20)))[0]
+        self.assertAlmostEqual(gap,study.score(p,y,[.5]*60,ids)['ece'],places=5)
         a={m:dict(p=[.6,.4],y=[1,0],b=[.5,.5],ids=[1,2]) for m in study.MARKETS}
         b={m:dict(p=[.5,.5],y=[1,0],b=[.5,.5],ids=[1,2]) for m in study.MARKETS}
         self.assertLess(study.paired(a,b,rng)['totals']['brier']['mean'],0)
