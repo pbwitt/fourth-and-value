@@ -120,13 +120,32 @@ const server=http.createServer((req,res)=>{
           await p.mouse.move(2,1000);await pop.waitFor({state:'hidden'});
         }
         if(sport==='nhl'&&width===1440){
-          // Share with a mouse copies a link; the link filters the board and reopens the snapshot.
-          await p.evaluate(()=>{window.__copied=[];Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async t=>{window.__copied.push(t);}}});});
+          // Share opens a sheet: a branded image, Copy link (the link filters the board and reopens
+          // the snapshot), Save image and social posts tagged by network.
+          await p.evaluate(()=>{window.__copied=[];window.__opened=[];window.open=u=>{window.__opened.push(u);return null;};
+            Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async t=>{window.__copied.push(t);}}});});
           await name.click();await pop.waitFor({state:'visible'});
-          await pop.locator('.pc-share').click();await pop.locator('.pc-share-status',{hasText:'Link copied'}).waitFor();
+          await pop.locator('.pc-share').click();
+          const panel=p.locator('.pc-share-sheet');await panel.waitFor({state:'visible'});
+          assert.equal(await panel.getAttribute('role'),'dialog');
+          await p.waitForFunction(()=>document.querySelector('.pc-share-sheet img')?.naturalWidth>0);
+          assert.equal(await p.evaluate(()=>document.querySelector('.pc-share-sheet img').naturalWidth),1800,'900 px card at 2×');
+          assert.match(await panel.locator('[data-act=save]').getAttribute('download'),/^fourth-and-value-example-player-player-shots-on-goal\.png$/);
+          await p.screenshot({path:'/tmp/fv-player-share-sheet-1440.png'});
+          await panel.locator('[data-act=copy]').click();await panel.locator('[data-act=copy]',{hasText:'Link copied'}).waitFor();
           const link=new URL((await p.evaluate(()=>window.__copied))[0]);
           assert.equal(link.pathname,'/nhl/props/');
           assert.equal(link.search,'?q=Example+Player&market=player_shots_on_goal&side=over&line=2.5&snapshot=1');
+          await panel.locator('[data-social=x]').click();
+          const posted=new URL((await p.evaluate(()=>window.__opened))[0]);
+          assert.equal(posted.hostname,'twitter.com');
+          const back=new URL(posted.searchParams.get('url'));
+          assert.equal(back.searchParams.get('utm_source'),'x');assert.equal(back.searchParams.get('utm_medium'),'social');assert.equal(back.searchParams.get('snapshot'),'1');
+          assert.match(posted.searchParams.get('text'),/^Example Player · Over 2\.5 Shots on goal\./);
+          assert(await pop.isVisible(),'the snapshot stays open behind the sheet');
+          await p.keyboard.press('Escape');await panel.waitFor({state:'hidden'});
+          assert(await pop.isVisible(),'Escape closes the sheet first');
+          assert.equal(await p.evaluate(()=>document.activeElement?.classList.contains('pc-share')),true,'focus returns to Share');
           await p.keyboard.press('Escape');await pop.waitFor({state:'hidden'});
           const moved=new URL(link);moved.searchParams.set('line','3.5');
           for(const href of [link.href,moved.href]){  // the exact offer, then a line that has moved
@@ -148,11 +167,12 @@ const server=http.createServer((req,res)=>{
         await p.reload();await p.waitForSelector('.prop-card');assert.equal(await p.locator('.pc-name').count(),0,'Expired NHL model context hidden');
       }
     }
-    // Phones: Share opens the native share sheet with the player, the bet and the link.
+    // Phones: the sheet's Share sends the branded image only, no link or text (SEO policy 12).
     const phone=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
     try{
       const m=await phone.newPage();m.on('pageerror',e=>errors.push(e.message));
-      await m.addInitScript(()=>{window.__shared=[];navigator.share=async d=>{window.__shared.push(d);};navigator.canShare=()=>true;});
+      await m.addInitScript(()=>{window.__shared=[];navigator.share=async d=>{window.__shared.push({keys:Object.keys(d),files:(d.files||[]).map(f=>({name:f.name,type:f.type,size:f.size}))});};
+        navigator.canShare=d=>Array.isArray(d.files);});
       await m.route('**/nhl/data/latest.json',route=>route.fulfill({json:{status:'ready',last_success_at:now,history_checked_at:now,model_checked_at:now,history_through_date:'2026-09-30',season:2026,events:[],rows:[nhl]}}));
       await m.route('**/nhl/players/players.json',route=>route.fulfill({json:{players:{}}}));
       await m.goto(base+'/nhl/props/');await m.locator('.prop-card .pc-name').first().tap();
@@ -160,13 +180,18 @@ const server=http.createServer((req,res)=>{
       assert.match(await sheet.getAttribute('class'),/pc-sheet/);
       const head=await sheet.locator('.pc-pop-head').boundingBox(),button=await sheet.locator('.pc-share').boundingBox();
       assert(button.x+button.width<=head.x+head.width&&button.height>=32,'share button fits the sheet header');
-      await m.screenshot({path:'/tmp/fv-player-pop-share-390.png'});
-      await sheet.locator('.pc-share').tap();await m.waitForFunction(()=>window.__shared.length===1);
+      await sheet.locator('.pc-share').tap();
+      const panel=m.locator('.pc-share-sheet');await panel.waitFor({state:'visible'});
+      await m.waitForFunction(()=>document.querySelector('.pc-share-sheet img')?.naturalWidth>0);
+      assert.equal(await m.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'share sheet fits a phone');
+      await m.screenshot({path:'/tmp/fv-player-share-sheet-390.png'});
+      await panel.locator('[data-act=share]').tap();await m.waitForFunction(()=>window.__shared.length===1);
       const sent=await m.evaluate(()=>window.__shared[0]);
-      assert.equal(sent.title,'Example Player · Over 2.5 Shots on goal');
-      assert.equal(sent.text,'Example Player · Over 2.5 Shots on goal. Model projection: 3.1 SOG. Player snapshot on Fourth & Value.');
-      assert.equal(new URL(sent.url).search,'?q=Example+Player&market=player_shots_on_goal&side=over&line=2.5&snapshot=1');
-      assert(await sheet.isVisible(),'the sheet stays open after sharing');
+      assert.deepEqual(sent.keys,['files'],'image only: no link, title or text');
+      assert.equal(sent.files[0].type,'image/png');assert.equal(sent.files[0].name,'fourth-and-value-example-player-player-shots-on-goal.png');
+      assert(sent.files[0].size>10000,'a drawn image, not an empty file');
+      await panel.locator('[data-act=close]').tap();await panel.waitFor({state:'hidden'});
+      assert(await sheet.isVisible(),'closing the share sheet keeps the snapshot');
     }finally{await phone.close();}
     // NFL: rushing and receiving traces from the saved params, with the forecast's bell curve.
     const fields=['game_id','game','player','bookmaker','book_label','market_std','market_label','name','point','price','mu','model_prob','push_prob','mkt_prob','prob_devig',

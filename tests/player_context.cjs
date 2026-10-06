@@ -140,5 +140,5 @@ assert.match(snapshot({...row,player_position:'SP',game:'NYY @ BOS'},'MLB'),/<st
 assert.match(snapshot({...row,player_position:'SP'},'MLB'),/<strong>Test Player<\/strong><span>SP<\/span>/);
 // Every snapshot carries a share button beside close, and a live status line for "Link copied".
 assert.match(pop,/<div class="pc-pop-actions"><button type="button" class="pc-share" aria-label="Share player snapshot"><svg[^>]*aria-hidden="true"[^>]*>.*?<\/svg>Share<\/button><button type="button" class="pc-close"/);
-assert.match(pop,/<p class="pc-share-status" role="status"><\/p>/);
+assert.doesNotMatch(pop,/pc-share-status/,'sharing happens in its own sheet');
 console.log('PASS: player context preserves missing values, zeros, units, input labels, archived context and escaped content; name pop-up snapshots with a share button.');
