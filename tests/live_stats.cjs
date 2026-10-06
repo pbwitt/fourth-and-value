@@ -17,9 +17,10 @@ const nhlScore={games:[
 const nhlBox={...nhlScore.games[0],awayTeam:{abbrev:'MTL',commonName:{default:'Canadiens'},placeName:{default:'Montréal'},score:1},
   homeTeam:{abbrev:'TOR',commonName:{default:'Maple Leafs'},placeName:{default:'Toronto'},score:2},
   playerByGameStats:{
-    homeTeam:{forwards:[{name:{default:'A. Matthews'},goals:1,assists:0,points:1,sog:3,hits:1,blockedShots:0,pim:0,powerPlayGoals:0},
-                        {name:{default:'J. Tavares'},goals:0,assists:1,points:1,sog:1,hits:0,blockedShots:1,pim:2,powerPlayGoals:0}],
-              defense:[],goalies:[{name:{default:'J. Woll'},saves:14,shotsAgainst:15,goalsAgainst:1}]},
+    homeTeam:{forwards:[{name:{default:'A. Matthews'},position:'C',goals:1,assists:0,points:1,sog:3,hits:1,blockedShots:0,pim:0,powerPlayGoals:0},
+                        {name:{default:'J. Tavares'},goals:0,assists:1,points:1,sog:1,hits:0,blockedShots:1,pim:2,powerPlayGoals:0},
+                        {name:{default:'W. Nylander'},position:'R',goals:0,assists:0,points:0,sog:2,hits:0,blockedShots:0,pim:0,powerPlayGoals:0}],
+              defense:[{name:{default:'M. Rielly'},position:'D',goals:0,assists:0,points:0,sog:1,hits:2,blockedShots:3,pim:0,powerPlayGoals:0}],goalies:[{name:{default:'J. Woll'},saves:14,shotsAgainst:15,goalsAgainst:1}]},
     awayTeam:{forwards:[{name:{default:'N. Suzuki'},goals:1,assists:0,points:1,sog:2,hits:0,blockedShots:0,pim:0,powerPlayGoals:1}],defense:[],goalies:[]}}};
 const mlbSched={dates:[{games:[
   {gamePk:1,gameDate:'2026-09-29T17:05:00Z',status:{abstractGameState:'Final',codedGameState:'F',detailedState:'Final'},scheduledInnings:9,
@@ -27,9 +28,10 @@ const mlbSched={dates:[{games:[
   {gamePk:2,gameDate:'2026-09-29T23:05:00Z',status:{abstractGameState:'Live',codedGameState:'I',detailedState:'In Progress'},
    linescore:{currentInning:7,currentInningOrdinal:'7th',inningState:'Middle'},teams:{away:{team:{name:'Boston Red Sox',abbreviation:'BOS',teamName:'Red Sox'},score:1},home:{team:{name:'New York Yankees',abbreviation:'NYY',teamName:'Yankees'},score:0}}},
 ]}]};
-const mlbBox={teams:{home:{batters:[10],pitchers:[11],players:{
-    ID10:{person:{id:10,fullName:'Aaron Judge'},stats:{batting:{hits:2,doubles:1,triples:0,homeRuns:1,totalBases:6,rbi:2,runs:1,baseOnBalls:0,stolenBases:0,strikeOuts:1},pitching:{}}},
-    ID11:{person:{id:11,fullName:'Gerrit Cole'},stats:{batting:{},pitching:{strikeOuts:7,outs:18,hits:4,earnedRuns:1,baseOnBalls:2,numberOfPitches:95}}},
+const mlbBox={teams:{home:{batters:[10],pitchers:[11,13],players:{
+    ID10:{person:{id:10,fullName:'Aaron Judge'},position:{abbreviation:'RF'},stats:{batting:{hits:2,doubles:1,triples:0,homeRuns:1,totalBases:6,rbi:2,runs:1,baseOnBalls:0,stolenBases:0,strikeOuts:1},pitching:{}}},
+    ID11:{person:{id:11,fullName:'Gerrit Cole'},position:{abbreviation:'P'},stats:{batting:{},pitching:{strikeOuts:7,outs:18,hits:4,earnedRuns:1,baseOnBalls:2,numberOfPitches:95}}},
+    ID13:{person:{id:13,fullName:'Luke Weaver'},position:{abbreviation:'P'},stats:{batting:{},pitching:{strikeOuts:1,outs:3,hits:0,earnedRuns:0,baseOnBalls:0,numberOfPitches:14}}},
     ID12:{person:{id:12,fullName:'Bench Player'},stats:{batting:{},pitching:{}}}}},
   away:{batters:[],pitchers:[],players:{}}}};
 const espnComp=(state,extra={})=>({date:'2026-09-27T17:00Z',status:{period:3,clock:300,type:{name:'STATUS_IN_PROGRESS',state,shortDetail:'5:00 - 3rd'}},
@@ -38,7 +40,7 @@ const espnComp=(state,extra={})=>({date:'2026-09-27T17:00Z',status:{period:3,clo
 const espnBoard={events:[{id:'401',date:'2026-09-27T17:00Z',competitions:[espnComp('in')]}]};
 const espnSummary={header:{competitions:[espnComp('in')]},boxscore:{players:[
   {team:{id:'24'},statistics:[
-    {name:'passing',keys:['completions/passingAttempts','passingYards','passingTouchdowns','interceptions'],athletes:[{athlete:{displayName:'Justin Herbert'},stats:['20/34','226','1','1']}]},
+    {name:'passing',keys:['completions/passingAttempts','passingYards','passingTouchdowns','interceptions'],athletes:[{athlete:{displayName:'Justin Herbert',position:{abbreviation:'QB'}},stats:['20/34','226','1','1']}]},
     {name:'rushing',keys:['rushingAttempts','rushingYards','rushingTouchdowns'],athletes:[{athlete:{displayName:'Justin Herbert'},stats:['3','-2','0']}]},
     {name:'receiving',keys:['receptions','receivingYards','receivingTouchdowns','receivingTargets'],athletes:[{athlete:{displayName:"Tre' Harris"},stats:['6','76','1','7']}]},
     {name:'interceptions',keys:['interceptions'],athletes:[{athlete:{displayName:'Derwin James Jr.'},stats:['1']}]}]},
@@ -56,6 +58,9 @@ const espnSummary={header:{competitions:[espnComp('in')]},boxscore:{players:[
   assert.equal(box.game.home.name,'Toronto Maple Leafs');
   assert.equal(box.players.find(p=>p.name==='A. Matthews').stats.sog,3);
   assert.equal(box.players.find(p=>p.name==='J. Woll').stats.saves,14);
+  const pos=n=>box.players.find(p=>p.name===n).position;
+  assert.deepEqual(['A. Matthews','W. Nylander','M. Rielly','J. Tavares','J. Woll'].map(pos),['C','RW','D','F','G'],
+    'NHL wingers read as LW/RW; a forward without one is F');
   const ot=run(feeds.scoreboardPlan('NHL','x'),[{games:[{...nhlScore.games[0],gameState:'OFF',gameOutcome:{lastPeriodType:'OT'}}]}])[0];
   assert.equal(ot.detail,'Final/OT');assert.equal(ot.elapsed,1);
   const ppd=run(feeds.scoreboardPlan('NHL','x'),[{games:[{...nhlScore.games[1],gameScheduleState:'PPD'}]}])[0];
@@ -70,6 +75,9 @@ const espnSummary={header:{competitions:[espnComp('in')]},boxscore:{players:[
   assert.equal(judge.stats.total_bases,6);assert.equal(judge.stats.singles,0);assert.equal(judge.stats.pitcher_strikeouts,undefined);
   assert.equal(cole.stats.pitcher_strikeouts,7);assert.equal(cole.stats.hits,undefined,'pitching hits allowed are not batter hits');
   assert.equal(box.players.find(p=>p.name==='Bench Player').played,false);
+  assert.deepEqual(['Aaron Judge','Gerrit Cole','Luke Weaver','Bench Player'].map(n=>box.players.find(p=>p.name===n).position),['RF','SP','RP',''],
+    'the first pitcher listed is the starter');
+  assert.equal(cole.stats.pitches,95);
 }
 {
   const [g]=run(feeds.scoreboardPlan('NFL','2026-09-27'),[espnBoard]);
@@ -79,6 +87,8 @@ const espnSummary={header:{competitions:[espnComp('in')]},boxscore:{players:[
   const herbert=box.players.find(p=>p.name==='Justin Herbert');
   assert.deepEqual([herbert.side,herbert.stats.pass_completions,herbert.stats.pass_attempts,herbert.stats.pass_yds,herbert.stats.rush_yds],['away',20,34,226,-2]);
   assert.equal(herbert.stats.pass_interceptions,1);
+  assert.equal(herbert.position,'QB','position survives categories that omit it');
+  assert.equal(box.players.find(p=>p.name==="Tre' Harris").position,'');
   assert.equal(box.players.find(p=>p.name==='Derwin James Jr.').stats.def_interceptions,1,'defensive picks never count as thrown');
   assert.equal(box.players.find(p=>p.name==='Scratched Back').played,false);
   assert.equal(feeds.boxPlan('NBA','9').requests[0].url,'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event=9');
@@ -132,6 +142,7 @@ const espnSummary={header:{competitions:[espnComp('in')]},boxscore:{players:[
   let v=L.evaluate(bet(),game,box);
   assert.deepEqual([v.value,v.tone,v.label,v.progress],[3,'won','Hit',1]);
   assert.equal(v.playerTeam,'TOR','the box score side gives the player team');
+  assert.equal(v.playerPosition,'C');assert.equal(v.pitches,undefined,'only pitcher markets carry a pitch count');
   assert.equal(L.evaluate(bet({player:'Nobody Here'}),game,box).playerTeam,undefined);
   assert.equal(L.teamCode({abbrev:'',short:'Leafs',name:'Toronto Maple Leafs'}),'Leafs');assert.equal(L.teamCode(undefined),null);
   v=L.evaluate(bet({line:3.5}),game,box);
@@ -195,6 +206,7 @@ const espnSummary={header:{competitions:[espnComp('in')]},boxscore:{players:[
   assert.equal(views.get('a').label,'Needs 1');
   assert.equal(views.get('b').tone,'pre');
   assert.equal(views.get('c').label,'Hit');
+  assert.deepEqual([views.get('c').pitches,views.get('c').playerPosition],[95,'SP'],'pitcher props show the live pitch count');
   assert.equal(meta.live,2);assert.equal(meta.errors,0);
   assert(!calls.some(c=>c.includes('2026020003')),'no box score fetched for games not started');
   assert.equal(calls.filter(c=>c.includes('"date"')).length,1,'one scoreboard per league and date');

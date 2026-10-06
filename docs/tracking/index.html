@@ -715,8 +715,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="bet-tracking.js?v=5"></script>
   <script src="performance.js?v=2"></script>
-  <script src="live-feeds.js?v=1"></script>
-  <script src="live-stats.js?v=4"></script>
+  <script src="live-feeds.js?v=2"></script>
+  <script src="live-stats.js?v=5"></script>
   <script src="../assets/offer-tracker.js?v=2"></script>
   <script src="manual-bet.js?v=2"></script>
   <script>
@@ -887,8 +887,11 @@
     function playerTeam(bet) {
       return bet.player ? bet.player_team || liveViews.get(bet.id)?.playerTeam || '' : '';
     }
-    const playerLabel=bet=>[bet.player||'Game market',playerTeam(bet)].filter(Boolean).join(' · ');
-    const teamTagHtml=bet=>playerTeam(bet)?`<span class="team-tag">${esc(playerTeam(bet))}</span>`:'';
+    // Position ("RW", "D", "SP") from today's live box score, once the game has one.
+    const playerPosition=bet=>bet.player ? liveViews.get(bet.id)?.playerPosition || '' : '';
+    const playerTags=bet=>[playerPosition(bet),playerTeam(bet)].filter(Boolean).join(' · ');
+    const playerLabel=bet=>[bet.player||'Game market',playerTags(bet)].filter(Boolean).join(' · ');
+    const teamTagHtml=bet=>playerTags(bet)?`<span class="team-tag">${esc(playerTags(bet))}</span>`:'';
 
     function toWin(bet) {
       const stake=Number(bet.stake_dollars||0), odds=Number(bet.odds);
@@ -1207,6 +1210,8 @@
 
     const liveNum=n=>Number.isInteger(n)?String(n):Number(n).toFixed(1);
     const teamTag=t=>t.abbrev||t.short||t.name;
+    // Pitcher props carry the pitcher's running pitch count.
+    const pitchText=v=>v?.pitches!=null?`${v.pitches} pitches`:'';
 
     function liveGameLine(g) {
       if (!g) return '';
@@ -1233,7 +1238,7 @@
         return text?`<div class="live-band compact ${tone}">${esc(text)}</div>`:'';
       }
       if (!fig && v.kind!=='game') return `<div class="live-band compact ${tone}">${esc([game,v.label].filter(Boolean).join(' · '))}</div>`;
-      const sub=[fig?game:'', v.pace!=null?`on pace for ${liveNum(v.pace)}`:'', v.note||(v.status==='live'?'live, unofficial':'')].filter(Boolean).join(' · ');
+      const sub=[fig?game:'', pitchText(v), v.pace!=null?`on pace for ${liveNum(v.pace)}`:'', v.note||(v.status==='live'?'live, unofficial':'')].filter(Boolean).join(' · ');
       const bump=liveBumped.has(bet.id)?' live-bump':'';
       return `
           <div class="live-band full ${tone}${bump}">
@@ -1250,9 +1255,9 @@
       const v=liveViews.get(bet.id);
       if (!v || !['live','final'].includes(v.status)) return '';
       const fig=liveFigure(v), tone='tone-'+(v.tone||'none');
-      const title=[liveGameLine(v.game),v.label,v.note].filter(Boolean).join(' · ');
+      const title=[liveGameLine(v.game),v.label,pitchText(v),v.note].filter(Boolean).join(' · ');
       const dot=v.status==='live'?'<span class="live-dot"></span>':'';
-      const text=fig?`${fig.value}${v.line!=null?'/'+v.line:''}`:(v.label||'Live');
+      const text=fig?`${fig.value}${v.line!=null?'/'+v.line:''}${v.pitches!=null?` · ${v.pitches}p`:''}`:(v.label||'Live');
       const bar=v.progress!=null?`<span class="live-bar"><i style="width:${Math.round(v.progress*100)}%"></i></span>`:'';
       return `<span class="live-chip ${tone}${liveBumped.has(bet.id)?' live-bump':''}" title="${esc(title)}">${dot}${esc(text)}${bar}</span>`;
     }
@@ -1261,7 +1266,7 @@
       const v=liveViews.get(bet.id), fig=v&&liveFigure(v);
       if (!v || !['live','final'].includes(v.status)) return null;
       const now=fig?`${fig.value} ${fig.rest}`.trim():liveGameLine(v.game);
-      return [v.status==='live'?'LIVE':'', now, fig?v.game?.detail:''].filter(Boolean).join(' · ');
+      return [v.status==='live'?'LIVE':'', now, pitchText(v), fig?v.game?.detail:''].filter(Boolean).join(' · ');
     }
 
     function liveAgo() {
@@ -1304,7 +1309,7 @@
               <span class="live-pick">${esc(pickLabel(bet))}</span>
               <span class="live-value">${fig?esc(fig.value):'–'}</span>
               <span>${view.progress!=null?`<span class="live-bar"><i style="width:${Math.round(view.progress*100)}%"></i></span>`:''}</span>
-              <span class="live-verdict">${esc(view.pace!=null?`${view.label} · pace ${liveNum(view.pace)}`:(view.label||''))}</span>
+              <span class="live-verdict">${esc([view.label, view.pace!=null?`pace ${liveNum(view.pace)}`:'', pitchText(view)].filter(Boolean).join(' · '))}</span>
               <span class="live-stake">${esc(money(bet.stake_dollars))}${win!=null?' → '+esc(money(win)):''}</span>
             </div>`;}).join('')}
           </div>`).join('')}`;
