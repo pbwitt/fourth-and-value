@@ -14,7 +14,7 @@ import re
 from statistics import median
 import xml.etree.ElementTree as ET
 from zoneinfo import ZoneInfo
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 import sys
 
@@ -229,6 +229,77 @@ def market_rows(games,limit=5):
                 change=change,detail=detail,over=over,under=under,url='/nfl/totals/' if g['sport']=='NFL' else f"/{g['sport'].lower()}/totals/"))
     return rows
 
+NEXT_UP_FEEDS={'MLB':'mlb/data/latest.json','NHL':'nhl/data/latest.json','NBA':'nba/data/latest.json','NFL':'nfl/data/quotes.json'}
+TWO_WORD_NAMES=('Red Sox','White Sox','Blue Jays','Maple Leafs','Golden Knights','Red Wings','Blue Jackets','Trail Blazers')
+
+def nickname(team):
+    team=str(team or '')
+    return next((n for n in TWO_WORD_NAMES if team.endswith(' '+n)),team.split(' ')[-1] if team else '')
+
+def next_up(now,limit=4,root=None):
+    """The next games across the leagues with the best current moneyline and total.
+
+    Reads each league's committed feed at render time. A price counts only if it was
+    quoted in the last six hours, the same rule as the market table; games that have
+    started, or start more than 36 hours out, are left out. MLB adds the probable
+    starters and their strikeout lines beside our forecast; NHL adds projected goalies."""
+    games={}
+    for sport,rel in NEXT_UP_FEEDS.items():
+        try:feed=json.loads(((root or DOCS)/rel).read_text())
+        except (OSError,ValueError):continue
+        goalies=feed.get('goalie_projections') or {}
+        for r in feed.get('rows') or []:
+            try:start=stamp(r['commence_time'])
+            except (KeyError,TypeError,ValueError):continue
+            if not timedelta(0)<start-now<=timedelta(hours=36):continue
+            g=games.setdefault((sport,r.get('game'),r['commence_time']),dict(sport=sport,start=r['commence_time'],
+                start_label=start.astimezone(ETZ).strftime('%a %I:%M %p ET').replace(' 0',' '),away=r.get('away_team',''),home=r.get('home_team',''),
+                label='',who='',ml={},totals={},props={}))
+            if sport=='MLB' and r.get('game_type') not in (None,'R') and r.get('phase') and not g['label']:
+                g['label']=r['phase']+(f" · Game {r['series_game']}" if r.get('series_game') else '')
+            if sport=='MLB' and not g['who'] and (r.get('away_pitcher') or r.get('home_pitcher')):
+                g['who']=f"{(r.get('away_pitcher') or {}).get('fullName') or 'TBD'} vs {(r.get('home_pitcher') or {}).get('fullName') or 'TBD'}"
+            if sport=='NHL' and not g['who'] and str(r.get('nhl_game_id')) in goalies:
+                gp=goalies[str(r['nhl_game_id'])];names=[]
+                for side in ('away','home'):
+                    starters=sorted((gp.get(side) or {}).get('goalies') or [],key=lambda x:-(x.get('start_probability') or 0))
+                    names.append(starters[0]['player'] if starters else 'TBD')
+                confirmed=all((gp.get(s) or {}).get('confirmed') for s in ('away','home'))
+                g['who']=' vs '.join(names)+('' if confirmed else ' (projected)')
+            quoted=stamp(r['quoted_at']) if r.get('quoted_at') else None
+            if not quoted or not timedelta(0)<=now-quoted<=timedelta(hours=6) or not isinstance(r.get('price'),(int,float)):continue
+            label=r.get('book_label') or r.get('book')
+            if r.get('market')=='h2h' and not r.get('player'):
+                best=g['ml'].get(r['side'])
+                if not best or r['price']>best[0]:g['ml'][r['side']]=(r['price'],label)
+            elif r.get('market')=='totals' and not r.get('player') and isinstance(r.get('line'),(int,float)):
+                side=g['totals'].setdefault(r['line'],{}).setdefault(r['side'],[])
+                side.append((r['price'],label))
+            elif sport=='MLB' and r.get('market')=='pitcher_strikeouts' and r.get('player') and isinstance(r.get('line'),(int,float)):
+                p=g['props'].setdefault(r['player'],dict(lines={},mean=r.get('model_mean')))
+                p['lines'][r['line']]=p['lines'].get(r['line'],0)+1
+    out=[]
+    for g in sorted(games.values(),key=lambda g:g['start'])[:limit]:
+        ml=[f"{nickname(team)} {american(price)} {book}" for team in (g['away'],g['home']) if team in g['ml'] for price,book in [g['ml'][team]]]
+        total=None
+        if g['totals']:
+            line=max(g['totals'],key=lambda l:(sum(len(v) for v in g['totals'][l].values()),-l))
+            best={s:max(v) for s,v in g['totals'][line].items()}
+            parts=[f"{s[0]} {american(best[s][0])} {best[s][1]}" for s in ('Over','Under') if s in best]
+            total=dict(line=f'{line:g}',parts=parts)
+        props=[]
+        starters=[x.split(' vs ')[i] for x in [g['who']] for i in (0,1)] if g['sport']=='MLB' and ' vs ' in g['who'] else []
+        for name in starters:
+            p=g['props'].get(name)
+            if not p:continue
+            line=max(p['lines'],key=lambda l:(p['lines'][l],-l))
+            forecast=f" · forecast {p['mean']:.1f}" if isinstance(p['mean'],(int,float)) else ''
+            props.append(dict(text=f"{name.split(' ')[-1]} strikeouts {line:g}{forecast}",
+                url='/mlb/props/?'+urlencode({'q':name,'market':'pitcher_strikeouts'})))
+        out.append(dict(sport=g['sport'],label=g['label'],start=g['start'],start_label=g['start_label'],away=g['away'],home=g['home'],
+            who=g['who'],ml=ml,total=total,props=props))
+    return out
+
 def american(price):
     return f'{price:+d}' if isinstance(price,int) else f'{price:+g}'
 
@@ -358,7 +429,7 @@ def render_home(data,now):
     take,opinions=home_take(catalog,now)
     ctx=context(data,now)
     ctx.update(lead=lead,take=take,take_featured=bool(take and take in featured_opinions(catalog,now)),
-               features=home_features(current,catalog,lead),opinions=opinions)
+               features=home_features(current,catalog,lead),opinions=opinions,next_up=next_up(now))
     (DOCS/'index.html').write_text(ENV.get_template('home.html').render(**ctx)+'\n')
     # Opinion remains a distinct, permanent archive; approved analysis also
     # appears in the existing blog without rebuilding any authored article.
