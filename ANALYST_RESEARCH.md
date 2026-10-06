@@ -96,7 +96,11 @@ blended with the market: `f = sigmoid(0.25 * logit(model) + 0.75 * logit(market)
 where `market` is the median no-vig probability at the exact line (NFL consensus may
 include the offered book; MLB/NHL use other books). At least two books must post
 that line, counting the offered book: NFL `book_count >= 2`, MLB/NHL
-`other_books >= 1`, so an MLB/NHL consensus can rest on a single other book. A
+`other_books >= 1`, so an MLB/NHL consensus can rest on a single other book. NHL pools
+only books with a settlement profile in `config/nhl_settlement.json`: DraftKings and
+FanDuel player-prop rules were read; BetMGM, Caesars, BetRivers, BetOnline and Bovada
+player props are marked `assumed` (owner decision, October 6, 2026) and carry
+`settlement_basis: assumed_standard` until their published rules are checked. A
 candidate needs `(1 - push) * (f * decimal - 1) >= 1%` at its own price. At 3% or
 more it is labeled high confidence, from 1% to 3% moderate confidence; high ranks
 before moderate on the card. The label describes the size of the blended EV, not a

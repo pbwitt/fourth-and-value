@@ -15,26 +15,40 @@ def settlement_rules():
     import json
     cfg = json.loads((Path(__file__).resolve().parents[2] / 'config/nhl_settlement.json').read_text())
     books, profiles, names = cfg.get('books', {}), cfg.get('profiles', {}), cfg.get('display_names', {})
-    def cell(profile):
-        return escape(profiles.get(profile, {}).get('label', profile)) if profile else 'Not verified'
+    def cell(rule, kind):
+        profile = rule.get(kind)
+        if not profile:
+            return 'Not verified'
+        label = escape(profiles.get(profile, {}).get('label', profile))
+        return label + (' <em>(assumed standard; not yet checked)</em>' if kind in rule.get('assumed', []) else '')
+    def source(rule):
+        checked = [k for k in ('game', 'player') if rule.get(k) and k not in rule.get('assumed', [])]
+        if rule.get('source') and checked:
+            scope = ' (game bets)' if rule.get('assumed') else ''
+            return f"<a href=\"{escape(rule['source'])}\" rel=\"nofollow noopener\">Published rules</a>{scope}"
+        return 'Not yet checked'
     from datetime import date
     try: checked = date.fromisoformat(cfg['checked_at']).strftime('%B %-d, %Y')
     except (KeyError, ValueError): checked = 'recently'
     definitions = ''.join(f"<li><strong>{escape(p['label'])}:</strong> {escape(p['description'])}</li>" for p in profiles.values())
     rows = ''.join(
-        f"<tr><td>{escape(names.get(book, book))}</td><td>{cell(rule.get('game'))}</td><td>{cell(rule.get('player'))}</td>"
-        f"<td><a href=\"{escape(rule['source'])}\" rel=\"nofollow noopener\">Published rules</a></td></tr>"
+        f"<tr><td>{escape(names.get(book, book))}</td><td>{cell(rule, 'game')}</td><td>{cell(rule, 'player')}</td>"
+        f"<td>{source(rule)}</td></tr>"
         for book, rule in books.items())
     pending = ''.join(f"<li>{escape(book.title())}: {escape(note)}</li>" for book, note in cfg.get('pending', {}).items())
     return (f'<section class="panel" id="settlement-rules"><h2>Sportsbook rules we rely on</h2>'
             f'<p>Two prices are only comparable when the books grade the bet the same way. This is our reading of each '
-            f'book&rsquo;s published hockey rules, last checked {checked}. It covers standard '
+            f'book&rsquo;s published hockey rules, last checked {checked}, except where marked assumed. It covers standard '
             f'full-game markets only. Rules can differ by state and by market name, so confirm them with your sportsbook before betting.</p>'
             f'<ul>{definitions}</ul>'
             f'<div class="table-wrap"><table><thead><tr><th>Sportsbook</th><th>Game bets</th><th>Player props</th><th>Source</th></tr></thead>'
             f'<tbody>{rows}</tbody></table></div>'
             f'<p>&ldquo;Not verified&rdquo; and any sportsbook not listed: its prices still appear on our boards, but they are not '
             f'combined with other books into a market estimate and cannot become a model pick.</p>'
+            f'<p>&ldquo;Assumed standard&rdquo;: we have not yet read this book&rsquo;s rules for these bets, but we treat them as the '
+            f'common rule above because nearly every US sportsbook uses it. Its prices are combined with the others, can become '
+            f'a pick, and tracked bets are graded on that assumption. We replace each assumption with the book&rsquo;s published rules '
+            f'once checked.</p>'
             f'<p>Why it matters, with examples: <a href="/blog/settlement-rules.html">Same bet, different rules</a>.</p>'
             + (f'<p>Being checked:</p><ul>{pending}</ul>' if pending else '') + '</section>')
 

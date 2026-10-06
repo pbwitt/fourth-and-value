@@ -60,6 +60,46 @@ class NHLRefreshTests(unittest.TestCase):
         rows = compare(flatten(event, NOW, SPORT, MARKETS, list(PROPS)))
         self.assertTrue(all(r['fair_probability'] is None for r in rows))
 
+    def test_assumed_standard_books_pool_with_checked_books_and_say_so(self):
+        # BetMGM's player-prop rule is assumed, not read; DraftKings' was read. Both share one
+        # profile, so their prices form one market, and each row records how it was established.
+        def book(key, over, under):
+            return dict(key=key, title=key, markets=[dict(key='player_shots_on_goal', last_update=iso(NOW), outcomes=[
+                dict(name='Over', description='Test Player', point=2.5, price=over),
+                dict(name='Under', description='Test Player', point=2.5, price=under)])])
+        event = {**EVENT, 'bookmakers': [book('draftkings', -110, -110), book('betmgm', -120, 100)]}
+        rows = compare(flatten(event, NOW, SPORT, MARKETS, list(PROPS)))
+        by = {(r['book'], r['side']): r for r in rows}
+        self.assertEqual(by[('draftkings', 'Over')]['settlement_basis'], 'published_rules')
+        self.assertTrue(by[('draftkings', 'Over')]['settlement_source'].startswith('https://'))
+        mgm = by[('betmgm', 'Over')]
+        self.assertEqual(mgm['settlement_basis'], 'assumed_standard')
+        self.assertTrue(mgm['settlement_verified'])
+        self.assertIsNone(mgm['settlement_source'], 'no source is claimed for an assumed rule')
+        self.assertIn('Assumed standard rules', mgm['settlement_scope'])
+        self.assertEqual(mgm['settlement_profile'], by[('draftkings', 'Over')]['settlement_profile'])
+        self.assertEqual(by[('draftkings', 'Over')]['other_books'], 1)
+        # A book absent from the config stays unverified and outside the market.
+        event['bookmakers'].append(book('unlisted', -105, -115))
+        rows = compare(flatten(event, NOW, SPORT, MARKETS, list(PROPS)))
+        other = next(r for r in rows if r['book'] == 'unlisted')
+        self.assertFalse(other['settlement_verified'])
+        self.assertIsNone(other['settlement_basis'])
+        self.assertEqual(next(r for r in rows if r['book'] == 'draftkings')['other_books'], 1)
+
+    def test_methods_page_labels_assumed_rules(self):
+        from nhl.site import settlement_rules
+        html = settlement_rules()
+        bovada = html[html.index('<td>Bovada</td>'):].split('</tr>')[0]
+        self.assertIn('assumed standard; not yet checked', bovada)
+        self.assertIn('Not yet checked', bovada)
+        self.assertNotIn('href', bovada)
+        draftkings = html[html.index('<td>DraftKings</td>'):].split('</tr>')[0]
+        self.assertNotIn('assumed', draftkings)
+        self.assertIn('Published rules', draftkings)
+        betmgm = html[html.index('<td>BetMGM</td>'):].split('</tr>')[0]
+        self.assertIn('Published rules</a> (game bets)', betmgm)
+
     def test_poisson_integer_under_excludes_push(self):
         rows = [dict(market='player_goals', player='Test Player', side=s, line=1.0) for s in ['Over', 'Under']]
         rows = baselines(rows, history(), NOW)

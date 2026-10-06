@@ -16,7 +16,7 @@ from scipy.stats import poisson
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from nba.pipeline import OddsClient as BaseOddsClient, CreditFloorError, FeedError, flatten as base_flatten, iso, normal_name, read_json, save_json, timestamp
-from nhl.v2.pricing import compare
+from nhl.v2.pricing import compare, settlement_basis
 
 UTC = timezone.utc
 SPORT = 'icehockey_nhl'
@@ -43,12 +43,13 @@ def flatten(event, now, sport=SPORT, markets=MARKETS, prop_markets=list(PROPS)):
     rows = base_flatten(event, now, sport, markets, prop_markets)
     for row in rows:
         policy = rules.get(row['book'], {})
-        profile = policy.get('player' if row['market'] in PROPS else 'game')
+        kind = 'player' if row['market'] in PROPS else 'game'
+        profile = policy.get(kind)
         row.update(nhl_game_id=event.get('nhl_game_id'), ingested_at=iso(now),
                    settlement_profile=profile or f"unverified:{row['book']}:{row['market']}",
-                   settlement_verified=bool(profile),settlement_source=policy.get('source'),
-                   settlement_scope='Standard full-game only; verify local rules and market exceptions')
+                   settlement_verified=bool(profile), **settlement_basis(policy, kind, profile))
     return rows
+
 
 
 def season_for(now):

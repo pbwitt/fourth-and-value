@@ -404,6 +404,18 @@ where week 1 showed the model most overconfident, so track moderate and NHL pick
 The tier is derivable from `expected_value` on each ticket; Phase 4 should fit the floors with
 the weight.
 
+**NHL settlement, same day.** Only DraftKings and FanDuel had player-prop settlement rules on
+file, so every NHL prop market had at most those two books, and points, assists and goals (one
+verified book each) could never pass the two-book rule. The owner chose to assume the standard
+rule (overtime counts, shootout does not, void if the player does not play) for BetMGM, Caesars,
+BetRivers, BetOnline and Bovada player props until each book's rules can be read; this session's
+network policy blocked their rules pages. They are marked `assumed` in `config/nhl_settlement.json`,
+rows carry `settlement_basis: assumed_standard`, and the NHL methods page labels them. A replay of
+the Oct 6 7 a.m. props, before the NHL board's own gates, found 12 outcomes clearing the 1% blend
+bar with DraftKings and FanDuel only, 52 with BetMGM added (opening points and assists), and 46
+with BetOnline too; with BetMGM and BetOnline, 326 of 466 SOG offers had three or more books.
+Open: read each book's published rules and replace `assumed` with a source.
+
 ### Phase 1, NHL goalies: projected starters as context (2026-10-05)
 
 - `scripts/nhl/v2/goalies.py` reads the official per-game goalie report (`api.nhle.com` stats

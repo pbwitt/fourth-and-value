@@ -133,7 +133,7 @@ def payload(board, sources, asof, config, *, instructions=INSTRUCTIONS, schema=S
               'push_probability', 'estimated_ev', 'minimum_acceptable_odds', 'signal_type',
               'key_drivers', 'uncertainties', 'goalie_assumption', 'lineup_assumption', 'invalidation_conditions',
               'projected_mean', 'model_version', 'validation_status', 'sensitivity', 'settlement_profile',
-              'settlement_scope', 'fair_odds', 'other_books', 'independent_market_difference', 'review_context', 'injury_context')
+              'settlement_scope', 'settlement_basis', 'fair_odds', 'other_books', 'independent_market_difference', 'review_context', 'injury_context')
     fields += tuple(extra_fields)
     rows = board['candidates']
     sources = [{k: s[k] for k in ('source_id', 'url', 'title', 'published_at', 'retrieved_at',
