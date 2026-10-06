@@ -57,7 +57,7 @@ All windows also have a 370-day maximum lookback.
 
 Small samples shrink toward fixed league-like priors. Missing players do not receive public league-average or 50% predictions. Teams require ten prior games, each probable starter three prior starts, and hitters 50 prior PA plus a published lineup match.
 
-These models do not explicitly use handedness, weather forecasts, injuries, umpires, lineup-wide weighted batter projections, or tactical pinch-hit/starter-hook predictions. Hitter PA is a feature, not a simulated lineup. Recent workload and the postseason indicator provide partial context but cannot replace those missing inputs.
+These models do not explicitly use handedness, weather forecasts, injuries, umpires, lineup-wide weighted batter projections, or tactical pinch-hit/starter-hook predictions. Hitter PA is a feature, not a simulated lineup. Recent workload and the postseason indicator provide partial context but cannot replace those missing inputs. Platoon (batter side vs pitcher hand) was tested on this model's own data on 2026-10-06 and not adopted: it gave no reliable gain on game-level box scores (`reports/mlb-platoon/README.md`).
 
 ## Regression, distribution and calibration
 

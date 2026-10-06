@@ -8,7 +8,7 @@ Owner: pbwitt. Started 2026-10-05. Update this file as each phase finishes.
 |---|---|---|
 | 0. Audit | Done 2026-10-05 | Findings and proposed plan below. Step 1 (housekeeping) merged and deployed 2026-10-05. |
 | 1. News and lineup data | In progress | NHL projected starting goalies (start chance and shrunk save rate from official box scores) as context only, 2026-10-05. Confirmed starters still need a permitted source. |
-| 2. Model fixes | In progress | 2026-10-06: NFL home/away multipliers refitted on 2012–2025 (passing and receiving yards ±1.4%, was ±6%); NHL v2.4 adds each player's record against our own forecasts (locked evaluation, `reports/nhl-v2.4`). MLB platoon (batter side vs pitcher hand) found useful in research; awaiting validation on the production MLB data. |
+| 2. Model fixes | In progress | 2026-10-06: NFL home/away multipliers refitted on 2012–2025 (passing and receiving yards ±1.4%, was ±6%); NHL v2.4 adds each player's record against our own forecasts (locked evaluation, `reports/nhl-v2.4`). MLB platoon (batter side vs pitcher hand) tested on the production MLB data and kept research only: no reliable gain on box scores (`reports/mlb-platoon`). |
 | 3. Market blend before betting | In progress | Step 2 (blend live on Top Picks at w = 0.25, 3% EV) merged 2026-10-05 in pbwitt/fourth-and-value#87. Step 2b (2026-10-06): 1% floor with high (≥ 3%) and moderate (1–3%) confidence tiers, and the two-book rule counts the offered book for every sport. Pinnacle reference not yet added. |
 | 4. Backtest and calibration | In progress | 2026-10-06: matchup backtest (player vs opponent, home/away splits, platoon) across NFL, NHL and MLB, `reports/matchups/`; published as research report FV-2026-03. |
 | 5. Monitoring and site | Not started | |
@@ -478,11 +478,23 @@ opponent, and home/away splits? Research only, then process for each change.
   point-in-time forecast ledger (feature schema nhl-pit-4). The locked protocol chose it on both
   validation folds; final test vs v2.3: shots −0.00220 [−0.00298, −0.00141], assists and points
   better, goals within uncertainty; calibration error at the reference lines about halved.
-- **MLB platoon**: research shows same-handed matchups have 12% fewer HR, 13% fewer walks and 8% more
-  strikeouts. Not shipped: the production model trains daily on MLB Stats API box scores, which this
-  session could not reach, and an unvalidated feature would enter the boosted models on the next run.
-  Next: add batter side and pitcher hand from `sports/1/players`, then compare `train.py` validation
-  with and without the platoon features on the same data before merging.
+- **MLB platoon** (2026-10-06, `reports/mlb-platoon/README.md`): **research only, not shipped.**
+  Batter side and pitcher hand now come from `sports/1/players` (cached per season). Point-in-time
+  platoon features cover the starters' hands, each lineup's platoon-edge share, the batter's side
+  against today's starter and his expected same-hand PA share. `scripts/mlb/platoon_study.py`
+  fitted every target with and without them on identical rows, using `train.py`'s split plus three
+  earlier 30-day windows (1,448 games), and ran in Actions on the production cache.
+  - Pooled: no market significantly better or worse. Total bases −0.80 ×10⁻⁴ Brier
+    (−1.77 to +0.20); hits, HR and RBIs within ±1.
+  - `train.py`'s own split: moneylines (+36 [+5, +66]) and run lines (+32 [+8, +55]) were
+    significantly worse.
+  - The 2025 postseason home-run check flipped from pass to fail, so the calibration guard fails.
+  - Why: box scores record game totals, not each plate appearance, and managers already platoon.
+    Same-hand vs opposite-hand outcomes relative to each batter's rolling rate differ by about 1%
+    for HR (2% in the wrong direction for hits), against 12% per PA in Retrosheet.
+  - `PLATOON_LIVE` stays `False`. The study reruns on model-code PRs (`mlb-platoon-study.yml`).
+  - Next, if revisited: plate-appearance data from the Stats API play-by-play feed, with platoon
+    as a per-PA multiplier fitted on earlier seasons.
 - **Player snapshot**: the Form tab lists past meetings with tonight's opponent (NHL archive and live
   seasons, NFL career logs, MLB loaded history) as context only, labeled as not a model input.
 
