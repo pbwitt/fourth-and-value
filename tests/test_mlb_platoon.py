@@ -161,6 +161,10 @@ class StudyRuleTests(unittest.TestCase):
         # A noisy market's large negative change cannot outvote precise small harms.
         noisy={**slightly_worse,'h2h':self.market((-20e-4,-60e-4,20e-4))}
         self.assertGreater(study.decide(noisy,self.reports(),self.reports())['weighted_brier_change'],0)
+        # Identical forecasts (zero-width interval) cannot pull the average to zero.
+        unchanged={**slightly_worse,'pitcher_strikeouts':self.market((0,0,0))}
+        self.assertAlmostEqual(study.decide(unchanged,self.reports(),self.reports())['weighted_brier_change'],1e-5)
+        self.assertFalse(study.decide(unchanged,self.reports(),self.reports())['ship'])
         better={**slightly_worse,'batter_home_runs':self.market((-3e-4,-5e-4,-1e-4))}
         self.assertTrue(study.decide(better,self.reports(),self.reports())['ship'])
         drift={**better,'totals':self.market((0,-1e-4,1e-4),ece=(.01,.002,.018))}

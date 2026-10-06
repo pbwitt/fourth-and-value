@@ -35,7 +35,8 @@ RULE = dict(
     interval='95% percentile interval from 2,000 bootstrap resamples of whole games.',
     worse='A market is worse when its pooled Brier or log-loss interval lies entirely above zero.',
     better='A market is better when its pooled Brier interval lies entirely below zero.',
-    neutral='The precision-weighted average of the nine pooled Brier changes is at or below zero.',
+    neutral='The precision-weighted average of the pooled Brier changes is at or below zero; a market whose '
+            'forecasts are identical with and without platoon carries no weight.',
     calibration=f'No market\'s pooled calibration gap rises by more than {ECE_TOLERANCE} with an interval entirely '
                 'above zero, and no market that passes train.py\'s regular-season or postseason checks without '
                 'platoon fails them with it.',
@@ -147,8 +148,11 @@ def decide(pool, primary, postseason):
     scored = {m: r for m, r in pool.items() if r.get('forecasts')}
     worse = [m for m, r in scored.items() if r['brier']['low'] > 0 or r['log_loss']['low'] > 0]
     better = [m for m, r in scored.items() if r['brier']['high'] < 0]
-    precision = {m: (3.92/max(r['brier']['high']-r['brier']['low'], 1e-12))**2 for m, r in scored.items()}
-    average = float(sum(precision[m]*r['brier']['mean'] for m, r in scored.items())/sum(precision.values()))
+    # A market whose forecasts are identical either way (the rolling model won both times)
+    # has a zero-width interval and carries no evidence, so it gets no weight.
+    precision = {m: (3.92/(r['brier']['high']-r['brier']['low']))**2 for m, r in scored.items()
+                 if r['brier']['high'] > r['brier']['low']}
+    average = float(sum(p*scored[m]['brier']['mean'] for m, p in precision.items())/sum(precision.values())) if precision else 0.
     ece = [m for m, r in scored.items() if r['ece']['mean'] > ECE_TOLERANCE and r['ece']['low'] > 0]
     flips = [f'{name}:{m}' for name, report in [('regular', primary), ('postseason', postseason)]
              for m in MARKETS if report['without'].get(m, {}).get('passed') and not report['with'].get(m, {}).get('passed')]
