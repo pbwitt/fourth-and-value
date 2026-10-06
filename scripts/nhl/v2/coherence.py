@@ -31,6 +31,7 @@ from scipy.stats import nbinom, poisson
 
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[2])); __package__ = 'nhl.v2'
+from .models import NB_KINDS, OPPONENT_KINDS
 from .arbitrage import contains, subject
 from .data import ROOT, iso, stamp, write_json
 from .pricing import decimal, key
@@ -64,10 +65,10 @@ def distribution(models, manifest):
         model = models['shots' if j == 0 else 'scoring']
         if model.kind == 'opportunity_hurdle':
             return None   # No negative-binomial or Poisson marginal to invert.
-        # The opponent-adjusted kind forecasts from its adjusted means (inference stores them).
-        fields.append('base_means' if model.kind == 'rate_poisson' else 'adjusted_means' if model.kind == 'opportunity_nb_opp'
+        # Opponent- and player-adjusted kinds forecast from their adjusted means (inference stores them).
+        fields.append('base_means' if model.kind == 'rate_poisson' else 'adjusted_means' if model.kind in OPPONENT_KINDS
                       else 'opportunity_means')
-        alphas.append((model.alpha_shots if j == 0 else model.alpha_scoring) if model.kind in ('opportunity_nb', 'opportunity_nb_opp') else 0.)
+        alphas.append((model.alpha_shots if j == 0 else model.alpha_scoring) if model.kind in NB_KINDS else 0.)
     return dict(version=manifest['version'], means_fields=fields, alphas=alphas, ot_home=float(models['team'].ot_home),
                 artifact_sha256=manifest['artifact_sha256'])
 

@@ -11,11 +11,11 @@ import numpy as np
 from nba.pipeline import normal_name
 from . import VERSION, FEATURE_SCHEMA
 from .data import ROOT, load, stamp, iso, digest, write_json
-from .features import history_at, weighted, matchup as opponent_fields
+from .features import history_at, forecast_ledger, weighted, matchup as opponent_fields
 from .models import outcome, game_outcome
 from .pricing import compare, price, signal
 from .review import apply_review, validate_review
-from player_context import describe, nhl_context, versus, opposing
+from player_context import describe, nhl_context, versus, opposing, meetings
 
 MARKETS=['player_shots_on_goal','player_goals','player_assists','player_points']
 POSITIONS={'C':'C','L':'LW','R':'RW','D':'D'}
@@ -60,6 +60,10 @@ def annotate(rows,games,players,events,models,manifest,now,history_checked_at,ro
         raise ValueError('Model artifact requires annual retraining')
     if not timedelta(0)<=now-stamp(history_checked_at)<timedelta(hours=36): raise ValueError('Stale independent-model inputs')
     state=history_at(games,players,now)
+    # nhl-v2.4: each player's record against his own pre-game forecasts (archive totals in the
+    # bundle, later seasons rebuilt here). Kinds without a player adjustment ignore it.
+    if any(models[k].kind=='opportunity_nb_opp_player' for k in ('shots','scoring')):
+        state.ledger=forecast_ledger(games,players,now,models.get('ledger'),models.get('ledger_through_season'))
     event_map={g['nhl_game_id']:g for g in events}
     team_ids={}
     for g in games:
@@ -74,6 +78,21 @@ def annotate(rows,games,players,events,models,manifest,now,history_checked_at,ro
     def opponent(r):
         ids=sides.get(r.get('game_id'))
         return versus(r.get('home'),abbrev.get(ids[1] if r.get('home') else ids[0])) if ids else None
+    def opponent_id(r):
+        ids=sides.get(r.get('game_id'))
+        return (ids[1] if r.get('home') else ids[0]) if ids else None
+    appearances={}
+    for r in sorted(players,key=lambda r:(r['game_date'],r['game_id'])):
+        appearances.setdefault(r['player_id'],[]).append(r)
+    def against(pid,g,records,stat):
+        """Display only: his completed games against tonight's opponent."""
+        team=records[-1].get('team_id')
+        if team not in (g['home_id'],g['away_id']):
+            return None
+        rival=g['away_id'] if team==g['home_id'] else g['home_id']
+        rows=[r for r in appearances.get(pid,[]) if opponent_id(r)==rival and r['game_date']<g['game_date']
+              and stamp(r['available_at'])<=now]
+        return meetings(rows,lambda r:r['game_date'],lambda r:r.get(stat),abbrev.get(rival),lambda r:r.get('home'))
     defenses={}
     def matchup(g,records):
         """Display only: the opponent's recency-weighted shots and goals allowed, as the game-line model sees them."""
@@ -142,11 +161,13 @@ def annotate(rows,games,players,events,models,manifest,now,history_checked_at,ro
                     cache[('team',g['game_id'])]=state.team_features(g,now)
                 features.update(opponent_fields(cache[('team',g['game_id'])],g,records[-1].get('team_id')))
                 features['adjusted_means']=[models['shots'].means(features)[0],*models['scoring'].means(features)[1:]]
+                features['player_factors']=[models['shots'].player_factors(features)[0],models['scoring'].player_factors(features)[1]]
                 cache[k]=(features,models['shots'].pmfs(features)[0],models['scoring'].pmfs(features))
             f,shots,scoring=cache[k]; j=MARKETS.index(row['market']); pmf=shots if j==0 else scoring[j]
             row['model_inputs']=f
             row['player_context']=describe(nhl_context,records,f,j,models['shots' if j==0 else 'scoring'].kind,VERSION,opponent,
-                                           g['game_date'],pmf,describe(matchup,g,records))
+                                           g['game_date'],pmf,describe(matchup,g,records),
+                                           describe(against,pid,g,records,['shots','goals','assists','points'][j]))
             probs=outcome(pmf,row['line'],row['side'])
             # Scenario bounds, not confidence intervals or evidence of a learned injury effect.
             scenario=[]

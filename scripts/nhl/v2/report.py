@@ -18,8 +18,8 @@ def render(root=None):
     if report['version']!=VERSION:
         raise ValueError(f"{root} holds {report['version']} results; this code renders {VERSION}")
     differences={}
-    # Baselines: the simple rate models, and the previous production player kind when it was scored.
-    for kind,baselines in [('team',['rate']),('player',['rate_poisson','opportunity_nb'])]:
+    # Baselines: the simple rate models, and the previous production player kind (v2.3) when it was scored.
+    for kind,baselines in [('team',['rate']),('player',['rate_poisson','opportunity_nb_opp'])]:
         grouped=defaultdict(dict)
         with gzip.open(root/f'{kind}-predictions.jsonl.gz','rt') as f:
             for line in f:

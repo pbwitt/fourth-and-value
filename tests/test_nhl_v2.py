@@ -11,7 +11,7 @@ import numpy as np
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from nhl.v2.data import normalize,stamp
-from nhl.v2.features import build,History,decision_time
+from nhl.v2.features import build,History,decision_time,forecast_ledger,ledger_rows
 from nhl.v2.models import TeamModel,PlayerModel,count_pmf,outcome,game_outcome
 from nhl.v2.pricing import compare,price,decimal,fit_blend
 from nhl.v2.grading import settle,select,closing_value,betting_metrics
@@ -65,6 +65,28 @@ class PointInTimeTests(unittest.TestCase):
                               shots=shots,goals=1,assists=1,points=2,
                               available_at=(datetime.fromisoformat(date).replace(tzinfo=timezone.utc)+timedelta(days=1,hours=12)).isoformat()))
         return h
+
+    def test_forecast_ledger_counts_only_arrived_games_and_rebuilds_later_seasons(self):
+        games=[game(1,'2025-10-07'),game(2,'2025-10-08'),game(3,'2025-10-09')]
+        players=[dict(game_id=g['game_id'],game_date=g['game_date'],available_at=g['available_at'],player_id=5,player='Test',
+                      position='C',toi=20,shots=s,goals=0,assists=1,points=1) for g,s in zip(games,[2,5,3])]
+        rows=build(games,players)[1]
+        self.assertIsNone(rows[0]['player_actual'],'no earlier games, no ledger')
+        self.assertEqual(rows[1]['player_actual'],[2,0,1,1])
+        self.assertEqual(rows[1]['player_expected'],rows[0]['opportunity_means'])
+        self.assertEqual(rows[2]['player_actual'],[7,0,2,2],'game 2 had arrived by game 3')
+        self.assertEqual(rows[2]['player_actual'][0],2+5)
+        after=stamp(games[-1]['available_at'])+timedelta(hours=1)
+        full=forecast_ledger(games,players,after)
+        np.testing.assert_allclose(full[5],ledger_rows(rows)[5])
+        # Archive totals for 2025-26 plus a rebuilt 2026-27 game equal one full rebuild.
+        later=dict(game(4,'2026-10-08'),season=20262027)
+        extra=dict(players[0],game_id=4,game_date=later['game_date'],available_at=later['available_at'],shots=6)
+        whole=forecast_ledger(games+[later],players+[extra],stamp(later['available_at'])+timedelta(hours=1))
+        split=forecast_ledger(games+[later],players+[extra],stamp(later['available_at'])+timedelta(hours=1),ledger_rows(rows),20252026)
+        np.testing.assert_allclose(whole[5],split[5])
+        before=forecast_ledger(games,players,stamp(games[1]['available_at'])-timedelta(hours=1))
+        self.assertEqual(list(before[5][:4]),[2,0,1,1],'game 2 results not yet available')
 
     def test_offseason_or_injury_gap_does_not_age_player_history(self):
         h=self.appearances(range(0,40,2))
@@ -147,7 +169,7 @@ class ProbabilityTests(unittest.TestCase):
 
     def test_player_shared_scoring_mean_and_fast_batch_agree(self):
         rows=[dict(opportunity_means=[3,.4,.6,1],base_means=[2,.3,.4,.7],targets=[4,1,1,2])]*20
-        for name in ['rate_poisson','opportunity_poisson','opportunity_nb','opportunity_hurdle','opportunity_nb_opp']:
+        for name in ['rate_poisson','opportunity_poisson','opportunity_nb','opportunity_hurdle','opportunity_nb_opp','opportunity_nb_opp_player']:
             m=PlayerModel(name).fit(rows);p=m.pmfs(rows[0]);batch=m.fast_pmfs(rows[:1]);n=np.arange(48)
             self.assertAlmostEqual(p[1]@n+p[2]@n,p[3]@n,places=6)
             for a,b in zip(p,batch):np.testing.assert_allclose(a,b[0],atol=1e-8)
@@ -167,6 +189,25 @@ class ProbabilityTests(unittest.TestCase):
         self.assertLess(m.means(tough)[0],3)
         self.assertAlmostEqual(sum(m.means(tough)[1:3]),m.means(tough)[3],places=9)
         self.assertEqual(PlayerModel('opportunity_nb').fit(rows).means(tough),[3,.4,.6,1],'other kinds ignore the opponent')
+
+    def test_player_kind_learns_a_persistent_bias_and_defaults_to_one(self):
+        rng=np.random.default_rng(3);rows=[]
+        for p in range(200):
+            bias=[.8,1.,1.25][p%3];actual=np.zeros(4);expected=np.zeros(4)
+            for g in range(40):
+                m=np.array([2.5,.3,.45,.75]);goals,assists=rng.poisson(m[1]*bias),rng.poisson(m[2]*bias)
+                t=[int(rng.poisson(m[0]*bias)),int(goals),int(assists),int(goals+assists)]
+                rows.append(dict(opportunity_means=list(m),base_means=list(m),opp_shots_against=30.,opp_goals_against=3.,targets=t,
+                                 player_actual=list(actual) if g else None,player_expected=list(expected) if g else None))
+                actual+=t;expected+=m
+        m=PlayerModel('opportunity_nb_opp_player').fit(rows)
+        self.assertTrue(np.isfinite(m.k_shots) and np.isfinite(m.k_scoring),'a real bias earns a finite prior strength')
+        self.assertEqual(m.player_factors(rows[0]),(1.,1.),'no earlier forecasts, no adjustment')
+        hot=dict(rows[0],player_actual=[150,10,20,30],player_expected=[100,8,12,20])
+        shots,scoring=m.player_factors(hot)
+        self.assertGreater(shots,1);self.assertGreater(scoring,1);self.assertLessEqual(scoring,2)
+        means=m.means(hot);self.assertAlmostEqual(means[1]+means[2],means[3],places=9)
+        self.assertEqual(PlayerModel('opportunity_nb_opp').fit(rows).player_factors(hot),(1.,1.),'other kinds ignore the ledger')
 
     def test_push_aware_fair_ev_minimum(self):
         r=price(dict(win=.45,push=.1,loss=.45),110,lower_win=.4)
@@ -305,6 +346,16 @@ class SiteContractTests(unittest.TestCase):
         again=annotate(changed,past,players,events,models,manifest,NOW,NOW.isoformat())
         self.assertEqual([r['independent_probability'] for r in out],[r['independent_probability'] for r in again])
         with self.assertRaises(ValueError):annotate(rows,past,players,events,models,manifest,NOW,(NOW-timedelta(hours=37)).isoformat())
+        # nhl-v2.4: the player kind reads the forecast ledger; his games against tonight's opponent are context.
+        pk=PlayerModel('opportunity_nb_opp_player').fit(pr)
+        v24=dict(team=tm,shots=pk,scoring=pk,ledger={},ledger_through_season=20242025)
+        teamed=[dict(r,home=True,team_id=1,team_abbrev='HOM') for r in players]+[dict(r,player_id=9,player='Other',home=False,team_id=2,team_abbrev='AWY') for r in players]
+        out24=annotate(copy.deepcopy(rows),past,teamed,events,v24,manifest,NOW,NOW.isoformat())
+        self.assertTrue(all(r['model_probability'] is not None for r in out24))
+        shots=out24[0]['player_context']
+        self.assertIn('His results vs. our forecasts',[i['label'] for i in shots['inputs']])
+        self.assertEqual(shots['versus']['team'],'AWY');self.assertEqual(shots['versus']['values'],[3,3])
+        self.assertEqual(shots['versus']['home'],[True,True],'both meetings were home games')
         ambiguous=players+[dict(players[-1],player_id=6)]
         out=annotate(copy.deepcopy(rows),past,ambiguous,events,models,manifest,NOW,NOW.isoformat())
         self.assertTrue(all(r['model_probability'] is None for r in out[:4]))

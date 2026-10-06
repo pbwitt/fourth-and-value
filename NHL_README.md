@@ -6,11 +6,12 @@ distributions. It keeps independent forecasts, exact paired market consensus and
 pricing separate. All betting recommendations remain disabled: four-season predictive
 testing does not establish an executable betting edge.
 
-- [v2.3 change: opponent defense in player forecasts](reports/nhl-v2.3/README.md) (current model)
+- [v2.4 change: each player's record against our own forecasts](reports/nhl-v2.4/README.md) (current model)
+- [v2.3 change: opponent defense in player forecasts](reports/nhl-v2.3/README.md)
 - [v2.2 change: player history aged by games played](reports/nhl-v2.2/README.md)
 - [Actual evaluation and limitations](reports/nhl-rebuild/EVALUATION.md) (v2.1)
 - [Historical market comparison](reports/nhl-rebuild/HISTORICAL_MARKETS.md)
-- [Model card](reports/nhl-rebuild/MODEL_CARD.md) (v2.1; v2.2 changes player-history aging and v2.3 adds the opponent adjustment)
+- [Model card](reports/nhl-rebuild/MODEL_CARD.md) (v2.1; v2.2 changes player-history aging, v2.3 adds the opponent adjustment and v2.4 the player adjustment)
 - [Sources and blocked inputs](reports/nhl-rebuild/SOURCES.md)
 - [Public contract](reports/nhl-rebuild/CONTRACT.md)
 - [Build, operations, analyst review and rollback](reports/nhl-rebuild/RUNBOOK.md)
@@ -26,7 +27,7 @@ make nhl_test PY=.venv/bin/python
 Install `requirements-nhl.txt` for the pinned model stack. Restore archived source data
 with `scripts/nhl/v2/restore.py`, run `make nhl_evaluate`, and render the report with
 `scripts/nhl/v2/report.py`. Both write to the current version's report folder
-(`reports/nhl-v2.3`) and refuse to overwrite an earlier version's evidence. Training is separate from daily inference. A bounded historical game-price sample uses the existing authorized odds plan; no
+(`reports/nhl-v2.4`) and refuse to overwrite an earlier version's evidence. Training is separate from daily inference. A bounded historical game-price sample uses the existing authorized odds plan; no
 upgrade or restricted xG dataset is used.
 
 Routes: `/nhl/`, `/nhl/props/`, `/nhl/totals/`, `/nhl/top.html`, `/nhl/methods.html`.

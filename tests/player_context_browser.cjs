@@ -55,6 +55,7 @@ const server=http.createServer((req,res)=>{
       distribution:{start:0,p:[.05,.15,.22,.22,.17,.1,.05,.04],low:false,high:true},
       blend:[{label:'Production rate',own:.86,detail:'Recency-weighted games; the rest is the position average'},{label:'Ice time',own:.41,detail:'Recency-weighted games; the rest is the position average'}],
       opponent:{team:'CHI',label:'Opposing defense',items:[{label:'Shots allowed per game',value:31.9,unit:'',league:29.8,rank:'4th most of 32',used:false},{label:'Regulation goals allowed per game',value:3.21,unit:'',league:2.9,rank:'3rd most of 32',used:false}]},
+      versus:{team:'CHI',values:[2,4,3,4],home:[false,true,false,true],since:'2025-01-05',note:'History only, not a model input. In our backtests, results against one opponent did not predict the next meeting beyond a player’s overall form.'},
       missing:['Opponent defense and goalie','Linemates and power-play role','Injuries and late lineup changes'],
       inputs:[{label:'Projected ice time',value:20.4,unit:'min',used:true,detail:'Prior-adjusted workload estimate'},
         {label:'Weighted SOG / 60',value:9.12,used:true,detail:'Prior-adjusted production per 60 minutes'}],
@@ -78,8 +79,11 @@ const server=http.createServer((req,res)=>{
         assert.equal(await pop.locator('.pc-log tbody tr').count(),sport==='mlb'?5:2,'recent games');
         const text=await pop.textContent();
         assert.match(text,/Recent games/);assert.match(text,/What goes into the forecast/);assert.doesNotMatch(text,/NaN|undefined|null/);
-        if(sport==='mlb'){assert.match(text,/Pitches \/ start/);assert.match(text,/6⅓/);assert.match(text,/28 starts · 160⅔ IP/);}
-        else{assert.match(text,/21:12/);await pop.locator('.pc-pop-link a[href="/nhl/players/example-player/"]').waitFor({state:'visible'});}
+        if(sport==='mlb'){assert.match(text,/Pitches \/ start/);assert.match(text,/6⅓/);assert.match(text,/28 starts · 160⅔ IP/);assert.doesNotMatch(text,/Against /);}
+        else{assert.match(text,/Against CHI3\.3 SOG per game in 4 meetings since Jan 5, 2025 · Over 2\.5 in 3 of 4/);
+          assert.match(text,/Home · vs CHI4 per game in 2 · Over 2\.5 in 2 of 2/);assert.match(text,/Away · @ CHI2\.5 per game in 2 · Over 2\.5 in 1 of 2/);
+          assert.equal(await pop.locator('.pc-vs-split div').count(),2);assert.match(text,/History only, not a model input/);
+          assert.match(text,/21:12/);await pop.locator('.pc-pop-link a[href="/nhl/players/example-player/"]').waitFor({state:'visible'});}
         const box=await pop.boundingBox(),nameBox=await name.boundingBox();
         if(width<=600){assert.match(await pop.getAttribute('class'),/pc-sheet/);assert(Math.abs(box.y+box.height-1050)<=1,'bottom sheet');}
         else{assert(box.y>=nameBox.y+nameBox.height||box.y+box.height<=nameBox.y,'anchored beside the name');assert(box.x+box.width<=width,'inside the viewport');}

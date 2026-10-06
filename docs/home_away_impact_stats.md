@@ -1,5 +1,12 @@
 # Home/Away Field Advantage - Implementation Impact Analysis
 
+> **Superseded (2026-10-06).** The fixed multipliers analyzed below (±6% for passing and receiving
+> yards) were replaced by values measured on every completed regular season from 2012 to 2025, which
+> put the passing and receiving gap near ±1.4%. See `reports/matchups/nfl_venue.json`, the methods page
+> (`/methods.html`) and the research report *Player Matchups and Home Field*. This file is kept as the
+> record of the original rollout.
+
+
 **Date**: 2025-10-08
 **Week**: 6
 **Implementation**: Phase 1 (Simple Multiplier Approach)

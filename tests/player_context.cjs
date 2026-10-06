@@ -94,6 +94,23 @@ assert.match(rush,/56–70 rush yds: 18\.9%/);assert.match(rush,/≤10 rush yds:
 assert.match(rush,/spread of ±30 rush yds/);assert.match(rush,/Offensive line injuries/);assert.doesNotMatch(rush,/NaN|undefined|null|≤−/);
 const total=[...rush.matchAll(/data-readout="[^"]* rush yds: ([\d.]+)%"/g)].reduce((a,m)=>a+Number(m[1]),0);
 assert(Math.abs(total-100)<.5,`the bins hold the whole curve (${total})`);
+// Against tonight's opponent: one sentence over every meeting, then home and away lines; never a model input.
+const versus={team:'WAS',values:[40,95,70,55,62,77],home:[true,false,true,null,false,true],since:'2021 Wk 3',
+  note:'History only, not a model input. In our backtests, results against one opponent did not predict the next meeting beyond a player’s overall form.'};
+const met=snapshot({player:'Back',market_std:'rush_yds',name:'under',point:70.5,mu:72.2,model_prob:.47,push_prob:0,prob_devig:.5,mkt_prob:.52,
+  projection_diagnostics:JSON.stringify({...back,versus})},'NFL');
+assert.match(met,/<h4>Against WAS<\/h4><p class="pc-vs-sum"><strong>66\.5<\/strong> rush yds per game in 6 meetings since 2021 Wk 3 · Under 70\.5 in 4 of 6<\/p>/);
+assert.match(met,/<dt>Home · vs WAS<\/dt><dd><strong>62\.3<\/strong> per game in 3 · Under 70\.5 in 2 of 3<\/dd>/,'unknown venues stay out of both lines');
+assert.match(met,/<dt>Away · @ WAS<\/dt><dd><strong>78\.5<\/strong> per game in 2 · Under 70\.5 in 1 of 2<\/dd>/);
+assert.doesNotMatch(met.slice(met.indexOf('<h4>Against'),met.indexOf('Read the research')),/<table/,'no meetings table');
+assert.match(met,/History only, not a model input\..*href="\/research\/player-matchups-and-home-field\.html"/);
+assert.doesNotMatch(rush,/Against WAS/,'no history, no section');
+const unknown=snapshot({player:'Back',market_std:'rush_yds',name:'under',point:70.5,mu:72.2,projection_diagnostics:JSON.stringify({...back,versus:{...versus,home:undefined}})},'NFL');
+assert.match(unknown,/in 6 meetings/);assert.doesNotMatch(unknown,/pc-vs-split/,'no venues, no split lines');
+const pushes=snapshot({player:'Skater',market:'player_shots_on_goal',side:'Over',line:3,projected_mean:3,player_context:{schema_version:1,source:'NHL',
+  sample_label:'appearances',stat_label:'SOG',recent:[],versus:{team:'<b>CHI</b>',values:[3,4,2],home:[true,true,false],since:'2025-01-02'}}},'NHL');
+assert.match(pushes,/Against &lt;b&gt;CHI&lt;\/b&gt;.*since Jan 2, 2025 · Over 3 in 1 of 3 \(1 push\)/s);
+assert.match(pushes,/Home · vs &lt;b&gt;CHI&lt;\/b&gt;<\/dt><dd><strong>3\.5<\/strong> per game in 2 · Over 3 in 1 of 2 \(1 push\)/);assert.doesNotMatch(pushes,/<b>CHI/);
 const catcher={...back,family:'receive',targets:7.1,catch_rate:.66,yards_per_reception:11.8,sigma:2.1,home:false,opponent:{team:'BUF',kind:'pass',rating:.8,rank:25,of:32},
   current_sample:[{season:2026,week:4,opponent_team:'MIA',targets:6,receptions:4,receiving_yards:52}],mean_stages:{before_adjustments:4.69,after_defense:4.69,after_venue:4.69,final:4.69}};
 const catches=snapshot({player:'WR',market_std:'receptions',name:'under',point:5,mu:4.69,model_prob:.52,push_prob:.17,prob_devig:.5,mkt_prob:.55,projection_diagnostics:JSON.stringify(catcher)},'NFL');

@@ -90,6 +90,7 @@
       trend:{label,note:weight?`This season’s games count ${weight} in the ${workName.toLowerCase()} estimate; his career and the position average fill the rest.`:'Recent games this season.',
         rows:sample.map(g=>[finite(g.week)?'Wk '+g.week:'',g[stat],null,g.opponent_team?'vs '+g.opponent_team:null,g[workKey]])},
       blend,opponent:items.length?{team:o?.team,label:`Opposing ${side} defense`,items}:null,
+      versus:p.versus&&typeof p.versus==='object'?p.versus:null,
       distribution:bins?{bins,count:!/_yds$/.test(market),sigma:p.sigma,center}:null,
       missing:family==='pass'?['Weather and wind','Game script (trailing teams pass more)','Teammate injuries and target changes']
         :family==='rush'?['Game script (leading teams run more)','Offensive line injuries','Goal-line and short-yardage roles']
@@ -269,6 +270,29 @@
       recent.map(w=>`<tr><th scope="row">Last ${w.games}</th><td>${fmt(w.mean,'',sport)}</td><td>${withUnit(w.workload,c.workload_unit,sport)}</td></tr>`).join('')}</tbody></table></div>`;
   }
   const statName=c=>({att:'Attempts',cmp:'Completions'})[c.stat_label]||String(c.stat_label||'').replace(/^[a-z]/,x=>x.toUpperCase());
+  // Results against tonight's opponent: history only, never a model input. One sentence over
+  // every recorded meeting, then home and away lines; each counts results at tonight's line.
+  function versusHTML(c,r,sport){
+    const v=c?.versus,venue=Array.isArray(v?.home)?v.home:[];
+    const pairs=(Array.isArray(v?.values)?v.values:[]).map((x,i)=>[x,venue[i]]).filter(([x])=>finite(x));
+    if(!v||!v.team||!pairs.length)return '';
+    const line=lineOf(r),side=sideOf(r),per=c.sample_label==='starts'?'start':'game';
+    const record=values=>{
+      if(line===null)return '';
+      const wins=values.filter(x=>winner(x,line,side)===true).length,push=values.filter(x=>x===line).length;
+      return ` · ${side} ${lineText(line)} in ${wins} of ${values.length}${push?` (${push} push${push===1?'':'es'})`:''}`;
+    };
+    const values=pairs.map(([x])=>x),team=esc(v.team);
+    const since=/^\d{4}-\d{2}-\d{2}$/.test(v.since||'')?date(v.since):esc(v.since||'');
+    const split=[[true,'Home','vs'],[false,'Away','@']].map(([home,label,word])=>{
+      const xs=pairs.filter(([,h])=>h===home).map(([x])=>x);
+      return xs.length?`<div><dt>${label} · ${word} ${team}</dt><dd><strong>${fmt(avgOf(xs),'',sport)}</strong> per ${per} in ${xs.length}${record(xs)}</dd></div>`:'';
+    }).join('');
+    return `<h4>Against ${team}</h4><p class="pc-vs-sum"><strong>${fmt(avgOf(values),'',sport)}</strong> ${esc(c.stat_label)} per ${per} in ${values.length} meeting${values.length===1?'':'s'}${since?` since ${since}`:''}${record(values)}</p>`
+      +(split?`<dl class="pc-vs-split">${split}</dl>`:'')
+      +`<p class="pc-chart-note">${esc(v.note||'History only, not a model input.')} <a href="/research/player-matchups-and-home-field.html">Read the research</a></p>`;
+  }
+  const avgOf=values=>values.reduce((a,b)=>a+b,0)/values.length;
   const workName=(c,sport)=>({IP:'IP',min:sport==='NHL'?'TOI':'Minutes',PA:'PA',att:'Attempts',car:'Carries',tgt:'Targets'})[c.workload_unit]||c.workload_label||'Workload';
   // ---- Small charts: inline SVG. Every value is also in text (caption, readout, tables, chart label). ----
   const W=320;
@@ -501,7 +525,7 @@
     const model=inputs.length?`<h4>What goes into the forecast</h4><dl class="pc-pop-inputs">${inputs.map(i=>`<div><dt>${esc(i.label)}</dt><dd>${withUnit(i.value,i.unit,sport)}${i.used===false?' <span class="pc-kind">Context only</span>':''}</dd></div>`).join('')}</dl>`:'';
     const source=c?`${esc(c.source)}${date(c.through)?' · through '+esc(date(c.through)):''}${options.saved?' · saved with this forecast':''}`:'';
     const note=c?.note?`<details class="pc-pop-note"><summary>About these numbers</summary><p>${esc(c.note)}</p></details>`:'';
-    const formPanel=(c?trendChart(c,r,sport):'')+form+(c?gameLog(c,sport,recent):'')+seasonLine(options.season);
+    const formPanel=(c?trendChart(c,r,sport):'')+form+(c?gameLog(c,sport,recent)+versusHTML(c,r,sport):'')+seasonLine(options.season);
     const modelPanel=c?buildHTML(c,sport)+distChart(c,r,sport)+opponentHTML(c,sport)+blendHTML(c)+model+missingHTML(c)+note:'';
     const record=sport!=='NBA'&&trackSource(sport);
     const tabs=[['form','Form',formPanel],['model','How it works',modelPanel],...(record?[['record','Track record','<div class="pc-record"><p class="pc-chart-note">Loading the track record…</p></div>']]:[])]

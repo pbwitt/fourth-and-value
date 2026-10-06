@@ -123,79 +123,81 @@
 
         <p class="note"><em>Note: In practice, defensive ratings typically range from 0.5 to ~1.5 early in the season, so actual adjustments are usually in the ±7% to ±15% range.</em></p>
 
-        <h4>B. Home/Away field advantage adjustments</h4>
-        <p>After defensive adjustments, we apply home field advantage multipliers to account for location-based performance differences.</p>
+        <h4>B. Home/Away adjustments</h4>
+        <p>After defensive adjustments, the mean is multiplied by a home or away factor for the market. The factors are measured, not assumed: across every completed regular season from 2012 to 2025 (nflverse box scores), we compare what players produced at home and away with what the same baseline forecast expected, and divide each by the overall ratio so only the venue gap remains. Neutral-site games are left out of the fit.</p>
 
-        <p><strong>Why this matters:</strong> NFL data shows consistent home field advantage across all positions. Home teams score 2-4 more points per game on average. This stems from:</p>
-        <ul>
-          <li>Crowd noise disrupting opponent communication (helps your offense)</li>
-          <li>Familiarity with field conditions, locker rooms, and routine</li>
-          <li>Reduced travel fatigue and timezone changes</li>
-          <li>Referee bias (subtle but measurable)</li>
-        </ul>
-
-        <p><strong>Implementation approach:</strong> We use evidence-based multipliers applied to player expectations (μ) after defensive adjustments:</p>
+        <p>The gap is real but small for yardage. Earlier versions used fixed multipliers of ±6% for passing and receiving yards, about four times the measured gap; on 2024–26 games held out from fitting, the measured values gave more accurate passing-yard and receiving-yard forecasts. Pass attempts and completions get no venue factor because their measured gaps are under 1% and indistinguishable from zero.</p>
 
         <table style="border-collapse: collapse; width: 100%; margin: 12px 0;">
           <thead>
             <tr style="border-bottom: 2px solid rgba(255,255,255,0.1);">
               <th style="text-align: left; padding: 8px;">Market</th>
-              <th style="text-align: center; padding: 8px;">Home Multiplier</th>
-              <th style="text-align: center; padding: 8px;">Away Multiplier</th>
-              <th style="text-align: center; padding: 8px;">Total Spread</th>
+              <th style="text-align: center; padding: 8px;">Home</th>
+              <th style="text-align: center; padding: 8px;">Away</th>
+              <th style="text-align: center; padding: 8px;">Home 95% interval</th>
+              <th style="text-align: center; padding: 8px;">Previous fixed value</th>
             </tr>
           </thead>
           <tbody>
             <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
               <td style="padding: 8px;">Pass Yards</td>
-              <td style="text-align: center; padding: 8px;">+6.0%</td>
-              <td style="text-align: center; padding: 8px;">-6.0%</td>
-              <td style="text-align: center; padding: 8px;"><strong>12.0%</strong></td>
+              <td style="text-align: center; padding: 8px;">+1.4%</td>
+              <td style="text-align: center; padding: 8px;">−1.4%</td>
+              <td style="text-align: center; padding: 8px;">+0.6% to +2.2%</td>
+              <td style="text-align: center; padding: 8px;">±6.0%</td>
             </tr>
             <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
               <td style="padding: 8px;">Pass TDs</td>
-              <td style="text-align: center; padding: 8px;">+6.0%</td>
-              <td style="text-align: center; padding: 8px;">-6.0%</td>
-              <td style="text-align: center; padding: 8px;"><strong>12.0%</strong></td>
+              <td style="text-align: center; padding: 8px;">+4.6%</td>
+              <td style="text-align: center; padding: 8px;">−4.6%</td>
+              <td style="text-align: center; padding: 8px;">+2.8% to +6.4%</td>
+              <td style="text-align: center; padding: 8px;">±6.0%</td>
             </tr>
             <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
               <td style="padding: 8px;">Interceptions</td>
-              <td style="text-align: center; padding: 8px;">-5.0%</td>
-              <td style="text-align: center; padding: 8px;">+5.0%</td>
-              <td style="text-align: center; padding: 8px;"><strong>10.0%</strong></td>
+              <td style="text-align: center; padding: 8px;">−1.8%</td>
+              <td style="text-align: center; padding: 8px;">+1.8%</td>
+              <td style="text-align: center; padding: 8px;">−5.1% to +1.2%</td>
+              <td style="text-align: center; padding: 8px;">∓5.0%</td>
             </tr>
             <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
               <td style="padding: 8px;">Rush Yards</td>
-              <td style="text-align: center; padding: 8px;">+4.0%</td>
-              <td style="text-align: center; padding: 8px;">-4.0%</td>
-              <td style="text-align: center; padding: 8px;"><strong>8.0%</strong></td>
+              <td style="text-align: center; padding: 8px;">+2.4%</td>
+              <td style="text-align: center; padding: 8px;">−2.4%</td>
+              <td style="text-align: center; padding: 8px;">+0.9% to +3.8%</td>
+              <td style="text-align: center; padding: 8px;">±4.0%</td>
             </tr>
             <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
               <td style="padding: 8px;">Rush Attempts</td>
-              <td style="text-align: center; padding: 8px;">+2.0%</td>
-              <td style="text-align: center; padding: 8px;">-2.0%</td>
-              <td style="text-align: center; padding: 8px;"><strong>4.0%</strong></td>
+              <td style="text-align: center; padding: 8px;">+1.7%</td>
+              <td style="text-align: center; padding: 8px;">−1.7%</td>
+              <td style="text-align: center; padding: 8px;">+0.7% to +2.7%</td>
+              <td style="text-align: center; padding: 8px;">±2.0%</td>
             </tr>
             <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
               <td style="padding: 8px;">Receiving Yards</td>
-              <td style="text-align: center; padding: 8px;">+6.0%</td>
-              <td style="text-align: center; padding: 8px;">-6.0%</td>
-              <td style="text-align: center; padding: 8px;"><strong>12.0%</strong></td>
+              <td style="text-align: center; padding: 8px;">+1.4%</td>
+              <td style="text-align: center; padding: 8px;">−1.4%</td>
+              <td style="text-align: center; padding: 8px;">+0.5% to +2.2%</td>
+              <td style="text-align: center; padding: 8px;">±6.0%</td>
             </tr>
             <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
               <td style="padding: 8px;">Receptions</td>
-              <td style="text-align: center; padding: 8px;">+3.0%</td>
-              <td style="text-align: center; padding: 8px;">-3.0%</td>
-              <td style="text-align: center; padding: 8px;"><strong>6.0%</strong></td>
+              <td style="text-align: center; padding: 8px;">+0.7%</td>
+              <td style="text-align: center; padding: 8px;">−0.7%</td>
+              <td style="text-align: center; padding: 8px;">−0.1% to +1.4%</td>
+              <td style="text-align: center; padding: 8px;">±3.0%</td>
             </tr>
-            <tr>
+            <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
               <td style="padding: 8px;">Anytime TD</td>
-              <td style="text-align: center; padding: 8px;">+5.0%</td>
-              <td style="text-align: center; padding: 8px;">-5.0%</td>
-              <td style="text-align: center; padding: 8px;"><strong>10.0%</strong></td>
+              <td style="text-align: center; padding: 8px;">+5.4%</td>
+              <td style="text-align: center; padding: 8px;">−5.3%</td>
+              <td style="text-align: center; padding: 8px;">+3.8% to +6.8%</td>
+              <td style="text-align: center; padding: 8px;">±5.0%</td>
             </tr>
           </tbody>
         </table>
+        <p>Not used: a player's own home/away split and his history against one particular opponent. In our backtest of 2024–26 games, neither improved forecasts once the player's form, the opponent's defense and the venue were known; players who had "owned" an opponent did no better than expected the next time. The matchup research and the venue study are published in <a href="/research/player-matchups-and-home-field.html">Player Matchups and Home Field</a>. The player snapshot still lists those past meetings as context.</p>
 
         <h3>Player snapshots</h3>
         <p>On the player prop board, selecting a player's name on a passing, rushing or receiving prop opens a snapshot. Its <strong>How it works</strong> tab shows the projection's arithmetic:</p>
@@ -210,7 +212,7 @@
           <li>the curve's chance, conditional on no push;</li>
           <li>the published chance after calibration, which can differ from the curve.</li>
         </ul>
-        <p>The <strong>Form</strong> tab charts this season's games against the offered line. Touchdown, interception and longest-play props have no snapshot.</p>
+        <p>The <strong>Form</strong> tab charts this season's games against the offered line. Below the recent games it lists the player's games against this week's opponent from the last seven seasons, with his average and how often he cleared tonight's line. That history is context only: it is not a model input, because our research found that results against one opponent do not predict the next meeting. Touchdown, interception and longest-play props have no snapshot.</p>
 
         <h2 id="edge-nfl">4) Prices, probability and honest comparison</h2>
         <p class="updated">Reviewed September 9, 2026. Model estimates are experimental.</p>
