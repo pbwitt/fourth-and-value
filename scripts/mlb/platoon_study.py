@@ -4,7 +4,9 @@ Every target is fitted twice on identical rows, outcomes and dates: once with th
 features and once without. Splits are train.py's own: fold 0 is its regular-season test, and
 three earlier 30-day windows repeat the same 60/30/30-day recipe for more held-out games. The
 prior-postseason audit is repeated as well. Changes are paired forecast by forecast and their
-intervals resample whole games. The decision rule in RULE was fixed before any result was seen.
+intervals resample whole games. RULE was fixed before any production result (amended once
+beforehand, after a synthetic no-effect run); one weighting bug was fixed afterwards without
+changing the verdict. See reports/mlb-platoon/README.md.
 
     python scripts/mlb/platoon_study.py [--cached-history] [--out reports/mlb-platoon/results.json]
 """
