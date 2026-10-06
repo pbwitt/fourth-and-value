@@ -1,0 +1,21 @@
+name: MLB Model Checks
+on:
+  pull_request:
+    paths:
+      - 'scripts/mlb/**'
+      - 'scripts/player_context.py'
+      - 'tests/test_mlb*.py'
+      - '.github/workflows/mlb-pr-tests.yml'
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m unittest discover -s tests -p 'test_mlb*.py'

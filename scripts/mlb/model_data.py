@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 from nba.pipeline import save_json, iso
 
 DIRECTORY = ROOT / 'data/mlb/model_data'
+PLAYERS = DIRECTORY / 'players'
 TYPES = {'R', 'F', 'D', 'L', 'W'}
 BAT_KEYS = ['plateAppearances', 'atBats', 'hits', 'doubles', 'triples', 'homeRuns',
             'totalBases', 'rbi', 'runs', 'strikeOuts', 'baseOnBalls']
@@ -132,6 +133,66 @@ def update(now=None):
     save_json(DIRECTORY/'manifest.json', report)
     print(f'MLB history complete: {len(entries)-len(failures)} games, {len(failures)} missing', flush=True)
     return report
+
+
+def handedness(person):
+    bats = (person.get('batSide') or {}).get('code')
+    throws = (person.get('pitchHand') or {}).get('code')
+    return dict(bats=bats if bats in ('L', 'R', 'S') else None,
+                throws=throws if throws in ('L', 'R') else None)
+
+
+def read_players():
+    people = {}
+    for path in sorted(PLAYERS.glob('*.json')):
+        people.update(json.loads(path.read_text()).get('people', {}))
+    return people
+
+
+def update_players(games, now=None):
+    """Batter side and pitcher hand from the official player list, cached by season.
+
+    Handedness is fixed before any game, so it carries no outcome information. Past seasons
+    are fetched once; the current season is refetched daily for newly added players. A failed
+    refresh keeps an existing cache and stops only when a season has never been cached.
+    """
+    now = (now or datetime.now(timezone.utc)).astimezone(ZoneInfo('America/New_York'))
+    today = now.date().isoformat()
+    for season in sorted({g['season'] for g in games}):
+        path = PLAYERS/f'{season}.json'
+        if path.exists() and (season != now.year or json.loads(path.read_text()).get('fetched_date') == today):
+            continue
+        try:
+            rows = get('sports/1/players', season=season).get('people')
+            if not isinstance(rows, list) or not rows:
+                raise ValueError('Incomplete MLB player list')
+            save_json(path, dict(season=season, fetched_date=today, people={
+                str(p['id']): handedness(p) for p in rows if isinstance(p, dict) and p.get('id')}))
+        except (RuntimeError, ValueError, AttributeError) as error:
+            if not path.exists():
+                raise RuntimeError(f'MLB {season} player handedness unavailable: {error}') from None
+            print(f'MLB handedness: keeping cached {season} list ({error})', flush=True)
+    # Players in box scores but missing from the season lists, looked up by id.
+    people = read_players()
+    seen = {p['id'] for g in games for t in g['teams'].values() for p in t['batters']+t['pitchers']}
+    missing = sorted(i for i in seen if str(i) not in people)
+    extra = {}
+    for start in range(0, len(missing), 100):
+        try:
+            rows = get('people', personIds=','.join(map(str, missing[start:start+100]))).get('people') or []
+            extra.update({str(p['id']): handedness(p) for p in rows if isinstance(p, dict) and p.get('id')})
+        except (RuntimeError, AttributeError) as error:
+            print(f'MLB handedness: {len(missing)-start} players left unknown ({error})', flush=True)
+            break
+    if extra:
+        path = PLAYERS/'extra.json'
+        kept = json.loads(path.read_text()).get('people', {}) if path.exists() else {}
+        save_json(path, dict(fetched_date=today, people={**kept, **extra}))
+    return load_players()
+
+
+def load_players():
+    return {int(k): v for k, v in read_players().items()}
 
 
 def load():
