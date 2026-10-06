@@ -9,7 +9,7 @@ Owner: pbwitt. Started 2026-10-05. Update this file as each phase finishes.
 | 0. Audit | Done 2026-10-05 | Findings and proposed plan below. Step 1 (housekeeping) merged and deployed 2026-10-05. |
 | 1. News and lineup data | In progress | NHL projected starting goalies (start chance and shrunk save rate from official box scores) as context only, 2026-10-05. Confirmed starters still need a permitted source. |
 | 2. Model fixes | Not started | |
-| 3. Market blend before betting | In progress | Step 2 (blend live on Top Picks at w = 0.25, 3% EV) merged 2026-10-05 in pbwitt/fourth-and-value#87. Pinnacle reference not yet added. |
+| 3. Market blend before betting | In progress | Step 2 (blend live on Top Picks at w = 0.25, 3% EV) merged 2026-10-05 in pbwitt/fourth-and-value#87. Step 2b (2026-10-06): 1% floor with high (≥ 3%) and moderate (1–3%) confidence tiers, and the two-book rule counts the offered book for every sport. Pinnacle reference not yet added. |
 | 4. Backtest and calibration | Not started | |
 | 5. Monitoring and site | Not started | |
 
@@ -370,6 +370,51 @@ pbwitt/fourth-and-value#87.
   The NFL receptions picks show the 0.25 weight is generous for NFL given its Week 3 record; Phase 4
   should fit a lower NFL weight if the out-of-sample scores agree.
 - Not done: the Pinnacle (`eu` region) sharp reference, which costs extra credits per request.
+
+### Step 2b (2026-10-06): confidence tiers so the card is not empty
+
+The first `morning-edition-2` card (Oct 6) published no picks. MLB's feed had six model picks at
+7 a.m. (850 hitter props were waiting on batting orders) and all six blended below 3%; the
+best was the Dodgers −1.5 at +174, +1.3%. Every one of the 32 NHL candidates was withheld as a
+thin market, because the code counted MLB/NHL `other_books` (which excludes the offered book)
+against the two-book minimum while NFL's `book_count` includes it. MLB/NHL therefore needed three
+books, not the two this plan specifies; most NHL player props are posted by two.
+
+Owner asked for more picks at a sensible level. Changes (edition policy `morning-edition-3`):
+
+- Two books at the exact line, counting the offered one, for every sport (MLB/NHL
+  `other_books ≥ 1`). An MLB/NHL consensus can now rest on one other book.
+- A pick needs blended EV ≥ 1%. ≥ 3% is labeled **high confidence**, 1–3% **moderate
+  confidence**; high ranks before moderate on the card, after analyst selection and forecast
+  reliability. Leans are the best positive offer below 1%. The weight stays 0.25.
+- Caps unchanged: 10 per card, 4 per sport, 2 per sport and market.
+
+Replays with the same selector (before qualitative review and card caps):
+
+| | 3%, MLB/NHL 3 books (Oct 5 rule) | 1%, 2 books (this step) |
+|---|---|---|
+| MLB, Sept 28 to Oct 6 morning feeds (9 mornings, 6 with model picks) | 11 | 28 (11 high, 17 moderate) |
+| Card rows published Sept 29 to Oct 5 (143) | 16 | 57 (MLB 29, NFL 23, NHL 5) |
+| Oct 6 morning feeds | 0 | 5 (MLB 1 moderate; NHL 3 high, 1 moderate) |
+
+MLB floors on the same nine mornings: 3% → 11, 2% → 21, 1.5% → 26, 1% → 28, 0.5% → 34,
+above 0 → 39. Most of the gain comes by 1.5%; below 1% adds offers the blend prices near break-even.
+Three of the four Oct 6 NHL additions are shots-on-goal unders priced against one other book, the market
+where week 1 showed the model most overconfident, so track moderate and NHL picks separately.
+The tier is derivable from `expected_value` on each ticket; Phase 4 should fit the floors with
+the weight.
+
+**NHL settlement, same day.** Only DraftKings and FanDuel had player-prop settlement rules on
+file, so every NHL prop market had at most those two books, and points, assists and goals (one
+verified book each) could never pass the two-book rule. The owner chose to assume the standard
+rule (overtime counts, shootout does not, void if the player does not play) for BetMGM, Caesars,
+BetRivers, BetOnline and Bovada player props until each book's rules can be read; this session's
+network policy blocked their rules pages. They are marked `assumed` in `config/nhl_settlement.json`,
+rows carry `settlement_basis: assumed_standard`, and the NHL methods page labels them. A replay of
+the Oct 6 7 a.m. props, before the NHL board's own gates, found 12 outcomes clearing the 1% blend
+bar with DraftKings and FanDuel only, 52 with BetMGM added (opening points and assists), and 46
+with BetOnline too; with BetMGM and BetOnline, 326 of 466 SOG offers had three or more books.
+Open: read each book's published rules and replace `assumed` with a source.
 
 ### Phase 1, NHL goalies: projected starters as context (2026-10-05)
 

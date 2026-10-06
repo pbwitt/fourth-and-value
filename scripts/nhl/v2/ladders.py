@@ -20,6 +20,7 @@ from zoneinfo import ZoneInfo
 
 from nba.pipeline import implied_probability, iso, timestamp
 from .data import ROOT
+from .pricing import settlement_basis
 
 MARKETS = {'player_goal_scorer_anytime': 'player_goals',
            'player_shots_on_goal_alternate': 'player_shots_on_goal',
@@ -89,8 +90,7 @@ def quotes(event, now, rules):
                     side=side, line=line, price=float(outcome['price']), book_probability=float(probability),
                     quoted_at=iso(updated), nhl_game_id=event.get('nhl_game_id'), ingested_at=iso(now),
                     settlement_profile=profile or f"unverified:{book['key']}:{base}", settlement_verified=bool(profile),
-                    settlement_source=policy.get('source'),
-                    settlement_scope='Standard full-game only; verify local rules and market exceptions'))
+                    **settlement_basis(policy, 'player', profile)))
     return rows
 
 

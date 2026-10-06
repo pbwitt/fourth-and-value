@@ -31,7 +31,7 @@ MARKETS = {'player_shots_on_goal': ('Shots on goal', 'shots', 'SOG'), 'player_go
 RECENT = 10
 # Fields Bet Tracker's shared dialog reads (docs/assets/offer-tracker.js), copied from the offer.
 TICKET = ['event_id', 'commence_time', 'game', 'home_team', 'away_team', 'player', 'market', 'market_label', 'side',
-          'line', 'book', 'book_label', 'price', 'quoted_at', 'settlement_profile', 'settlement_scope',
+          'line', 'book', 'book_label', 'price', 'quoted_at', 'settlement_profile', 'settlement_scope', 'settlement_basis',
           'model_data_checked_at', 'model_withheld', 'independent_probability', 'final_probability', 'push_probability']
 
 

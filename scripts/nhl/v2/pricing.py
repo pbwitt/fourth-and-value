@@ -28,6 +28,20 @@ def key(row):
             row.get('settlement_profile','unverified'),row['commence_time'],row.get('nhl_game_id'))
 
 
+def settlement_basis(policy, kind, profile):
+    """How a profile was established: read from the book's rules, or assumed to be the standard.
+
+    An assumed profile (config/nhl_settlement.json "assumed") is used like a checked one,
+    but says so wherever the offer is shown.
+    """
+    if profile and kind in policy.get('assumed', []):
+        return dict(settlement_basis='assumed_standard', settlement_source=None,
+                    settlement_scope="Assumed standard rules; not yet checked against this book's published rules. "
+                                     'Standard full-game only; verify local rules and market exceptions')
+    return dict(settlement_basis='published_rules' if profile else None, settlement_source=policy.get('source'),
+                settlement_scope='Standard full-game only; verify local rules and market exceptions')
+
+
 def push_capable(row):
     return row['market']!='h2h' and float(row['line']).is_integer()
 

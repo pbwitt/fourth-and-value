@@ -243,16 +243,22 @@ assert.equal(shortlist([absent],now)[0].card_rank_score,null);
 assert.equal(shortlist([{...absent,human_decision:'select'},mlbCard],now)[0].player,'Unknown');
 console.log('PASS: cross-sport card order, comparable units, conservative NFL probability, pushes and missing models.');
 
-// Market blend (Phase 3): 25% model in log-odds, exact-line market, 3% EV at the price.
+// Market blend (Phase 3): 25% model in log-odds, exact-line market; a pick needs 1% EV
+// at its price, and 3% or more is labeled high confidence.
 {
   const {blend,BLEND}=require('../docs/assets/briefing-picks.js');
-  assert.deepEqual([BLEND.weight,BLEND.minEV,BLEND.minBooks],[.25,.03,2]);
+  assert.deepEqual([BLEND.weight,BLEND.minEV,BLEND.highEV,BLEND.minBooks],[.25,.01,.03,2]);
   // The brief's example: an SOG Under at -140, model 71%, market 52% -> about 57%, no bet.
   const sog={sport:'NHL',price:-140,final_probability:.71,push_probability:0,market_probability:.52,other_books:4};
   const b=blend(sog);
   assert(Math.abs(b.final-.5705)<5e-4,b.final);assert(b.ev<0);assert.equal(b.status,'below_threshold');
-  // Thin market: fewer than two books at this exact line.
-  assert.equal(blend({...sog,other_books:1}).status,'thin_market');
+  // Thin market: fewer than two books at this exact line, counting the offered book.
+  // MLB/NHL count other books, so one other book plus the offer makes two.
+  assert.equal(blend({...sog,other_books:0}).status,'thin_market');
+  assert.equal(blend({...sog,other_books:1}).status,'below_threshold');
+  assert.equal(blend({...sog,other_books:1}).line_books,2);
+  assert.equal(blend({sport:'NFL',price:110,model_prob:.6,push_prob:0,consensus_prob:.53,book_count:1}).status,'thin_market','NFL book_count already includes the offer');
+  assert.equal(blend({sport:'NFL',price:110,model_prob:.6,push_prob:0,consensus_prob:.53,book_count:2}).status,'qualifies');
   assert.equal(blend({...sog,market_probability:null}).status,'thin_market');
   assert.equal(blend({...sog,final_probability:null}).status,'no_model');
   // EV refunds pushes.
@@ -261,19 +267,34 @@ console.log('PASS: cross-sport card order, comparable units, conservative NFL pr
   assert(Math.abs(pushed.final-fin)<1e-12);assert(Math.abs(pushed.ev-.9*(fin*2.5-1))<1e-12);
   // In collect: a qualifying bet carries its blend; a thin or 50% NFL estimate is withheld.
   let g=fixture();let out=collect(g,now);
-  assert(out.selected.every(r=>r.blend.status==='qualifies'&&r.blend.ev>=.03&&Math.abs(r.score-100*r.blend.ev)<1e-9));
+  assert(out.selected.every(r=>r.blend.status==='qualifies'&&r.blend.ev>=.03&&r.blend.confidence==='high'&&Math.abs(r.score-100*r.blend.ev)<1e-9));
+  assert.match(rowHTML(out.selected.find(r=>r.sport==='MLB')),/Experimental · High confidence · /);
   g=fixture();g.NFL.rows[0].book_count=1;out=collect(g,now);
   assert(!out.selected.some(r=>r.sport==='NFL'));assert.match(out.excluded[0].exclusion_reasons[0],/Fewer than two books/);
   g=fixture();g.NFL.rows[0].model_prob=.5;out=collect(g,now);
   assert(!out.selected.some(r=>r.sport==='NFL'));assert.match(out.excluded[0].exclusion_reasons[0],/exactly 50%/);
-  // Below the bar but positive: excluded from picks, offered as that sport's lean.
+  // Between 1% and 3%: a moderate-confidence pick, ranked after high-confidence picks.
   g=fixture();Object.assign(g.MLB.rows[0],{price:-110,model_probability:.56,other_book_probability:.52});
   out=collect(g,now);
+  const moderate=out.selected.find(r=>r.sport==='MLB');
+  assert.equal(moderate.blend.confidence,'moderate');assert(moderate.blend.ev>=.01&&moderate.blend.ev<.03);
+  assert.equal(out.leans.length,0);
+  assert.match(out.coverage.find(c=>c.sport==='MLB').message,/1 review candidate \(0 high, 1 moderate confidence\)/);
+  assert.match(rowHTML(moderate),/Experimental · Moderate confidence · /);
+  assert.match(rowHTML(moderate),/· Moderate confidence<\/span>/);
+  assert.match(rowHTML(readyRow(moderate)),/Weighted 25% model and 75% market, .* so it is a moderate-confidence pick/);
+  // On the card, a high-confidence pick precedes a moderate one even with a larger log-growth score.
+  const hi=readyRow({...moderate,player:'High',market:'pitcher_outs',blend:{...moderate.blend,confidence:'high',final:.53}});
+  const mo=readyRow({...moderate,player:'Moderate',blend:{...moderate.blend,final:.6}});
+  assert.deepEqual(shortlist([mo,hi],now).map(r=>r.player),['High','Moderate']);
+  // Below the 1% floor but positive: excluded from picks, offered as that sport's lean.
+  g=fixture();Object.assign(g.MLB.rows[0],{price:-112,model_probability:.56,other_book_probability:.52});
+  out=collect(g,now);
   assert(!out.selected.some(r=>r.sport==='MLB'));
-  assert.deepEqual(out.leans.map(r=>r.sport),['MLB']);assert(out.leans[0].blend.ev>0&&out.leans[0].blend.ev<.03);
-  assert.match(out.coverage.find(c=>c.sport==='MLB').message,/1 below the 3% market-blend threshold/);
+  assert.deepEqual(out.leans.map(r=>r.sport),['MLB']);assert(out.leans[0].blend.ev>0&&out.leans[0].blend.ev<.01);
+  assert.match(out.coverage.find(c=>c.sport==='MLB').message,/1 below the 1% market-blend floor/);
   // A worse price for an outcome already picked is not a lean.
-  g=fixture();g.MLB.rows.push({...g.MLB.rows[0],book:'worse',price:-110,model_probability:.56,other_book_probability:.52});
+  g=fixture();g.MLB.rows.push({...g.MLB.rows[0],book:'worse',price:-112,model_probability:.56,other_book_probability:.52});
   Object.assign(g.MLB.rows[0],{model_probability:.56,other_book_probability:.52});
   out=collect(g,now);
   assert.equal(out.selected.filter(r=>r.sport==='MLB').length,1);assert.equal(out.leans.length,0);

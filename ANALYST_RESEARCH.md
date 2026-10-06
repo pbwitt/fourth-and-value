@@ -90,27 +90,39 @@ only. NHL retains its coherent scoring/opportunity forecasts, verified settlemen
 2% EV and adverse-scenario minimum-price rule. NHL ranking still uses worst-case
 fixed-fraction log growth; the fraction is not stake advice.
 
-**Market blend (since October 5, 2026; edition policy `morning-edition-2`).** After
-each sport's screen above, every model candidate is blended with the market:
-`f = sigmoid(0.25 * logit(model) + 0.75 * logit(market))`, where `market` is the
-median no-vig probability at the exact line (NFL consensus may include the offered
-book; MLB/NHL use other books) and at least two books must post that line. A
-candidate needs `(1 - push) * (f * decimal - 1) >= 3%` at its own price; above 30%
-it drops to the research tier. NFL uses the smaller of raw and calibrated model
-probability, and withholds a calibrated 50% (the curve's flat centre, no
-information). The 0.25 weight and 3% bar are starting values from
+**Market blend (since October 5, 2026; confidence tiers from edition policy
+`morning-edition-3`).** After each sport's screen above, every model candidate is
+blended with the market: `f = sigmoid(0.25 * logit(model) + 0.75 * logit(market))`,
+where `market` is the median no-vig probability at the exact line (NFL consensus may
+include the offered book; MLB/NHL use other books). At least two books must post
+that line, counting the offered book: NFL `book_count >= 2`, MLB/NHL
+`other_books >= 1`, so an MLB/NHL consensus can rest on a single other book. NHL pools
+only books with a settlement profile in `config/nhl_settlement.json`: DraftKings and
+FanDuel player-prop rules were read; BetMGM, Caesars, BetRivers, BetOnline and Bovada
+player props are marked `assumed` (owner decision, October 6, 2026) and carry
+`settlement_basis: assumed_standard` until their published rules are checked. A
+candidate needs `(1 - push) * (f * decimal - 1) >= 1%` at its own price. At 3% or
+more it is labeled high confidence, from 1% to 3% moderate confidence; high ranks
+before moderate on the card. The label describes the size of the blended EV, not a
+win probability, and research never changes it. Above 30% a candidate drops to the
+research tier. NFL uses the smaller of raw and calibrated model probability, and
+withholds a calibrated 50% (the curve's flat centre, no information). The 0.25
+weight and the 1% and 3% bars are starting values from
 `docs/model-improvement-plan.md` until fitted out of sample per market. The best
-positive-but-below-threshold offer per sport is shown as a lean (not a pick, not
-tracked). Tickets record `market_prob`, `final_prob`, `blend_weight`,
-`expected_value` (at the price taken) and `decision_at` beside `model_prob`
-(`supabase/bet_blend_fields.sql`). Earlier editions keep `morning-edition-1` and
-are not regraded as evidence for the blend.
+positive offer below 1% per sport is shown as a lean (not a pick, not tracked).
+Tickets record `market_prob`, `final_prob`, `blend_weight`, `expected_value` (at
+the price taken) and `decision_at` beside `model_prob`
+(`supabase/bet_blend_fields.sql`); the tier follows from `expected_value`.
+`morning-edition-2` (October 5-6) used a single 3% bar and required two books
+besides the offered one for MLB/NHL, which left the October 6 card empty. Earlier
+editions keep their policy and are not regraded as evidence for a later one.
 
 A current consider assessment ranks before pending/wait/pass across all sports,
 so a reviewed MLB/NHL offer appears before unreviewed NFL rows in the initial table.
 The research pool retains each sport's numerical order. The main ten-idea card
 sorts across sports by explicit analyst selection, forecast reliability, then
-expected log growth at a fixed 0.0025 fraction, computed from the blended
+high- before moderate-confidence picks, then expected log growth at a fixed 0.0025
+fraction, computed from the blended
 probability for every sport (unconditional, refunds contribute zero).
 This common scale prevents feed order or incomparable source ranks from filling
 the card with one sport. It is an operational ordering heuristic, not a stake
