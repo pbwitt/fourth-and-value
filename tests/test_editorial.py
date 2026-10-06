@@ -58,16 +58,17 @@ class EditorialTests(unittest.TestCase):
         self.assertFalse(m.featured_now(a,NOW+timedelta(days=4)))
         a['kind']='Opinion'
         self.assertFalse(m.featured_now(a,NOW))
-    def test_featured_blog_keeps_a_homepage_slide(self):
-        story=lambda i,url:{'title':f'S{i}','url':url,'featured':True}
+    def test_home_lead_prefers_newest_featured_piece(self):
+        story=lambda i,url,**k:{'title':f'S{i}','url':url,'featured':True,'kind':'Analysis',**k}
         fallback={'url':'/briefing/'}
         articles=[story(i,f'/editorial/articles/{i}.html') for i in range(4)]
-        blog=story(9,'/blog/feature.html')
-        slides=m.home_slides(articles+[blog],fallback)
-        self.assertEqual([s['url'] for s in slides],[articles[0]['url'],articles[1]['url'],blog['url']])
-        self.assertEqual(m.home_slides([blog]+articles,fallback)[0],blog)
-        self.assertEqual(m.home_slides(articles,fallback),articles[:3])
-        self.assertEqual(m.home_slides([],fallback),[fallback])
+        self.assertEqual(m.home_lead(articles,fallback),articles[0])
+        self.assertEqual(m.home_lead([dict(articles[0],featured=False)]+articles[1:],fallback),articles[1])
+        self.assertEqual(m.home_lead([],fallback),fallback)
+        # Features exclude the lead and opinion, and top up with older analysis when thin.
+        older=[story(9,'/blog/older.html',featured=None),story(8,'/editorial/opinion.html',kind='Opinion')]
+        features=m.home_features(articles[:2],articles[:2]+older,articles[0])
+        self.assertEqual([a['url'] for a in features],[articles[1]['url'],'/blog/older.html'])
     def test_opinion_promotion_expires_without_entering_analysis(self):
         opinion=dict(title='Opinion',kind='Opinion',date='2026-09-22',
                      url='/editorial/articles/opinion.html',featured=True,
@@ -77,13 +78,12 @@ class EditorialTests(unittest.TestCase):
         self.assertEqual(m.featured_opinions([opinion],NOW+timedelta(days=3)),[])
         self.assertEqual(m.featured_opinions([dict(opinion,featured=False)],NOW),[])
         self.assertEqual(m.featured_opinions([dict(opinion,featured_until=None)],NOW),[])
-        articles=[dict(title=f'New {i}',url=f'/editorial/articles/{i}.html',featured=True) for i in range(4)]
-        blog=dict(title='Blog',url='/blog/feature.html',featured=True)
-        slides=m.home_slides(articles+[blog,opinion],{'url':'/briefing/'})
-        self.assertEqual(len(slides),3)
-        self.assertIn(opinion,slides)
-        self.assertIn(blog,slides)
-        self.assertIn(articles[0],slides)
+        older=dict(opinion,title='Older',url='/editorial/older.html',featured=False,featured_until=None,date='2026-09-01')
+        take,others=m.home_take([opinion,older],NOW)
+        self.assertEqual((take,others),(opinion,[older]))
+        take,others=m.home_take([older,opinion],NOW+timedelta(days=3))
+        self.assertEqual((take,others),(older,[opinion]),'after the feature ends the newest opinion takes the slot')
+        self.assertEqual(m.home_take([],NOW),(None,[]))
     def test_started_and_stale_quotes_excluded(self):
         e=event();e['commence_time']=(NOW-timedelta(seconds=1)).isoformat()
         self.assertEqual(m.summarize_events('NFL',[e],NOW,{}),[])
@@ -113,6 +113,22 @@ class EditorialTests(unittest.TestCase):
         self.assertIn('up 1',cards[0]['text'])
         self.assertIn('one · Over 40.5 (-110)',cards[0]['prices'][0])
         self.assertIn('two · Under 41.5 (-110)',cards[0]['prices'][1])
+    def test_market_rows_give_numbers_moves_first(self):
+        moved=m.summarize_events('NFL',[event()],NOW,{'generated_at':(NOW-timedelta(hours=1)).isoformat(),'games':[{'sport':'NFL','id':'abc','books':{'one':39.5,'two':40.5}}]})
+        rows=m.market_rows(moved)
+        self.assertEqual(len(rows),1)
+        self.assertEqual(rows[0]['change'],'Total 40 → 41')
+        self.assertEqual(rows[0]['detail'],'since 7:00 AM ET')
+        self.assertEqual(rows[0]['over'],{'text':'O 40.5 (-110)','book':'one'})
+        self.assertEqual(rows[0]['under'],{'text':'U 41.5 (-110)','book':'two'})
+        split=m.market_rows(m.summarize_events('NFL',[event()],NOW,{}))[0]
+        self.assertEqual((split['change'],split['detail']),('Books split 40.5 to 41.5','a 1-point gap'))
+        e=event()
+        for book in e['bookmakers']:
+            for out in book['markets'][0]['outcomes']:out['point']=41.5
+        same=m.market_rows(m.summarize_events('NFL',[e],NOW,{}))[0]
+        self.assertEqual((same['change'],same['detail']),('Total 41.5 at all 2 books','only the prices differ'))
+        self.assertEqual(m.market_rows([]),[])
     def test_rundown_names_lowest_and_highest_line_books(self):
         e=event()
         e['bookmakers'].append({'key':'three','title':'Three','last_update':NOW.isoformat(),'markets':[{'key':'totals','outcomes':[{'name':'Over','point':40.5,'price':-105},{'name':'Under','point':40.5,'price':-115}]}]})
