@@ -184,4 +184,49 @@ class EditorialTests(unittest.TestCase):
             self.assertFalse(m.safe_url(url))
         self.assertTrue(m.safe_url('https://www.nfl.com/news/example'))
 
+class NewsTests(unittest.TestCase):
+    API='https://site.api.espn.test/nfl/news';RSS='https://rss.espn.test/nfl'
+    CFG={'news_api':{'NFL':API},'news_feeds':{'NFL':RSS}}
+
+    def article(self,title,hours_ago,link,**extra):
+        published=(NOW-timedelta(hours=hours_ago)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        return {'headline':title,'published':published,'links':{'web':{'href':link}},**extra}
+
+    def response(self,payload=None,content=None):
+        r=Mock(status_code=200);r.raise_for_status.return_value=None
+        r.json.return_value=payload;r.content=content
+        return r
+
+    def test_espn_api_headlines_skip_paywalled_stale_unsafe_and_repeated_links(self):
+        api=self.response({'articles':[
+            self.article('  Newest   headline ',1,'https://www.espn.com/nfl/story/_/id/1/a'),
+            self.article('ESPN+ only',1,'https://www.espn.com/nfl/insider/story/_/id/2/b',premium=True),
+            self.article('Too old',40,'https://www.espn.com/nfl/story/_/id/3/c'),
+            self.article('Not https',2,'http://www.espn.com/nfl/story/_/id/4/d'),
+            self.article('Repeat',3,'https://www.espn.com/nfl/story/_/id/1/a'),
+            self.article('Second',5,'https://www.espn.com/nfl/story/_/id/5/e'),
+            {'headline':'No date','links':{'web':{'href':'https://www.espn.com/nfl/story/_/id/6/f'}}}]})
+        with patch.dict(m.CFG,self.CFG), patch.object(m.requests,'get',return_value=api) as get:
+            items,status=m.fetch_news(NOW)
+        self.assertEqual(get.call_args.args[0],self.API,'the API is tried first')
+        self.assertEqual([i['title'] for i in items],['Newest headline','Second'])
+        self.assertEqual(items[0]['source'],'ESPN')
+        self.assertEqual(status,{'NFL':'2 recent headlines'})
+
+    def test_rss_is_the_fallback_and_total_failure_says_why(self):
+        pub=(NOW-timedelta(hours=2)).strftime('%a, %d %b %Y %H:%M:%S GMT')
+        rss=self.response(content=f'<rss><channel><item><title>From RSS</title><link>https://www.espn.com/nfl/story/_/id/9/r</link><pubDate>{pub}</pubDate></item></channel></rss>'.encode())
+        with patch.dict(m.CFG,self.CFG), patch.object(m.requests,'get',side_effect=[m.requests.ConnectionError('refused'),rss]):
+            items,status=m.fetch_news(NOW)
+        self.assertEqual([i['title'] for i in items],['From RSS'])
+        self.assertEqual(status,{'NFL':'1 recent headlines'})
+
+        html=self.response(payload=None,content=b'<html>moved</html')
+        html.json.side_effect=ValueError('Expecting value')
+        with patch.dict(m.CFG,self.CFG), patch.object(m.requests,'get',return_value=html), patch('builtins.print') as log:
+            items,status=m.fetch_news(NOW)
+        self.assertEqual((items,status),([],{'NFL':'News feed unavailable'}))
+        logged=log.call_args.args[0]
+        self.assertIn('ESPN news API: ValueError',logged);self.assertIn('ESPN RSS: ParseError',logged)
+
 if __name__=='__main__':unittest.main()

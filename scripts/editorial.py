@@ -78,26 +78,58 @@ def summarize_events(sport,events,now,previous):
             books=books,quotes=quotes,previous_books={b:prior['books'][b] for b in sorted(common)},change_from=previous.get('generated_at'),change=change,change_label=f'{change:+g} ({len(common)} matched books)' if change is not None else 'First comparable snapshot'))
     return rows
 
+NEWS_HEADERS={'User-Agent':'FourthAndValue/1.0 editorial feed reader'}
+
+def espn_api_news(url):
+    """(title, link, published) from ESPN's public news API. ESPN+ stories are skipped."""
+    r=requests.get(url,timeout=25,headers=NEWS_HEADERS);r.raise_for_status()
+    data=r.json()
+    articles=data.get('articles') if isinstance(data,dict) else None
+    if not isinstance(articles,list):raise ValueError('response has no articles list')
+    out=[]
+    for a in articles:
+        if not isinstance(a,dict) or a.get('premium'):continue
+        link=((a.get('links') or {}).get('web') or {}).get('href') or ''
+        try:published=datetime.fromisoformat(str(a.get('published') or '').replace('Z','+00:00')).astimezone(timezone.utc)
+        except ValueError:continue
+        out.append((str(a.get('headline') or ''),link,published))
+    return out
+
+def rss_news(url):
+    r=requests.get(url,timeout=25,headers=NEWS_HEADERS);r.raise_for_status()
+    out=[]
+    for item in ET.fromstring(r.content).findall('.//item'):
+        try:published=parsedate_to_datetime(item.findtext('pubDate') or '').astimezone(timezone.utc)
+        except (ValueError,TypeError):continue
+        out.append((item.findtext('title') or '',item.findtext('link') or '',published))
+    return out
+
 def fetch_news(now):
+    """Up to three recent headlines per league: the ESPN news API first, then the RSS feed.
+
+    A league whose sources all fail prints why, so the scheduled run's log shows the cause."""
     items=[];seen=set();status={}
-    for sport,url in CFG['news_feeds'].items():
-        try:
-            r=requests.get(url,timeout=25,headers={'User-Agent':'FourthAndValue/1.0 editorial feed reader'});r.raise_for_status()
-            tree=ET.fromstring(r.content)
-            found=0
-            for item in tree.findall('.//item'):
-                title=' '.join((item.findtext('title') or '').split())
-                link=item.findtext('link') or ''
-                try:published=parsedate_to_datetime(item.findtext('pubDate') or '').astimezone(timezone.utc)
-                except (ValueError,TypeError):continue
-                if not safe_url(link) or not title or link in seen or not timedelta(0)<=now-published<=timedelta(hours=CFG['max_news_age_hours']):continue
-                # Headlines only, no full article excerpts or inferred injury facts.
-                title=' '.join(title.split()[:24])
-                items.append(dict(sport=sport,title=title,url=link,published_at=published.isoformat(),published_label=published.astimezone(ETZ).strftime('%b %d, %I:%M %p ET')))
-                seen.add(link);found+=1
-                if found>=3:break
-            status[sport]=f'{found} recent headlines'
-        except (requests.RequestException,ET.ParseError):status[sport]='News feed unavailable'
+    sources=[('ESPN news API',CFG.get('news_api',{}),espn_api_news),('ESPN RSS',CFG.get('news_feeds',{}),rss_news)]
+    for sport in dict.fromkeys([*CFG.get('news_api',{}),*CFG.get('news_feeds',{})]):
+        entries,errors=None,[]
+        for label,urls,read in sources:
+            if not urls.get(sport):continue
+            try:entries=read(urls[sport]);break
+            except (requests.RequestException,ValueError,ET.ParseError) as error:
+                errors.append(f'{label}: {type(error).__name__}: {error}'[:300])
+        if entries is None:
+            print(f'News {sport}: unavailable ({"; ".join(errors) or "no source configured"})',flush=True)
+            status[sport]='News feed unavailable';continue
+        found=0
+        for title,link,published in sorted(entries,key=lambda e:e[2],reverse=True):
+            title=' '.join(title.split())
+            if not safe_url(link) or not title or link in seen or not timedelta(0)<=now-published<=timedelta(hours=CFG['max_news_age_hours']):continue
+            # Headlines only, no full article excerpts or inferred injury facts.
+            title=' '.join(title.split()[:24])
+            items.append(dict(sport=sport,title=title,url=link,source='ESPN',published_at=published.isoformat(),published_label=published.astimezone(ETZ).strftime('%b %d, %I:%M %p ET')))
+            seen.add(link);found+=1
+            if found>=3:break
+        status[sport]=f'{found} recent headlines'
     return sorted(items,key=lambda x:x['published_at'],reverse=True),status
 
 def refresh(now):
