@@ -155,6 +155,69 @@
   const ids=new WeakMap(),entries=new Map();
   let seq=0,pop=null,owner=null,pinned=false,hoverTimer=0,leaveTimer=0,installed=false,nhlPages=null;
   const contextFor=(r,sport)=>r.player_context?.schema_version===1?r.player_context:fallback(r,sport);
+  // ---- Share: a link that reopens this snapshot. ----
+  // The link filters the board to the player and market (?q= and ?market=, which the boards read);
+  // ?side=, ?line= and ?snapshot=1 are read here, before a board rewrites its address. Phones get
+  // the native share sheet; elsewhere the link is copied.
+  const SHARE_ICON='<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const sideText=r=>{const s=String(r?.side??r?.name??'').trim();return s?s[0].toUpperCase()+s.slice(1).toLowerCase():'';};
+  const marketKey=r=>String(r?.market_std||r?.market||'');
+  const person=v=>String(v??'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+  const SHARE_PARAMS=['snapshot','side','line'];
+  let seeking=(()=>{
+    try{
+      const p=new URLSearchParams(global.location?.search||''),get=k=>p.get(k)||'';
+      return p.get('snapshot')==='1'&&get('q')?{player:person(get('q')),market:get('market'),side:get('side').toLowerCase(),line:get('line')}:null;
+    }catch{return null;}
+  })(),found=null,bestScore=0,seekTimer=0,shareTimer=0;
+  function shareData({r,sport,c}){
+    const line=lineOf(r),market=marketKey(r);
+    const bet=[sideText(r),line!==null?lineText(line):'',r.market_label||(c?statName(c):'')].filter(Boolean).join(' ');
+    const title=[r.player,bet].filter(Boolean).join(' · ');
+    const mean=sport==='MLB'?r.model_mean:sport==='NFL'?r.mu:r.projected_mean;
+    const text=`${title}.${c&&finite(mean)?` Model projection: ${fmt(mean,'',sport)} ${c.stat_label}.`:''} Player snapshot on Fourth & Value.`;
+    const url=new URL(global.location.pathname,global.location.href);
+    url.searchParams.set('q',r.player);
+    if(market)url.searchParams.set('market',market);
+    if(sideText(r))url.searchParams.set('side',sideText(r).toLowerCase());
+    if(line!==null)url.searchParams.set('line',String(line));
+    url.searchParams.set('snapshot','1');
+    return {title,text,url:url.href};
+  }
+  async function shareSnapshot(){
+    const entry=owner&&entries.get(owner.dataset.pc),status=pop?.querySelector('.pc-share-status');
+    if(!entry||!status||typeof navigator==='undefined')return;
+    const data=shareData(entry);
+    clearTimeout(shareTimer);status.textContent='';
+    const touch=!!global.matchMedia?.('(hover: none), (pointer: coarse)').matches;
+    if(touch&&typeof navigator.share==='function'&&(!navigator.canShare||navigator.canShare(data))){
+      try{await navigator.share(data);return;}
+      catch(e){if(e?.name==='AbortError')return;}
+    }
+    try{
+      await navigator.clipboard.writeText(data.url);
+      status.textContent='Link copied';
+      shareTimer=setTimeout(()=>{if(status.textContent==='Link copied')status.textContent='';},3000);
+    }catch{
+      status.innerHTML=`<label>Copy this link<input class="pc-share-url" type="url" readonly value="${esc(data.url)}"></label>`;
+      status.querySelector('input').select();
+    }
+  }
+  // A shared link opens its snapshot once, on the first board render: the exact offer if it is
+  // still listed, else the same player, market and side, else the same player and market.
+  function seek(id,r){
+    if(person(r.player)!==seeking.player||seeking.market&&marketKey(r)!==seeking.market)return;
+    const side=sideText(r).toLowerCase()===seeking.side,score=1+side+(side&&String(lineOf(r)??'')===seeking.line);
+    if(score>bestScore){bestScore=score;found=id;}
+  }
+  function reveal(){
+    seeking=null;
+    const t=found&&document.querySelector(`.pc-name[data-pc="${found}"]`);
+    if(!t)return;
+    try{const u=new URL(global.location.href);SHARE_PARAMS.forEach(k=>u.searchParams.delete(k));global.history.replaceState(global.history.state,'',u.href);}catch{}
+    t.scrollIntoView({block:'center',behavior:'instant'});
+    open(t,true);
+  }
   const short=v=>/^\d{4}-\d{2}-\d{2}$/.test(v||'')?new Date(v+'T12:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'}):esc(v??'—');
   const clock=v=>{const s=Math.round(v*60);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');};
   // One decimal (two below 1, as in 0.35 goals); innings in thirds; NHL ice time as minutes:seconds.
@@ -179,6 +242,7 @@
     if(!id){id='pc'+(++seq);ids.set(r,id);}
     entries.set(id,{r,sport,options,c});
     install();
+    if(seeking){seek(id,r);if(!seekTimer)seekTimer=setTimeout(reveal,0);}
     return `<button type="button" class="pc-name" data-pc="${id}" aria-haspopup="dialog" aria-expanded="false">${text}<span class="pc-cue" aria-hidden="true"></span></button>${positionTag(r)}`;
   }
   function seasonLine(s){
@@ -447,7 +511,7 @@
       +tabs.map(([k,,html])=>`<div class="pc-panel" role="tabpanel" id="pc-panel-${k}" aria-labelledby="pc-tab-${k}"${k===pick?'':' hidden'}>${html}</div>`).join('')
       :tabs.map(([,,html])=>html).join('');
     const sub=[position(r),r.game].filter(Boolean).map(esc).join(' · ');
-    return `<div class="pc-pop-head"><div><strong>${esc(r.player)}</strong>${sub?`<span>${sub}</span>`:''}</div><button type="button" class="pc-close" aria-label="Close player snapshot">×</button></div>`
+    return `<div class="pc-pop-head"><div><strong>${esc(r.player)}</strong>${sub?`<span>${sub}</span>`:''}</div><div class="pc-pop-actions"><button type="button" class="pc-share" aria-label="Share player snapshot">${SHARE_ICON}Share</button><button type="button" class="pc-close" aria-label="Close player snapshot">×</button></div></div><p class="pc-share-status" role="status"></p>`
       +projection+marketStrip(r,sport)+body
       +(source?`<p class="pc-source">${source}</p>`:'')+'<p class="pc-pop-link" hidden></p>';
   }
@@ -511,6 +575,7 @@
         const tab=e.target.closest('[role=tab]');
         if(e.target.closest('.pc-close'))return close(true);
         pinned=true;
+        if(e.target.closest('.pc-share'))return void shareSnapshot();
         if(tab)selectTab(tab.dataset.tab);
         const mark=e.target.closest?.('[data-readout]');
         if(mark)readout(mark);
