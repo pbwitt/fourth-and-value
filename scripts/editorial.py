@@ -190,6 +190,45 @@ def market_cards(games):
             note=f"{g['start_label']} · {len(g['books'])} books observed",url='/nfl/totals/' if g['sport']=='NFL' else f"/{g['sport'].lower()}/totals/"))
     return selected
 
+def market_rows(games,limit=5):
+    """Home-page table rows: line moves first, then book disagreement, then the next starts.
+
+    Each row names what changed in a few words plus the best over and under with their
+    books, so the table carries numbers rather than the cards' explanatory sentences."""
+    def spread(g):
+        quotes=supported_quotes(g)
+        return max(q['line'] for q in quotes)-min(q['line'] for q in quotes) if quotes else g['maximum']-g['minimum']
+    movers=sorted((g for g in games if g.get('change')),key=lambda g:-abs(g['change'])/g['median'])
+    gaps=sorted((g for g in games if spread(g)>0),key=lambda g:-spread(g)/g['median'])
+    rows=[];used=set()
+    for kind,pool in [('move',movers),('split',gaps),('next',sorted(games,key=lambda g:g['commence_time']))]:
+        for g in pool:
+            # Unmoved games only fill a short table; they are context, not news.
+            if len(rows)>=(3 if kind=='next' else limit):break
+            if g['id'] in used:continue
+            used.add(g['id']);books=len(g['books'])
+            if kind=='move':
+                common=g.get('previous_books') or {}
+                before,after=median(common.values()),median(g['books'][b] for b in common if b in g['books'])
+                since=stamp(g['change_from']).astimezone(ETZ).strftime('%I:%M %p ET').lstrip('0') if g.get('change_from') else 'the previous check'
+                change,detail=f'Total {before:g} → {after:g}',f'since {since}'
+            elif kind=='split':
+                lines=[q['line'] for q in supported_quotes(g)] or [g['minimum'],g['maximum']]
+                change,detail=f'Books split {min(lines):g} to {max(lines):g}',f'a {spread(g):g}-point gap'
+            elif g['minimum']==g['maximum']:
+                change,detail=f'Total {g["median"]:g} at all {books} books','only the prices differ'
+            else:
+                change,detail=f'Totals {g["minimum"]:g} to {g["maximum"]:g}',f'median {g["median"]:g}'
+            over=under=None
+            if quotes:=supported_quotes(g):
+                low=min(quotes,key=lambda q:(q['line'],-q['over_price']))
+                high=max(quotes,key=lambda q:(q['line'],q['under_price']))
+                over=dict(text=f"O {low['line']:g} ({low['over_price']:+g})",book=low['label'])
+                under=dict(text=f"U {high['line']:g} ({high['under_price']:+g})",book=high['label'])
+            rows.append(dict(sport=g['sport'],game=g['game'],start=g['commence_time'],start_label=g['start_label'],books=books,
+                change=change,detail=detail,over=over,under=under,url='/nfl/totals/' if g['sport']=='NFL' else f"/{g['sport'].lower()}/totals/"))
+    return rows
+
 def american(price):
     return f'{price:+d}' if isinstance(price,int) else f'{price:+g}'
 
@@ -274,32 +313,39 @@ def context(data,now,model_totals=None):
     date=stamp(data['generated_at']).astimezone(ETZ) if data.get('generated_at') else now.astimezone(ETZ)
     return dict(date_label=date.strftime('%A, %B %d'),snapshot_label='Prices checked '+date.strftime('%b %d at %I:%M %p ET')+(' · refresh pending' if not fresh else ''),
         summary=f"{len(games)} upcoming games checked · {divided} with different totals across books." if games else 'No upcoming games currently have fresh, comparable totals. The next scheduled price check will update this board.',
-        cards=cards,games=games,pulled_label=pulled_label(games),movement=line_movement(now),sports=sorted({g['sport'] for g in games}),news=news[:10],coverage=data.get('coverage',{}))
+        cards=cards,rows=market_rows(games),games=games,pulled_label=pulled_label(games),movement=line_movement(now),sports=sorted({g['sport'] for g in games}),news=news[:10],coverage=data.get('coverage',{}))
 
 def featured_now(article,now):
     if article['kind']=='Opinion':return False
     expiry=stamp(article['featured_until']) if article.get('featured_until') else stamp(article['date']+'T00:00:00+00:00')+timedelta(days=3)
     return now<expiry
 
-def home_slides(current,fallback):
-    # The homepage slider rotates the newest featured pieces: morning analysis
-    # and one-off blog features share it. The newest featured blog piece keeps
-    # a slide for its featured window even when new articles fill the others.
-    eligible=[a for a in current if a.get('featured')]
-    slides=(eligible or current)[:3] or [fallback]
-    blog=next((a for a in eligible if a['url'].startswith('/blog/')),None)
-    if blog and blog not in slides:slides=slides[:2]+[blog]
-    # An editor may reserve one slider slot for a time-limited opinion feature.
-    opinion=next((a for a in eligible if a.get('kind')=='Opinion'),None)
-    if opinion and opinion not in slides:
-        replace=next((i for i in range(len(slides)-1,-1,-1) if slides[i]!=blog),len(slides)-1)
-        slides[replace]=opinion
-    return slides
+def home_lead(current,fallback):
+    """The newest featured analysis or feature leads the page. Opinion has its own slot."""
+    return ([a for a in current if a.get('featured')] or current or [fallback])[0]
 
 def featured_opinions(catalog,now):
     # Explicit opt-in and expiry only; never include these in market analysis.
     return [a for a in catalog if a.get('kind')=='Opinion' and a.get('featured')
             and a.get('featured_until') and now<stamp(a['featured_until'])]
+
+def home_take(catalog,now):
+    """The opinion beside the lead: an opted-in feature while it runs, else the newest
+    opinion, which then shows its date. Returns (take, up to two other opinions)."""
+    opinions=[a for a in catalog if a.get('kind')=='Opinion']
+    take=(featured_opinions(catalog,now) or opinions or [None])[0]
+    return take,[a for a in opinions if a is not take][:2]
+
+def home_features(current,catalog,lead,limit=6):
+    """Analysis cards below the top row: current features, topped up with the newest
+    dated analysis so the section never sits nearly empty. Opinion stays separate."""
+    seen={lead['url']};out=[]
+    for a in [*current,*catalog]:
+        if a.get('kind')=='Opinion' or a['url'] in seen:continue
+        if len(out)>=3 and a not in current:break
+        seen.add(a['url']);out.append(a)
+        if len(out)>=limit:break
+    return out
 
 def render_home(data,now):
     catalog=list(CFG['articles'])
@@ -308,11 +354,11 @@ def render_home(data,now):
     catalog.sort(key=lambda a:(a['date'],a.get('published_at','')),reverse=True)
     current=[a for a in catalog if featured_now(a,now)]
     fallback=dict(title='The daily market briefing',excerpt='Compare current prices across the leagues and follow what changes next.',sport='Sports',kind='Market watch',url='/briefing/',date=now.astimezone(ETZ).date().isoformat())
-    slider_current=sorted(current+featured_opinions(catalog,now),key=lambda a:(a['date'],a.get('published_at','')),reverse=True)
-    slides=home_slides(slider_current,fallback)
-    lead=slides[0];shown={a['url'] for a in slides}
+    lead=home_lead(current,fallback)
+    take,opinions=home_take(catalog,now)
     ctx=context(data,now)
-    ctx.update(lead=lead,slides=slides,features=[a for a in current if a['url'] not in shown][:6],opinions=[a for a in catalog if a['kind']=='Opinion'][:2])
+    ctx.update(lead=lead,take=take,take_featured=bool(take and take in featured_opinions(catalog,now)),
+               features=home_features(current,catalog,lead),opinions=opinions)
     (DOCS/'index.html').write_text(ENV.get_template('home.html').render(**ctx)+'\n')
     # Opinion remains a distinct, permanent archive; approved analysis also
     # appears in the existing blog without rebuilding any authored article.
