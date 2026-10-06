@@ -126,6 +126,21 @@ def opposing(table, team, key, label, unit='', scale=1, word='highest', places=2
                 league=num(league*scale if league is not None else None,places), rank=ranked(table,team,key,word), used=used)
 
 
+def meetings(rows, date, value, team, home=None):
+    """Display only, never a model input: a player's results against tonight's opponent.
+
+    `rows` are his earlier games against that team, oldest first. Every value is kept with its
+    venue (True at home, False away, None unknown) so the snapshot can show the overall average,
+    the home and away averages, and over/under counts at tonight's line.
+    """
+    rows=[r for r in rows if num(value(r)) is not None]
+    if not rows or not team:
+        return None
+    venue=lambda r:None if home is None or home(r) is None else bool(home(r))
+    return dict(team=team,values=[num(value(r),2) for r in rows],home=[venue(r) for r in rows],since=date(rows[0]),
+                note='History only, not a model input. In our backtests, results against one opponent did not predict the next meeting beyond a player’s overall form.')
+
+
 def blend(label, own, detail=''):
     """The share of an estimate that comes from the player's own games; the rest is the starting average."""
     return dict(label=label, own=num(min(max(own,0),1)), detail=detail)
@@ -133,7 +148,16 @@ def blend(label, own, detail=''):
 
 # How each model version fades a player's older games (features.py of that version).
 NHL_HALF_LIVES={'nhl-v2.1':dict(rate=120,toi=30,by='days'),'nhl-v2.2':dict(rate=110,toi=14,by='games'),
-                'nhl-v2.3':dict(rate=110,toi=14,by='games')}
+                'nhl-v2.3':dict(rate=110,toi=14,by='games'),'nhl-v2.4':dict(rate=110,toi=14,by='games')}
+OPPONENT_KINDS=('opportunity_nb_opp','opportunity_nb_opp_player')
+
+
+def nhl_player_factor(features, j):
+    """nhl-v2.4: (factor, actual, forecast) from the player's record against his own forecasts."""
+    factor=(features.get('player_factors') or [None,None])[0 if j==0 else 1]
+    col=0 if j==0 else 3
+    actual,expected=features.get('player_actual'),features.get('player_expected')
+    return factor,(actual[col] if actual else None),(expected[col] if expected else None)
 
 
 def nhl_explain(records, features, j, model_kind, version, opponent, day, pmf, matchup):
@@ -150,12 +174,19 @@ def nhl_explain(records, features, j, model_kind, version, opponent, day, pmf, m
         per60=['Shots on goal','Goals','Assists','Points'][j]+' per 60 minutes'
         steps=[step('Projected ice time',toi,'min'),step(per60,mean/toi*60 if toi else None,'','×')]
         adjusted=(features.get('adjusted_means') or [None]*4)[j]
-        if model_kind=='opportunity_nb_opp' and adjusted is not None and mean:
+        if model_kind in OPPONENT_KINDS and adjusted is not None and mean:
+            own,actual,expected=nhl_player_factor(features,j) if model_kind=='opportunity_nb_opp_player' else (None,None,None)
+            own=own if isinstance(own,(int,float)) and own>0 else None
             steps+=[step('Before the opponent',mean,label,'='),
-                    step('Opponent '+('shots' if j==0 else 'goals')+' allowed vs. long-run league average',adjusted/mean,'×','×'),
-                    step('Expected '+('shots' if j==0 else label),adjusted,label,'=')]
+                    step('Opponent '+('shots' if j==0 else 'goals')+' allowed vs. long-run league average',adjusted/mean/(own or 1),'×','×')]
+            if own is not None:
+                steps.append(step('His results vs. our past forecasts',own,'×','×'))
+            steps.append(step('Expected '+('shots' if j==0 else label),adjusted,label,'='))
             note=('Ice time × production per 60 minutes, both recency-weighted and blended with a position average, then scaled by how many '
-                  +('shots' if j==0 else 'goals')+' the opponent allows compared with the league. The model then turns this average into the chance of each count.')
+                  +('shots' if j==0 else 'goals')+' the opponent allows compared with the league.'
+                  +(f" Then adjusted for how he has done against our own forecasts: {num(actual,0):g} {'shots' if j==0 else 'points'} against {num(expected,1):g} forecast in his earlier games, shrunk toward no adjustment."
+                    if own is not None and actual is not None and expected is not None else '')
+                  +' The model then turns this average into the chance of each count.')
         else:
             steps.append(step('Expected '+('shots' if j==0 else label),mean,label,'='))
             note='Ice time × production per 60 minutes, both recency-weighted and blended with a position average. The model then turns this average into the chance of each count.'
@@ -181,7 +212,7 @@ def nhl_explain(records, features, j, model_kind, version, opponent, day, pmf, m
         weight,note=None,'Recent games shown without model weights.'
     out['trend']=trend(records,'game_date',lambda r:r.get(stat),label,note,
                        weight=(lambda r:weight[id(r)]) if weight else None,opp=opponent,workload=lambda r:r.get('toi'))
-    adjusted_kind=model_kind=='opportunity_nb_opp'
+    adjusted_kind=model_kind in OPPONENT_KINDS
     if matchup:
         # The opponent-adjusted model reads shots allowed for shots and goals allowed for scoring.
         out['opponent']=dict(matchup,items=[dict(item,used=adjusted_kind and (i==0)==(j==0)) for i,item in enumerate(matchup.get('items',[]))])
@@ -190,7 +221,7 @@ def nhl_explain(records, features, j, model_kind, version, opponent, day, pmf, m
     return out
 
 
-def nhl_context(records, features, market_index, model_kind, version, opponent=None, day=None, pmf=None, matchup=None):
+def nhl_context(records, features, market_index, model_kind, version, opponent=None, day=None, pmf=None, matchup=None, meeting=None):
     records=list(records)
     stat=['shots','goals','assists','points'][market_index]
     label=['SOG','goals','assists','points'][market_index]
@@ -202,15 +233,22 @@ def nhl_context(records, features, market_index, model_kind, version, opponent=N
     if not opportunity:
         inputs.append(metric('Weighted '+label+' / game', features['base_means'][market_index], '',
                              'Prior-adjusted per-game mean', True))
-    if model_kind=='opportunity_nb_opp':
+    if model_kind in OPPONENT_KINDS:
         key='opp_shots_against' if market_index==0 else 'opp_goals_against'
         inputs.append(metric('Opponent '+('shots' if market_index==0 else 'goals')+' allowed / game', features.get(key), '',
                              'Recency-weighted; the same figure the game-line model uses', True))
+    if model_kind=='opportunity_nb_opp_player':
+        own,actual,expected=nhl_player_factor(features,market_index)
+        if own is not None:
+            inputs.append(metric('His results vs. our forecasts', own, '×',
+                                 f"{num(actual,0):g} actual vs. {num(expected,1):g} forecast {'shots' if market_index==0 else 'points'} in earlier games; shrunk toward 1"
+                                 if actual is not None and expected is not None else 'No earlier forecasts; no adjustment', True))
     # Describe only versions whose weighting contract is known here.
     weighting={
         'nhl-v2.1':'Newer games carry more weight. Ice time has a 30-day half-life; production per minute has a 120-day half-life. Position priors retain weight, including after the offseason.',
         'nhl-v2.2':'Newer appearances carry more weight. Ice time has a 14-appearance half-life; production per minute has a 110-appearance half-life. The offseason does not age player history.',
         'nhl-v2.3':'Newer appearances carry more weight. Ice time has a 14-appearance half-life; production per minute has a 110-appearance half-life. The offseason does not age player history. Expected shots scale with the opponent’s shots allowed, and scoring with its goals allowed, relative to the league.',
+        'nhl-v2.4':'Newer appearances carry more weight. Ice time has a 14-appearance half-life; production per minute has a 110-appearance half-life. The offseason does not age player history. Expected shots scale with the opponent’s shots allowed, and scoring with its goals allowed, relative to the league. A player who has consistently beaten (or missed) our earlier forecasts gets a shrunk adjustment toward that record.',
     }.get(version, 'Recency-weighted estimates include position priors. See the methods for this model version.')
     games,columns=game_log(records,[['date','Date'],['opp','Opp'],['toi','TOI'],['shots','SOG'],['goals','G'],
                                     ['assists','A'],['points','P']],
@@ -223,6 +261,7 @@ def nhl_context(records, features, market_index, model_kind, version, opponent=N
                 recent=windows(records,[5,10,20],stat,'toi'), inputs=inputs,
                 games=games, game_columns=columns, game_focus=stat,
                 **(describe(nhl_explain,records,features,market_index,model_kind,version,opponent,day,pmf,matchup) or {}),
+                versus=meeting,
                 note=weighting+' Observed averages below are unweighted. Participation and current role remain unconfirmed.')
 
 
@@ -360,6 +399,13 @@ def mlb_context(history, day, player, market, features, model, mass=None, game=N
                 inputs=inputs, note=note, games=games, game_columns=columns,
                 game_focus={'strikeOuts':'k','outs':'ip','hits':'h','totalBases':'tb','homeRuns':'hr','rbi':'rbi'}[stat])
     result.update(describe(mlb_explain,history,day,player,market,features,model,mass,game,records,used) or {})
+    if game:
+        # Display only: his completed games against tonight's opponent in the loaded history.
+        side=player.get('side')
+        team=game['away_id'] if side=='home' else game['home_id'] if side=='away' else None
+        past=(history.pitchers if pitching else history.batters).get(player['id'],[])
+        result['versus']=describe(meetings,[r for r in past if team is not None and r.get('opponent_id')==team and r['date']<day],
+                                  lambda r:r['date'],lambda r:r.get(stat),MLB_TEAMS.get(team),lambda r:r.get('at_home'))
     return result
 
 

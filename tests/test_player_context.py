@@ -161,6 +161,12 @@ class PlayerContextTests(unittest.TestCase):
         c=mlb_context(history,'2026-09-20',{'id':1470,'side':'home'},'pitcher_strikeouts',x,boosted,mass,game)
         self.assertEqual(c['build']['steps'][-2]['label'],f'Machine-learning model ({len(x)} inputs)')
         self.assertTrue(all(i['used'] for i in c['opponent']['items']))
+        # His starts against tonight's opponent (Boston, team 111): context only, newest first.
+        v=c['versus']
+        self.assertEqual(v['team'],'BOS');self.assertEqual(v['values'],[7.0]*12);self.assertEqual(v['home'],[True]*12)
+        self.assertEqual(v['since'],'2026-09-01')
+        self.assertIn('not a model input',v['note'])
+        self.assertNotIn('versus',mlb_context(history,'2026-09-20',{'id':1470,'side':'home'},'pitcher_strikeouts',x,model,mass,None))
 
     def test_explanations_never_break_the_context(self):
         history,game=self.mlb_season()
@@ -206,6 +212,29 @@ class PlayerContextTests(unittest.TestCase):
         self.assertEqual([i['used'] for i in goals['opponent']['items']],[False,True])
         self.assertIn('Opponent goals allowed / game',[i['label'] for i in goals['inputs'] if i['used']])
         self.assertIn('110 of his games',goals['trend']['note'])
+
+    def test_nhl_v24_shows_the_player_adjustment_and_meetings(self):
+        history=History()
+        for day in range(1,8):
+            history.add_player(dict(player_id=1,game_id=day,game_date=f'2026-09-{day:02}',available_at=f'2026-09-{day+1:02}T12:00:00Z',
+                shots=3,goals=1,assists=1,points=2,toi=20,position='F'))
+        f=history.player_features(1,'F','2026-09-10',datetime(2026,9,10,tzinfo=timezone.utc))
+        f.update(opp_shots_against=33.0,opp_goals_against=3.3,adjusted_means=[m*1.1*1.05 for m in f['opportunity_means']],
+                 player_factors=[1.05,1.02],player_actual=[210.,20.,30.,50.],player_expected=[190.,18.,28.,46.])
+        meeting=dict(team='CHI',values=[3,4],home=[True,False],since='2026-01-02',note='History only, not a model input.')
+        shots=nhl_context(history.players[1],f,0,'opportunity_nb_opp_player','nhl-v2.4',None,'2026-09-10',None,None,meeting)
+        steps=shots['build']['steps']
+        self.assertEqual([s['label'] for s in steps][-4:],['Before the opponent','Opponent shots allowed vs. long-run league average',
+                                                          'His results vs. our past forecasts','Expected shots'])
+        self.assertAlmostEqual(steps[-3]['value'],1.1,places=4);self.assertAlmostEqual(steps[-2]['value'],1.05,places=4)
+        self.assertIn('210 shots against 190 forecast',shots['build']['note'])
+        own=[i for i in shots['inputs'] if i['label']=='His results vs. our forecasts'][0]
+        self.assertTrue(own['used']);self.assertEqual(own['value'],1.05)
+        self.assertEqual(shots['versus'],meeting)
+        self.assertIn('beaten (or missed) our earlier forecasts',shots['note'])
+        goals=nhl_context(history.players[1],f,1,'opportunity_nb_opp_player','nhl-v2.4',None,'2026-09-10',None,None)
+        self.assertEqual([i['value'] for i in goals['inputs'] if i['label']=='His results vs. our forecasts'],[1.02],'scoring factor')
+        self.assertIsNone(goals['versus'])
 
     def test_nhl_v22_fades_by_games_played_not_days(self):
         history=History()
