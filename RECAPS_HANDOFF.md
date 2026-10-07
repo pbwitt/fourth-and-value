@@ -97,3 +97,10 @@ relabeling older results as evidence for a newer selection policy).
   fixed to ESPN's API (#96), home page redesign (#97–#101). NFL Week 4 recap /
   Week 5 preview is due from the Wed Oct 7 10:00 ET run; its Week 4 pregame archive
   was frozen 2026-09-30 18:56 UTC, before Thursday kickoff.
+- 2026-10-07 (Claude): steps 0–2 merged as #102. Also published the Chris Sale
+  pitcher-outs methods post (`docs/blog/chris-sale-pitcher-outs-2026.html`, data in
+  `docs/blog/chris-sale-pitcher-outs-2026/`), featured on the home page through
+  Oct 12 via `config/editorial.json`. Next: step 3 (MLB weekly recap generator);
+  the MLB archive starts filling from the first `mlb-daily` run after #102.
+
+- 2026-10-07 (Codex): reviewed PR #103 for publication; corrected the nine-start average wording, qualified small-sample and model-attribution claims, made the post-bullpen EV assumptions explicit, softened deterministic pitch-pace language, enabled chart tooltips on tap, and linked the worked example from Learn. No model or selection-policy changes.
