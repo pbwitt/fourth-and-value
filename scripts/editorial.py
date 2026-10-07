@@ -403,8 +403,7 @@ def featured_opinions(catalog,now):
 def home_stories(current,catalog,lead,now,limit=8):
     """Stories after the lead, newest first. Current features and any opinion an editor
     has featured come first, then the newest dated analysis and opinion top the list up
-    to five. Opinion sits with the analysis, labeled with its byline; the first two
-    stories sit beside the lead and the rest fill the grid below."""
+    to five. Opinion sits with the analysis, labeled with its byline."""
     key=lambda a:(a['date'],a.get('published_at',''))
     pool=sorted(current+featured_opinions(catalog,now),key=key,reverse=True)
     seen={lead['url']};out=[]
@@ -425,9 +424,9 @@ def render_home(data,now):
     lead=home_lead(current,fallback)
     stories=home_stories(current,catalog,lead,now)
     ctx=context(data,now)
-    # Full rows of three under the top row; the rest stay one click away.
-    features=stories[2:];features=features[:len(features)-len(features)%3] if len(features)>3 else features
-    ctx.update(lead=lead,side=stories[:2],features=features,next_up=next_up(now))
+    # The lead stands alone; the rest fill full rows of three and stay one click away.
+    features=stories[:6];features=features[:len(features)-len(features)%3] if len(features)>3 else features
+    ctx.update(lead=lead,features=features,next_up=next_up(now))
     (DOCS/'index.html').write_text(ENV.get_template('home.html').render(**ctx)+'\n')
     # Opinion remains a distinct, permanent archive; approved analysis also
     # appears in the existing blog without rebuilding any authored article.
