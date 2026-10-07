@@ -343,8 +343,11 @@ console.log('PASS: immutable edition, review-at-publication validity, future/inv
   assert.match(html,/The case against:<\/strong> Carries could rise\./);assert.match(html,/\/research\/daily-process\.html/);
   assert.match(featuredHTML({...card,rows:[],status:'no_reviewed_candidates'},now),/No pick cleared today’s review/);
   assert.match(featuredHTML({...card,rows:[],status:'research_incomplete'},now),/Morning research did not finish/);
-  assert.match(featuredHTML(card,now+7200e3+1),/Today’s picks have started/);
+  const later=now+7200e3+1;
+  assert.equal(featuredPick(card,later).player,'First <b>Player</b>','once every game has started the day’s first pick stays up');
+  assert.match(featuredHTML(card,later),/Game started · historical assessment\./);assert.doesNotMatch(featuredHTML(card,later),/Confirm the current line/);
+  assert.doesNotMatch(featuredHTML(card,now),/Game started/);
   assert.match(featuredHTML({...card,decision_date:'2000-01-01'},now),/not published yet/);
   assert.match(featuredHTML(null,now),/not published yet/);
 }
-console.log('PASS: featured pick follows the published card, skips started games and says why when empty.');
+console.log('PASS: featured pick follows the published card, keeps the day’s pick once games start and says why when empty.');
