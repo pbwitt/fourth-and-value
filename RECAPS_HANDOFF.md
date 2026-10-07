@@ -102,3 +102,5 @@ relabeling older results as evidence for a newer selection policy).
   `docs/blog/chris-sale-pitcher-outs-2026/`), featured on the home page through
   Oct 12 via `config/editorial.json`. Next: step 3 (MLB weekly recap generator);
   the MLB archive starts filling from the first `mlb-daily` run after #102.
+
+- 2026-10-07 (Codex): reviewed PR #103 for publication; corrected the nine-start average wording, qualified small-sample and model-attribution claims, made the post-bullpen EV assumptions explicit, softened deterministic pitch-pace language, enabled chart tooltips on tap, and linked the worked example from Learn. No model or selection-policy changes.
