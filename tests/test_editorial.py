@@ -65,10 +65,12 @@ class EditorialTests(unittest.TestCase):
         self.assertEqual(m.home_lead(articles,fallback),articles[0])
         self.assertEqual(m.home_lead([dict(articles[0],featured=False)]+articles[1:],fallback),articles[1])
         self.assertEqual(m.home_lead([],fallback),fallback)
-        # Features exclude the lead and opinion, and top up with older analysis when thin.
-        older=[story(9,'/blog/older.html',featured=None),story(8,'/editorial/opinion.html',kind='Opinion')]
-        features=m.home_features(articles[:2],articles[:2]+older,articles[0])
-        self.assertEqual([a['url'] for a in features],[articles[1]['url'],'/blog/older.html'])
+        # Opinion sits with analysis. Current pieces come first; older ones top up to five.
+        older=[story(9,'/blog/older.html',featured=None,date='2026-09-01'),story(8,'/editorial/opinion.html',kind='Opinion',date='2026-09-02')]
+        current=[dict(a,date='2026-09-2'+str(i)) for i,a in enumerate(articles[:2])]
+        stories=m.home_stories(current,current+older,current[1],NOW)
+        self.assertEqual([a['url'] for a in stories],[articles[0]['url'],'/editorial/opinion.html','/blog/older.html'],
+                         'the lead is skipped; older pieces fill in newest first, opinion included')
     def test_opinion_promotion_expires_without_entering_analysis(self):
         opinion=dict(title='Opinion',kind='Opinion',date='2026-09-22',
                      url='/editorial/articles/opinion.html',featured=True,
@@ -78,12 +80,13 @@ class EditorialTests(unittest.TestCase):
         self.assertEqual(m.featured_opinions([opinion],NOW+timedelta(days=3)),[])
         self.assertEqual(m.featured_opinions([dict(opinion,featured=False)],NOW),[])
         self.assertEqual(m.featured_opinions([dict(opinion,featured_until=None)],NOW),[])
-        older=dict(opinion,title='Older',url='/editorial/older.html',featured=False,featured_until=None,date='2026-09-01')
-        take,others=m.home_take([opinion,older],NOW)
-        self.assertEqual((take,others),(opinion,[older]))
-        take,others=m.home_take([older,opinion],NOW+timedelta(days=3))
-        self.assertEqual((take,others),(older,[opinion]),'after the feature ends the newest opinion takes the slot')
-        self.assertEqual(m.home_take([],NOW),(None,[]))
+        lead={'url':'/editorial/articles/lead.html'}
+        analysis=[dict(title=f'A{i}',kind='Analysis',url=f'/editorial/articles/{i}.html',date=f'2026-09-1{i}',featured=True) for i in range(7)]
+        stories=m.home_stories(analysis,[opinion,*analysis],lead,NOW)
+        self.assertEqual(stories[0],opinion,'a featured opinion is placed by date among current stories')
+        self.assertEqual(len(stories),8)
+        later=m.home_stories(analysis,[opinion,*analysis],lead,NOW+timedelta(days=3))
+        self.assertNotIn(opinion,later,'after its feature ends an opinion only tops up a thin list')
     def test_started_and_stale_quotes_excluded(self):
         e=event();e['commence_time']=(NOW-timedelta(seconds=1)).isoformat()
         self.assertEqual(m.summarize_events('NFL',[e],NOW,{}),[])

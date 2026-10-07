@@ -400,20 +400,17 @@ def featured_opinions(catalog,now):
     return [a for a in catalog if a.get('kind')=='Opinion' and a.get('featured')
             and a.get('featured_until') and now<stamp(a['featured_until'])]
 
-def home_take(catalog,now):
-    """The opinion beside the lead: an opted-in feature while it runs, else the newest
-    opinion, which then shows its date. Returns (take, up to two other opinions)."""
-    opinions=[a for a in catalog if a.get('kind')=='Opinion']
-    take=(featured_opinions(catalog,now) or opinions or [None])[0]
-    return take,[a for a in opinions if a is not take][:2]
-
-def home_features(current,catalog,lead,limit=6):
-    """Analysis cards below the top row: current features, topped up with the newest
-    dated analysis so the section never sits nearly empty. Opinion stays separate."""
+def home_stories(current,catalog,lead,now,limit=8):
+    """Stories after the lead, newest first. Current features and any opinion an editor
+    has featured come first, then the newest dated analysis and opinion top the list up
+    to five. Opinion sits with the analysis, labeled with its byline; the first two
+    stories sit beside the lead and the rest fill the grid below."""
+    key=lambda a:(a['date'],a.get('published_at',''))
+    pool=sorted(current+featured_opinions(catalog,now),key=key,reverse=True)
     seen={lead['url']};out=[]
-    for a in [*current,*catalog]:
-        if a.get('kind')=='Opinion' or a['url'] in seen:continue
-        if len(out)>=3 and a not in current:break
+    for a in [*pool,*sorted(catalog,key=key,reverse=True)]:
+        if a['url'] in seen:continue
+        if len(out)>=5 and a not in pool:break
         seen.add(a['url']);out.append(a)
         if len(out)>=limit:break
     return out
@@ -426,10 +423,11 @@ def render_home(data,now):
     current=[a for a in catalog if featured_now(a,now)]
     fallback=dict(title='The daily market briefing',excerpt='Compare current prices across the leagues and follow what changes next.',sport='Sports',kind='Market watch',url='/briefing/',date=now.astimezone(ETZ).date().isoformat())
     lead=home_lead(current,fallback)
-    take,opinions=home_take(catalog,now)
+    stories=home_stories(current,catalog,lead,now)
     ctx=context(data,now)
-    ctx.update(lead=lead,take=take,take_featured=bool(take and take in featured_opinions(catalog,now)),
-               features=home_features(current,catalog,lead),opinions=opinions,next_up=next_up(now))
+    # Full rows of three under the top row; the rest stay one click away.
+    features=stories[2:];features=features[:len(features)-len(features)%3] if len(features)>3 else features
+    ctx.update(lead=lead,side=stories[:2],features=features,next_up=next_up(now))
     (DOCS/'index.html').write_text(ENV.get_template('home.html').render(**ctx)+'\n')
     # Opinion remains a distinct, permanent archive; approved analysis also
     # appears in the existing blog without rebuilding any authored article.
