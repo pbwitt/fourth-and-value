@@ -200,6 +200,44 @@ class EditorialTests(unittest.TestCase):
             self.assertFalse(m.safe_url(url))
         self.assertTrue(m.safe_url('https://www.nfl.com/news/example'))
 
+class NextUpTests(unittest.TestCase):
+    def quote(self,game,start,market,side,price,book,line=None,quoted=NOW-timedelta(hours=1),**extra):
+        away,home=game.split(' @ ')
+        return dict(game=game,away_team=away,home_team=home,commence_time=start.isoformat().replace('+00:00','Z'),market=market,
+                    side=side,line=line,price=price,book_label=book,quoted_at=quoted.isoformat().replace('+00:00','Z'),player=extra.pop('player',''),**extra)
+
+    def test_next_games_carry_best_prices_starters_and_props(self):
+        mlb_game,soon='Los Angeles Dodgers @ Atlanta Braves',NOW+timedelta(hours=2)
+        meta=dict(game_type='D',phase='Division Series',series_game=3,away_pitcher={'fullName':'Yoshinobu Yamamoto'},home_pitcher={'fullName':'Chris Sale'})
+        mlb=[self.quote(mlb_game,soon,'h2h','Los Angeles Dodgers',-108,'DraftKings',**meta),
+             self.quote(mlb_game,soon,'h2h','Los Angeles Dodgers',-101,'BetOnline',**meta),
+             self.quote(mlb_game,soon,'h2h','Atlanta Braves',-112,'DraftKings',**meta),
+             self.quote(mlb_game,soon,'h2h','Atlanta Braves',+150,'Stale book',quoted=NOW-timedelta(hours=7),**meta),
+             *[self.quote(mlb_game,soon,'totals',s,p,b,line=6.5,**meta) for s,p,b in [('Over',-110,'A'),('Over',-104,'B'),('Under',-102,'C')]],
+             self.quote(mlb_game,soon,'totals','Over',+120,'D',line=7.5,**meta),
+             *[self.quote(mlb_game,soon,'pitcher_strikeouts','Over',-120,b,line=7.5,player='Chris Sale',model_mean=6.61,**meta) for b in 'AB'],
+             self.quote('A @ B',NOW-timedelta(minutes=1),'h2h','A',-110,'Started'),
+             self.quote('C @ D',NOW+timedelta(hours=40),'h2h','C',-110,'Too far')]
+        nhl=[self.quote('Minnesota Wild @ Buffalo Sabres',NOW+timedelta(hours=3),'h2h','Minnesota Wild',-111,'LowVig',nhl_game_id=7)]
+        goalies={'7':{'away':{'confirmed':True,'goalies':[{'player':'Backup','start_probability':.3},{'player':'Jesper Wallstedt','start_probability':.7}]},
+                      'home':{'confirmed':False,'goalies':[{'player':'Ukko-Pekka Luukkonen','start_probability':.6}]}}}
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            for rel,feed in [('mlb/data/latest.json',{'rows':mlb}),('nhl/data/latest.json',{'rows':nhl,'goalie_projections':goalies})]:
+                (root/rel).parent.mkdir(parents=True);(root/rel).write_text(json.dumps(feed))
+            games=m.next_up(NOW,root=root)
+        self.assertEqual([g['sport'] for g in games],['MLB','NHL'],'soonest first; started and far-off games are left out')
+        g=games[0]
+        self.assertEqual((g['label'],g['who'],g['start_label']),('Division Series · Game 3','Yoshinobu Yamamoto vs Chris Sale','Tue 10:00 AM ET'))
+        self.assertEqual(g['ml'],['Dodgers -101 BetOnline','Braves -112 DraftKings'],'best fresh price per side; a stale quote never counts')
+        self.assertEqual(g['total'],{'line':'6.5','parts':['O -104 B','U -102 C']},'the most-quoted line, best price on each side')
+        self.assertEqual(g['props'],[{'text':'Sale strikeouts 7.5 · forecast 6.6','url':'/mlb/props/?q=Chris+Sale&market=pitcher_strikeouts'}])
+        self.assertEqual(games[1]['who'],'Jesper Wallstedt vs Ukko-Pekka Luukkonen (projected)')
+        self.assertEqual(games[1]['ml'],['Wild -111 LowVig'])
+        self.assertEqual(m.nickname('Toronto Maple Leafs'),'Maple Leafs');self.assertEqual(m.nickname('Atlanta Braves'),'Braves')
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(m.next_up(NOW,root=Path(tmp)),[],'missing feeds are skipped')
+
 class NewsTests(unittest.TestCase):
     API='https://site.api.espn.test/nfl/news';RSS='https://rss.espn.test/nfl'
     CFG={'news_api':{'NFL':API},'news_feeds':{'NFL':RSS}}
