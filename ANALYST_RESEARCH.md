@@ -408,3 +408,55 @@ Sport boards and Today’s Picks share `docs/assets/player-context.js` and its s
 Snapshots have three tabs. Form: `trend` (up to ten games, oldest first, `[date, value, model weight, opponent, workload]`) drawn against the offered line. How it works: `build` (the projection's arithmetic), `distribution` (model probabilities per count, trimmed to the central 99% with tails in the end bars; NBA sends `empirical` past values instead), `opponent` (recency-weighted strength with league rank and whether the model uses it), `blend` (share of an estimate from the player's own games versus the prior) and `missing`. Track record: MLB reads `docs/mlb/data/validation.json`; NHL reads `docs/nhl/data/track-record.json`, written by `scripts/nhl/v2/track.py` from the running version's evaluation report and shown only when the row's model version matches. Every explanation piece is optional and built inside `describe()`, so a failure drops that piece, never the forecast. Chart colors were checked with the data-viz palette validator against the dark surface.
 
 Observed averages and prior-adjusted inputs are labeled separately. A field is labeled “Model input” only when the selected model uses it; other available factors are context. MLB innings display in thirds (5⅔ = five innings and two outs) for averages, game logs and season totals alike. MLB history records carry the opponent team id and home flag for game-log labels only; no feature reads them. NHL snapshots link to the player’s page when `/nhl/players/players.json` lists that player. All history windows retain their pregame cutoffs. Saved editions keep their original inputs; missing context is not reconstructed from later results.
+
+
+## Weekly sport recaps (October 7, 2026)
+
+Cadence: **MLB Monday, NHL Tuesday, NFL Wednesday, NBA Thursday**, Eastern time.
+MLB/NHL/NBA cover the seven completed dates ending the day before publication.
+NFL retains its football-week recap/preview and immutable weekly archive.
+
+`recap_schedule.py` runs after the dependable morning pipeline, even if today's
+card already exists. Daily 10 a.m., noon and 6 p.m. GitHub schedules are backup
+checks; jobs can start late. A complete matching HTML+JSON report is the delivery
+gate. Waiting checks back off two hours. Published unresolved samples retry once
+per Eastern date until three days after the report end; explicit reruns can revise
+later official corrections. Complete reports skip automatic regeneration.
+`sport-weekly-recaps.yml` and NFL share `weekly-recaps` concurrency with
+`queue: max`, so waiting recap jobs queue instead of replacing one another.
+
+`sport_weekly_review.py` grades the canonical `editionRows` view of the final
+morning edition per Eastern date. Test editions are excluded and policy versions
+stay separate. Board forecasts are not card picks. Board comparisons select
+the most-offered paired line from each game's last saved pregame snapshot, with
+median tie-breaking and exact quoted prices. Recorded forecast/capture times must
+precede kickoff. Missing participation, results and stats stay unresolved.
+Pushes return the stake and count as staked units in ROI. Brier compares matched
+conditional non-push probabilities, resampling whole games for uncertainty.
+Mean errors only use a matching forecast mean actually saved before the game.
+
+Inputs: NHL content-addressed forecast/result archives; MLB compact archives and
+StatsAPI final games/boxscores; NBA durable full snapshots and official ESPN
+final scoreboards/boxscores (`nba_weekly_results.py`). NBA fixture matching uses
+exact normalized home/away identities and Eastern dates; ambiguity is unresolved.
+Official MLB/NBA responses are saved under `artifacts/<sport>/results/` for offline
+reproduction. No paid odds or model calls are made by the generic recap workflow.
+
+Outputs: dated HTML/JSON/SVG in `docs/blog`, graded rows/source references,
+`docs/recaps/status.json`, blog/sitemap discovery and latest-per-sport home links.
+The workflow preserves successful sports/status then fails visibly if any sport
+throws an error. Generated report/status artifacts are retained for 90 days.
+MLB's older-card-only reports explicitly disclose the absent board archive. NBA
+waits for saved evidence/results instead of issuing an empty or fabricated recap.
+
+NFL adds Wednesday noon/6 p.m. recovery and limited implementation-push recovery,
+with a completion guard, plus missing-review recovery during Wednesday/Thursday
+morning data refreshes. No new archive can be frozen after kickoff. The NFL
+article generator now emits complete SEO metadata and refreshes current home links.
+
+Manual reproduction: `python scripts/sport_weekly_review.py --sport mlb --end
+2026-10-04 --offline`. Omit `--offline` to update official results. A scheduled
+catch-up uses `python scripts/recap_schedule.py`. Tests: sport_weekly_review,
+recap_schedule, recap_archive, nba_weekly_results, NFL, existing NBA/archive tests
+and `node tests/briefing_picks.cjs`. Rebuild/check the process page with every
+schedule or grading change.

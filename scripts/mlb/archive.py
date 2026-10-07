@@ -15,7 +15,7 @@ RUNS = ROOT / 'artifacts/mlb/runs'
 # display text stay out: they are large and the recap does not grade them.
 ROW_FIELDS = ('event_id', 'mlb_game_id', 'game', 'home_team', 'away_team', 'commence_time', 'game_type',
               'phase', 'series_game', 'market', 'player', 'model_player_id', 'side', 'line', 'price', 'book',
-              'quoted_at', 'model_probability', 'model_push_probability', 'model_mean', 'is_model_pick',
+              'quoted_at', 'ingested_at', 'forecast_at', 'model_probability', 'model_push_probability', 'model_mean', 'is_model_pick',
               'model_status', 'model_version', 'model_policy')
 EVENT_FIELDS = ('mlb_game_id', 'commence_time', 'home_team', 'away_team', 'game_type', 'phase', 'series_game')
 
@@ -28,7 +28,8 @@ def compact(state):
             if fields is EVENT_FIELDS and isinstance(record.get(side), dict):
                 out[side] = {k: record[side].get(k) for k in ('id', 'fullName')}
         return out
-    return dict(schema=1, sport='MLB', checked_at=state.get('checked_at'), model_version=state.get('model_version'),
+    return dict(schema=1, sport='MLB', checked_at=state.get('checked_at'), model_checked_at=state.get('model_checked_at'),
+                captured_at=state.get('captured_at'), model_version=state.get('model_version'),
                 events=[pick(e, EVENT_FIELDS) for e in state.get('events') or []],
                 rows=[pick(r, ROW_FIELDS) for r in state.get('rows') or []])
 

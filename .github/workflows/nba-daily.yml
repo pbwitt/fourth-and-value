@@ -82,6 +82,7 @@ jobs:
           git config user.name 'GitHub Actions Bot'
           git config user.email 'actions@github.com'
           git add docs/nba/
+          if [ -d artifacts/nba ]; then git add artifacts/nba/; fi
           if git diff --cached --quiet; then exit 0; fi
           git commit -m 'NBA: refresh market snapshot and pages'
           for attempt in 1 2 3; do

@@ -1,0 +1,36 @@
+name: Sport Weekly Recap Tests
+on:
+  pull_request:
+    paths:
+      - 'scripts/sport_weekly_review.py'
+      - 'scripts/recap_archive.py'
+      - 'scripts/recap_schedule.py'
+      - 'scripts/nba_weekly_results.py'
+      - 'scripts/nba/pipeline.py'
+      - 'tests/test_sport_weekly_review.py'
+      - 'tests/test_recap_archive.py'
+      - 'tests/test_recap_schedule.py'
+      - 'tests/test_nba_weekly_results.py'
+      - '.github/workflows/sport-weekly-recaps*.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: pip install -r requirements.txt
+      - run: python -m unittest discover -s tests -p 'test_sport_weekly_review.py'
+      - run: python -m unittest discover -s tests -p 'test_recap_archive.py'
+      - run: python -m unittest discover -s tests -p 'test_recap_schedule.py'
+      - run: python -m unittest discover -s tests -p 'test_nba_weekly_results.py'
+      - run: python -m unittest discover -s tests -p 'test_mlb_archive.py'
+      - run: python -m unittest discover -s tests -p 'test_nba.py'
+      - run: node tests/briefing_picks.cjs
+      - run: python scripts/build_daily_process.py --check
