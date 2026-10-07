@@ -318,6 +318,12 @@ def main():
                     unavailable_reasons=dict(Counter(r['model_status'] for r in state['rows'] if r.get('model_probability') is None)))
             state['status'] = 'ready' if state['rows'] else 'waiting_for_markets'
             save_json(ROOT/'data/mlb/snapshots'/(now.strftime('%Y%m%dT%H%M%SZ')+'.json'), state)
+            # Committed pregame evidence for weekly recaps (scripts/mlb/archive.py).
+            from mlb.archive import save_run
+            try:
+                save_run(state, now)
+            except OSError as error:
+                print(f'MLB archive not saved: {error}', file=sys.stderr)
         except FeedError as error:
             state.update(status='feed_error', checked_at=iso(now), error=str(error))
             print(str(error), file=sys.stderr)
