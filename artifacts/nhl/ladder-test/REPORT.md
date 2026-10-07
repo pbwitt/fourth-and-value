@@ -1,31 +1,31 @@
 # NHL milestone-prop test
 
-Research only; no bets were placed. Window 2026-10-04 to 2026-10-11 (end exclusive), 5 refreshes, model nhl-v2.1, nhl-v2.3, nhl-v2.4. Generated 2026-10-06T20:33:28.825823Z.
+Research only; no bets were placed. Window 2026-10-04 to 2026-10-11 (end exclusive), 6 refreshes, model nhl-v2.1, nhl-v2.3, nhl-v2.4. Generated 2026-10-07T11:07:22.351360Z.
 
-2869 contracts priced; results: lost 847, pending 1704, unresolved_participation 28, won 290.
+3372 contracts priced; results: lost 2083, pending 503, unresolved_participation 49, won 737.
 
 ## Model bets (best verified price, estimated EV at or above the threshold)
 
 | Threshold | Market | Graded | Net units | ROI | 95% range |
 |---|---|---|---|---|---|
-| 2% | All | 128 | -2.47 | -1.9% | -53.0% to +66.2% |
-| 2% | Anytime goal scorer | 82 | -18.30 | -22.3% | -85.2% to +58.1% |
-| 2% | Alternate points | 21 | -18.90 | -90.0% | -100.0% to -76.7% |
-| 2% | Alternate shots | 25 | +34.73 | 138.9% | -100.0% to +518.5% |
-| 10% | All | 83 | +24.69 | 29.7% | -37.9% to +130.0% |
-| 10% | Anytime goal scorer | 59 | +0.85 | 1.4% | -80.1% to +92.9% |
-| 10% | Alternate points | 11 | -8.90 | -80.9% | -100.0% to -58.0% |
-| 10% | Alternate shots | 13 | +32.74 | 251.8% | +126.9% to +668.3% |
+| 2% | All | 429 | -37.50 | -8.7% | -41.7% to +19.5% |
+| 2% | Anytime goal scorer | 169 | -39.50 | -23.4% | -68.0% to +24.3% |
+| 2% | Alternate points | 116 | -8.31 | -7.2% | -47.3% to +19.8% |
+| 2% | Alternate shots | 144 | +10.31 | 7.2% | -50.3% to +60.8% |
+| 10% | All | 245 | -43.87 | -17.9% | -52.8% to +22.9% |
+| 10% | Anytime goal scorer | 120 | -26.55 | -22.1% | -73.5% to +30.4% |
+| 10% | Alternate points | 56 | -20.67 | -36.9% | -66.7% to -19.3% |
+| 10% | Alternate shots | 69 | +3.35 | 4.8% | -66.9% to +103.2% |
 
-**2% threshold:** Inconclusive: ROI -1.9%, and the 95% range (-53.0% to +66.2%) includes zero.
+**2% threshold:** Inconclusive: ROI -8.7%, and the 95% range (-41.7% to +19.5%) includes zero.
 
 ## Calibration (won or lost contracts with a model probability)
 
 | Market | Contracts | Model mean | Hit rate | Model Brier | Best-price Brier |
 |---|---|---|---|---|---|
-| All | 1137 | 24.7% | 25.5% | 0.1226 | 0.1202 |
-| Anytime goal scorer | 200 | 16.6% | 15.0% | 0.1173 | 0.1155 |
-| Alternate points | 417 | 18.1% | 17.7% | 0.1048 | 0.1002 |
-| Alternate shots | 520 | 33.1% | 35.8% | 0.1390 | 0.1381 |
+| All | 2820 | 24.5% | 26.1% | 0.1248 | 0.1229 |
+| Anytime goal scorer | 445 | 16.3% | 16.2% | 0.1234 | 0.1204 |
+| Alternate points | 1056 | 17.0% | 19.5% | 0.1137 | 0.1103 |
+| Alternate shots | 1319 | 33.3% | 34.8% | 0.1341 | 0.1339 |
 
 Lower Brier is better. The best price still includes the book's margin, so it is a reference, not a fair probability.
