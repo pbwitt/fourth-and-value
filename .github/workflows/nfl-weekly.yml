@@ -1,9 +1,17 @@
 name: NFL Weekly Update
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/nfl-weekly.yml'
+      - 'scripts/nfl_weekly_review.py'
   schedule:
     # Weekly model refresh/review, plus game-day board refreshes.
     - cron: '0 10 * * 3'
+      timezone: America/New_York
+    # Recovery starts skip completed weekly publications before rebuilding models.
+    - cron: '0 12,18 * * 3'
       timezone: America/New_York
     - cron: '0 17 * * 4'
       timezone: America/New_York
@@ -21,7 +29,7 @@ on:
   workflow_dispatch:
     inputs:
       editorial_refresh:
-        description: Refresh current data for articles without rebuilding the weekly recap
+        description: Refresh current data and recover a missing Wednesday recap when due
         type: boolean
         default: false
       week:
@@ -30,8 +38,9 @@ on:
         type: number
 
 concurrency:
-  group: nfl-weekly-update
+  group: weekly-recaps
   cancel-in-progress: false
+  queue: max
 
 jobs:
   update-nfl:
@@ -62,8 +71,17 @@ jobs:
           else
             python scripts/prepare_nfl_refresh.py --select
           fi
-      - name: Restore historical inputs and line history
+      - name: Skip completed automatic weekly work
+        id: plan
         if: steps.week.outputs.active == 'true'
+        env:
+          NFL_SEASON: ${{ steps.week.outputs.season }}
+          NFL_WEEK: ${{ steps.week.outputs.week }}
+          GITHUB_SCHEDULE: ${{ github.event.schedule }}
+          EDITORIAL_REFRESH: ${{ inputs.editorial_refresh }}
+        run: python scripts/nfl_weekly_review.py plan --season "$NFL_SEASON" --week "$NFL_WEEK"
+      - name: Restore historical inputs and line history
+        if: steps.plan.outputs.refresh == 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -73,7 +91,7 @@ jobs:
           key: nfl-refresh-v1-${{ runner.os }}-${{ github.run_id }}
           restore-keys: nfl-refresh-v1-${{ runner.os }}-
       - name: Prepare current player stats and totals model
-        if: steps.week.outputs.active == 'true'
+        if: steps.plan.outputs.refresh == 'true'
         env:
           NFL_SEASON: ${{ steps.week.outputs.season }}
           NFL_WEEK: ${{ steps.week.outputs.week }}
@@ -82,7 +100,7 @@ jobs:
           python scripts/fetch_defensive_stats.py --season "$NFL_SEASON" --week "$NFL_WEEK"
       - name: Refresh NFL projections, prices and pages
         id: refresh
-        if: steps.week.outputs.active == 'true'
+        if: steps.plan.outputs.refresh == 'true'
         env:
           ODDS_API_KEY: ${{ secrets.NFL_ODDS_API_KEY || secrets.MLB_ODDS_API_KEY || secrets.ODDS_API_KEY }}
           NFL_SEASON: ${{ steps.week.outputs.season }}
@@ -93,7 +111,7 @@ jobs:
           python scripts/export_nfl_editorial.py --season "$NFL_SEASON" --week "$NFL_WEEK"
       - name: Freeze current-week pregame evidence
         id: weekly_snapshot
-        if: inputs.editorial_refresh != true && steps.refresh.outcome == 'success' && (github.event_name != 'schedule' || github.event.schedule == '0 10 * * 3')
+        if: steps.plan.outputs.weekly == 'true' && steps.refresh.outcome == 'success'
         env:
           NFL_SEASON: ${{ steps.week.outputs.season }}
           NFL_WEEK: ${{ steps.week.outputs.week }}
@@ -126,7 +144,7 @@ jobs:
         run: python scripts/nfl_weekly_review.py verify-week2
 
       - name: Preserve model inputs and run diagnostics
-        if: always() && steps.week.outputs.active == 'true'
+        if: always() && steps.plan.outputs.refresh == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: nfl-refresh-${{ github.run_id }}
@@ -145,6 +163,7 @@ jobs:
           retention-days: 30
           if-no-files-found: ignore
       - name: Include responsible-use notices
+        if: steps.refresh.outcome == 'success'
         run: |
           python scripts/site_notices.py
           python -m unittest discover -s tests -p 'test_site_notices.py'
@@ -161,8 +180,6 @@ jobs:
           git add docs/
           git ls-files --error-unmatch docs/nfl/data/latest.json
           if [ -d reports/nfl-weekly ]; then git add reports/nfl-weekly/; fi
-          # The weekly review repoints the homepage receipts card in the editorial template.
-          git add scripts/editorial_templates/home.html
           if git diff --cached --quiet; then exit 0; fi
           git commit -m "NFL: refresh Week $NFL_WEEK projections and prices"
           for attempt in 1 2 3; do

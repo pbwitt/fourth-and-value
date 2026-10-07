@@ -8,6 +8,7 @@ import re
 
 ROOT=Path(__file__).resolve().parents[1]
 WORKFLOWS={
+ 'sport-weekly-recaps.yml':('Weekly sport recaps','MLB Monday, NHL Tuesday and NBA Thursday, after the morning pipeline. Each covers the seven completed Eastern dates before its publication day. Daily 10 a.m., noon and 6 p.m. catch-up checks skip successful reports and retry missing evidence. NFL Wednesday recaps are part of its own refresh. No paid model or odds calls in this recap job.'),
  'morning-picks.yml':('Morning research edition','Gate on a completed edition; otherwise refresh NFL, MLB and NHL, wait for all three, research and verify the published card. Later starts recover missing/incomplete work.'),
  'editorial-daily.yml':('Editorial articles and maintenance','Primary article run starts after the morning sports refreshes; target two articles by 8:30 a.m. Recovery needs fresh morning models. Hourly checks handle approved posts, freshness and eligible morning catch-up; they are not hourly article production.'),
  'nfl-weekly.yml':('NFL data and models','Refresh statistics, player estimates, scoring projections and available prices; publish before research and editorial writing. Explicit manual editorial requests can also refresh NFL.'),
@@ -20,7 +21,7 @@ WORKFLOWS={
 
 def times(cron):
     minute,hour,dom,month,dow=cron.split()
-    days={'*':'daily','0':'Sunday','3':'Wednesday','4':'Thursday'}
+    days={'*':'daily','0':'Sunday','1':'Monday','2':'Tuesday','3':'Wednesday','4':'Thursday'}
     def expand(v):
         out=[]
         for part in v.split(','):

@@ -309,6 +309,7 @@ def main():
             state = attach(state, datetime.now(UTC), official_json)
             # Long prop fetches can cross first pitch; remove those games before publishing.
             finished = datetime.now(UTC)
+            state['captured_at'] = iso(finished)
             state['rows'] = [r for r in state['rows'] if timestamp(r['commence_time']) > finished]
             state['events'] = [g for g in state['events'] if timestamp(g['commence_time']) > finished]
             if state.get('model_summary'):
@@ -324,6 +325,7 @@ def main():
                 save_run(state, now)
             except OSError as error:
                 print(f'MLB archive not saved: {error}', file=sys.stderr)
+                code = 1  # A published refresh without its audit archive must fail visibly.
         except FeedError as error:
             state.update(status='feed_error', checked_at=iso(now), error=str(error))
             print(str(error), file=sys.stderr)

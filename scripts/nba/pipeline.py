@@ -377,8 +377,12 @@ def main():
         try:
             client = OddsClient(os.getenv('ODDS_API_KEY'))
             state = refresh(client, now, history, state)
+            # Request-start time is not the time the completed forecast became available.
+            state['captured_at'] = iso(datetime.now(UTC))
             archive = ROOT / 'data/nba/snapshots' / f"{now.strftime('%Y%m%dT%H%M%SZ')}.json"
             save_json(archive, state)
+            from recap_archive import save_nba_run
+            save_nba_run(state, now)
         except FeedError as error:
             # Keep saved evidence but UI hides it on failure; do not label it fresh.
             state.update(status='feed_error', checked_at=iso(now), error=str(error))

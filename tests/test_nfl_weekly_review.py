@@ -5,15 +5,87 @@ from tempfile import TemporaryDirectory
 from datetime import datetime, timezone
 import sys
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 import nfl_weekly_review as review
+import seo_check
 
 
 class WeeklyReviewTests(unittest.TestCase):
+    def test_automatic_weekly_recovery_requires_archive_and_finished_recap(self):
+        with TemporaryDirectory() as td:
+            root=Path(td)
+            archive=root/'reports/nfl-weekly/2026/week-5/pregame/manifest.json'
+            article=root/'docs/blog/week-4-recap-week-5-preview-2026.html'
+            summary=root/'reports/nfl-weekly/2026/week-4/review/summary.json'
+            for path in [archive,article,summary]:
+                self.assertEqual(review.refresh_plan(2026,5,'push',root=root)['refresh'],'true')
+                path.parent.mkdir(parents=True,exist_ok=True);path.write_text('{}')
+            for event,cron in [('push',''),('schedule','0 10 * * 3'),('schedule','0 12,18 * * 3')]:
+                with self.subTest(event=event,cron=cron):
+                    plan=review.refresh_plan(2026,5,event,cron,root=root)
+                    self.assertEqual(plan['complete'],'true')
+                    self.assertEqual(plan['refresh'],'false')
+                    self.assertEqual(plan['weekly'],'false')
+            for event,cron,editorial in [('schedule','0 17 * * 4',False),
+                    ('schedule','0 8,11,20 * * 0',False),('workflow_call','',True),
+                    ('workflow_dispatch','',True),('workflow_dispatch','',False)]:
+                with self.subTest(event=event,cron=cron,editorial=editorial):
+                    plan=review.refresh_plan(2026,5,event,cron,editorial,root)
+                    self.assertEqual(plan['refresh'],'true')
+                    self.assertEqual(plan['weekly'],str(event=='workflow_dispatch' and not editorial).lower())
+
+    def test_week_one_recovery_needs_only_pregame_archive(self):
+        with TemporaryDirectory() as td:
+            root=Path(td);archive=root/'reports/nfl-weekly/2026/week-1/pregame/manifest.json'
+            archive.parent.mkdir(parents=True);archive.write_text('{}')
+            self.assertEqual(review.refresh_plan(2026,1,'push',root=root)['refresh'],'false')
+
+    def test_morning_recovery_runs_on_wednesday_and_before_thursday_kickoff(self):
+        with TemporaryDirectory() as td:
+            root=Path(td);(root/'data').mkdir()
+            pd.DataFrame([dict(season=2026,week=5,game_type='REG',gameday='2026-10-08',gametime='20:15')]).to_csv(root/'data/schedule_2026.csv',index=False)
+            cases=[('2026-10-06T12:00:00Z','false'),('2026-10-07T12:00:00Z','true'),
+                ('2026-10-08T12:00:00Z','true'),('2026-10-09T00:16:00Z','false'),
+                ('2026-10-09T12:00:00Z','false')]
+            for now,expected in cases:
+                with self.subTest(now=now):
+                    plan=review.refresh_plan(2026,5,'workflow_dispatch',editorial_refresh=True,root=root,now=now)
+                    self.assertEqual(plan['refresh'],'true')
+                    self.assertEqual(plan['weekly'],expected)
+            # Once evidence is frozen, a late Thursday retry can safely finish the recap.
+            archive=root/'reports/nfl-weekly/2026/week-5/pregame/manifest.json'
+            archive.parent.mkdir(parents=True);archive.write_text('{}')
+            plan=review.refresh_plan(2026,5,'workflow_dispatch',editorial_refresh=True,root=root,now='2026-10-09T00:16:00Z')
+            self.assertEqual(plan['weekly'],'true')
+
+    def test_morning_recovery_without_schedule_does_not_freeze_new_evidence(self):
+        with TemporaryDirectory() as td:
+            plan=review.refresh_plan(2026,5,'workflow_dispatch',editorial_refresh=True,root=Path(td),now='2026-10-07T12:00:00Z')
+            self.assertEqual(plan['refresh'],'true')
+            self.assertEqual(plan['weekly'],'false')
+
+    def test_discovery_renders_current_home_from_saved_briefing_only_in_real_root(self):
+        with TemporaryDirectory() as td:
+            root=Path(td);blog=root/'docs/blog';blog.mkdir(parents=True)
+            (blog/'index.html').write_text('<ul><!-- editorial-managed:end --></ul>')
+            (root/'docs/sitemap.xml').write_text('<urlset></urlset>')
+            briefing=root/'docs/briefing/latest.json';briefing.parent.mkdir();briefing.write_text('{"games":[]}')
+            article=blog/'week-4-recap-week-5-preview-2026.html';article.write_text('article')
+            with patch('editorial.render_home') as render:
+                review.update_discovery(article,'Week 4 review','Saved results','2026-10-07',4,root)
+                render.assert_not_called()
+                with patch.object(review,'ROOT',root):
+                    review.update_discovery(article,'Week 4 review','Saved results','2026-10-07',4,root)
+                render.assert_called_once()
+                self.assertEqual(render.call_args.args[0],{'games':[]})
+            self.assertEqual((blog/'index.html').read_text().count('./'+article.name),1)
+            self.assertEqual((root/'docs/sitemap.xml').read_text().count(article.name),1)
+
     def test_ticket_selection_is_one_offer_per_game_player_market(self):
         rows=pd.DataFrame([
             dict(game_id='g',player='P',market_std='rush_yds',name='over',point=50.5,price=-110,
@@ -105,10 +177,16 @@ class WeeklyReviewTests(unittest.TestCase):
             article=root/'docs/blog/week-3-recap-week-4-preview-2026.html'
             self.assertTrue(article.exists())
             self.assertIn('Week 3 review',article.read_text())
+            self.assertEqual(seo_check.audit('blog/'+article.name,article.read_text()),[])
+            self.assertIn('property="og:type" content="article"',article.read_text())
+            self.assertIn('property="article:section" content="NFL weekly review"',article.read_text())
+            self.assertIn('href="/nfl/"',article.read_text())
             self.assertTrue((root/'docs/blog/week-3-week-4-2026/totals.svg').exists())
             self.assertTrue((root/'docs/blog/week-3-week-4-2026/props.svg').exists())
             self.assertTrue((root/'docs/blog/week-3-week-4-2026/preview.svg').exists())
             self.assertTrue((root/'docs/blog/week-3-2026-review-data.json').exists())
+            regenerated=review.review_week(2026,3,4,root)
+            self.assertEqual(regenerated['published_at'],summary['published_at'])
 
     def test_new_weekly_csv_archives_are_not_ignored(self):
         import subprocess

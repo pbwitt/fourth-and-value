@@ -10,6 +10,7 @@ import hashlib
 import html
 import json
 import math
+import os
 import re
 import shutil
 from pathlib import Path
@@ -17,6 +18,8 @@ from datetime import datetime, timezone
 
 import numpy as np
 import pandas as pd
+
+from site_metadata import SITE, SOCIAL_CARD, seo_title, seo_description, social_tags
 
 ROOT=Path(__file__).resolve().parents[1]
 ARCHIVE=ROOT/'reports/nfl-weekly'
@@ -42,6 +45,41 @@ TEAM_NAMES=dict(zip(
      'Tampa Bay Buccaneers','Tennessee Titans','Washington Commanders'],
     'ARI ATL BAL BUF CAR CHI CIN CLE DAL DEN DET GB HOU IND JAX KC LV LAC LA MIA MIN NE NO NYG NYJ PHI PIT SF SEA TB TEN WAS'.split()))
 KEY=['game_id','player','market_std']
+WEEKLY_SCHEDULES={'0 10 * * 3','0 12,18 * * 3'}
+
+
+def refresh_plan(season,week,event,schedule='',editorial_refresh=False,root=ROOT,now=None):
+    """Retry weekly publication without charging for an already completed run.
+
+    Only automatic weekly/recovery starts may skip the data refresh. Game-day,
+    editorial and explicit manual refreshes keep fetching current observations.
+    Wednesday/Thursday editorial refreshes also recover a missing weekly review
+    while a new archive can still be frozen before the first kickoff.
+    """
+    base=Path(root)/'reports/nfl-weekly'/str(season)
+    archive=base/f'week-{week}'/'pregame/manifest.json'
+    article=Path(root)/'docs/blog'/f'week-{week-1}-recap-week-{week}-preview-{season}.html'
+    summary=base/f'week-{week-1}'/'review/summary.json'
+    complete=archive.is_file() and (week==1 or (article.is_file() and summary.is_file()))
+    now=utc(now or datetime.now(timezone.utc))
+    editorial_recovery=False
+    if editorial_refresh and not complete and now.tz_convert('America/New_York').weekday() in (2,3):
+        can_freeze=archive.is_file()
+        official=Path(root)/f'data/schedule_{season}.csv'
+        if not can_freeze and official.exists():
+            games=pd.read_csv(official)
+            games=games[(games.season==season)&(games.week==week)&(games.game_type=='REG')]
+            starts=pd.to_datetime(games.gameday.astype(str)+' '+games.gametime.fillna('13:00').astype(str),errors='coerce')
+            starts=starts.dt.tz_localize('America/New_York').dt.tz_convert('UTC')
+            can_freeze=not games.empty and starts.notna().all() and (starts>now).all()
+        editorial_recovery=can_freeze
+    weekly=not editorial_refresh and (event!='schedule' or schedule in WEEKLY_SCHEDULES)
+    weekly=weekly or editorial_recovery
+    automatic=event=='push' or (event=='schedule' and schedule in WEEKLY_SCHEDULES)
+    refresh=not (automatic and weekly and complete)
+    return dict(refresh=str(refresh).lower(),weekly=str(weekly and refresh).lower(),
+        complete=str(complete).lower(),reason='weekly publication already complete' if not refresh else
+        'recover missing weekly publication during current-data refresh' if editorial_recovery else 'refresh requested')
 
 
 def utc(value):
@@ -382,10 +420,31 @@ def pct(value):
     return 'n/a' if value is None else f'{100*value:.1f}%'
 
 
+def article_metadata(title,desc,slug,published,modified):
+    """Emit policy-compliant article tags without importing the other sports engine."""
+    desc=seo_description(desc)
+    url=SITE+'/blog/'+slug
+    schema=dict(**{'@context':'https://schema.org','@type':'Article'},headline=title,description=desc,
+        datePublished=published,dateModified=modified,image=SOCIAL_CARD,
+        author={'@type':'Organization','name':'Fourth & Value'},
+        publisher={'@type':'Organization','name':'Fourth & Value'})
+    return (f'<title>{html.escape(seo_title(title))}</title><meta name="description" content="{html.escape(desc,quote=True)}">'
+        f'<link rel="canonical" href="{url}"><meta property="og:type" content="article">'
+        f'<meta property="og:title" content="{html.escape(title,quote=True)}"><meta property="og:description" content="{html.escape(desc,quote=True)}">'
+        f'<meta property="og:url" content="{url}">{social_tags()}'
+        f'<meta property="article:published_time" content="{html.escape(published,quote=True)}"><meta property="article:section" content="NFL weekly review">'
+        f'<script type="application/ld+json">{json.dumps(schema).replace("<",chr(92)+"u003c")}</script>')
+
+
 def render_article(season,completed,preview,summary,totals,prop,preview_data,outdir,root=ROOT):
     blog=Path(root)/'docs/blog';blog.mkdir(parents=True,exist_ok=True)
+    path=blog/f'week-{completed}-recap-week-{preview}-preview-{season}.html'
     title=f'NFL Week {completed} review: the model receipts and the Week {preview} watchlist'
     desc=f'An audited Week {completed} scorecard using frozen pregame data, plus Fourth & Value model-market disagreements to research for Week {preview}.'
+    modified=summary['generated_at'];published=summary.get('published_at',modified)
+    head=article_metadata(f'NFL Week {completed} recap and Week {preview} preview ({season})',desc,path.name,published,modified)
+    previous=blog/f'week-{completed-1}-recap-week-{completed}-preview-{season}.html'
+    related=f' · <a href="{previous.name}">Previous weekly review</a>' if previous.exists() else ''
     ticket=summary['props']['tickets'];closing=summary['totals']['closing'];prob=summary['props'].get('probability_overall')
     legacy=summary.get('completed_archive')=='legacy-week3-preview'
     selection_label='archived modeled board (not a saved published shortlist)' if legacy else 'published shortlist'
@@ -400,14 +459,13 @@ def render_article(season,completed,preview,summary,totals,prop,preview_data,out
         f'Across {prob["n"]} representative non-push outcomes with both probabilities available, the model Brier score was <strong>{prob["model_brier"]:.4f}</strong> versus <strong>{prob["market_brier"]:.4f}</strong> for the de-vigged consensus. The game-block 95% interval for model minus market Brier was {prob["brier_difference_ci95"][0]:+.4f} to {prob["brier_difference_ci95"][1]:+.4f}.')
     closing_text=('Recorded closing totals were unavailable.' if not closing else
         f'Recorded closes produced {closing["overs"]} overs, {closing["unders"]} unders and {closing["pushes"]} pushes.')
-    html_text=f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{html.escape(title)} | Fourth &amp; Value</title><meta name="description" content="{html.escape(desc)}"><link rel="canonical" href="https://fourthandvalue.com/blog/week-{completed}-recap-week-{preview}-preview-{season}.html"><link rel="stylesheet" href="../assets/site.css"><link rel="stylesheet" href="/assets/responsible-use.css?v=1"></head><body><div id="nav-root"></div><script src="../nav.js?v=47"></script><main style="max-width:900px;margin:auto;padding:36px 20px 80px"><p class="eyebrow">Fourth &amp; Value · Weekly market review</p><h1>{html.escape(title)}</h1><p class="lead">{html.escape(desc)}</p><p class="meta">Generated from saved pregame evidence and official completed results. Re-running the workflow does not rewrite the frozen Week {completed} inputs.</p>
+    html_text=f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">{head}<link rel="stylesheet" href="../assets/site.css"><link rel="stylesheet" href="/assets/responsible-use.css?v=1"></head><body><div id="nav-root"></div><script src="../nav.js?v=47"></script><main style="max-width:900px;margin:auto;padding:36px 20px 80px"><p class="eyebrow">Fourth &amp; Value · Weekly market review</p><h1>{html.escape(title)}</h1><p class="lead">{html.escape(desc)}</p><p class="meta">Generated from saved pregame evidence and official completed results. Re-running the workflow does not rewrite the frozen Week {completed} inputs.</p>
 <h2>Week {completed}: the market scoreboard</h2><p>{closing_text} Against our archived market median, {summary["totals"]["archived_overs"]} games finished over, {summary["totals"]["archived_unders"]} under and {summary["totals"]["archived_pushes"]} pushed.{excluded_text}</p><p>The raw totals model direction went <strong>{summary["totals"]["model_direction"]["wins"]}–{summary["totals"]["model_direction"]["losses"]}</strong> with {summary["totals"]["model_direction"]["pushes"]} pushes and {fmt_units(summary["totals"]["model_direction"]["units"])} across {summary["totals"]["model_direction"]["priced_games"]} games with archived same-line prices; {summary["totals"]["model_direction"]["unpriced_games"]} unpriced directions are excluded from profit/loss. Mean absolute error was {summary["totals"]["mae"]["model"]:.2f} points for the model versus {summary["totals"]["mae"]["market"]:.2f} for the archived market median{f' and {summary["totals"]["mae"]["recorded_close"]:.2f} for the recorded close' if summary["totals"]["mae"]["recorded_close"] is not None else ''}.</p><figure><img src="week-{completed}-week-{preview}-{season}/totals.svg" alt="Week {completed} final points relative to the recorded closing total" style="width:100%"><figcaption>Final points minus the recorded close. This grades a saved forecast; it does not retroactively select a strategy.</figcaption></figure>
 <h2 id="scorecard">The model scorecard</h2><p>The deduplicated {selection_label} contained {ticket["selected"]} selections; {ticket["graded"]} were conservatively graded and {ticket["pending"]} remain unresolved. The graded set went <strong>{ticket["wins"]}–{ticket["losses"]}</strong> with {ticket["pushes"]} pushes for <strong>{fmt_units(ticket["units"])}</strong>, or {pct(ticket["roi"])} on units risked. Missing participation or missing statistics remain unresolved rather than becoming automatic unders.</p><div style="overflow:auto"><table><thead><tr><th>Market</th><th>W–L</th><th>Net units</th><th>Unresolved</th></tr></thead><tbody>{total_rows}</tbody></table></div><figure><img src="week-{completed}-week-{preview}-{season}/props.svg" alt="Week {completed} archived prop selection units by market" style="width:100%"><figcaption>One highest-EV archived offer per player, game and modeled market.</figcaption></figure>
 <h2>Probability quality, not just profit</h2><p>{brier}</p><p>A positive one-week return and a better probability score are different claims. This report keeps both because a profitable slate can still expose probability weaknesses, and vice versa.</p>
 <h2>Week {preview}: disagreement is a research question</h2><p>The new weekly refresh is frozen before the first kickoff. The largest raw totals disagreements are:</p><ul>{gaps or '<li>No complete model/market total comparisons passed the archive checks.</li>'}</ul><figure><img src="week-{completed}-week-{preview}-{season}/preview.svg" alt="Week {preview} model minus market total gaps" style="width:100%"><figcaption>Raw model minus archived median total. These gaps are not automatically betting recommendations.</figcaption></figure>
 <h3>Player props to recheck</h3><ul>{props or '<li>No qualifying modeled prop rows were available in the frozen preview shortlist.</li>'}</ul><p>These are saved prices from the weekly archive. Recheck the current line, price, injury status and role before treating any one of them as actionable. Model status labels are shown rather than hidden.</p>
-<h2>Audit notes</h2><p>{html.escape(archive_note)}</p><p>The completed-week scorecard uses only the frozen pregame archive for Week {completed} and official results/player statistics available after the games. The preview uses a separate frozen Week {preview} archive. The workflow refuses to create a new archive after a game has started, refuses to overwrite an existing archive whose hashes do not match, and refuses to publish a review while any official Week {completed} game remains unplayed.</p><p><a href="week-{completed}-{season}-review-data.json">Download the public review data</a> · <a href="/">Back to Fourth &amp; Value</a></p></main></body></html>'''
-    path=blog/f'week-{completed}-recap-week-{preview}-preview-{season}.html'
+<h2>Audit notes</h2><p>{html.escape(archive_note)}</p><p>The completed-week scorecard uses only the frozen pregame archive for Week {completed} and official results/player statistics available after the games. The preview uses a separate frozen Week {preview} archive. The workflow refuses to create a new archive after a game has started, refuses to overwrite an existing archive whose hashes do not match, and refuses to publish a review while any official Week {completed} game remains unplayed.</p><p><a href="week-{completed}-{season}-review-data.json">Download the public review data</a> · <a href="/nfl/">Current NFL board</a> · <a href="/research/daily-process.html">How updates work</a> · <a href="/blog/">All recaps</a>{related} · <a href="/">Back to Fourth &amp; Value</a></p></main></body></html>'''
     path.write_text(html_text+'\n')
     return path,title,desc
 
@@ -422,21 +480,19 @@ def update_discovery(path,title,desc,date,week,root=ROOT):
             if marker not in text:raise ValueError('Blog managed marker missing')
             text=text.replace(marker,marker+card)
             blog.write_text(text)
-    # The homepage "Keep the receipts" card always points at the latest weekly review.
-    # editorial.py rebuilds docs/index.html from the template, so both are updated.
-    receipts=(f'<article class="card"><h3>How did we do?</h3><p>Our NFL Week {week} review grades the published shortlist '
-        f'and the totals model against frozen pregame prices—wins and losses alike.</p><a href="/blog/{Path(path).name}#scorecard">Read the scorecard →</a></article>')
-    for home in [Path(root)/'scripts/editorial_templates/home.html',Path(root)/'docs/index.html']:
-        if home.exists():
-            text=home.read_text()
-            updated=re.sub(r'<article class="card"><h3>How did we do\?</h3>.*?</article>',lambda _:receipts,text,count=1,flags=re.S)
-            if updated!=text:home.write_text(updated)
     sitemap=Path(root)/'docs/sitemap.xml'
     if sitemap.exists():
         text=sitemap.read_text();url='https://fourthandvalue.com/blog/'+Path(path).name
         if url not in text:
             text=text.replace('</urlset>',f'  <url><loc>{url}</loc></url>\n</urlset>')
             sitemap.write_text(text)
+    # Recap links come from the current article filenames, not a mutable template.
+    # Do not import a renderer bound to the real checkout for temporary fixtures.
+    if Path(root).resolve()==ROOT.resolve():
+        from editorial import render_home
+        briefing=Path(root)/'docs/briefing/latest.json'
+        if briefing.exists():
+            render_home(json.loads(briefing.read_text()),datetime.now(timezone.utc))
 
 
 def review_week(season,completed,preview,root=ROOT):
@@ -459,7 +515,10 @@ def review_week(season,completed,preview,root=ROOT):
         props=prop['summary'],totals=total_summary,preview=preview_data)
     review_dir=Path(root)/'reports/nfl-weekly'/str(season)/f'week-{completed}'/'review'
     review_dir.mkdir(parents=True,exist_ok=True)
-    (review_dir/'summary.json').write_text(json.dumps(summary,indent=2,allow_nan=False)+'\n')
+    summary_path=review_dir/'summary.json'
+    previous=json.loads(summary_path.read_text()) if summary_path.exists() else {}
+    summary['published_at']=previous.get('published_at',previous.get('generated_at',summary['generated_at']))
+    summary_path.write_text(json.dumps(summary,indent=2,allow_nan=False)+'\n')
     prop['tickets'].to_csv(review_dir/'tickets.csv',index=False)
     prop['paired'].to_csv(review_dir/'probability_comparison.csv',index=False)
     games.to_csv(review_dir/'games.csv',index=False)
@@ -510,11 +569,19 @@ def verify_week2(root=ROOT):
 
 def main():
     p=argparse.ArgumentParser(description=__doc__);sub=p.add_subparsers(dest='command',required=True)
+    plan=sub.add_parser('plan');plan.add_argument('--season',type=int,required=True);plan.add_argument('--week',type=int,required=True)
     snap=sub.add_parser('snapshot');snap.add_argument('--season',type=int,required=True);snap.add_argument('--week',type=int,required=True)
     review=sub.add_parser('review');review.add_argument('--season',type=int,required=True);review.add_argument('--completed-week',type=int,required=True);review.add_argument('--preview-week',type=int,required=True)
     sub.add_parser('verify-week2')
     args=p.parse_args()
-    if args.command=='snapshot':snapshot_week(args.season,args.week)
+    if args.command=='plan':
+        outputs=refresh_plan(args.season,args.week,os.getenv('GITHUB_EVENT_NAME','workflow_dispatch'),
+            os.getenv('GITHUB_SCHEDULE',''),os.getenv('EDITORIAL_REFRESH','false').lower()=='true')
+        print(json.dumps(outputs))
+        if os.getenv('GITHUB_OUTPUT'):
+            with open(os.environ['GITHUB_OUTPUT'],'a') as stream:
+                for key,value in outputs.items():stream.write(f'{key}={value}\n')
+    elif args.command=='snapshot':snapshot_week(args.season,args.week)
     elif args.command=='review':review_week(args.season,args.completed_week,args.preview_week)
     else:verify_week2()
 

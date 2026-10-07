@@ -1,0 +1,114 @@
+name: Weekly Sport Recaps
+
+on:
+  schedule:
+    # Morning pipeline is primary; these are idempotent catch-up starts.
+    - cron: '0 10,12,18 * * *'
+      timezone: America/New_York
+  workflow_call:
+  workflow_dispatch:
+    inputs:
+      end:
+        description: 'Optional completed period end (YYYY-MM-DD); otherwise uses each sport delivery day'
+        type: string
+        required: false
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/sport_weekly_review.py'
+      - 'scripts/recap_schedule.py'
+      - 'scripts/nba_weekly_results.py'
+      - '.github/workflows/sport-weekly-recaps.yml'
+
+concurrency:
+  group: weekly-recaps
+  queue: max
+  cancel-in-progress: false
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+      pages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install review dependencies
+        run: pip install -r requirements.txt
+      - name: Verify grading and archive contracts
+        run: |
+          python -m unittest discover -s tests -p 'test_sport_weekly_review.py'
+          python -m unittest discover -s tests -p 'test_recap_archive.py'
+          python -m unittest discover -s tests -p 'test_recap_schedule.py'
+          python -m unittest discover -s tests -p 'test_nba_weekly_results.py'
+          node tests/briefing_picks.cjs
+      - name: Grade saved pregame evidence and publish reviews
+        id: review
+        continue-on-error: true
+        env:
+          REVIEW_END: ${{ inputs.end }}
+        run: |
+          if [ -n "$REVIEW_END" ]; then
+            python scripts/sport_weekly_review.py --end "$REVIEW_END"
+          else
+            python scripts/recap_schedule.py
+          fi
+      - name: Include responsible-use notices and validate discovery
+        run: |
+          python scripts/site_notices.py --scope blog
+          python scripts/build_daily_process.py --check
+          python scripts/seo_check.py --changed
+      - name: Preserve review outputs and source responses
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-recaps-${{ github.run_id }}
+          path: |
+            docs/blog/*-recap-*.json
+            docs/blog/*-recap-*.html
+            docs/blog/*-recap-*.svg
+            docs/recaps/
+            artifacts/mlb/results/
+            artifacts/nba/results/
+          retention-days: 90
+          if-no-files-found: ignore
+      - name: Publish available recaps and status
+        id: publish
+        run: |
+          git config user.name 'GitHub Actions Bot'
+          git config user.email 'actions@github.com'
+          git add docs/blog/ docs/recaps/ docs/index.html docs/editorial/index.html docs/sitemap.xml
+          if [ -d artifacts/mlb/results ]; then git add artifacts/mlb/results/; fi
+          if [ -d artifacts/nba/results ]; then git add artifacts/nba/results/; fi
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Recaps: grade archived sport weeks'
+          for attempt in 1 2 3; do
+            if ! git pull --rebase origin main; then
+              git rebase --abort || true
+              echo '::error::Concurrent page change needs review; review outputs remain in artifacts.'
+              exit 1
+            fi
+            if git push origin HEAD:main; then exit 0; fi
+            sleep 5
+          done
+          exit 1
+      - name: Rebuild public site
+        if: steps.publish.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST "repos/$GITHUB_REPOSITORY/pages/builds" --jq .status
+      - name: Report incomplete review run
+        if: always() && steps.review.outcome == 'failure'
+        run: |
+          echo '::error::A sport recap failed. Successful reports and status were preserved; inspect the grading step.'
+          exit 1

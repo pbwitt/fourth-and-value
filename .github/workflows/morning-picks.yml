@@ -87,3 +87,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: gh workflow run editorial-daily.yml --ref main -f scheduled_recovery=true -f refresh_briefing=false
+
+  recaps:
+    needs: [gate, nfl, mlb, nhl, research]
+    if: always() && !cancelled() && needs.gate.result == 'success' && !inputs.test_edition
+    uses: ./.github/workflows/sport-weekly-recaps.yml
+    secrets: inherit
