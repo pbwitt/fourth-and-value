@@ -150,9 +150,14 @@ def train_models(refresh_history=True):
     if len(games)<1000:raise ValueError('At least 1,000 completed games are required')
     missing=manifest['expected_games']-len(games)
     if missing:raise ValueError(f'{missing} expected game observations are missing; model refresh stopped')
+    # A delayed final can arrive on the second refresh with the same date cutoff.
+    # The cached bundle includes rolling history, so its actual observations must match.
+    inputs=json.dumps(games,separators=(',',':')).encode()
+    inputs_sha256=hashlib.sha256(inputs).hexdigest()
     if MODEL_PATH.exists():
         cached=joblib.load(MODEL_PATH)
-        if cached.get('source_signature')==signature() and cached.get('history_fetched_date')==manifest['through_date']:
+        if (cached.get('source_signature')==signature() and cached.get('history_fetched_date')==manifest['through_date']
+                and cached.get('report',{}).get('inputs_sha256')==inputs_sha256):
             save_json(REPORT_PATH,cached['report']);return cached
     hands=None
     if PLATOON_LIVE:hands=update_players(games) if refresh_history else load_players()
@@ -176,9 +181,8 @@ def train_models(refresh_history=True):
     except ValueError as error:
         postseason={};postseason_error=str(error)
     version=VERSION+'-'+signature()+'-'+latest.isoformat()
-    inputs=json.dumps(games,separators=(',',':')).encode()
     report=dict(version=version,created_at=iso(datetime.now(timezone.utc)),games=len(games),
-        inputs_sha256=hashlib.sha256(inputs).hexdigest(),sklearn_version=sklearn.__version__,
+        inputs_sha256=inputs_sha256,sklearn_version=sklearn.__version__,
         input_through=latest.isoformat(),training_through=train_end,calibration_through=cal_end,
         test_start=(date.fromisoformat(cal_end)+timedelta(days=1)).isoformat(),test_end=latest.isoformat(),
         postseason_year=prior_year,postseason_training_through=post_train_end,postseason_calibration_through=reg_end,

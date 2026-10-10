@@ -5,11 +5,18 @@ import hashlib
 import json
 from pathlib import Path
 import time
+from zoneinfo import ZoneInfo
 
 import requests
 
 UTC = timezone.utc
 ROOT = Path(__file__).resolve().parents[3]
+ET = ZoneInfo('America/New_York')
+
+
+def history_day(now):
+    """Exclusive game-date boundary: completed dates before today Eastern."""
+    return now.astimezone(ET).date().isoformat()
 
 
 def iso(dt):
@@ -96,7 +103,8 @@ def normalize(team_rows, player_rows, season):
         so = bool(h['winsInShootout'] or a['winsInShootout'])
         if h['goalsFor'] == a['goalsFor'] and not so:
             raise ValueError(f'Nonfinal tied NHL game: {gid}')
-        # Completed box scores conventionally available next morning; not a vintage guarantee.
+        # Reconstructed evaluation assumption, NOT the NHL's publication time.
+        # Live inference may use a verified observation before this assumed cutoff.
         available = iso(datetime.fromisoformat(h['gameDate']).replace(tzinfo=UTC) + timedelta(days=1, hours=12))
         if h['wins']+a['wins'] != 1:
             raise ValueError(f'Nonfinal winner state: {gid}')
@@ -177,6 +185,43 @@ def load(root, seasons=None):
             raise ValueError(f'History checksum mismatch: {path.name}')
         games.extend(data['games']); players.extend(data['players']); manifests.append(data['manifest'])
     return games, players, manifests
+
+
+def observed_history(games, players, manifests, asof):
+    """Use already retrieved final results in live inference without rewriting backtests.
+
+    Stored history keeps its reconstructed timestamps. Only when that assumption
+    lies after a real observation do these live copies use the observation instead.
+    Never claim an original publication time or make a later retrieval available
+    to an earlier decision. The conservative chronology for older games is retained
+    for the reconstructed player forecast ledger.
+    """
+    observed = {m['season']: stamp(m['ingested_at']) for m in manifests}
+    if any(when > asof for when in observed.values()):
+        raise ValueError('History observed after the live decision')
+    copies, by_game = [], {}
+    for game in games:
+        when = observed[game['season']]
+        if game['game_date'] >= history_day(when):
+            raise ValueError('Live history must contain only earlier completed dates')
+        current = dict(game, observed_at=iso(when))
+        if (game.get('availability_basis') == 'reconstructed_next_day_12UTC'
+                and stamp(game['available_at']) > when):
+            current.update(available_at=iso(when),
+                           reconstructed_available_at=game['available_at'],
+                           availability_basis='observed_final_report')
+        copies.append(current)
+        by_game[game['game_id']] = current
+    appearances = []
+    for row in players:
+        game = by_game[row['game_id']]
+        current = dict(row, observed_at=game['observed_at'])
+        if game.get('availability_basis') == 'observed_final_report':
+            current.update(available_at=game['available_at'],
+                           reconstructed_available_at=row['available_at'],
+                           availability_basis='observed_final_report')
+        appearances.append(current)
+    return copies, appearances
 
 
 if __name__ == '__main__':

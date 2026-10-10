@@ -310,13 +310,15 @@ class TrackRecordTests(unittest.TestCase):
 class SiteContractTests(unittest.TestCase):
     def test_broken_artifact_clears_partial_forecast_but_keeps_quote(self):
         r=dict(quote(),independent_probability=.7,estimated_ev=.1,fair_odds=-150,forecast_id='old')
-        state=dict(rows=[r])
+        state=dict(rows=[r],model_history_through='2026-09-25',model_history_policy='old')
         with patch('nhl.v2.inference.bundle',side_effect=AttributeError('incompatible pickle')):
             out=enrich(state,NOW)
         self.assertIsNone(out['rows'][0]['independent_probability']);self.assertIsNone(out['rows'][0]['estimated_ev'])
         self.assertIsNone(out['rows'][0]['forecast_id']);self.assertEqual(out['rows'][0]['price'],-110)
         self.assertIsNone(out['rows'][0]['player_position'])
         self.assertIn('AttributeError',out['model_error'])
+        self.assertIsNone(out['model_history_through'])
+        self.assertIsNone(out['model_history_policy'])
 
     def test_live_adapter_models_all_markets_independently_and_fails_on_stale_inputs(self):
         past=[game(1,'2026-09-24'),game(2,'2026-09-25')]

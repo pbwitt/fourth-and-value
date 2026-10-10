@@ -10,7 +10,7 @@ import numpy as np
 
 from nba.pipeline import normal_name
 from . import VERSION, FEATURE_SCHEMA
-from .data import ROOT, load, stamp, iso, digest, write_json
+from .data import ROOT, load, stamp, iso, digest, write_json, history_day, observed_history
 from .features import history_at, forecast_ledger, weighted, matchup as opponent_fields
 from .models import outcome, game_outcome
 from .pricing import compare, price, signal
@@ -32,23 +32,28 @@ def bundle(model_dir=MODEL_DIR):
     return joblib.load(model_dir/'models.joblib'),manifest
 
 
-def live_history(now):
+def live_history(now, refresh=False):
     root=ROOT/'data/nhl/v2/history'
     checked_path=root/'live-check.json'
     from .data import collect
     from nhl.refresh import season_for
     last=json.loads(checked_path.read_text()) if checked_path.exists() else {}
     checked=stamp(last['checked_at']) if last.get('checked_at') else None
-    if not checked or not timedelta(0)<=now-checked<timedelta(hours=12):
-        collect([season_for(now)],root,now.date().isoformat())
+    season, through = season_for(now), history_day(now)
+    if (refresh or not checked or not timedelta(0)<=now-checked<timedelta(hours=12)
+            or last.get('season') != season or last.get('through') != through):
+        collect([season],root,through)
         checked=datetime.now(timezone.utc)
-        write_json(checked_path,dict(checked_at=iso(checked),season=season_for(now)))
+        write_json(checked_path,dict(checked_at=iso(checked),season=season,through=through))
     archive=MODEL_DIR/'history.json.gz'
     with gzip.open(archive,'rt') as f: past=json.load(f)
     manifest=json.loads((MODEL_DIR/'manifest.json').read_text())
     if hashlib.sha256(archive.read_bytes()).hexdigest()!=manifest['history_archive_sha256']:
         raise ValueError('Model history checksum mismatch')
     games,players,manifests=load(root,[season_for(now)])
+    if len(manifests) != 1 or manifests[0].get('through') != through:
+        raise ValueError('Live model history has the wrong date coverage')
+    games,players=observed_history(games,players,manifests,checked)
     # Current season supersedes any same-season bootstrap history; never duplicate records.
     return ([g for g in past['games'] if g['season']!=season_for(now)]+games,
             [r for r in past['players'] if r['season']!=season_for(now)]+players,iso(checked))
@@ -219,9 +224,13 @@ def enrich(state,now,offline_inputs=None,goalie_inputs=None):
     state['schema_version']=2
     state['recommendations']=[]
     state['model_version']=VERSION
+    state['model_history_through']=None
+    state['model_history_policy']=None
     try:
         models,manifest=bundle()
-        games,players,checked=offline_inputs or live_history(now)
+        # Every market refresh checks final results again; sidecar work in this same
+        # run can reuse live_history's cache. A fresh odds pull alone is not enough.
+        games,players,checked=offline_inputs or live_history(now,refresh=True)
         # The prediction decision follows ingestion; a cached history check keeps its actual age.
         decision_now=now if offline_inputs else datetime.now(timezone.utc)
         ledger=ROOT/'artifacts/nhl/reviews.jsonl'
@@ -237,6 +246,8 @@ def enrich(state,now,offline_inputs=None,goalie_inputs=None):
         except Exception:
             state['model_distribution']=None
         state['model_data_checked_at']=checked
+        state['model_history_through']=max((g['game_date'] for g in games if stamp(g['available_at'])<=decision_now),default=None)
+        state['model_history_policy']='offline_inputs' if offline_inputs else 'observed_final_reports_v1'
         state['model_prediction_at']=iso(decision_now)
         state['model_error']=None
         # Projected starting goalies are context only and never change a forecast. Offline runs
@@ -250,7 +261,7 @@ def enrich(state,now,offline_inputs=None,goalie_inputs=None):
                 if goalie_inputs is not None:
                     attach(state,goalie_inputs,decision_now)
                 else:
-                    appearances=goalie_history(ROOT/'data/nhl/v2/history',games,decision_now,season_for(decision_now))
+                    appearances=goalie_history(ROOT/'data/nhl/v2/history',games,decision_now,season_for(decision_now),refresh=True)
                     attach(state,appearances,decision_now,rosters(state.get('events',[]),decision_now))
             except Exception as error:
                 state['goalie_projections']=None
