@@ -108,7 +108,9 @@ def record(rows, state, now, out=OUT):
     from .inference import annotate, bundle, live_history
     from .pricing import compare
     models, manifest = bundle()
-    games, players, checked = live_history(now)
+    # `now` is the original odds-request start, before the board ingested history.
+    # Check the cache at the actual time of this sidecar, never against that older clock.
+    games, players, checked = live_history(datetime.now(timezone.utc))
     decided = datetime.now(timezone.utc)
     priced = annotate(compare(rows, now), games, players, state['events'], models, manifest, decided, checked)
     snapshot = dict(snapshot_id=state.get('snapshot_id'), decided_at=iso(decided),

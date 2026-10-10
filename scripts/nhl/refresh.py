@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from nba.pipeline import OddsClient as BaseOddsClient, CreditFloorError, FeedError, flatten as base_flatten, iso, normal_name, read_json, save_json, timestamp
 from nhl.v2.pricing import compare, settlement_basis
+from nhl.v2.data import history_day
 
 UTC = timezone.utc
 SPORT = 'icehockey_nhl'
@@ -112,7 +113,7 @@ def stats_rows(kind, season, now):
         payload = official_json(f'https://api.nhle.com/stats/rest/en/{kind}/summary',
             isAggregate='false', isGame='false', start=start, limit=100,
             sort='[{"property":"' + ('playerId' if kind == 'skater' else 'teamId') + '","direction":"ASC"}]',
-            cayenneExp=f'seasonId={season} and gameTypeId=2 and gameDate<"{now.date().isoformat()}"')
+            cayenneExp=f'seasonId={season} and gameTypeId=2 and gameDate<"{history_day(now)}"')
         if not isinstance(payload, dict) or not isinstance(payload.get('data'), list) or 'total' not in payload:
             raise FeedError('NHL stats response has an unexpected format')
         rows.extend(payload['data'])
@@ -128,11 +129,13 @@ def load_history(now, offline=False):
     path = ROOT / 'data/nhl/history/current.json'
     saved = read_json(path, {})
     checked = timestamp(saved.get('fetched_at'))
-    if offline or (checked and timedelta(0) <= now - checked < timedelta(hours=12)):
+    through = (datetime.fromisoformat(history_day(now)) - timedelta(days=1)).date().isoformat()
+    if offline or (checked and timedelta(0) <= now - checked < timedelta(hours=12)
+                   and saved.get('through_date') == through and saved.get('current_season') == season_for(now)):
         return saved
     try:
         current = season_for(now)
-        history = dict(fetched_at=iso(now), through_date=(now - timedelta(days=1)).date().isoformat(),
+        history = dict(fetched_at=iso(now), through_date=through,
                        current_season=current, seasons={})
         for season in [current - 10001, current]:
             history['seasons'][str(season)] = dict(players=stats_rows('skater', season, now),

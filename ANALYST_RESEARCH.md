@@ -198,6 +198,43 @@ and source validation. Editorial targets 08:30 ET and closes automatic writing
 at noon; hourly maintenance and approved-post publication continue. NBA
 integration into the coordinated sports refresh remains future work.
 
+### Model-history freshness
+
+NHL live inference retrieves current-season final team and skater reports on every
+board refresh, before making the prediction. The exclusive game-date boundary is
+today in `America/New_York`; a previous-day cache cannot satisfy the new date,
+even if it is under 12 hours old. Same-run sidecars may reuse the checked cache.
+For a result observed before the reconstructed next-day 12:00 UTC cutoff,
+`scripts/nhl/v2/data.py::observed_history` uses the actual report-ingestion time
+in a live copy. It retains `reconstructed_available_at`, leaves original publication
+time unknown, and does not modify stored history, frozen weights or historical
+validation evidence. Later observations cannot support an earlier live decision.
+Team form, skater production, ice time and the player forecast ledger all receive
+the eligible result. Goalie context refreshes alongside the board and inherits the
+same eligible game dates. Published snapshots expose `model_history_through` and
+`model_history_policy` separately from the odds and model-check timestamps.
+A failed model-history retrieval withholds independent forecasts; it cannot
+silently fall back to an older successful check. Scheduled start times above are
+unchanged; forecasts publish only after input retrieval and inference finish.
+
+MLB enumerates final games through yesterday Eastern on each training refresh,
+requires every enumerated box score, and compares the actual observation hash as
+well as the code signature and date before reusing its trained bundle and rolling
+history. A final newly reported later that day therefore rebuilds the bundle.
+The requested cutoff and the latest actual game date differ on off days. Neither
+MLB nor NHL live history includes in-progress or same-calendar-date games.
+
+NFL refreshes current-season player and play-by-play releases, requires the prior
+week to be represented, and uses weeks strictly earlier than the forecast week.
+Thursday results in the current week do not enter that week's Sunday forecasts;
+that is a weekly model boundary, not an 8 a.m. release assumption. This check is
+week presence, not proof that every scheduled game or player row has arrived.
+NBA has no active independent forecast; saved regular-season game logs are
+historical references with their own update and last-game dates. An NBA odds
+refresh does not establish fresh player history, and failed stats retrieval may
+leave older saved history. The October 10 audit found no NBA player-history rows
+in the published snapshot.
+
 Normal research runs 07:00–12:00 ET, after the feeds complete. Publication has no
 promised minute. The whole **$2.75 daily** allowance is available to this morning
 run; there is no afternoon reserve. All charges share

@@ -1,0 +1,66 @@
+{
+  "as_of_date": "2026-10-10",
+  "scope": "Active NHL, MLB, NFL and NBA input pipelines, caches, time boundaries, workflow execution order and published history dates. No season-wide performance attribution.",
+  "findings": {
+    "NHL": {
+      "status": "confirmed live defect; fixed in this branch",
+      "problem": "The archived 07:06 Eastern run had all four October 9 final games but excluded them until reconstructed noon UTC availability. A twelve-hour cache could also cross the Eastern date boundary.",
+      "fix": "Use actual observation when earlier than the assumed cutoff; check final reports on every board refresh; preserve historical artifacts and chronological backtests; apply the same completed-date boundary to team, skater and goalie inputs.",
+      "evidence": "nhl-morning-replay.json"
+    },
+    "MLB": {
+      "status": "same-date model-cache defect reproduced and fixed",
+      "problem": "The model cache keyed on code and requested cutoff, so a final first seen on a second same-day refresh could be missing from rolling model history.",
+      "fix": "Compare actual observation SHA-256 before reusing the bundle.",
+      "published_model_history_through": "2026-10-08",
+      "requested_history_through": "2026-10-09",
+      "october_9_scheduled_games": 0,
+      "schedule_source": "https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=2026-10-09&hydrate=linescore",
+      "today_interpretation": "October 8 is the correct latest completed-game date because October 9 had no games. Final game eligibility, Eastern cutoff and missing-box-score failure guards already exist."
+    },
+    "NFL": {
+      "status": "no equivalent fixed-hour cutoff found; weekly boundary retained",
+      "published": {
+        "history_through": "2026-10-05",
+        "season": 2026,
+        "week": 5
+      },
+      "behavior": "Current-season player and play-by-play data are downloaded each refresh. Models use weeks strictly earlier than the selected forecast week. Prior-week presence is required. Current-week Thursday games are excluded from Sunday estimates by the weekly boundary.",
+      "limit": "Presence of the prior week is not a per-game or per-player completeness proof. No full league-source coverage audit was performed."
+    },
+    "NBA": {
+      "status": "no active independent forecast",
+      "published_history_players": 0,
+      "published_history_updated_at": null,
+      "behavior": "Workflows attempt current-season regular-season game logs before updating markets. NBA baseline code has no next-day 8 a.m. gate. Failed source retrieval may retain older historical references. The audited snapshot has no player-history rows.",
+      "limit": "Current NBA prediction readiness is not established; odds freshness does not establish statistics freshness."
+    }
+  },
+  "validation": {
+    "NHL": "130 tests passed",
+    "MLB": "37 tests passed",
+    "NFL": "all test_nfl*.py passed",
+    "NBA": "22 tests passed",
+    "historical_artifacts": "unchanged",
+    "replay_original_probability_max_error": 1.915134717478395e-14
+  },
+  "source_code": [
+    "scripts/nhl/v2/data.py",
+    "scripts/nhl/v2/inference.py",
+    "scripts/nhl/v2/goalies.py",
+    "scripts/nhl/refresh.py",
+    "scripts/mlb/model_data.py",
+    "scripts/mlb/train.py",
+    "scripts/mlb/predict.py",
+    "scripts/prepare_nfl_refresh.py",
+    "scripts/make_player_prop_params.py",
+    "scripts/fetch_defensive_stats.py",
+    "scripts/nba/pipeline.py"
+  ],
+  "published_snapshot_sha256": {
+    "nhl": "8d923b24cc947b0a21f08e45c078af3cbfeaea09bd6368a1135d4c08534761ff",
+    "mlb": "4e3efa4cb28641a9cc2a574d95a86fa2284571490a82eebe8d574b719357724a",
+    "nfl": "362f72d0116d17e993dd7119d537d4db5f9d1ee3eaf77f691a82686df4196e44",
+    "nba": "ed57337309a74ab7f938d6dd203ad9fc7fbc0d03b09eff60b22d6be9b9a8c176"
+  }
+}

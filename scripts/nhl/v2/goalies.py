@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from .data import digest, iso, stamp, write_json
+from .data import digest, iso, stamp, write_json, history_day
 
 LEAGUE_SAVE_PCT = .903     # shrinkage target; recent NHL league averages sit near .900-.905
 PRIOR_SHOTS = 1000         # shots of prior weight: a goalie needs ~1,000 faced to count half
@@ -82,8 +82,8 @@ def load(root, seasons):
     return out
 
 
-def live(root, games, now, season):
-    """Last season once, then the current season at most every 12 hours (as the skater history)."""
+def live(root, games, now, season, refresh=False):
+    """Refresh with the live board; same-run callers may reuse the current-day cache."""
     root = Path(root)
     previous = season - 10001
     if not (root / 'goalies' / f'{previous}.json').exists():
@@ -91,9 +91,11 @@ def live(root, games, now, season):
     check = root / 'goalies' / 'live-check.json'
     last = json.loads(check.read_text()) if check.exists() else {}
     age = now - stamp(last['checked_at']) if last.get('checked_at') else None
-    if last.get('season') != season or age is None or not timedelta(0) <= age < timedelta(hours=12):
-        collect(season, root, games, now.date().isoformat())
-        write_json(check, dict(checked_at=iso(now), season=season))
+    through = history_day(now)
+    if (refresh or last.get('season') != season or last.get('through') != through
+            or age is None or not timedelta(0) <= age < timedelta(hours=12)):
+        collect(season, root, games, through)
+        write_json(check, dict(checked_at=iso(now), season=season, through=through))
     return load(root, [previous, season])
 
 

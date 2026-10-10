@@ -192,5 +192,29 @@ class ModelTests(unittest.TestCase):
             manifest(datetime(2026,9,22,1,tzinfo=timezone.utc))
             self.assertEqual(get.call_args.kwargs['endDate'],'2026-09-20')
 
+    def test_daily_bundle_rebuilds_when_a_delayed_final_arrives(self):
+        import hashlib
+        import json
+        from mlb import train
+        games=[dict(id=i,date='2026-09-20') for i in range(1000)]
+        digest=hashlib.sha256(json.dumps(games,separators=(',',':')).encode()).hexdigest()
+        cached=dict(source_signature='test',history_fetched_date='2026-09-20',report=dict(inputs_sha256=digest))
+        manifest=dict(expected_games=len(games),through_date='2026-09-20')
+        with patch.object(train,'MODEL_PATH') as path, patch.object(train,'signature',return_value='test'), \
+             patch.object(train,'load',return_value=(games,manifest)), patch.object(train.joblib,'load',return_value=cached), \
+             patch.object(train,'save_json'), patch.object(train,'dataset',side_effect=RuntimeError('rebuilding history')) as rebuild:
+            path.exists.return_value=True
+            self.assertIs(train.train_models(refresh_history=False),cached)
+            rebuild.assert_not_called()
+            # Same day, one more official final: cached rolling inputs must be rebuilt.
+            games.append(dict(id=1000,date='2026-09-20'))
+            manifest['expected_games']+=1
+            with self.assertRaisesRegex(RuntimeError,'rebuilding history'):
+                train.train_models(refresh_history=False)
+            # A missing expected box score still stops the refresh before model reuse.
+            games.pop()
+            with self.assertRaisesRegex(ValueError,'observations are missing'):
+                train.train_models(refresh_history=False)
+
 
 if __name__=='__main__':unittest.main()
