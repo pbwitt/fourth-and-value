@@ -372,10 +372,12 @@
     if(!r||!r.player)return text;
     if(r.model_withheld)return text+positionTag(r);
     const c=contextFor(r,sport);
-    if(!c&&!options.season?.c)return text+positionTag(r);
+    if(!c&&!options.season?.c&&!options.load)return text+positionTag(r);
     let id=ids.get(r);
     if(!id){id='pc'+(++seq);ids.set(r,id);}
-    entries.set(id,{r,sport,options,c});
+    const entry=entries.get(id)||{};
+    Object.assign(entry,{r,sport,options,c:c||(options.load?entry.c:null)});
+    entries.set(id,entry);
     install();
     if(seeking){seek(id,r);if(!seekTimer)seekTimer=setTimeout(reveal,0);}
     return `<button type="button" class="pc-name" data-pc="${id}" aria-haspopup="dialog" aria-expanded="false">${text}<span class="pc-cue" aria-hidden="true"></span></button>${positionTag(r)}`;
@@ -656,14 +658,14 @@
       `Tested on ${(test.forecasts||0).toLocaleString('en-US')} forecasts it had not seen (${test.window}).${skill}${gap}${test.note?' '+test.note:''}`);
   }
   let lastTab='form';
-  function snapshot({r,sport,options,c}){
+  function snapshot({r,sport,options,c,message}){
     const recent=(c?.recent||[]).filter(w=>w&&finite(w.games)&&w.games>0);
     // Model inputs first. Only a field the selected model is known not to use is marked as
     // context; older saved snapshots do not record usage, so they carry no tag.
     const inputs=(c?.inputs||[]).filter(i=>i&&finite(i.value)).sort((a,b)=>!!b.used-!!a.used).slice(0,6);
     const mean=sport==='MLB'?r.model_mean:sport==='NFL'?r.mu:r.projected_mean,first=recent[0];
     const per=c?.sample_label==='starts'?'start':'game';
-    const projection=c&&finite(mean)?`<dl class="pc-stats pc-proj">${tile('Model projection · experimental',fmt(mean,'',sport),c.stat_label,'',true)}</dl>`:'';
+    const projection=!options.statsOnly&&c&&finite(mean)?`<dl class="pc-stats pc-proj">${tile('Model projection · experimental',fmt(mean,'',sport),c.stat_label,'',true)}</dl>`:'';
     let tiles='';
     if(first&&finite(first.mean))tiles+=tile(`${statName(c)} / ${per}`,fmt(first.mean,'',sport));
     if(first&&finite(first.workload))tiles+=tile(`${workName(c,sport)} / ${per}`,fmt(first.workload,c.workload_unit,sport));
@@ -673,8 +675,8 @@
     const source=c?`${esc(c.source)}${date(c.through)?' · through '+esc(date(c.through)):''}${options.saved?' · saved with this forecast':''}`:'';
     const note=c?.note?`<details class="pc-pop-note"><summary>About these numbers</summary><p>${esc(c.note)}</p></details>`:'';
     const formPanel=(c?trendChart(c,r,sport):'')+form+(c?gameLog(c,sport,recent)+versusHTML(c,r,sport):'')+seasonLine(options.season);
-    const modelPanel=c?buildHTML(c,sport)+distChart(c,r,sport)+opponentHTML(c,sport)+blendHTML(c)+model+missingHTML(c)+note:'';
-    const record=sport!=='NBA'&&trackSource(sport);
+    const modelPanel=c&&!options.statsOnly?buildHTML(c,sport)+distChart(c,r,sport)+opponentHTML(c,sport)+blendHTML(c)+model+missingHTML(c)+note:'';
+    const record=!options.statsOnly&&sport!=='NBA'&&trackSource(sport);
     const tabs=[['form','Form',formPanel],['model','How it works',modelPanel],...(record?[['record','Track record','<div class="pc-record"><p class="pc-chart-note">Loading the track record…</p></div>']]:[])]
       .filter(([,,html])=>html);
     const pick=tabs.some(([k])=>k===lastTab)?lastTab:tabs[0]?.[0];
@@ -682,8 +684,10 @@
       +tabs.map(([k,,html])=>`<div class="pc-panel" role="tabpanel" id="pc-panel-${k}" aria-labelledby="pc-tab-${k}"${k===pick?'':' hidden'}>${html}</div>`).join('')
       :tabs.map(([,,html])=>html).join('');
     const sub=[position(r),r.game].filter(Boolean).map(esc).join(' · ');
-    return `<div class="pc-pop-head"><div><strong>${esc(r.player)}</strong>${sub?`<span>${sub}</span>`:''}</div><div class="pc-pop-actions"><button type="button" class="pc-share" aria-label="Share player snapshot">${SHARE_ICON}Share</button><button type="button" class="pc-close" aria-label="Close player snapshot">×</button></div></div>`
-      +projection+marketStrip(r,sport)+body
+    return `<div class="pc-pop-head"><div><strong>${esc(r.player)}</strong>${sub?`<span>${sub}</span>`:''}</div><div class="pc-pop-actions">${options.share===false?'':`<button type="button" class="pc-share" aria-label="Share player snapshot">${SHARE_ICON}Share</button>`}<button type="button" class="pc-close" aria-label="Close player snapshot">×</button></div></div>`
+      +(options.notice?`<p class="pc-chart-note">${esc(options.notice)}</p>`:'')
+      +(!c&&options.load?`<p class="pc-chart-note" role="status">${esc(message||'Loading player stats…')}</p>`:'')
+      +projection+(options.statsOnly?'':marketStrip(r,sport))+body
       +(source?`<p class="pc-source">${source}</p>`:'')+'<p class="pc-pop-link" hidden></p>';
   }
   function selectTab(key){
@@ -737,6 +741,33 @@
       }
     }catch{}
   }
+  async function loadContext(entry,id){
+    if(!entry.options.load||entry.loaded||entry.loading)return;
+    entry.loading=true;
+    try{
+      const context=await entry.options.load();
+      entry.c=context?.schema_version===1?context:null;
+      entry.loaded=true;
+      entry.message=entry.c?'':'No published stats for this player and market yet.';
+    }catch{
+      entry.message='Player stats could not load. Close and reopen this snapshot to try again.';
+    }finally{
+      entry.loading=false;
+      if(pop&&!pop.hidden&&owner?.dataset.pc===id){
+        pop.innerHTML=snapshot(entry);place();playerPage(entry,id);
+      }
+    }
+  }
+  // Live trackers redraw their rows. Keep the open snapshot attached to the
+  // replacement name, or close it if filtering or an edit removed that player.
+  function refresh(){
+    if(!owner||owner.isConnected&&owner.getClientRects().length)return;
+    const kind=t=>t.closest('.live-line')?'live':t.closest('.bet-card')?'card':'table';
+    const matches=[...document.querySelectorAll('.pc-name')].filter(t=>t.dataset.pc===owner.dataset.pc&&t.getClientRects().length);
+    const next=matches.find(t=>kind(t)===kind(owner))||matches[0];
+    if(!next)return close(false);
+    owner=next;owner.setAttribute('aria-expanded','true');place();
+  }
   function open(t,pin){
     const entry=entries.get(t.dataset.pc);
     if(!entry)return;
@@ -769,11 +800,13 @@
     clearTimeout(hoverTimer);clearTimeout(leaveTimer);
     if(owner&&owner!==t)owner.setAttribute('aria-expanded','false');
     owner=t;pinned=pin;
+    if(entry.options.load&&!entry.loaded)entry.message='Loading player stats…';
     pop.innerHTML=snapshot(entry);pop.setAttribute('aria-label',entry.r.player+' player snapshot');
     pop.hidden=false;pop.scrollTop=0;t.setAttribute('aria-expanded','true');place();
     if(pin)pop.focus({preventScroll:true});
     playerPage(entry,t.dataset.pc);
     fillRecord(entry,t.dataset.pc);
+    loadContext(entry,t.dataset.pc);
   }
   function readout(mark){
     const chart=mark.closest('.pc-chart'),out=chart?.querySelector('.pc-readout');
@@ -828,7 +861,7 @@
     global.addEventListener('scroll',place,{passive:true,capture:true});
   }
   // snapshot: the pop-up body as HTML, for tests and server-free previews.
-  const api={render,season,name,snapshot:(r,sport=r.sport,options={})=>snapshot({r,sport,options,c:contextFor(r,sport)})};
+  const api={render,season,name,refresh,context:contextFor,snapshot:(r,sport=r.sport,options={})=>snapshot({r,sport,options,c:contextFor(r,sport)})};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
   global.FVPlayerContext=api;
 })(typeof window!=='undefined'?window:globalThis);

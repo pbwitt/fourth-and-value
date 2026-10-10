@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bet Tracker - Fourth & Value</title>
   <link rel="stylesheet" href="edit-bet.css?v=1">
+  <link rel="stylesheet" href="../assets/player-context.css?v=7">
   <style>
     * {
       margin: 0;
@@ -189,6 +190,7 @@
     .perf-share:hover, .perf-share:focus-visible { background:rgba(79,195,247,.12); }
     .perf-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
     .perf-card { margin:0; background:#141414; border:1px solid #2a2a2a; border-radius:8px; padding:1rem; min-width:0; display:grid; grid-template-columns:minmax(0,1fr); gap:.6rem; align-content:start; }
+    .perf-card:has(.perf-sports) { overflow-x:auto; }
     .perf-cap { display:flex; align-items:center; justify-content:space-between; gap:.5rem; color:#fff; font-weight:600; font-size:.95rem; }
     .perf-svg svg { display:block; width:100%; height:auto; overflow:visible; }
     .perf-svg text { fill:#999; font:12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-variant-numeric:tabular-nums; }
@@ -327,6 +329,8 @@
       font-size: 0.875rem;
     }
     .live-line .live-player { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pc-pop .pc-close { background:#1c2939; color:#ecf2f8; border:1px solid #344254; cursor:pointer; }
+    .pc-pop a { color:#95e4cc; }
     .team-tag { color: #999; font-size: 0.8em; font-weight: 600; margin-left: 0.35em; white-space: nowrap; }
     .live-line .live-pick { color: #4FC3F7; white-space: nowrap; }
     .live-line .live-value { font-weight: 800; text-align: right; font-variant-numeric: tabular-nums; }
@@ -722,6 +726,8 @@
   <script src="../assets/offer-tracker.js?v=2"></script>
   <script src="manual-bet.js?v=2"></script>
   <script src="edit-bet.js?v=1"></script>
+  <script src="../assets/player-context.js?v=9"></script>
+  <script src="player-stats.js?v=1"></script>
   <script>
     let betsData = [];
 
@@ -814,6 +820,7 @@
       const list = visibleBets();
       if (list.length === 0) {
         tbody.innerHTML = `<tr><td colspan="14" style="text-align:center; color:#999;">${betsData.length ? 'No bets match these filters' : 'No bets logged yet'}</td></tr>`;
+        FVPlayerContext.refresh();
         return;
       }
 
@@ -834,7 +841,7 @@
           <td>${text(bet.game_date)}</td>
           <td>${text(bet.league)}</td>
           <td>${text(bet.team_away)} @ ${text(bet.team_home)}</td>
-          <td>${text(bet.player || 'Game market')}${teamTagHtml(bet)}</td>
+          <td>${FVTrackerPlayerStats.name(bet)}${teamTagHtml(bet)}</td>
           <td>${text(bet.market_type)}</td>
           <td>${text(bet.side)}</td>
           <td>${text(bet.line)}</td>
@@ -848,6 +855,7 @@
         </tr>
       `;
       tbody.innerHTML = betsByDate().map(([date,bets])=>dayRow(date,bets)+bets.map(betRow).join('')).join('');
+      FVPlayerContext.refresh();
     }
 
     // ---- Mobile cards + shareable image -------------------------------------
@@ -961,7 +969,7 @@
           </div>
           <div class="bet-card-main">
             <div>
-              <div class="bet-card-player">${esc(bet.player||'Game market')}${teamTagHtml(bet)}</div>
+              <div class="bet-card-player">${FVTrackerPlayerStats.name(bet)}${teamTagHtml(bet)}</div>
               <div class="bet-card-pick">${esc(pickLabel(bet))}</div>
             </div>
             <div class="bet-card-odds"><strong>${esc(fmtOdds(bet.odds))}</strong><span>${esc(bet.book||'')}</span></div>
@@ -1289,7 +1297,7 @@
     function renderLivePanel() {
       const panel=document.getElementById('livePanel'), pill=document.getElementById('livePill');
       const rows=betsData.filter(b=>liveViews.has(b.id)).map(b=>({bet:b,view:liveViews.get(b.id)}));
-      if (!rows.length) { panel.hidden=true; pill.hidden=true; return; }
+      if (!rows.length) { panel.hidden=true; pill.hidden=true; FVPlayerContext.refresh(); return; }
 
       const groups=new Map();
       rows.forEach(r=>{
@@ -1314,7 +1322,7 @@
               const fig=liveFigure(view), win=toWin(bet), tone='tone-'+(view.tone||'none');
               return `
             <div class="live-line ${tone}${liveBumped.has(bet.id)?' live-bump':''}">
-              <span class="live-player" title="${esc(playerLabel(bet))}">${esc(bet.player||'Game market')}${teamTagHtml(bet)}</span>
+              <span class="live-player" title="${esc(playerLabel(bet))}">${FVTrackerPlayerStats.name(bet)}${teamTagHtml(bet)}</span>
               <span class="live-pick">${esc(pickLabel(bet))}</span>
               <span class="live-value">${fig?esc(fig.value):'–'}</span>
               <span>${view.progress!=null?`<span class="live-bar"><i style="width:${Math.round(view.progress*100)}%"></i></span>`:''}</span>
@@ -1323,6 +1331,7 @@
             </div>`;}).join('')}
           </div>`).join('')}`;
       panel.hidden=false;
+      FVPlayerContext.refresh();
 
       const tally=t=>rows.filter(r=>['live','final'].includes(r.view.status)&&r.view.tone===t).length;
       const bits=[liveCount?`${liveCount} live`:'', tally('won')?`${tally('won')} hit`:'', tally('lost')?`${tally('lost')} dead`:''].filter(Boolean);
