@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bet Tracker - Fourth & Value</title>
+  <link rel="stylesheet" href="edit-bet.css?v=1">
   <style>
     * {
       margin: 0;
@@ -696,6 +697,7 @@
 
       <!-- Mobile bet cards, grouped by game date -->
       <div class="bet-cards" id="betCards"></div>
+      <p id="betEditStatus" class="mb-check" role="status" aria-live="polite"></p>
     </div>
   </div>
 
@@ -719,6 +721,7 @@
   <script src="live-stats.js?v=5"></script>
   <script src="../assets/offer-tracker.js?v=2"></script>
   <script src="manual-bet.js?v=2"></script>
+  <script src="edit-bet.js?v=1"></script>
   <script>
     let betsData = [];
 
@@ -841,7 +844,7 @@
           <td>${liveChipHtml(bet) || `<span class="status-badge status-${text(bet.status || 'pending')}">${text(bet.status || 'pending')}</span>`}</td>
           <td>${text(bet.actual_result)}</td>
           <td>${bet.payout != null ? '$' + text(bet.payout) : '-'}</td>
-          <td><button onclick="deleteBet('${bet.id}')" style="background:#d32f2f;color:white;border:none;padding:0.3rem 0.6rem;border-radius:3px;cursor:pointer;font-size:0.8rem;">Delete</button></td>
+          <td><div class="bet-table-actions"><button class="filter-btn" data-edit-bet="${text(bet.id)}">Edit</button><button class="filter-btn danger" data-delete-bet="${text(bet.id)}">Delete</button></div></td>
         </tr>
       `;
       tbody.innerHTML = betsByDate().map(([date,bets])=>dayRow(date,bets)+bets.map(betRow).join('')).join('');
@@ -967,6 +970,7 @@
           <div class="bet-card-foot">
             <span>Stake ${esc(money(bet.stake_dollars))}${outcome?' · '+outcome:''}${bet.actual_result!=null&&bet.actual_result!==''?' · Result '+esc(bet.actual_result):''}</span>
             <span class="bet-card-actions">
+              <button class="chip-btn" data-edit-bet="${esc(bet.id)}">Edit</button>
               <button class="chip-btn share" data-share-bet="${esc(bet.id)}">Share</button>
               <button class="chip-btn danger" data-delete-bet="${esc(bet.id)}">Delete</button>
             </span>
@@ -975,8 +979,13 @@
     }
 
     document.addEventListener('click', e=>{
-      const btn=e.target.closest('[data-share-date],[data-share-bet],[data-delete-bet]');
+      const btn=e.target.closest('[data-share-date],[data-share-bet],[data-delete-bet],[data-edit-bet]');
       if (!btn) return;
+      if (btn.dataset.editBet) {
+        const bet=betsData.find(b=>String(b.id)===btn.dataset.editBet);
+        if (bet) betEditor.open(bet, btn);
+        return;
+      }
       if (btn.dataset.deleteBet) return deleteBet(btn.dataset.deleteBet);
       if (btn.dataset.shareBet) {
         const bet=betsData.find(b=>String(b.id)===btn.dataset.shareBet);
@@ -1473,6 +1482,16 @@
       loadBets();
     }
 
+    const betEditor = FVEditBet.mount({
+      onSaved(bet) {
+        betsData = betsData.map(row => row.id === bet.id ? bet : row);
+        refreshFilterOptions(); renderBets(); updateStats(); liveTracker.setBets(betsData);
+        document.getElementById('betEditStatus').textContent = 'Bet updated.';
+        const buttons = [...document.querySelectorAll('[data-edit-bet]')];
+        setTimeout(() => buttons.find(button => button.dataset.editBet === String(bet.id) && button.getClientRects().length)?.focus(), 0);
+      },
+      onConflict: loadBets,
+    });
     FVManualBet.mount({ fetchJSON: liveFetchJSON, proxy: liveProxy, onSaved: loadBets });
   </script>
   <script src="../nav.js?v=47"></script>

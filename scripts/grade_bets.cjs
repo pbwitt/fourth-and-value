@@ -171,13 +171,26 @@ async function backfillMain(dryRun) {
     const k = `${r.bet.league} ${r.team ? 'team found' : 'skipped: ' + r.skip}`;
     tally[k] = (tally[k] || 0) + 1;
     if (!r.team || dryRun) continue;
-    const rows = await supabase(`bets?id=eq.${encodeURIComponent(r.bet.id)}&player_team=is.null`,
+    const rows = await supabase(`${gradeTarget(r.bet, null)}&status=in.(won,lost,push)&player_team=is.null`,
       { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify({ player_team: r.team }) });
     written += rows.length;
   }
   console.log(`${dryRun ? 'Dry run: ' : ''}${bets.length} settled player bets without a team checked.`);
   for (const [k, n] of Object.entries(tally).sort()) console.log(`  ${k}: ${n}`);
   if (!dryRun) console.log(`Added the team to ${written}.`);
+}
+
+// Guard every input used to grade and price the bet. A pending ticket can be
+// edited while feeds are loading; an old result must never settle that new pick.
+// Team backfills supply their own settled-status filter instead.
+function gradeTarget(bet, status = 'pending') {
+  const params = new URLSearchParams({ id: `eq.${bet.id}` });
+  if (status !== null) params.set('status', `eq.${status}`);
+  for (const key of ['league', 'game_date', 'team_home', 'team_away', 'player', 'market_type', 'side', 'line', 'odds', 'stake_dollars']) {
+    params.set(key, bet[key] == null ? 'is.null' : `eq.${bet[key]}`);
+  }
+  if (Object.hasOwn(bet, 'player_team')) params.set('player_team', bet.player_team == null ? 'is.null' : `eq.${bet.player_team}`);
+  return `bets?${params}`;
 }
 
 async function main() {
@@ -203,8 +216,7 @@ async function main() {
     const k = `${r.bet.league} ${r.update ? r.update.status : 'pending: ' + r.skip}`;
     tally[k] = (tally[k] || 0) + 1;
     if (!r.update || dryRun) continue;
-    // Only a still-pending row changes, so a manual edit is never overwritten.
-    const rows = await supabase(`bets?id=eq.${encodeURIComponent(r.bet.id)}&status=eq.pending`,
+    const rows = await supabase(gradeTarget(r.bet),
       { method: 'PATCH', headers: { Prefer: 'return=representation' }, body: JSON.stringify(r.update) });
     if (rows.length) written++; else raced++;
   }
@@ -218,4 +230,4 @@ async function main() {
 }
 
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
-module.exports = { gradeBet, gradeAll, teamFor, backfillTeams, payout, SETTLE_AFTER_HOURS };
+module.exports = { gradeBet, gradeAll, teamFor, backfillTeams, payout, gradeTarget, SETTLE_AFTER_HOURS };
