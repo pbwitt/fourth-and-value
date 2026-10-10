@@ -1,8 +1,8 @@
 # NHL milestone-prop test
 
-Research only; no bets were placed. Window 2026-10-04 to 2026-10-11 (end exclusive), 9 refreshes, model nhl-v2.1, nhl-v2.3, nhl-v2.4. Generated 2026-10-10T11:08:17.207689Z.
+Research only; no bets were placed. Window 2026-10-04 to 2026-10-11 (end exclusive), 10 refreshes, model nhl-v2.1, nhl-v2.3, nhl-v2.4. Generated 2026-10-10T20:32:35.936495Z.
 
-7035 contracts priced; results: lost 5096, pending 196, unresolved_participation 99, won 1644.
+9420 contracts priced; results: lost 5094, pending 2581, unresolved_participation 99, won 1646.
 
 ## Model bets (best verified price, estimated EV at or above the threshold)
 
@@ -23,9 +23,9 @@ Research only; no bets were placed. Window 2026-10-04 to 2026-10-11 (end exclusi
 
 | Market | Contracts | Model mean | Hit rate | Model Brier | Best-price Brier |
 |---|---|---|---|---|---|
-| All | 6740 | 24.5% | 24.4% | 0.1240 | 0.1237 |
+| All | 6740 | 24.5% | 24.4% | 0.1242 | 0.1238 |
 | Anytime goal scorer | 1031 | 16.4% | 15.3% | 0.1220 | 0.1203 |
 | Alternate points | 2572 | 16.8% | 16.6% | 0.1028 | 0.1021 |
-| Alternate shots | 3137 | 33.5% | 33.7% | 0.1420 | 0.1426 |
+| Alternate shots | 3137 | 33.5% | 33.8% | 0.1424 | 0.1429 |
 
 Lower Brier is better. The best price still includes the book's margin, so it is a reference, not a fair probability.
