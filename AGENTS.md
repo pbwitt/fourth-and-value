@@ -16,6 +16,16 @@ browser and Node research adapter. Preserve exact offered lines/quotes, missing
 probabilities, push semantics and the separation from Market Watch. A count of
 games submitted to discovery is not a count of games exhaustively researched.
 
+## Time zone (standing requirement)
+
+Use U.S. Eastern Time for all analysis, reports, articles, schedules and other
+reader-facing output, including responses to the owner. Convert timestamps with
+`America/New_York`, including the calendar date; use EST in standard time and EDT
+in daylight saving time, or ET for a recurring schedule. Never display UTC or
+relabel a UTC clock as Eastern. Preserve machine-readable source timestamps,
+archives, API fields and freshness calculations; convert at the presentation
+boundary. Python publishers can use `scripts/display_time.py`.
+
 ## SEO (standing requirement)
 
 Every public page must meet `SEO_POLICY.md` without being asked: a search title of

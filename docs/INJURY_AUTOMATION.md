@@ -6,7 +6,7 @@ player parameters. The fetcher stores the raw report at
 `data/injuries/injuries_week<week>.csv`, with a JSON audit beside it.
 
 The normalizer keeps the player, team, position, report status, practice status,
-availability estimate, and UTC retrieval time. Status estimates are deliberately
+availability estimate, and recorded retrieval time (displayed in Eastern Time). Status estimates are deliberately
 conservative:
 
 | Report evidence | Availability input |

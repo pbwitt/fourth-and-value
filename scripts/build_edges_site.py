@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import argparse, pathlib, pandas as pd, datetime as dt
+from display_time import eastern_time
+from site_metadata import metadata
 
 HTML_PAGE = """<!doctype html>
 <html lang="en">
@@ -7,6 +9,7 @@ HTML_PAGE = """<!doctype html>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>NFL Edges – Week {{WEEK}}</title>
+{{METADATA}}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
@@ -26,7 +29,7 @@ a{color:var(--accent);text-decoration:none}
 .nav a.active, .nav a:hover{background:color-mix(in oklab, var(--accent) 20%, transparent);color:var(--text)}
 .main{max-width:1100px;margin:28px auto;padding:0 16px}
 .card{background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 8px 20px rgba(0,0,0,.15);overflow:hidden}
-.card h2{margin:0;padding:18px 20px;border-bottom:1px solid var(--border)}
+.card h1{margin:0;padding:18px 20px;border-bottom:1px solid var(--border)}
 .card .body{padding:16px 20px}
 .meta{color:var(--muted);font-size:.9rem;margin-bottom:10px}
 .table-wrap{overflow:auto;border:1px solid var(--border);border-radius:12px}
@@ -56,7 +59,7 @@ tbody tr:hover{background:color-mix(in oklab, var(--accent) 12%, var(--card))}
 
 <main class="main">
   <div class="card">
-    <h2>Game Edges — Week {{WEEK}} <span class="badge">updated {{UPDATED}}</span></h2>
+    <h1>Game Edges — Week {{WEEK}} <span class="badge">updated {{UPDATED}}</span></h1>
     <div class="body">
       <div class="meta">Model edges derived from Elo & market lines.</div>
       <div class="table-wrap">
@@ -87,10 +90,12 @@ def main():
     table_html = df.to_html(index=False, classes="tbl", border=0, justify="left", escape=False)
 
     html = (HTML_PAGE
+            .replace("{{METADATA}}", metadata(args.out, f'NFL Edges – Week {args.week}',
+                     'Compare NFL game lines with model estimates, inspect the current weekly snapshot and review the limits of experimental projections.'))
             .replace("{{TABLE_HTML}}", table_html)
             .replace("{{WEEK}}", str(args.week))
-            .replace("{{UPDATED}}", dt.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"))
-            .replace("{{YEAR}}", str(dt.datetime.utcnow().year)))
+            .replace("{{UPDATED}}", eastern_time(dt.datetime.now(dt.timezone.utc)))
+            .replace("{{YEAR}}", eastern_time(dt.datetime.now(dt.timezone.utc), '%Y')))
 
     out = pathlib.Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)

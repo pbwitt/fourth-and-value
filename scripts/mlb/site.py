@@ -2,6 +2,7 @@
 from html import escape
 from mlb.refresh import ROOT
 from site_metadata import metadata
+from display_time import eastern_time
 from nba.pipeline import read_json
 
 
@@ -77,7 +78,7 @@ def build(state):
 {metadata(path, search_title+' | Fourth & Value', descriptions[page])}
 <link rel="stylesheet" href="{rel}/assets/site.css"><link rel="stylesheet" href="{rel}/assets/player-context.css?v=7"><script src="{rel}/assets/player-context.js?v=8" defer></script><link rel="stylesheet" href="{rel}/assets/mlb.css?v=2"><link rel="icon" href="{rel}/assets/logo.svg">{tracker_css}</head><body><a class="skip-link" href="#main">Skip to content</a><div id="nav-root"></div><script src="{rel}/nav.js?v=47"></script>
 <main class="wrap" id="main" data-mlb-page="{page}" data-feed="{mlb}/data/latest.json">{links}<p class="eyebrow">MLB · {label}</p><h1>{title}</h1>
-<div class="notice" id="feed-status" role="status"><strong>MLB baseball market snapshot</strong><p>Last successful check: {escape(str(state.get('last_success_at') or 'Not yet checked'))}. Enable JavaScript to view current quote availability.</p></div>
+<div class="notice" id="feed-status" role="status"><strong>MLB baseball market snapshot</strong><p>Last successful check: {escape(eastern_time(state['last_success_at']) if state.get('last_success_at') else 'Not yet checked')}. Enable JavaScript to view current quote availability.</p></div>
 <p class="muted" id="history-status"></p><section class="panel mlb-model-summary" id="model-status" aria-label="Model coverage"></section>{intro}<footer>Fourth &amp; Value · <a href="{rel}/terms.html">Terms &amp; privacy</a> · <a href="{rel}/videos/">Videos</a></footer></main>{tracker_js}<script src="{rel}/assets/mlb.js?v=7" defer></script></body></html>'''
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(body)

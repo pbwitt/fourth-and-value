@@ -56,7 +56,7 @@ def render(root=None):
         'chosen before final testing; validation mean log score chooses the model. Daily histories update only after the '
         'availability cutoff, while fitted parameters stay frozen within each held-out season. Live artifacts are then '
         'refit on all completed seasons using the already selected specification.','',
-        'Morning cutoff: 10:30 America/New_York. Reconstructed box-score availability: next day 12:00 UTC. '
+        'Morning cutoff: 10:30 America/New_York. Reconstructed box-score availability: next day 7 a.m. EST / 8 a.m. EDT. '
         'Original publication/revision timestamps are absent, so this is **reconstructed predictive evaluation**, '
         'not a certified vintage-data replay. The 16:30 update uses the same result cutoff plus fresher available quotes; '
         'morning-versus-later execution cannot be compared without historical quote snapshots.','',

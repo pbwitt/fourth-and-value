@@ -52,7 +52,7 @@
     const isPast=!upcoming(r), fresh=quoteFresh(r);
     const mean=r.market_std==='anytime_td'?'—':num(r.mu);
     const edge=r.edge_bps==null?'—':`${num(r.edge_bps/100)} pp`;
-    const warning=isPast?'Game started · historical quote':!fresh?'Saved quote · confirm current price':'Quote checked '+new Date(r.last_update).toLocaleString();
+    const warning=isPast?'Game started · historical quote':!fresh?'Saved quote · confirm current price':'Quote checked '+new Date(r.last_update).toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'});
     return `<article class="panel prop-card"><p class="meta">${esc(r.kick_et)} · ${esc(r.game)}</p>
       <h2>${window.FVPlayerContext?.name?.(r,'NFL',{saved:isPast||!fresh})??esc(r.player)}</h2><div>${esc(r.market_label)}</div>
       <p class="betline">${esc(r.name)} ${r.point==null?'':num(r.point).replace(/\.0$/,'')} · ${odds(r.price)}</p>

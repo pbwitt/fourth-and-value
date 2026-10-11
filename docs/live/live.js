@@ -10,7 +10,7 @@
  const $=id=>document.getElementById(id),db=window.supabaseClient,O=window.FVLiveOdds,feeds=window.FVLiveFeeds,T=window.FVOfferTracker;
  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const say=text=>{$('message').textContent=text;};
- const clock=t=>new Date(t).toLocaleTimeString([],{hour:'numeric',minute:'2-digit',second:'2-digit'});
+ const clock=t=>new Date(t).toLocaleTimeString('en-US',{timeZone:'America/New_York',timeZoneName:'short',hour:'numeric',minute:'2-digit',second:'2-digit'});
  const age=ms=>ms==null||!Number.isFinite(ms)?'—':ms<90e3?`${Math.max(0,Math.round(ms/1000))}s`:`${Math.round(ms/60e3)} min`;
  const pct=n=>n==null?'—':`${n>0?'+':n<0?'−':''}${Math.abs(n).toFixed(1)}%`;
  const credits=n=>n==null?'':`${Number(n).toLocaleString()} Odds API credits left.`;
@@ -28,7 +28,7 @@
 
  function gameLabel(g,now=Date.now()){
   const t=Date.parse(g.commence_time);
-  const when=new Date(t).toLocaleString([],{weekday:'short',hour:'numeric',minute:'2-digit'});
+  const when=new Date(t).toLocaleString('en-US',{timeZone:'America/New_York',timeZoneName:'short',weekday:'short',hour:'numeric',minute:'2-digit'});
   return `${g.away_team} @ ${g.home_team} · ${t<=now?'started '+when:when}`;
  }
 
@@ -73,7 +73,7 @@
  function scoreLine(g,s){
   if(!s)return `<span>${esc(g.away_team)} @ ${esc(g.home_team)}</span><span class="detail">Live score unavailable</span>`;
   const team=t=>esc(t.abbrev||t.short||t.name);
-  if(s.state==='pre')return `<span>${team(s.away)} @ ${team(s.home)}</span><span class="detail">Starts ${esc(new Date(s.start||g.commence_time).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}))}</span>`;
+  if(s.state==='pre')return `<span>${team(s.away)} @ ${team(s.home)}</span><span class="detail">Starts ${esc(new Date(s.start||g.commence_time).toLocaleTimeString('en-US',{timeZone:'America/New_York',timeZoneName:'short',hour:'numeric',minute:'2-digit'}))}</span>`;
   return `<span>${team(s.away)} ${esc(s.away.score??'')} – ${esc(s.home.score??'')} ${team(s.home)}</span><span class="detail">${esc(s.detail)}</span>`;
  }
 

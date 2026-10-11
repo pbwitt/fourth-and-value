@@ -722,7 +722,7 @@
   <script src="bet-tracking.js?v=5"></script>
   <script src="performance.js?v=2"></script>
   <script src="live-feeds.js?v=2"></script>
-  <script src="live-stats.js?v=5"></script>
+  <script src="live-stats.js?v=6"></script>
   <script src="../assets/offer-tracker.js?v=2"></script>
   <script src="manual-bet.js?v=2"></script>
   <script src="edit-bet.js?v=1"></script>
@@ -1235,7 +1235,7 @@
       const score=g.state==='pre'||g.state==='off'
         ? `${teamTag(g.away)} @ ${teamTag(g.home)}`
         : `${teamTag(g.away)} ${g.away.score??0} @ ${teamTag(g.home)} ${g.home.score??0}`;
-      const when=g.state==='pre' ? new Date(g.start).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : g.detail;
+      const when=g.state==='pre' ? new Date(g.start).toLocaleTimeString('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit',timeZoneName:'short'}) : g.detail;
       return when ? `${score} · ${when}` : score;
     }
 

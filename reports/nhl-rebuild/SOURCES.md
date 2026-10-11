@@ -5,7 +5,7 @@ restricted content bypassed, or sportsbook account accessed.
 
 | Input | Source / coverage | Cost and refresh | Historical availability / decision |
 |---|---|---|---|
-| Game results, team goals and shots | [NHL statistics](https://www.nhl.com/stats/), `api.nhle.com/stats/rest/en/team/summary`, four complete seasons | Public endpoint; daily during season | Game IDs and dates are stable. Original publication and revision timestamps absent; reconstructed next-day noon UTC cutoff. Shootout awards absent from statistical GF, explicitly restored for settlement. |
+| Game results, team goals and shots | [NHL statistics](https://www.nhl.com/stats/), `api.nhle.com/stats/rest/en/team/summary`, four complete seasons | Public endpoint; daily during season | Game IDs and dates are stable. Original publication and revision timestamps absent; reconstructed next-day 7 a.m. EST / 8 a.m. EDT cutoff. Shootout awards absent from statistical GF, explicitly restored for settlement. |
 | Player goals, assists, points, shots, TOI | NHL `skater/summary` per game; 188,883 appearances | Public endpoint; monthly partitions to avoid the 10,000-row cap; refresh current season only | Outcomes and lagged features, not retrospective active lineups. Stable player IDs; identity ambiguity fails closed. Current-game position excluded. |
 | Special teams | Lagged team PP/PK percentage from the same reports | Included above | Available retrospectively with the same timestamp limitation. Missing game percentages shrink toward fixed priors. Not opportunity-weighted PP/PK event counts; this challenger was not selected. |
 | Opponent strength and home advantage | Derived from prior game rates | No added feed | Strict lag, recency and shrinkage; selected regularized core. |

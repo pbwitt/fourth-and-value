@@ -224,7 +224,7 @@
     if (!total) { el.textContent = data.notes.empty || 'No settled lines yet.'; return; }
     const last = data.periods[data.periods.length - 1];
     const games = data.periods.reduce((n, p) => n + (p.games || 0), 0);
-    const updated = new Date(data.generated_at).toLocaleDateString('en-US', {month: 'short', day: 'numeric'});
+    const updated = new Date(data.generated_at).toLocaleDateString('en-US', {timeZone: 'America/New_York', month: 'short', day: 'numeric'});
     el.textContent = `Through ${data.through || last.label} · ${games} games · ${total.toLocaleString()} graded lines · Updated ${updated}`;
     const caps = $('[data-captures]');
     if (caps) caps.innerHTML = data.periods.map(p => `<li>${esc(p.label)}: ${esc(p.captured || 'pregame snapshot')}</li>`).join('');

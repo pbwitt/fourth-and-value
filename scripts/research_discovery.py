@@ -14,6 +14,7 @@ from nhl.v2 import astra, evidence
 from nhl.v2.data import ROOT, digest, iso, stamp, write_json
 from nhl.analyst import immutable
 import research_budget as budget
+from display_time import TIMEZONE_INSTRUCTIONS
 
 PUBLIC = ROOT/'docs/briefing/discovery.json'
 INSTRUCTIONS = '''Act as a skeptical professional sports researcher. Independently research the
@@ -93,7 +94,7 @@ def search_request(games, now, questions=()):
         reasoning={'effort':'low'}, max_output_tokens=1600, max_tool_calls=1,
         tools=[dict(type='web_search', search_context_size='low',
                     filters={'allowed_domains':list(evidence.HOSTS)})], tool_choice='required',
-        include=['web_search_call.action.sources'], instructions=INSTRUCTIONS,
+        include=['web_search_call.action.sources'], instructions=INSTRUCTIONS+TIMEZONE_INSTRUCTIONS,
         input=json.dumps(dict(asof=iso(now), games=games, follow_up_questions=list(questions)), separators=(',',':')),
         text={'format':dict(type='json_schema',name='independent_slate_research',strict=True,schema=SCHEMA)})
 
