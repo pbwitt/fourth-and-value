@@ -112,7 +112,8 @@ def reserve(key, now, amount, *, path=PATH, legacy=None, cap=CAP, config=None):
     return 'reserved'
 
 
-def settle(key, usage=None, *, path=PATH, search_calls=0, model=MODEL):
+def settle(key, usage=None, *, path=PATH, search_calls=0, model=MODEL, not_billed=None):
+    """Settle a reservation; `not_billed` is an error raised before any billable work."""
     with locked(path):
         ledger = read(path, ())
         entry = next(e for e in ledger['entries'] if e['key'] == key)
@@ -126,6 +127,8 @@ def settle(key, usage=None, *, path=PATH, search_calls=0, model=MODEL):
             if charge > entry['reserved_usd']+1e-6:
                 entry['status'] = 'reservation_overrun_stop'
                 ledger['halted'] = True
+        elif not_billed:
+            entry.update(status='not_billed', charge_usd=0, error=str(not_billed))
         else:
             entry['status'] = 'uncertain_reservation_retained'
         save(path, ledger)

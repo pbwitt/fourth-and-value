@@ -55,6 +55,21 @@ class BudgetTests(unittest.TestCase):
         self.assertEqual(entry['status'],'settled')
         self.assertAlmostEqual(entry['charge_usd'],(1000*2.5+800*10+1000*5+800*20)/1e6)
         self.assertLess(b.maximum({'write':'claude-sonnet-5-5','audit':'claude-opus-5-5'}),b.maximum())
+    def test_refused_call_settles_at_zero_and_stops_paid_slots(self):
+        root=Path(self.temp.name);docs=root/'docs';state=root/'runs'
+        (docs/'editorial').mkdir(parents=True)
+        w.ed.write_json(state/'2026-09-22.json',{'allocation':[['MLB','news-market']],'slots':{}})
+        reporting=[{'id':s,'title':'Report','url':url,'published_at':'2026-09-22','excerpt':'Private source excerpt'} for s,url in [('a','https://mlb.com/news/a'),('b','https://www.espn.com/mlb/b')]]
+        packet={'sport':'MLB','data_readiness':{'ready':True},'markets':[{'id':'game','event_id':'game','game':'Away @ Home','commence_time':'2026-09-23T00:00:00Z'}],'model_rows':[{'id':'model-game','event_id':'game','game':'Away @ Home','model_mean':5.2,'model_version':'v1','model_input_through':'2026-09-21'}]}
+        class FixedDate(datetime):
+            @classmethod
+            def now(cls,tz=None):return datetime(2026,9,22,12,tzinfo=timezone.utc)
+        refused=w.model_api.NotBilled('Claude HTTP 401 authentication_error')
+        with patch.object(w,'datetime',FixedDate),patch.object(w.ed,'DOCS',docs),patch.object(w.ed,'ROOT',root),patch.object(w,'STATE',state),patch.object(w,'evidence',return_value=packet),patch.object(w.reporting,'collect',return_value=reporting),patch.object(b,'checkpoint'),patch.object(w.ed,'render_home'),patch.object(w,'call_api',side_effect=refused):
+            w.run(self.now,1)
+        (entry,)=b.read()['entries']
+        self.assertEqual((entry['status'],entry['charge_usd']),('settled',0))
+        self.assertTrue(json.loads((state/'2026-09-22.json').read_text())['funding_required'])
     def test_full_publish_and_repeat_without_new_spend(self):
         root=Path(self.temp.name);docs=root/'docs';state=root/'runs'
         (docs/'editorial').mkdir(parents=True)

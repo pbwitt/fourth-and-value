@@ -205,7 +205,7 @@ def run(feeds, now, config, *, archive, clock, public=PUBLIC, execute=False, que
             result['status']=status
             if status=='reserved':
                 astra.checkpoint([archive/'daily-budget.json',packet])
-                response=None
+                response=error=None
                 try:
                     response=astra.call_api(request)
                     immutable(archive/'responses'/f'{request_id}.json',dict(received_at=iso(clock()),response=response))
@@ -213,10 +213,13 @@ def run(feeds, now, config, *, archive, clock, public=PUBLIC, execute=False, que
                     result['directions']=list({digest(d):d for d in result['directions']+found}.values())
                     result['submitted_games'] = [list(pair) for pair in dict.fromkeys(tuple(pair) for pair in result['submitted_games']+[[g['sport'],g['game_id']] for g in group])]
                     result['status']='completed';result['request_id']=request_id
-                except Exception as error:
+                except Exception as failure:
+                    error=failure
                     result.update(status='discovery_unavailable',error=type(error).__name__)
+                    model_api.report_failure('Discovery',error)
                 finally:
-                    budget.settle(key,response.get('usage') if response else None,path=archive/'daily-budget.json',search_calls=1)
+                    budget.settle(key,response.get('usage') if response else None,path=archive/'daily-budget.json',search_calls=1,
+                                  not_billed=error if isinstance(error,model_api.NotBilled) else None)
     result['candidates']=resolve(result['directions'],offers,iso(now))
     result['budget']=budget.usage_summary(now,path=archive/'daily-budget.json',config=config)
     immutable(archive/'discovery'/f'{digest(result)[:24]}.json',result)

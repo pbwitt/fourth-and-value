@@ -104,7 +104,7 @@ class ResponseTests(unittest.TestCase):
 class RoutingTests(unittest.TestCase):
     def test_missing_key_never_sends(self):
         with patch.dict('os.environ', {'ANTHROPIC_API_KEY': ''}), patch.object(model_api, '_send') as send:
-            with self.assertRaises(RuntimeError):
+            with self.assertRaises(model_api.NotBilled):
                 astra.call_api(REVIEW)
             send.assert_not_called()
 
@@ -127,6 +127,25 @@ class RoutingTests(unittest.TestCase):
             astra.call_api(dict(REVIEW, model='gpt-6.1-sol'))
             self.assertEqual(post.call_args.kwargs['json']['model'], 'gpt-6.1-sol')
             send.assert_not_called()
+
+    def test_api_rejections_are_unbilled_and_server_errors_stay_uncertain(self):
+        import anthropic
+        import httpx2
+
+        def failure(code, kind, message='x'):
+            response = httpx2.Response(code, request=httpx2.Request('POST', 'https://api.anthropic.com/v1/messages'))
+            return anthropic.APIStatusError(message, response=response, body={'error': {'type': kind, 'message': message}})
+        cases = [(failure(401, 'authentication_error'), model_api.NotBilled, 'Claude HTTP 401 authentication_error'),
+                 (failure(400, 'invalid_request_error', 'Your credit balance is too low'), model_api.NotBilled,
+                  'Claude HTTP 400 credit_balance_exhausted'),
+                 (failure(529, 'overloaded_error'), RuntimeError, 'Claude HTTP 529 overloaded_error')]
+        for raised, kind, text in cases:
+            with patch.object(anthropic, 'Anthropic') as client:
+                client.return_value.messages.create.side_effect = raised
+                with self.assertRaises(RuntimeError) as caught:
+                    model_api._send({}, (15, 300))
+            self.assertIs(type(caught.exception), kind)
+            self.assertEqual(str(caught.exception), text)
 
     def test_research_configs_name_the_budgeted_model(self):
         configs = [json.loads((astra.ROOT/'config'/name).read_text()) for name in ('analyst_review.json', 'nhl_analyst.json')]

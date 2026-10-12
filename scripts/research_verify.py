@@ -12,6 +12,7 @@ import json
 from nhl.analyst import immutable
 from nhl.v2 import astra, evidence
 from nhl.v2.data import digest, iso
+import model_api
 import research_budget as budget
 
 PROMPT_VERSION = 'targeted-verification-1'
@@ -118,7 +119,7 @@ def run(rows, batch, config, archive, clock):
                 break
             continue
         astra.checkpoint([ledger, packet])
-        response = None
+        response = error = None
         try:
             response = astra.call_api(request)
             immutable(archive/'responses'/f'{request_id}.json', dict(received_at=iso(clock()), response=response))
@@ -127,9 +128,12 @@ def run(rows, batch, config, archive, clock):
             found, failures = evidence.targeted(batch, [f['url'] for f in kept], clock)
             sources += found
             record.update(status='completed', request_id=request_id, findings=kept, retrieved=len(found), failures=failures)
-        except Exception as error:
+        except Exception as failure:
+            error = failure
             record.update(status='verification_unavailable', error=type(error).__name__)
+            model_api.report_failure('Verification', error)
         finally:
             budget.settle(key, response.get('usage') if isinstance(response, dict) else None,
-                          path=ledger, search_calls=SEARCHES)
+                          path=ledger, search_calls=SEARCHES,
+                          not_billed=error if isinstance(error, model_api.NotBilled) else None)
     return sources, records

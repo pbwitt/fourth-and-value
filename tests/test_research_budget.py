@@ -31,6 +31,16 @@ class BudgetTests(unittest.TestCase):
             self.assertEqual(budget.reserve('b',NOW,.3,path=p,legacy=()),'budget_exhausted')
             self.assertEqual(budget.usage_summary(NOW,path=p,legacy=())['remaining_usd'],.25)
 
+    def test_unbilled_request_releases_its_reservation_once(self):
+        with tempfile.TemporaryDirectory() as td:
+            p=Path(td)/'daily.json'
+            budget.reserve('a',NOW,2.5,path=p,legacy=())
+            entry=budget.settle('a',None,path=p,not_billed='Claude HTTP 401 authentication_error')
+            self.assertEqual((entry['status'],entry['charge_usd'],entry['reserved_usd']),('not_billed',0,2.5))
+            self.assertEqual(entry['error'],'Claude HTTP 401 authentication_error')
+            self.assertEqual(budget.reserve('a',NOW,.1,path=p,legacy=()),'already_attempted')
+            self.assertEqual(budget.reserve('b',NOW,2.5,path=p,legacy=()),'reserved')
+
     def test_legacy_import_idempotent_and_search_fee_included(self):
         with tempfile.TemporaryDirectory() as td:
             p=Path(td)/'daily.json';old=Path(td)/'old.json'
