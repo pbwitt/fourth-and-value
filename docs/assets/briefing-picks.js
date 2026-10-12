@@ -467,8 +467,9 @@
         leanList.innerHTML=result.leans.map(r=>`<li><strong>${esc(r.sport)}</strong> · ${esc(betLabel(r))} · ${esc(odds(r.price))} at ${esc(r.book_label||r.book)} · ${esc(r.game)} <span class="meta">Blended ${pct(r.blend.final)} · ${signedPct(r.blend.ev)} expected value</span></li>`).join('');
         leanSection.hidden=!result.leans.length;
       }
-      const budgetStatus=document.getElementById('picks-budget-status'), budget=feeds.Reviews?.budget;
-      if(budgetStatus)budgetStatus.textContent=budget&&budget.day===day(now)?`Today’s research: $${budget.charged_or_reserved_usd.toFixed(2)} charged or reserved of $${budget.limit_usd.toFixed(2)} across sports. Research runs in the morning; additional candidates are not automatically reassessed later.`:'Morning research is limited to $2.75 per Eastern calendar day across sports; current spending status is pending.';
+      // Research spending is not shown publicly; the owner gets a private report.
+      const budgetStatus=document.getElementById('picks-budget-status');
+      if(budgetStatus)budgetStatus.textContent='Research runs in the morning within a fixed daily allowance; additional candidates are not automatically reassessed later.';
       const research=document.getElementById('picks-research-status');
       if(research){const d=feeds.Discovery;const extra=d?.decision_date===day(now)?` · Independent discovery: ${d.status.replaceAll('_',' ')}; ${d.submitted_games?.length||0}/${d.slate_games||0} games submitted (not exhaustive research)`:'';research.textContent=['NFL','MLB','NHL'].map(s=>researchStatus(s,feeds.Reviews,result.selected,now)).join(' · ')+extra;}
       if(draft&&dialog.open&&!saving&&!draft.saved&&!collect(feeds,now).selected.some(r=>key(r)===key(draft.row))) {

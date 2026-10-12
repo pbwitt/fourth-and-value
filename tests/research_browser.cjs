@@ -7,7 +7,7 @@ const server=http.createServer((req,res)=>{let name=decodeURIComponent(req.url.s
 const browser=await chromium.launch({headless:true,...(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{})});
 try{const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
 for(const width of [390,1440]){await page.setViewportSize({width,height:1000});await page.goto(base+'/research/daily-process.html');
-assert.match(await page.locator('h1').textContent(),/daily picks/);assert.match(await page.locator('main').textContent(),/\$2.75/);
+assert.match(await page.locator('h1').textContent(),/daily picks/);assert.doesNotMatch(await page.locator('main').textContent(),/\$\d/);
 assert.match(await page.locator('main').textContent(),/7:05 a.m./);assert.match(await page.locator('main').textContent(),/4:30 p.m./);
 assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
 await page.screenshot({path:`/tmp/fv-daily-process-${width}.png`});}
@@ -19,11 +19,11 @@ const urls={'/briefing/morning-card.json':'Card','/props/top-picks.json':'NFL','
 for(const [url,key] of Object.entries(urls))await page.route('**'+url,r=>feeds[key]?r.fulfill({json:feeds[key]}):r.fulfill({status:503,body:'Unavailable'}));
 await page.goto(base+'/briefing/');await page.waitForFunction(()=>document.querySelectorAll('#research-picks-rows > tr').length===20);
 assert.match(await page.locator('#picks-status').textContent(),/0 reviewed picks/);
-assert.match(await page.locator('#picks-budget-status').textContent(),/\$2.00/);
+assert.match(await page.locator('#picks-budget-status').textContent(),/fixed daily allowance/);assert.doesNotMatch(await page.locator('#picks-budget-status').textContent(),/\$/);
 await page.locator('#picks-research-pool').evaluate(e=>e.open=true);await page.locator('#picks-show-more').click();assert.equal(await page.locator('#research-picks-rows > tr').count(),35);
 assert.match(await page.locator('#research-picks-rows').textContent(),/Not established/);
 assert.match(await page.locator('#picks-research-status').textContent(),/not exhaustive research/);
 assert.equal(await page.locator('a[href="/research/daily-process.html"]').count(),1);
 await page.screenshot({path:'/tmp/fv-research-candidates-1440.png'});
-assert.deepEqual(errors,[]);console.log('PASS: process documentation, budget visibility, complete pool expansion and research-only display.');
+assert.deepEqual(errors,[]);console.log('PASS: process documentation, no public spending figures, complete pool expansion and research-only display.');
 }finally{await browser.close();server.close();}})().catch(e=>{console.error(e);server.close();process.exitCode=1;});
