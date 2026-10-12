@@ -82,7 +82,7 @@ class MorningCardTests(unittest.TestCase):
         with TemporaryDirectory() as td:
             root=Path(td);archive=root/'archive';public=root/'reviews.json'
             original=feeds();original['NHL']=empty_feeds(asof)['NHL'];frozen={}
-            with patch.dict('os.environ',{'OPENAI_API_KEY':'synthetic-not-a-key'}),patch.object(astra,'checkpoint'),patch.object(astra,'call_api',side_effect=TimeoutError) as call,patch.object(evidence,'collect',return_value=([],{'status':'no_usable_reporting'})):
+            with patch.dict('os.environ',{review.model_api.key_name(review.astra.MODEL):'synthetic-not-a-key'}),patch.object(astra,'checkpoint'),patch.object(astra,'call_api',side_effect=TimeoutError) as call,patch.object(evidence,'collect',return_value=([],{'status':'no_usable_reporting'})):
                 result=review.prepare(original,asof,config,run_review=True,archive=archive,public=public,clock=lambda:asof,publication_feeds=frozen)
             self.assertGreater(call.call_count,0)
             self.assertLessEqual(result['budget']['charged_or_reserved_usd'],2.75)
@@ -107,7 +107,7 @@ class MorningCardTests(unittest.TestCase):
             return result
         with TemporaryDirectory() as td:
             root=Path(td);original=feeds();original['NHL']=empty_feeds(asof)['NHL'];frozen={}
-            with patch.dict('os.environ',{'OPENAI_API_KEY':'synthetic-not-a-key'}),patch.object(astra,'checkpoint'),patch.object(astra,'call_api',side_effect=completed),patch.object(evidence,'collect',return_value=([],{'status':'no_usable_reporting'})):
+            with patch.dict('os.environ',{review.model_api.key_name(review.astra.MODEL):'synthetic-not-a-key'}),patch.object(astra,'checkpoint'),patch.object(astra,'call_api',side_effect=completed),patch.object(evidence,'collect',return_value=([],{'status':'no_usable_reporting'})):
                 result=review.prepare(original,asof,config,run_review=True,archive=root/'archive',public=root/'reviews.json',clock=lambda:asof,publication_feeds=frozen)
             value=card.publish_card(frozen,result,asof,root=root)
             self.assertEqual(value['status'],'published')

@@ -14,16 +14,18 @@ import subprocess
 from zoneinfo import ZoneInfo
 
 from nhl.analyst import immutable
+import model_api
 from nhl.v2 import astra, evidence
 import research_budget as daily_budget
 import research_discovery
+import research_verify
 from nhl.v2.data import ROOT, digest, iso, stamp, write_json
 
 ARCHIVE = ROOT/'artifacts/analyst'
 PUBLIC = ROOT/'docs/briefing/reviews.json'
 CONFIG = ROOT/'config/analyst_review.json'
 ET = ZoneInfo('America/New_York')
-PROMPT_VERSION = 'sports-research-6'
+PROMPT_VERSION = 'sports-research-7'
 SCHEMA = deepcopy(astra.SCHEMA)
 DETAILS = SCHEMA['properties']['reviews']['items']['properties']['evidence']['items']['properties']
 DETAILS['kind']['enum'] = ['goalie', 'deployment', 'injury', 'tactical', 'pitcher', 'weather', 'other']
@@ -234,7 +236,7 @@ def review(board, feeds, config, archive, clock, *, assessment_update=False):
     if not config['astra_enabled'] or not board['session']:
         board['review_status'] = 'disabled' if not config['astra_enabled'] else 'outside_review_window'
         return board
-    if not os.getenv('OPENAI_API_KEY'):
+    if not model_api.has_key(astra.MODEL):
         board['review_status'] = 'api_key_unavailable'
         return board
     key = ':'.join([board['decision_date'], board['sport'], board['session'], PROMPT_VERSION,
@@ -305,7 +307,7 @@ def evidence_key(sources, row):
 
 
 def review_batches(board, feeds, config, archive, clock, prior, assessment_update=False):
-    if not board['candidates'] or not os.getenv('OPENAI_API_KEY') or not board['session'] or not config['astra_enabled']:
+    if not board['candidates'] or not model_api.has_key(astra.MODEL) or not board['session'] or not config['astra_enabled']:
         return review(board,feeds,config,archive,clock,assessment_update=assessment_update)
     sources, diagnostics=evidence.collect(board['candidates'],clock,sport=board['sport'])
     # Target links found by independent search, followed by original official reports.
@@ -349,8 +351,10 @@ def review_batches(board, feeds, config, archive, clock, prior, assessment_updat
         return 4 if r.get('forecast_health',{}).get('tier')==3 else 3
     for r in pending:r['research_priority']=priority(r)
     # Discovery must actually receive a review turn, rather than sit behind
-    # hundreds of model qualifiers. This is research scheduling, not a win score.
-    pending.sort(key=lambda r:(r['research_priority'],r['commence_time']))
+    # hundreds of model qualifiers. Within a priority, the strongest screened
+    # case (the selector's blended-EV score) is reviewed first so the batch
+    # limit cannot skip it for an earlier kickoff. Scheduling, not a win score.
+    pending.sort(key=lambda r:(r['research_priority'],-(r.get('score') or 0),r['commence_time']))
     board['_research_queue']=dict(pending=pending,sources=sources,diagnostics=diagnostics,statuses=[])
     return board
 
@@ -361,6 +365,9 @@ def run_queue(boards, feeds, config, archive, clock, assessment_update=False):
     stopped=False
     attempts=0
     limit=max(1,int(config.get('max_review_batches',8)))
+    # Targeted searches go to the first, strongest candidates in queue order.
+    verify_left=max(0,int(config.get('verification_candidates',0)))
+    verify_each=max(1,int(config.get('verification_per_batch',3)))
     stop_reason=None
     while not stopped and any(b.get('_research_queue',{}).get('pending') for b in boards):
         for board in boards:
@@ -370,7 +377,20 @@ def run_queue(boards, feeds, config, archive, clock, assessment_update=False):
                 stopped=True;stop_reason='review_limit_reached';break
             batch={k:v for k,v in board.items() if k!='_research_queue'}
             batch['candidates']=queue['pending'][:size]
-            batch['_prepared_evidence']=(queue['sources'],queue['diagnostics'])
+            sources=queue['sources']
+            if verify_left:
+                try:
+                    found,records=research_verify.run(batch['candidates'][:min(verify_left,verify_each)],batch['candidates'],config,archive,clock)
+                except Exception as error:
+                    found,records=[],[dict(status='verification_unavailable',error=type(error).__name__)]
+                verify_left-=sum(r['status'] in ('completed','reused','verification_unavailable') for r in records)
+                if any(r['status'] in ('budget_exhausted','budget_halted') for r in records):verify_left=0
+                board.setdefault('verification',[]).extend(records)
+                # Fetched pages join this batch's evidence and the board's public source list.
+                sources=list({s['source_id']:s for s in sources+found}.values())
+                known={s['source_id'] for s in board.get('sources',[])}
+                board.setdefault('sources',[]).extend({k:v for k,v in s.items() if k!='excerpt'} for s in found if s['source_id'] not in known)
+            batch['_prepared_evidence']=(sources,queue['diagnostics'])
             try: reviewed=review(batch,feeds,config,archive,clock,assessment_update=assessment_update)
             except Exception as error: reviewed=dict(batch,review_status='review_unavailable',review_error=type(error).__name__)
             attempts+=1
