@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Odds Calculator: Implied Probability, No-Vig Odds and Hold</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Convert American and decimal odds to implied probability, remove the vig to get fair odds and hold, and check a bet’s break-even and expected value." />
+  <link rel="icon" href="../assets/logo.svg" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "WebApplication",
+ "name": "Odds Calculator",
+ "url": "https://fourthandvalue.com/tools/odds-calculator.html",
+ "description": "Convert American and decimal odds to implied probability, remove the vig to get fair odds and hold, and check a bet’s break-even and expected value.",
+ "applicationCategory": "FinanceApplication",
+ "operatingSystem": "Any",
+ "isAccessibleForFree": true,
+ "image": "https://fourthandvalue.com/tools/odds-calculator/social.png",
+ "publisher": {"@type": "Organization", "name": "Fourth & Value", "logo": {"@type": "ImageObject", "url": "https://fourthandvalue.com/assets/logo.svg"}}
+}
+  </script>
+  <script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "FAQPage",
+ "mainEntity": [
+  {"@type": "Question", "name": "How do you convert American odds to implied probability?", "acceptedAnswer": {"@type": "Answer", "text": "For negative odds, divide the odds by the odds plus 100: −150 is 150 ÷ 250 = 60%. For positive odds, divide 100 by the odds plus 100: +130 is 100 ÷ 230 = 43.48%."}},
+  {"@type": "Question", "name": "How do you calculate no-vig odds?", "acceptedAnswer": {"@type": "Answer", "text": "Convert both sides to implied probabilities, add them, and divide each side by the total. −150 and +130 imply 60.00% and 43.48%, a total of 103.48%, so the no-vig probabilities are 57.98% and 42.02%, or about −138 and +138."}},
+  {"@type": "Question", "name": "How do you calculate expected value on a bet?", "acceptedAnswer": {"@type": "Answer", "text": "Multiply your win probability by the profit if you win, and subtract the loss probability times your stake. A 55% bet at −110 risking $100: 0.55 × $90.91 − 0.45 × $100 = +$5.00."}}
+ ]
+}
+  </script>
+  <style>
+    :root{ --bg:#0b0e13; --surface:#12161d; --surface-2:#171c25; --ink:#eef1f5; --muted:#8b93a1; --line:#232a35; --accent:#6ea8fe; --good:#2dd4bf; --warn:#f0ab3d; --bad:#f87171; }
+    *{box-sizing:border-box}
+    html,body{ margin:0; background:var(--bg); }
+    body{ color:var(--ink); font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
+    a{ color:var(--accent); }
+    .wrap{ max-width:880px; margin:0 auto; padding:36px 24px 80px; }
+    .kicker{ font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-bottom:14px; }
+    h1{ font-family:'Fraunces',serif; font-weight:600; font-size:clamp(30px,5vw,44px); line-height:1.1; margin:0 0 12px; }
+    .lede{ color:var(--muted); font-size:16px; line-height:1.6; margin:0 0 24px; max-width:70ch; }
+    .panel{ background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px; margin:0 0 18px; }
+    .panel h2{ font-size:17px; margin:0 0 12px; font-family:'Inter',sans-serif; }
+    .controls{ display:flex; flex-wrap:wrap; gap:14px 18px; align-items:flex-end; }
+    .field{ display:flex; flex-direction:column; gap:6px; font-size:12.5px; color:var(--muted); }
+    .field input{ width:130px; }
+    input{ font:inherit; font-size:16px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:9px 10px; min-height:42px; }
+    input:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+    input[aria-invalid="true"]{ border-color:var(--bad); }
+    .note{ font-size:13px; color:var(--muted); margin:12px 0 0; line-height:1.5; }
+    .err{ color:var(--bad); font-size:13.5px; margin:10px 0 0; min-height:1px; }
+    .results{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:16px 0 0; }
+    .tile{ background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+    .tile .k{ font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+    .tile .v{ font-family:'JetBrains Mono',monospace; font-size:22px; font-weight:700; margin-top:6px; }
+    .tile .s{ font-size:12.5px; color:var(--muted); margin-top:4px; line-height:1.4; }
+    .tile.hero{ border-color:var(--accent); }
+    .tile.hero .v{ color:var(--accent); }
+    .tile.pos .v{ color:var(--good); } .tile.neg .v{ color:var(--warn); }
+    article{ font-size:16.5px; line-height:1.7; margin-top:40px; }
+    article h2{ font-family:'Fraunces',serif; font-weight:600; font-size:26px; line-height:1.2; margin:44px 0 14px; }
+    article h3{ font-size:17px; margin:28px 0 8px; }
+    article p{ margin:0 0 18px; }
+    article ul{ margin:0 0 18px; padding-left:22px; }
+    article li{ margin-bottom:8px; }
+    .formula{ font-family:'JetBrains Mono',monospace; font-size:14px; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 18px; margin:0 0 18px; line-height:1.8; overflow-x:auto; }
+    .faq h3{ margin-top:22px; }
+    @media (max-width:760px){ .wrap{ padding:24px 16px 64px; } .results{ grid-template-columns:1fr 1fr; } .field input{ width:120px; } }
+    @media (max-width:380px){ .results{ grid-template-columns:1fr; } .field{ flex:1 1 100%; } .field input{ width:100%; } }
+  </style>
+  <link rel="canonical" href="https://fourthandvalue.com/tools/odds-calculator.html">
+  <meta property="og:title" content="Odds calculator: implied probability, no-vig odds and hold">
+  <meta property="og:description" content="Convert American and decimal odds to implied probability, remove the vig to get fair odds and hold, and check a bet’s break-even and expected value.">
+  <meta property="og:url" content="https://fourthandvalue.com/tools/odds-calculator.html">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://fourthandvalue.com/tools/odds-calculator/social.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="720">
+  <meta property="og:image:alt" content="Odds calculator: −150 and +130 are 57.98% and 42.02% with the vig removed.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://fourthandvalue.com/tools/odds-calculator/social.png">
+<link rel="stylesheet" href="/assets/responsible-use.css?v=1"></head>
+<body>
+  <div id="nav-root"></div>
+  <script src="../nav.js?v=47"></script>
+
+  <main class="wrap">
+    <div class="kicker"><a href="/learn/#tools" style="color:inherit">Learn</a> · Tools</div>
+    <h1>Odds Calculator</h1><!-- fv-notices:notice:start --><aside id="fv-betting-notice" class="fv-use-notice" aria-label="Betting information disclaimer"><strong>Analysis, not a guarantee.</strong> Picks and projections are uncertain; odds and player information can change. No outcome or profit is guaranteed. Any wager is your decision and responsibility. <a href="/terms.html#responsible-play">Read our limitations and responsible-play guidance</a>.</aside><!-- fv-notices:notice:end -->
+    <p class="lede">Convert odds to implied probability, remove the vig from a two-sided market, and check whether a bet clears its break-even. Everything runs in your browser; nothing you enter is sent anywhere.</p>
+
+    <section class="panel" aria-labelledby="conv-h">
+      <h2 id="conv-h">Convert odds</h2>
+      <div class="controls">
+        <label class="field">American <input id="c-am" type="text" inputmode="text" value="-110" maxlength="9"></label>
+        <label class="field">Decimal <input id="c-dec" type="text" inputmode="decimal" maxlength="9"></label>
+        <label class="field">Implied probability (%) <input id="c-p" type="text" inputmode="decimal" maxlength="8"></label>
+      </div>
+      <p class="err" id="c-err" role="alert"></p>
+      <p class="note">Edit any box and the others update. Implied probability is the win rate you need to break even at that price.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="nv-h">
+      <h2 id="nv-h">Remove the vig</h2>
+      <div class="controls">
+        <label class="field">Side A (American) <input id="nv-a" type="text" inputmode="text" value="-150" maxlength="9"></label>
+        <label class="field">Side B (American) <input id="nv-b" type="text" inputmode="text" value="+130" maxlength="9"></label>
+      </div>
+      <p class="err" id="nv-err" role="alert"></p>
+      <div class="results" aria-live="polite">
+        <div class="tile hero"><div class="k">Side A fair</div><div class="v" id="nv-fa">—</div><div class="s" id="nv-fa-s"></div></div>
+        <div class="tile hero"><div class="k">Side B fair</div><div class="v" id="nv-fb">—</div><div class="s" id="nv-fb-s"></div></div>
+        <div class="tile"><div class="k">Overround</div><div class="v" id="nv-or">—</div><div class="s">Implied probabilities above 100%</div></div>
+        <div class="tile"><div class="k">Hold</div><div class="v" id="nv-h2">—</div><div class="s">Share of money the book expects to keep</div></div>
+      </div>
+      <p class="note">Uses the proportional method. Both prices must be for the same line at the same book.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="ev-h">
+      <h2 id="ev-h">Is the bet worth it?</h2>
+      <div class="controls">
+        <label class="field">Your win probability (%) <input id="ev-p" type="text" inputmode="decimal" value="55" maxlength="6"></label>
+        <label class="field">Price (American) <input id="ev-o" type="text" inputmode="text" value="-110" maxlength="9"></label>
+      </div>
+      <p class="err" id="ev-err" role="alert"></p>
+      <div class="results" aria-live="polite">
+        <div class="tile"><div class="k">Break-even</div><div class="v" id="ev-be">—</div><div class="s">Win rate needed at this price</div></div>
+        <div class="tile"><div class="k">Your edge</div><div class="v" id="ev-ed">—</div><div class="s">Your probability minus break-even</div></div>
+        <div class="tile" id="ev-tile"><div class="k">Expected value</div><div class="v" id="ev-v">—</div><div class="s">Per $100 risked</div></div>
+        <div class="tile"><div class="k">Profit if it wins</div><div class="v" id="ev-w">—</div><div class="s">Per $100 risked</div></div>
+      </div>
+      <p class="note">Expected value is only as good as your probability. If it comes from a model, compare it with the no-vig market price before trusting a large edge.</p>
+    </section>
+
+    <article>
+      <h2>The formulas</h2>
+      <div class="formula">Negative odds → probability = |odds| ÷ (|odds| + 100)<br>Positive odds → probability = 100 ÷ (odds + 100)<br>Decimal odds = 1 ÷ probability<br>Overround = sum of both sides − 100%<br>Hold = 1 − 1 ÷ sum of both sides<br>No-vig probability = implied ÷ sum of both sides<br>Expected value = p × profit − (1 − p) × stake</div>
+
+      <h2>Worked examples</h2>
+      <h3>Implied probability</h3>
+      <p>−110 means risking $110 to win $100, so you need to win 110 ÷ 210 = <strong>52.38%</strong> of the time. +150 means risking $100 to win $150, which needs 100 ÷ 250 = <strong>40%</strong>.</p>
+      <h3>No-vig odds</h3>
+      <p>A moneyline of −150 and +130 implies 60.00% and 43.48%, a total of 103.48%. Divide each by the total and the fair probabilities are <strong>57.98%</strong> and <strong>42.02%</strong>, or about −138 and +138. The book’s hold on that market is 3.36%.</p>
+      <h3>Expected value</h3>
+      <p>Say you think an NBA player goes over his points line 55% of the time, and the price is −110. A $100 bet wins $90.91. Expected value is 0.55 × $90.91 − 0.45 × $100 = <strong>+$5.00</strong> per $100. At −125 the same opinion is worth only about −$1.00.</p>
+
+      <h2>Using it well</h2>
+      <ul>
+        <li><strong>Compare with the fair price, not the posted one.</strong> The posted price includes the vig; the no-vig number is the market’s actual estimate.</li>
+        <li><strong>Shop the price.</strong> The same opinion can be a good bet at one book and a bad one at another. The <a href="/tools/synthetic-hold.html">synthetic hold calculator</a> finds the best price on each side across books.</li>
+        <li><strong>Be skeptical of huge edges.</strong> If your number disagrees with every sportsbook by ten points, the likelier explanation is an error in your number.</li>
+        <li><strong>Track the close.</strong> The <a href="/tools/clv-calculator.html">closing line value calculator</a> checks whether your price beat the market’s final estimate.</li>
+      </ul>
+
+      <section class="faq">
+        <h2>Frequently asked questions</h2>
+        <h3>How do you convert American odds to implied probability?</h3>
+        <p>For negative odds, divide the odds by the odds plus 100: −150 is 150 ÷ 250 = 60%. For positive odds, divide 100 by the odds plus 100: +130 is 100 ÷ 230 = 43.48%.</p>
+        <h3>How do you calculate no-vig odds?</h3>
+        <p>Convert both sides to implied probabilities, add them, and divide each side by the total. −150 and +130 imply 60.00% and 43.48%, a total of 103.48%, so the no-vig probabilities are 57.98% and 42.02%, or about −138 and +138.</p>
+        <h3>How do you calculate expected value on a bet?</h3>
+        <p>Multiply your win probability by the profit if you win, and subtract the loss probability times your stake. A 55% bet at −110 risking $100: 0.55 × $90.91 − 0.45 × $100 = +$5.00.</p>
+      </section>
+
+      <h3>Related</h3>
+      <ul>
+        <li><a href="/blog/how-books-make-money.html">What Is Vig? How Sportsbooks Make Money and How to Remove It</a></li>
+        <li><a href="/tools/clv-calculator.html">Closing Line Value Calculator</a></li>
+        <li><a href="/tools/kalshi-odds-converter.html">Kalshi Odds Converter</a></li>
+      </ul>
+    </article>
+  </main>
+
+  <script>
+  (function(){
+    var $=function(id){return document.getElementById(id);};
+    var M='−';
+    function num(v){ v=String(v).trim().replace(/[−–]/g,'-').replace(/%$/,''); return v===''?NaN:Number(v); }
+    function amToP(a){ if(!(Math.abs(a)>=100)) return NaN; return a>0?100/(a+100):-a/(-a+100); }
+    function pToAm(p){ if(!(p>0&&p<1)) return ''; return p<=0.5?'+'+Math.round(100*(1-p)/p):M+Math.round(100*p/(1-p)); }
+    function pct(p,d){ return (p*100).toFixed(d==null?2:d)+'%'; }
+    function money(x){ return (x<0?M:'+')+'$'+Math.abs(x).toFixed(2); }
+    function err(id,msg,els){ $(id).textContent=msg||''; (els||[]).forEach(function(e){ $(e).setAttribute('aria-invalid',msg?'true':'false'); }); }
+
+    // Converter: whichever box was edited drives the others.
+    function conv(src){
+      var p;
+      if(src==='am'){ p=amToP(num($('c-am').value)); }
+      else if(src==='dec'){ var d=num($('c-dec').value); p=d>1?1/d:NaN; }
+      else { var q=num($('c-p').value); p=q>0&&q<100?q/100:NaN; }
+      if(!(p>0&&p<1)){ var empty=String($('c-'+(src==='am'?'am':src==='dec'?'dec':'p')).value).trim()===''; err('c-err',empty?'':'Enter American odds of ±100 or more, decimal odds above 1, or a probability between 0 and 100.',['c-'+(src==='am'?'am':src==='dec'?'dec':'p')]); return; }
+      err('c-err','',['c-am','c-dec','c-p']);
+      if(src!=='am') $('c-am').value=pToAm(p);
+      if(src!=='dec') $('c-dec').value=(1/p).toFixed(3);
+      if(src!=='p') $('c-p').value=(p*100).toFixed(2);
+    }
+    function novig(){
+      var a=amToP(num($('nv-a').value)), b=amToP(num($('nv-b').value));
+      var ids=['nv-fa','nv-fb','nv-or','nv-h2'];
+      if(!(a>0)||!(b>0)){ err('nv-err','Enter American odds of +100 or more, or −100 or less, on both sides.',['nv-a','nv-b']); ids.forEach(function(i){$(i).textContent='—';}); $('nv-fa-s').textContent=$('nv-fb-s').textContent=''; return; }
+      err('nv-err','',['nv-a','nv-b']);
+      var s=a+b;
+      $('nv-fa').textContent=pct(a/s); $('nv-fa-s').textContent='Fair odds '+pToAm(a/s)+' · implied '+pct(a);
+      $('nv-fb').textContent=pct(b/s); $('nv-fb-s').textContent='Fair odds '+pToAm(b/s)+' · implied '+pct(b);
+      $('nv-or').textContent=pct(s-1); $('nv-h2').textContent=pct(1-1/s);
+    }
+    function ev(){
+      var q=num($('ev-p').value), o=num($('ev-o').value), be=amToP(o);
+      var ids=['ev-be','ev-ed','ev-v','ev-w'];
+      if(!(q>0&&q<100)||!(be>0)){ err('ev-err','Enter a probability between 0 and 100 and American odds of ±100 or more.',['ev-p','ev-o']); ids.forEach(function(i){$(i).textContent='—';}); return; }
+      err('ev-err','',['ev-p','ev-o']);
+      var p=q/100, win=o>0?o:10000/(-o), v=p*win-(1-p)*100;
+      $('ev-be').textContent=pct(be); $('ev-ed').textContent=((p-be)*100>=0?'+':M)+Math.abs((p-be)*100).toFixed(2)+' pts';
+      $('ev-v').textContent=money(v); $('ev-w').textContent='$'+win.toFixed(2);
+      $('ev-tile').className='tile '+(v>=0?'pos':'neg');
+    }
+    $('c-am').addEventListener('input',function(){conv('am');});
+    $('c-dec').addEventListener('input',function(){conv('dec');});
+    $('c-p').addEventListener('input',function(){conv('p');});
+    ['nv-a','nv-b'].forEach(function(i){$(i).addEventListener('input',novig);});
+    ['ev-p','ev-o'].forEach(function(i){$(i).addEventListener('input',ev);});
+    conv('am'); novig(); ev();
+  })();
+  </script>
+<!-- fv-notices:footer:start --><section id="fv-responsible-footer" class="fv-use-footer" aria-label="Responsible use"><p>Fourth &amp; Value provides sports analysis for informational and entertainment purposes. We do not accept wagers. You are responsible for your wagering decisions and for meeting applicable age and legal requirements. Never wager money you cannot afford to lose.</p><p><a href="/terms.html">Terms &amp; privacy</a> · <a href="/terms.html#responsible-play">Responsible play</a> · U.S. gambling support: call or text <a href="tel:+18006973738">1-800-MY-RESET</a> or <a href="https://www.ncpgambling.org/help-treatment/">find confidential help</a>.</p></section><!-- fv-notices:footer:end --></body>
+</html>
