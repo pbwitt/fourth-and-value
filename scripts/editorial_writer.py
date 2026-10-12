@@ -368,7 +368,7 @@ def validate(article, response, packet, now):
     if len(sections)<4:raise ValueError('Insufficient depth')
     words=sum(len(s['text'].split()) for s in sections)
     minimum=400 if packet.get('statistical_context',{}).get('scope') in ('mlb_wildcard_overview','mlb_team_playoff_outlook') else 550
-    if not minimum<=words<=1400:raise ValueError('Article length outside bounds')
+    if not minimum<=words<=1400:raise ValueError(f'Article length outside bounds ({words} words; {minimum}-1400 allowed)')
     for s in sections:
         if not s['source_ids'] or not set(s['source_ids'])<=ids:raise ValueError('Missing section citations')
         # Template autoescaping protects text; numeric inequalities are legitimate.
@@ -461,7 +461,8 @@ def audit_model(cfg):
     return cfg.get('audit_model') or cfg['model']
 
 def payload(instructions,data,phase,model=None):
-    result=dict(model=model or ed.CFG['writer']['model'],service_tier='default',reasoning={'effort':'low'},
+    effort=ed.CFG['writer'].get('reasoning_effort','low') if phase=='write' else 'low'
+    result=dict(model=model or ed.CFG['writer']['model'],service_tier='default',reasoning={'effort':effort},
         max_output_tokens=budget.LIMITS[phase][1],instructions=instructions,input=json.dumps(data,separators=(',',':')))
     budget.bounds(result,phase)
     return result

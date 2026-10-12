@@ -172,7 +172,10 @@ This new policy excludes the already incurred six-story launch cost, other model
 jobs, Odds API charges and taxes. It is not an organization-wide billing limit.
 The writer is **Claude Sonnet 5.5** (`writer.model`, `claude-sonnet-5-5`) and the
 separate factual audit is **Claude Opus 5.5** (`writer.audit_model`, `claude-opus-5-5`),
-both at low effort, so the stronger model remains the gate before publication. From
+the writer at `writer.reasoning_effort` (medium since October 12; before then the setting
+was recorded but every request was sent at low effort) with an 8,000-token
+output ceiling for its thinking, and the audit at low effort, so the stronger model
+remains the gate before publication. A rejected draft records its word count. From
 October 1 the writer was GPT-6.1 Sol with a GPT-6 Astra audit; before that Astra did
 both. `scripts/model_api.py` sends `claude-*` models to Anthropic (key
 `ANTHROPIC_API_KEY`, from the GitHub secret of that name or else `CLAUDE_CODE`); any other model name keeps the OpenAI request, so switching
