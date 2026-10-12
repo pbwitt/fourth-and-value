@@ -105,8 +105,8 @@ def nav_html(active: str = "") -> str:
         return f'<a class="{klass} px-3 py-2 rounded-lg" href="{href}">{label}</a>'
 
     NAV_LINKS = [
-           ("Home", "/index.html"),
-        ("Props", "/props/index.html"),
+           ("Home", "/"),
+        ("Props", "/props/"),
        ("Top Picks", "/props/top.html"),
      ("Consensus", "/props/consensus.html"),
      ("Arbitrage", "/props/arbitrage.html"),

@@ -430,8 +430,8 @@ def build_totals_page(predictions_path, consensus_path, edges_path, output_path)
     </div>
 
     <div class="tabs">
-      <a href="../../nhl/props/index.html" class="tab">Props</a>
-      <a href="../../nhl/totals/index.html" class="tab active">Totals</a>
+      <a href="../../nhl/props/" class="tab">Props</a>
+      <a href="../../nhl/totals/" class="tab active">Totals</a>
     </div>
 
     <div class="filters">

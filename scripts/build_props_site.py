@@ -69,7 +69,7 @@ def build_page(args, top_only=False):
     context = f'{args.season} · Week {args.week}' if args.season and args.week else 'NFL odds comparison'
     description = 'Compare NFL player prop lines across sportsbooks, inspect model probabilities and understand the evidence behind each estimate.'
     initial = [r for r in future if not top_only or (r['model_status'].startswith('Calibration fitted') and (r['edge_bps'] or 0) > 0 and r['last_update'] and 0 <= (now-pd.to_datetime(r['last_update'],utc=True)).total_seconds() <= 172800)][:24]
-    empty = '<div class="empty"><h2>No qualifying picks in this snapshot</h2><p>Fresh quotes, player evidence and a fitted calibration curve are required for Top Picks.</p><a href="index.html">Compare all sportsbook lines</a></div>' if top_only else '<div class="empty">No upcoming props in this snapshot. Check back after the next data refresh.</div>'
+    empty = '<div class="empty"><h2>No qualifying picks in this snapshot</h2><p>Fresh quotes, player evidence and a fitted calibration curve are required for Top Picks.</p><a href="./">Compare all sportsbook lines</a></div>' if top_only else '<div class="empty">No upcoming props in this snapshot. Check back after the next data refresh.</div>'
     # Dictionary-encoded columns avoid repeating team names and field names on
     # every offer. The shortlist ships only its qualifying candidates.
     published = [r for r in future if r['model_status'].startswith('Calibration fitted')
@@ -104,7 +104,7 @@ def build_page(args, top_only=False):
 <details><summary>Choose sportsbooks <span id="book-count"></span></summary><div class="actions"><button id="all-books" type="button">Select all</button><button id="no-books" type="button">Clear all</button></div><div id="books" class="books"></div></details>
 <div class="checks"><label><input id="best" type="checkbox" checked>Best price per line</label><label><input id="positive" type="checkbox">Positive model edges</label><label><input id="history" type="checkbox">Include started games</label></div>
 <div class="actions"><button id="reset" type="button">Reset filters</button><button id="share" type="button">Copy filtered link</button><span id="feedback" role="status"></span></div></section>
-<div class="results-bar"><p id="count" role="status">{len(future):,} upcoming offers in this snapshot</p><a href="{'index.html' if top_only else 'top.html'}">{'Compare all props' if top_only else 'View qualifying top picks'} →</a></div>
+<div class="results-bar"><p id="count" role="status">{len(future):,} upcoming offers in this snapshot</p><a href="{'./' if top_only else 'top.html'}">{'Compare all props' if top_only else 'View qualifying top picks'} →</a></div>
 <div id="results" class="prop-grid">{''.join(static_card(r) for r in initial) or empty}</div>
 <div class="pager" id="pager" hidden><button id="previous">Previous</button><span id="page-info" aria-live="polite"></span><button id="next">Next</button></div>
 <noscript><p>The first 24 upcoming offers are shown. Enable JavaScript to filter and compare the full snapshot.</p></noscript>

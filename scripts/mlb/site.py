@@ -37,7 +37,7 @@ def build(state):
         rel = '../..' if '/' in filename else '..'
         mlb = '..' if '/' in filename else '.'
         links = '<nav class="subnav" aria-label="MLB sections">' + ''.join(
-            f'<a href="{mlb}/{f}"' + (' aria-current="page"' if f == filename else '') + f'>{t}</a>'
+            f'<a href="{mlb}/{f.removesuffix("index.html")}"' + (' aria-current="page"' if f == filename else '') + f'>{t}</a>'
             for f,t,_ in pages if f != 'methods.html') + '</nav>'
         if page == 'overview':
             intro = '''<p class="lead">Follow the pennant race into October. Compare baseball prices with the matchup in view.</p>
