@@ -271,7 +271,7 @@ def review(board, feeds, config, archive, clock, *, assessment_update=False):
         return board
     board['review_request_id'] = request_id
     astra.checkpoint([budget, packet, archive/'boards'/f"{board['board_id']}.json"])
-    response = None
+    response = error = None
     try:
         response = astra.call_api(request)
         finished = clock()
@@ -285,10 +285,13 @@ def review(board, feeds, config, archive, clock, *, assessment_update=False):
             r['qualitative_review'] = dict(by_id[r['candidate_id']], evidence_asof=iso(asof),
                 reviewed_at=iso(finished), request_id=request_id)
         board.update(review_status='completed', review_completed_at=iso(finished))
-    except Exception as error:
+    except Exception as failure:
+        error = failure
         board.update(review_status='review_unavailable', review_error=type(error).__name__)
+        model_api.report_failure('Review', error)
     finally:
-        daily_budget.settle(key, response.get('usage') if isinstance(response, dict) else None, path=budget)
+        daily_budget.settle(key, response.get('usage') if isinstance(response, dict) else None, path=budget,
+                            not_billed=error if isinstance(error, model_api.NotBilled) else None)
     return board
 
 

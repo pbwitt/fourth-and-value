@@ -28,6 +28,10 @@ UNSUPPORTED = ('minLength', 'maxLength', 'maxItems', 'minimum', 'maximum', 'mult
 OPAQUE = ('encrypted_content', 'encrypted_index', 'signature')
 
 
+class NotBilled(RuntimeError):
+    """The request was never sent, or the API refused it with a 4xx; nothing was billed."""
+
+
 def is_claude(model):
     return str(model).startswith('claude-')
 
@@ -79,6 +83,12 @@ def claude_params(request):
         params['output_config']['format'] = dict(type='json_schema', schema=supported_schema(schema))
     params['system'] = system
     return params
+
+
+def report_failure(stage, error):
+    """Put the API's status line in the job log; other errors stay type-only."""
+    if isinstance(error, RuntimeError):
+        print(f'::warning::{stage} request failed: {error}', flush=True)
 
 
 def strip_opaque(value):
@@ -141,12 +151,13 @@ def _send(params, timeout):
         kind = detail.get('type') or ''
         if 'credit balance' in str(detail.get('message', '')).lower():
             kind = 'credit_balance_exhausted'
-        raise RuntimeError(f'Claude HTTP {error.status_code} {kind}'.strip()) from None
+        message = f'Claude HTTP {error.status_code} {kind}'.strip()
+        raise (NotBilled if 400 <= error.status_code < 500 else RuntimeError)(message) from None
     except anthropic.APIConnectionError as error:  # Includes timeouts.
         raise RuntimeError('Claude connection failed: '+type(error).__name__) from None
 
 
 def call_claude(request, timeout=(15, 600)):
     if not os.environ.get(ANTHROPIC_KEY):
-        raise RuntimeError(ANTHROPIC_KEY+' is missing')
+        raise NotBilled(ANTHROPIC_KEY+' is missing')
     return from_claude(_send(claude_params(request), timeout), request)

@@ -660,6 +660,7 @@ def run(now,limit=2,idea_id=None,publish_own=False):
             state['slots'][key].update(status='published',url=url,words=words)
             print('Published '+article['title'],flush=True)
         except (ValueError,KeyError,TypeError,RuntimeError,requests.RequestException) as exc:
+            if isinstance(exc,model_api.NotBilled):accounted=True  # Refused or never sent: no unknown charge.
             # Never print request objects, private suggestions or authorization headers.
             if idea and idea_claimed:
                 try:ideas.fail(idea,detail=(article.get('reason') if isinstance(article,dict) and article.get('publish') is not True else str(exc)) if isinstance(exc,ValueError) else None)

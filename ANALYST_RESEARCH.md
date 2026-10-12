@@ -359,7 +359,10 @@ CI serializes research jobs and checkpoints the reservation and exact packet to
 origin before payment. Local runs use a file lock; standalone ledger mutations
 are separately locked and atomic. Never run paid local experiments concurrently
 with production or against an isolated test ledger. No API retries follow timeouts.
-Unknown usage retains the entire reservation. Unexpected over-reservation usage
+Unknown usage retains the entire reservation; a request the API refuses with a
+4xx status (bad key, no credits, invalid request) bills nothing, so it settles at
+$0 with the status line recorded, and the job log shows that line for every
+failed research call. Unexpected over-reservation usage
 halts further spending for operator investigation. Use actual conservative input
 and output usage to settle; do not assume cache discounts. Credentials remain in
 environment/GitHub Secrets. No new paid feed or hosting service is purchased.
