@@ -153,13 +153,18 @@ window.signOut = signOut;
 window.autoTrackBet = autoTrackBet;
 window.saveTrackedBet = saveTrackedBet;
 
+// Staked, returned, P/L and ROI all cover settled bets only, so returned − staked = P/L and
+// staked × ROI = P/L; pending stake is reported apart. Pushes stay out of the win rate,
+// like the break-even rate it is compared with.
 function betTrackerSummary(bets) {
   const settled=bets.filter(b=>['won','lost','push'].includes(b.status));
-  const staked=settled.reduce((sum,b)=>sum+Number(b.stake_dollars||0),0);
-  const returned=settled.reduce((sum,b)=>sum+Number(b.payout||0),0);
-  return {totalBets:bets.length,totalStaked:bets.reduce((sum,b)=>sum+Number(b.stake_dollars||0),0),
+  const pending=bets.filter(b=>!['won','lost','push','void'].includes(b.status));
+  const decided=settled.filter(b=>b.status!=='push');
+  const stake=list=>list.reduce((sum,b)=>sum+Number(b.stake_dollars||0),0);
+  const staked=stake(settled),returned=settled.reduce((sum,b)=>sum+Number(b.payout||0),0);
+  return {totalBets:bets.length,staked,pending:pending.length,pendingStaked:stake(pending),pushes:settled.length-decided.length,
     totalReturned:returned,profitLoss:returned-staked,roi:staked>0?(returned-staked)/staked*100:0,
-    winRate:settled.length?100*settled.filter(b=>b.status==='won').length/settled.length:0};
+    winRate:decided.length?100*decided.filter(b=>b.status==='won').length/decided.length:null};
 }
 window.betTrackerSummary=betTrackerSummary;
 

@@ -34,8 +34,17 @@ function setup(){
  assert.equal(state.rows.length,before+2);assert.equal('player_team' in state.rows.at(-1),false);
  state.noTeamColumn=false;
  const stats=summary([{status:'pending',stake_dollars:100},{status:'won',stake_dollars:10,payout:20},{status:'lost',stake_dollars:5,payout:0}]);
- assert.equal(stats.totalStaked,115);assert.equal(stats.profitLoss,5);assert(Math.abs(stats.roi-100/3)<1e-9);
+ assert.equal(stats.staked,15);assert.equal(stats.pendingStaked,100);assert.equal(stats.pending,1);
+ assert.equal(stats.profitLoss,5);assert(Math.abs(stats.roi-100/3)<1e-9);
+ assert.equal(stats.totalReturned-stats.staked,stats.profitLoss,'returned − stake = P/L on the same bets');
+ assert(Math.abs(stats.staked*stats.roi/100-stats.profitLoss)<1e-9,'stake × ROI = P/L, so ROI scales to any stake');
  assert.equal(summary([{status:'pending',stake_dollars:100}]).profitLoss,0);
+ assert.equal(summary([{status:'pending',stake_dollars:100}]).winRate,null);
+ // Pushes count toward stake and returns but not the win rate; void tickets are neither settled nor pending.
+ const mixed=summary([{status:'won',stake_dollars:10,payout:19.09},{status:'lost',stake_dollars:10,payout:0},
+   {status:'push',stake_dollars:10,payout:10},{status:'void',stake_dollars:10,payout:null}]);
+ assert.equal(mixed.winRate,50);assert.equal(mixed.pushes,1);assert.equal(mixed.staked,30);
+ assert.equal(mixed.pending,0);assert.equal(mixed.pendingStaked,0);assert.equal(Math.round(mixed.profitLoss*100)/100,-0.91);
  // Daily totals: total staked, graded payout on settled bets, and pending upside.
  const day=dayTotals([{status:'won',stake_dollars:10,payout:19.09,odds:-110},{status:'lost',stake_dollars:20,payout:0,odds:120},
    {status:'push',stake_dollars:5,payout:5,odds:-105},{status:'pending',stake_dollars:25,odds:150},{status:'pending',stake_dollars:10,odds:null}]);
