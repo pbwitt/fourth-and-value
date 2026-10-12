@@ -51,6 +51,8 @@ class BudgetTests(unittest.TestCase):
         with patch.object(w,'datetime',FixedDate),patch.object(w.ed,'DOCS',docs),patch.object(w.ed,'ROOT',root),patch.object(w,'STATE',state),patch.object(w,'evidence',return_value=packet),patch.object(w.reporting,'collect',return_value=reporting),patch.object(b,'checkpoint'),patch.object(w.ed,'render_home'),patch.object(w,'call_api',side_effect=[response(article),response({'pass':True})]) as api:
             w.run(self.now,1)
         self.assertEqual([c.args[0]['model'] for c in api.call_args_list],['claude-sonnet-5-5','claude-opus-5-5'])
+        # Articles are public: the writer and the audit both carry the publication-voice rule.
+        self.assertTrue(all(w.PUBLIC_VOICE in c.args[0]['instructions'] for c in api.call_args_list))
         (entry,)=b.read()['entries']
         self.assertEqual(entry['status'],'settled')
         self.assertAlmostEqual(entry['charge_usd'],(1000*2.5+800*10+1000*5+800*20)/1e6)
@@ -95,6 +97,15 @@ class BudgetTests(unittest.TestCase):
             self.assertEqual(w.payload('x',{},'write')['reasoning']['effort'],'medium')
             self.assertEqual(w.payload('x',{},'audit')['reasoning']['effort'],'low')
         self.assertEqual(w.payload('x',{},'write')['max_output_tokens'],b.LIMITS['write'][1])
+        # Claude's thinking shares the ceiling with the short JSON verdict.
+        self.assertGreaterEqual(w.payload('x',{},'audit')['max_output_tokens'],4000)
+    def test_requested_length_clears_validation_floor(self):
+        # Drafts land near the bottom of the requested range, so it must sit above the floor.
+        import re
+        for prompt,floor in ((w.PROMPT,550),(w.OVERVIEW_PROMPT,400),(w.TEAM_PLAYOFF_PROMPT,400)):
+            low=int(re.search(r'(\d{3})–\d{3} word',prompt).group(1))
+            self.assertGreaterEqual(low,floor+80)
+            self.assertIn(f'under {floor} words are rejected',prompt)
     def test_checkpoint_retries_when_another_job_pushed_first(self):
         results=iter([0,0,0,0, 0,1, 0,0])  # config x2, add, commit; first push loses the race; retry wins
         calls=[]

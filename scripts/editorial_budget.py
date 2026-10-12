@@ -15,7 +15,9 @@ PATH=ed.DOCS/'editorial/budget.json'
 RATES={'gpt-6-astra':(12.5/1000000,50/1000000),'gpt-6.1-sol':(2.5/1000000,10/1000000),
        'claude-sonnet-5-5':(2.5/1000000,10/1000000),'claude-opus-5-5':(5/1000000,20/1000000)}
 INPUT_RATE,OUTPUT_RATE=RATES['gpt-6-astra']
-LIMITS={'write':(18000,8000),'audit':(24000,1000)}
+# Claude counts thinking against the output ceiling, so the audit needs room
+# beyond its short JSON verdict.
+LIMITS={'write':(18000,8000),'audit':(24000,4000)}
 ASTRA='gpt-6-astra'
 
 def bounds(payload,phase):
