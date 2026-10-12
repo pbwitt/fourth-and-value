@@ -39,15 +39,17 @@ def build(state):
             lead = {'props':'Compare the same NBA player prop across sportsbooks. Historical baselines, when available, are labeled separately.',
                     'lines':'Totals, spreads and moneylines from the same saved market snapshot.',
                     'watch':'Prices that differ from at least three other books. A market disagreement is a research lead, not a validated model pick.'}[page]
+            # Player Props and Game Lines can show started games' last pregame quotes for lookup.
+            started = '<label><input type="checkbox" id="history"> Include started games</label>' if page in ('props', 'lines') else ''
             intro = f'''<p class="lead">{lead}</p>
 <div class="filters"><label>Player or matchup<input id="search" type="search" placeholder="Search NBA…"></label><label>Market<select id="market"><option value="">All markets</option></select></label><label>Sportsbook<select id="book"><option value="">All books</option></select></label><label>Game<select id="game"><option value="">All games</option></select></label></div>
-<div class="checks"><label><input type="checkbox" id="best" checked> Best price at each line</label><button id="reset">Reset filters</button></div>
+<div class="checks"><label><input type="checkbox" id="best" checked> Best price at each line</label>{started}<button id="reset">Reset filters</button></div>
 <p id="result-count" role="status"></p><div id="results" class="prop-grid"></div><button id="more" hidden>Show more</button>
 <section class="help section"><h2>Read the comparison</h2><p>Book probability is the break-even rate at the quoted price. Fair probability removes that book's margin using both sides. Consensus uses distinct books at the exact same line. A historical baseline is not a calibrated game prediction.</p><a href="{nba}/methods.html">NBA methods and limitations →</a></section>'''
         # Offer boards load the shared Track bet dialog before the board script.
         tracking = page in ('props', 'lines', 'watch')
         tracker_css = f'<link rel="stylesheet" href="{rel}/assets/offer-tracker.css?v=1">' if tracking else ''
-        tracker_js = f'<script src="{rel}/assets/offer-tracker.js?v=1" defer></script>' if tracking else ''
+        tracker_js = f'<script src="{rel}/assets/offer-tracker.js?v=3" defer></script>' if tracking else ''
         search_title = title if title.startswith('NBA') else 'NBA ' + title
         descriptions = {'overview': 'Explore NBA matchups, player props and sportsbook comparisons, with links to historical player statistics and current model limitations.', 'props': 'Compare NBA player prop prices with recent scoring, rebounding, assists and minutes when available, using clearly labeled historical data.', 'lines': 'Compare NBA moneylines, spreads and totals at the same line across sportsbooks, with paired prices and market consensus.', 'watch': 'Find NBA prices that differ from other sportsbooks at the same line, and inspect historical player context before researching a bet.', 'methods': 'Learn how NBA sportsbook prices are compared, how historical player averages are calculated and why validated model picks remain unavailable.'}
         body = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{search_title} | Fourth &amp; Value</title>
@@ -57,6 +59,6 @@ def build(state):
 <main class="wrap" id="main" data-nba-page="{page}" data-feed="{nba}/data/latest.json">{links}<p class="eyebrow">NBA · 2026–27</p><h1>{title}</h1>
 <div class="notice" id="feed-status" role="status"><strong>NBA market snapshot</strong><p>Last successful check: {escape(str(state.get('last_success_at') or 'Not yet checked'))}. Enable JavaScript to view current quote availability.</p></div>
 {intro}<footer>Fourth &amp; Value · <a href="{rel}/terms.html">Terms &amp; privacy</a> · <a href="{rel}/videos/">Videos</a></footer></main>
-{tracker_js}<script src="{rel}/assets/nba.js?v=4" defer></script></body></html>'''
+{tracker_js}<script src="{rel}/assets/nba.js?v=5" defer></script></body></html>'''
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(body)

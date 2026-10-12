@@ -95,9 +95,11 @@ def build(state, archive=False):
             lead = {'props':'Compare shots on goal, goals, assists and points. Props appear as books post them near puck drop.',
                     'lines':'Regular-season totals, puck lines and moneylines. Historical scoring references are labeled separately.',
                     'watch':'Offers that differ from at least three other books at the same line. These are research leads, not validated model picks.'}[page]
+            # Player Props and Game Lines can show started games' last pregame quotes for lookup.
+            started = '<label><input type="checkbox" id="history"> Include started games</label>' if page in ('props', 'lines') else ''
             intro = f'''<p class="lead">{lead}</p>
 <div class="filters"><label>Player or matchup<input id="search" type="search" placeholder="Search NHL…"></label><label>Market<select id="market"><option value="">All markets</option></select></label><label>Sportsbook<select id="book"><option value="">All books</option></select></label><label>Game<select id="game"><option value="">All games</option></select></label></div>
-<div class="checks"><label><input type="checkbox" id="best" checked> Best price at each line</label><button id="reset">Reset filters</button></div><p id="result-count" role="status"></p><div id="results" class="prop-grid"></div><button id="more" hidden>Show more</button>
+<div class="checks"><label><input type="checkbox" id="best" checked> Best price at each line</label>{started}<button id="reset">Reset filters</button></div><p id="result-count" role="status"></p><div id="results" class="prop-grid"></div><button id="more" hidden>Show more</button>
 <section class="help section"><h2>Read the comparison</h2><p>Book probability is the break-even rate at that price. Paired fair probability removes the book’s margin. Consensus uses distinct books at the same line. Historical references are uncalibrated and do not qualify model picks.</p><a href="{nhl}/methods.html">NHL methods and limitations →</a></section>'''
         search_title = title if title.startswith('NHL') else 'NHL ' + title
         descriptions = {'overview': 'Explore NHL regular-season matchups, sportsbook lines, player props and experimental forecasts with links to research and model methods.', 'props': 'Compare NHL player props with recent shots, scoring, ice time and model inputs alongside exact sportsbook lines and prices.', 'lines': 'Compare NHL moneylines, puck lines and game totals with exact sportsbook prices, independent forecasts and settlement context.', 'candidates': 'Review NHL research candidates with model probabilities, recent player form, ice time, source analysis and current quote checks.', 'watch': 'Compare NHL offers against other sportsbooks at the same line, with player statistics and clearly labeled market price differences.', 'arbitrage': 'Inspect NHL cross-book price combinations and settlement assumptions, with exact lines, potential returns and quote timestamps.', 'methods': 'Understand NHL count models, recency weighting, projected ice time, uncertainty, settlement rules and experimental forecast limits.'}
@@ -118,8 +120,8 @@ def build(state, archive=False):
             body = body.replace('</head>', f'<link rel="stylesheet" href="{rel}/assets/nhl-candidates.css"></head>')
         if page in ('props', 'lines', 'watch', 'candidates'):
             body = body.replace('</head>', f'<link rel="stylesheet" href="{rel}/assets/offer-tracker.css?v=1"></head>')
-            body = body.replace(f'<script src="{rel}/assets/nhl', f'<script src="{rel}/assets/offer-tracker.js?v=1" defer></script><script src="{rel}/assets/nhl', 1)
-            body = body.replace('assets/nhl.js?v=3', 'assets/nhl.js?v=7').replace('assets/nhl-candidates.js?v=7', 'assets/nhl-candidates.js?v=11')
+            body = body.replace(f'<script src="{rel}/assets/nhl', f'<script src="{rel}/assets/offer-tracker.js?v=3" defer></script><script src="{rel}/assets/nhl', 1)
+            body = body.replace('assets/nhl.js?v=3', 'assets/nhl.js?v=8').replace('assets/nhl-candidates.js?v=7', 'assets/nhl-candidates.js?v=11')
         path.write_text(body)
     try:
         # The pop-up's track record for the running model version; display only.
