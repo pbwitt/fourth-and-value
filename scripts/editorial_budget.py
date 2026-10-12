@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import time
 import editorial as ed
 
 PATH=ed.DOCS/'editorial/budget.json'
@@ -14,7 +15,7 @@ PATH=ed.DOCS/'editorial/budget.json'
 RATES={'gpt-6-astra':(12.5/1000000,50/1000000),'gpt-6.1-sol':(2.5/1000000,10/1000000),
        'claude-sonnet-5-5':(2.5/1000000,10/1000000),'claude-opus-5-5':(5/1000000,20/1000000)}
 INPUT_RATE,OUTPUT_RATE=RATES['gpt-6-astra']
-LIMITS={'write':(18000,3200),'audit':(24000,1000)}
+LIMITS={'write':(18000,8000),'audit':(24000,1000)}
 ASTRA='gpt-6-astra'
 
 def bounds(payload,phase):
@@ -73,8 +74,14 @@ def checkpoint(statepath):
     if os.getenv('GITHUB_ACTIONS')!='true':return
     commands=[['git','config','user.name','Fourth & Value Editorial'],['git','config','user.email','actions@github.com'],
         ['git','add',str(PATH.relative_to(ed.ROOT)),str(statepath.relative_to(ed.ROOT)), 'docs/editorial/articles/', 'docs/editorial/evidence/', 'docs/editorial/published.json'],
-        ['git','commit','-m','Editorial: reserve bounded writing budget'],
-        ['git','pull','--rebase','--autostash','origin','main'],['git','push','origin','HEAD:main']]
+        ['git','commit','-m','Editorial: reserve bounded writing budget']]
+    def run(command):return subprocess.run(command,cwd=ed.ROOT,capture_output=True,text=True).returncode==0
     for command in commands:
-        result=subprocess.run(command,cwd=ed.ROOT,capture_output=True,text=True)
-        if result.returncode:raise RuntimeError('Budget checkpoint failed; no paid request permitted')
+        if not run(command):raise RuntimeError('Budget checkpoint failed; no paid request permitted')
+    # Research and sports jobs push to main at the same time; retry like the publish steps.
+    for attempt in range(3):
+        if run(['git','pull','--rebase','--autostash','origin','main']):
+            if run(['git','push','origin','HEAD:main']):return
+        else:run(['git','rebase','--abort'])
+        time.sleep(5)
+    raise RuntimeError('Budget checkpoint failed; no paid request permitted')

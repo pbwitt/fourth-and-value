@@ -90,6 +90,22 @@ class BudgetTests(unittest.TestCase):
             self.assertEqual(catalog[0]['featured_until'],'2026-09-23T00:00:00+00:00')
             w.run(self.now,1)
             self.assertEqual(api.call_count,2)
+    def test_writer_uses_configured_effort_and_audit_stays_low(self):
+        with patch.dict(w.ed.CFG['writer'],{'reasoning_effort':'medium'}):
+            self.assertEqual(w.payload('x',{},'write')['reasoning']['effort'],'medium')
+            self.assertEqual(w.payload('x',{},'audit')['reasoning']['effort'],'low')
+        self.assertEqual(w.payload('x',{},'write')['max_output_tokens'],b.LIMITS['write'][1])
+    def test_checkpoint_retries_when_another_job_pushed_first(self):
+        results=iter([0,0,0,0, 0,1, 0,0])  # config x2, add, commit; first push loses the race; retry wins
+        calls=[]
+        def run(command,**kw):
+            calls.append(command[1]);return type('R',(),{'returncode':next(results)})()
+        with patch.dict('os.environ',{'GITHUB_ACTIONS':'true'}),patch.object(b,'PATH',b.ed.ROOT/'docs/editorial/budget.json'),patch.object(b.subprocess,'run',side_effect=run),patch.object(b.time,'sleep'):
+            b.checkpoint(b.ed.ROOT/'docs/editorial/runs/x.json')
+        self.assertEqual(calls[-4:],['pull','push','pull','push'])
+        results=iter([0,0,0,0]+[0,1]*3)
+        with patch.dict('os.environ',{'GITHUB_ACTIONS':'true'}),patch.object(b,'PATH',b.ed.ROOT/'docs/editorial/budget.json'),patch.object(b.subprocess,'run',side_effect=lambda c,**k:type('R',(),{'returncode':next(results)})()),patch.object(b.time,'sleep'):
+            with self.assertRaises(RuntimeError):b.checkpoint(b.ed.ROOT/'docs/editorial/runs/x.json')
     def test_checkpoint_failure_prevents_paid_request(self):
         root=Path(self.temp.name)
         w.ed.write_json(root/'2026-09-22.json',{'allocation':[['MLB','news-market']],'slots':{}})
