@@ -36,7 +36,9 @@ jobs:
   review:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Up to 19 sequential high-effort research calls (discovery, 6 verification
+    # searches, 12 reviews), each capped at five minutes; most take one or two.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
@@ -47,11 +49,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: pip install requests==2.32.5
+      - run: pip install requests==2.32.5 anthropic==1.13.0
       - name: Verify selection and research boundaries
         run: |
           node tests/briefing_picks.cjs
           python -m unittest discover -s tests -p 'test_analyst_review.py'
+          python -m unittest discover -s tests -p 'test_model_api.py'
           python -m unittest discover -s tests -p 'test_morning*.py'
           python -m unittest discover -s tests -p 'test_research*.py'
           python -m unittest discover -s tests -p 'test_nhl_injuries.py'
@@ -59,6 +62,7 @@ jobs:
         id: research
         continue-on-error: true
         env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || secrets.CLAUDE_CODE }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           TEST_EDITION: ${{ inputs.test_edition || false }}
           REPLACE_CARD: ${{ inputs.replace_card || false }}

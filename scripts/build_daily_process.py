@@ -60,7 +60,7 @@ def render():
         rows.append(f'<tr><td>{escape(label)}</td><td>{schedule}</td><td>{escape(description)}</td></tr>')
     paths=[ROOT/'.github/workflows'/n for n in WORKFLOWS]
     paths += [ROOT/p for p in ['config/analyst_review.json','config/nhl_analyst.json',
-        'scripts/editorial_schedule.py','scripts/editorial_writer.py','scripts/editorial_diagnostics.py','scripts/analyst_review.py','scripts/research_discovery.py',
+        'scripts/editorial_schedule.py','scripts/editorial_writer.py','scripts/editorial_diagnostics.py','scripts/analyst_review.py','scripts/research_discovery.py','scripts/research_verify.py',
         'scripts/display_time.py','scripts/research_budget.py','scripts/morning_card.py','scripts/morning_operations.py','supabase/morning_scheduler.sql',
         'supabase/afternoon_scheduler.sql','scripts/afternoon_gate.py','scripts/mlb/predict.py','scripts/nhl/v2/candidates.py','docs/assets/briefing-picks.js']]
     fingerprint=hashlib.sha256(b''.join(p.read_bytes() for p in paths)).hexdigest()[:20]

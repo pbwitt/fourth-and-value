@@ -29,7 +29,25 @@ and review prompts share the presentation rule in `scripts/display_time.py`.
    identical outcome, line and settlement. No four-candidate or one-game quota.
 5. Source collection, targeted retrieval and review batches rotate across sports.
    Independent discovery ideas are researched early so a large model pool cannot
-   consume the allowance before those ideas are assessed.
+   consume the allowance before those ideas are assessed. Within each priority
+   group the highest blended-EV score (`score`) is reviewed first and kickoff
+   only breaks ties, so the batch limit cannot skip a strong late game for a
+   weaker early one. The lower-reliability tier still follows.
+   Targeted verification (`scripts/research_verify.py`) runs just before a
+   batch is reviewed, for the first `verification_candidates` (6) in queue
+   order, at most `verification_per_batch` (2) per batch so each sport's
+   leaders are covered. Each is one isolated web search about that exact bet,
+   contrary evidence first (injury/practice status of player, teammates and
+   opponents, role and lineup changes, weather, published analyst picks and
+   projections). It returns at most three links that the search itself found;
+   `evidence.targeted` fetches each trusted, dated page and the review must
+   quote that text. The model's notes and other outlets' picks are never
+   evidence. One search is reserved like discovery (131,072 search-context
+   tokens, request bytes twice, output ceiling 4,000, $0.01) and settled on the
+   shared daily ledger; a candidate searched earlier that day reuses its saved
+   links instead of paying again. Discovery's single search now starts with
+   published expert picks and best bets; each lead records `lead_type`,
+   `outlet` and `published_line` so outlets can be graded later.
    Consider/wait/pass assessments precede reliability and numerical ordering.
    Changed evidence gets rechecked; unchanged price, forecast and evidence can
    reuse a review for three hours with the original timestamp preserved.
@@ -313,25 +331,48 @@ The exception expires automatically at Eastern midnight; September 28 resumes
 $2.75 without a deployment or manual reset. Increasing `daily_budget_usd` alone
 cannot bypass the normal cap. This is a testing allowance, not a spending target.
 
-Use gpt-6.1-sol (GPT-6.1 Sol), default tier, low reasoning. GPT-6 Astra (`gpt-6-astra`)
-was used through October 1, 2026; reviews and ledger entries record the model used.
-Rates in `scripts/nhl/v2/astra.py` (`RATES`) are conservative: Sol $2.50/M input
-(list $2 plus the cache-write premium) and $10/M output. Reservations
-(`astra.bounds`, discovery bounds) and `research_budget.settle` use the same
-model's rates, so a normal call cannot trigger the overrun halt. The change lowers
-cost; review rules, batch limits and the daily allowance are unchanged. Reviews have no tools, at most
-26,000 serialized request bytes and 4,200 output tokens. Discovery uses an
-isolated web-search request with one built-in tool call, no response history,
-at most 12,000 request bytes and 1,600 output tokens. Conservative search
-reservations include 131,072 search-context tokens, twice serialized request
-bytes, overhead, output maximum, $0.01 search fee and margin. Bounds can exceed
-remaining funds even when expected actual cost is small; skip rather than guess.
+Use Claude Opus 5.5 (`claude-opus-5-5`) at high effort under policy
+`morning-edition-4` and prompt `sports-research-7`. GPT-6 Astra (`gpt-6-astra`,
+low reasoning) was used through October 1, 2026, then GPT-6.1 Sol (`gpt-6.1-sol`,
+low reasoning); reviews and ledger entries record the model used, and results
+stay grouped by policy version. `scripts/model_api.py` sends any `claude-*` model
+to Anthropic's Messages API and returns the same response fields the validators
+already read; any other model name keeps the original OpenAI request. Switching
+back is a model-name change in `astra.MODEL` and the two research configs. The
+key reaches the scripts as `ANTHROPIC_API_KEY`, read from the GitHub secret
+`ANTHROPIC_API_KEY` or, if that is unset, `CLAUDE_CODE`; the SDK makes no automatic retries.
+
+Rates in `scripts/nhl/v2/astra.py` (`RATES`) are conservative: Opus $5/M input
+(list $4 plus the cache-write premium, though no caching is requested) and $20/M
+output. Reservations (`astra.bounds`, discovery bounds) and `research_budget.settle`
+use the same model's rates, so a normal call cannot trigger the overrun halt.
+High effort thinks before answering and thinking counts as output, so output
+ceilings rose with the switch. Reviews have no tools, at most 26,000 serialized
+request bytes and 12,000 output tokens; Claude's JSON outputs enforce the review
+schema's types, enums and required fields, while length and count limits are
+removed from the sent schema and still enforced locally by `validate_shape`.
+Discovery uses an isolated request with one basic web search
+(`web_search_20250305`, `max_uses: 1`, the trusted domain list), no response
+history, at most 12,000 request bytes and 8,000 output tokens. Search citations
+cannot be combined with JSON outputs, so discovery states the schema in its
+instructions and validates the returned object locally. Claude has no
+search-context-size setting; conservative search reservations still include
+131,072 search-context tokens, twice serialized request bytes, overhead, output
+maximum, $0.01 search fee ($10 per 1,000 searches) and margin. Refusals,
+truncation (`max_tokens`) and paused turns are incomplete responses and fail
+closed. Each Claude research call has a five-minute read timeout and the
+research job allows 90 minutes. Bounds can exceed remaining funds even when
+expected actual cost is small; skip rather than guess. Before the switch, a morning of discovery plus
+eight review batches settled at about $0.24 on Sol.
 
 CI serializes research jobs and checkpoints the reservation and exact packet to
 origin before payment. Local runs use a file lock; standalone ledger mutations
 are separately locked and atomic. Never run paid local experiments concurrently
 with production or against an isolated test ledger. No API retries follow timeouts.
-Unknown usage retains the entire reservation. Unexpected over-reservation usage
+Unknown usage retains the entire reservation; a request the API refuses with a
+4xx status (bad key, no credits, invalid request) bills nothing, so it settles at
+$0 with the status line recorded, and the job log shows that line for every
+failed research call. Unexpected over-reservation usage
 halts further spending for operator investigation. Use actual conservative input
 and output usage to settle; do not assume cache discounts. Credentials remain in
 environment/GitHub Secrets. No new paid feed or hosting service is purchased.
@@ -407,11 +448,14 @@ Do not revert the entire change in a way that re-enables the old weekly-funded
 runner. Preserve both daily and legacy ledgers and all archives. Never reset a
 ledger to regain spending or retry an unknown billable request.
 
+Anthropic references checked 2026-10-12: [models and pricing](https://platform.claude.com/docs/en/about-claude/pricing),
+[structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs) and
+[web search](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool).
 OpenAI references checked 2026-09-27 (Sol pricing checked 2026-10-01): [Astra model/pricing](https://developers.openai.com/api/docs/models/gpt-6-astra), [Sol model/pricing](https://developers.openai.com/api/docs/models/gpt-6.1-sol),
 [web search](https://developers.openai.com/api/docs/guides/tools-web-search),
 and [Responses API](https://developers.openai.com/api/reference/typescript/resources/responses/methods/create).
 
-Each research run attempts at most eight batches of at most three candidates. The broad candidate pool remains available, but the runner reports `review_limit_reached` when it stops this focused review. This is separate from the shared daily spending ceiling.
+Each research run attempts at most twelve batches of at most three candidates (eight before policy `morning-edition-4`). The broad candidate pool remains available, but the runner reports `review_limit_reached` when it stops this focused review. This is separate from the shared daily spending ceiling.
 
 
 ## Editorial Desk manual publication — September 30, 2026

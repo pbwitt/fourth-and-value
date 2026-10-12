@@ -7,7 +7,7 @@ import sys
 import unittest
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 import research_discovery as discovery
-from test_analyst_review import NOW,feeds,CONFIG
+from test_analyst_review import NOW,feeds,CONFIG,KEY
 from nhl.v2.data import iso
 from nfl_game_quotes import publish
 import tempfile
@@ -26,7 +26,7 @@ class DiscoveryTests(unittest.TestCase):
     def test_real_quote_only_no_probability_fallback_and_stale_excluded(self):
         offers=discovery.catalog(feeds(),NOW);r=offers[0]
         direction=dict(game_id=r['game_id'],sport=r['sport'],market=r['market'],player=r['player'],side=r['side'],
-            hypothesis='Opportunity may exceed this threshold.',question='Confirm deployment.',source_urls=['https://www.nfl.com/news/test'])
+            hypothesis='Opportunity may exceed this threshold.',question='Confirm deployment.',lead_type='own_research',outlet='',published_line='',source_urls=['https://www.nfl.com/news/test'])
         result=discovery.resolve([direction],offers,iso(NOW))
         self.assertEqual(len(result),1);self.assertEqual(result[0]['price'],r['price']);self.assertEqual(result[0]['line'],r['line'])
         self.assertIsNone(result[0]['model_prob']);self.assertIsNone(result[0]['estimated_ev'])
@@ -36,7 +36,7 @@ class DiscoveryTests(unittest.TestCase):
     def test_unknown_search_urls_or_games_never_verify(self):
         games=discovery.slate(discovery.catalog(feeds(),NOW));g=games[0]
         d=dict(game_id=g['game_id'],sport=g['sport'],market=g['markets'][0],player='',side='Over',
-            hypothesis='A conditional research direction.',question='Confirm starters.',source_urls=['https://www.espn.com/example'])
+            hypothesis='A conditional research direction.',question='Confirm starters.',lead_type='published_pick',outlet='ESPN',published_line='Over 1.5 +110',source_urls=['https://www.espn.com/example'])
         response=dict(status='completed',output=[dict(type='message',content=[dict(type='output_text',text=json.dumps(dict(directions=[d])))])])
         self.assertEqual(discovery.response_directions(response,games),[])
         response['output'].append(dict(type='web_search_call',action=dict(sources=[dict(url=d['source_urls'][0])])))
@@ -73,7 +73,7 @@ class PipelineTests(unittest.TestCase):
                 open_checks=['Reconfirm the available price.'],evidence=[]) for r in rows]
             return dict(status='completed',usage=dict(input_tokens=1000,output_tokens=100),
                 output=[dict(type='message',content=[dict(type='output_text',text=json.dumps(dict(reviews=reviews)))])])
-        with tempfile.TemporaryDirectory() as td, patch.dict('os.environ',{'OPENAI_API_KEY':'synthetic'}), \
+        with tempfile.TemporaryDirectory() as td, patch.dict('os.environ',{KEY:'synthetic'}), \
             patch.object(evidence,'collect',return_value=([],{})),patch.object(astra,'checkpoint'), \
             patch.object(astra,'call_api',side_effect=response):
             p=Path(td)
@@ -112,11 +112,11 @@ class DiscoveryRunTests(unittest.TestCase):
         from nhl.v2 import astra
         f=feeds();offer=discovery.catalog(f,NOW)[0];calls=[]
         direction=dict(sport=offer['sport'],game_id=offer['game_id'],market=offer['market'],player=offer['player'],side=offer['side'],
-            hypothesis='Check whether the expected opportunity exceeds the offered threshold.',question='Confirm current role.',source_urls=['https://www.nfl.com/news/synthetic'])
+            hypothesis='Check whether the expected opportunity exceeds the offered threshold.',question='Confirm current role.',lead_type='own_research',outlet='',published_line='',source_urls=['https://www.nfl.com/news/synthetic'])
         response=dict(status='completed',usage=dict(input_tokens=1000,output_tokens=100),output=[
             dict(type='web_search_call',action=dict(sources=[dict(url=direction['source_urls'][0])])),
             dict(type='message',content=[dict(type='output_text',text=json.dumps(dict(directions=[direction])))])])
-        with tempfile.TemporaryDirectory() as td,patch.dict('os.environ',{'OPENAI_API_KEY':'synthetic'}), \
+        with tempfile.TemporaryDirectory() as td,patch.dict('os.environ',{KEY:'synthetic'}), \
              patch.object(astra,'checkpoint') as checkpoint,patch.object(astra,'call_api',return_value=response) as call:
             p=Path(td)
             result=discovery.run(f,NOW,CONFIG,archive=p,clock=lambda:NOW,public=p/'discovery.json',execute=True)
@@ -140,6 +140,20 @@ class QueuePriorityTests(unittest.TestCase):
         quantitative=next(r for r in rows if r['sport']=='MLB')
         idea=dict(quantitative,candidate_id='independent',discovery_origin='independent_research')
         b=dict(sport='MLB',session='morning',candidates=[quantitative,idea])
-        with patch.dict('os.environ',{'OPENAI_API_KEY':'synthetic'}),patch.object(evidence,'collect',return_value=([],{})):
+        with patch.dict('os.environ',{KEY:'synthetic'}),patch.object(evidence,'collect',return_value=([],{})):
             result=analyst.review_batches(b,f,CONFIG,Path('/unused'),lambda:NOW,{})
         self.assertEqual(result['_research_queue']['pending'][0]['candidate_id'],'independent')
+
+    def test_strongest_case_is_reviewed_before_an_earlier_kickoff(self):
+        from unittest.mock import patch
+        import analyst_review as analyst
+        from nhl.v2 import evidence
+        f=feeds();rows=[analyst.normalized(r) for r in analyst.selected(f,NOW)['selected']]
+        base=next(r for r in rows if r['sport']=='MLB')
+        early=dict(base,candidate_id='early-weak',score=1.2,commence_time='2026-09-21T17:00:00Z')
+        late=dict(base,candidate_id='late-strong',score=10.7,commence_time='2026-09-22T00:20:00Z')
+        unscored=dict(base,candidate_id='unscored',score=None,commence_time='2026-09-21T16:00:00Z')
+        b=dict(sport='MLB',session='morning',candidates=[unscored,early,late])
+        with patch.dict('os.environ',{KEY:'synthetic'}),patch.object(evidence,'collect',return_value=([],{})):
+            result=analyst.review_batches(b,f,CONFIG,Path('/unused'),lambda:NOW,{})
+        self.assertEqual([r['candidate_id'] for r in result['_research_queue']['pending']],['late-strong','early-weak','unscored'])

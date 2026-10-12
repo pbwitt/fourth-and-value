@@ -17,6 +17,7 @@ import editorial as ed
 import editorial_budget as budget
 import editorial_sources as reporting
 import editorial_ideas as ideas
+import model_api
 from display_time import TIMEZONE_INSTRUCTIONS
 
 STATE=ed.DOCS/'editorial/runs'
@@ -400,6 +401,7 @@ def validate(article, response, packet, now):
 
 def call_api(payload):
     # No automatic retries: a timeout may have incurred a paid request already.
+    if model_api.is_claude(payload['model']):return model_api.call_claude(payload,timeout=(20,540))
     if not os.environ.get('OPENAI_API_KEY'):raise RuntimeError('OPENAI_API_KEY is missing')
     r=requests.post('https://api.openai.com/v1/responses',headers={'Authorization':'Bearer '+os.environ['OPENAI_API_KEY']},json=payload,timeout=(20,540))
     if not r.ok:raise RuntimeError('OpenAI HTTP '+str(r.status_code)+' '+str(r.json().get('error',{}).get('code')))
@@ -659,6 +661,7 @@ def run(now,limit=2,idea_id=None,publish_own=False):
             state['slots'][key].update(status='published',url=url,words=words)
             print('Published '+article['title'],flush=True)
         except (ValueError,KeyError,TypeError,RuntimeError,requests.RequestException) as exc:
+            if isinstance(exc,model_api.NotBilled):accounted=True  # Refused or never sent: no unknown charge.
             # Never print request objects, private suggestions or authorization headers.
             if idea and idea_claimed:
                 try:ideas.fail(idea,detail=(article.get('reason') if isinstance(article,dict) and article.get('publish') is not True else str(exc)) if isinstance(exc,ValueError) else None)
@@ -675,7 +678,7 @@ def run(now,limit=2,idea_id=None,publish_own=False):
                     print('Writer explanation saved to the private diagnostics report.',flush=True)
                 except Exception:
                     print('Writer explanation could not be saved privately.',flush=True)
-            if any(code in str(exc) for code in ('credit_balance_exhausted','insufficient_quota','invalid_api_key','OPENAI_API_KEY is missing')):
+            if any(code in str(exc) for code in ('credit_balance_exhausted','insufficient_quota','invalid_api_key','OPENAI_API_KEY is missing','ANTHROPIC_API_KEY is missing','authentication_error')):
                 state['funding_required']=True
                 ed.write_json(statepath,state)
                 print('::warning::API funding or credentials unavailable; remaining paid story slots stopped.')
@@ -696,7 +699,7 @@ def check_api(now):
     usages=[];complete=False
     try:
         request=payload('Reply with OK.',{'check':'API access'},'audit')
-        request['max_output_tokens']=128
+        request['max_output_tokens']=512
         # Persist the reservation before probing the same key used by cloud writing.
         path=STATE/'health.json';ed.write_json(path,{'at':now.isoformat(),'status':'started'})
         budget.checkpoint(path)

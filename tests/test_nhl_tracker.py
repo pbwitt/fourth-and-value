@@ -25,10 +25,12 @@ class TrackerPages(unittest.TestCase):
             for name in ['props/index.html', 'totals/index.html', 'top.html', 'picks.html']:
                 text = (output / 'docs/nhl' / name).read_text()
                 board = 'nhl-candidates.js?' if name == 'picks.html' else 'nhl.js?'
-                self.assertEqual(text.count('offer-tracker.js?v=1'), 1)
+                self.assertEqual(text.count('offer-tracker.js?v=3'), 1)
                 self.assertIn('offer-tracker.css?v=1', text)
-                self.assertLess(text.index('offer-tracker.js?v=1'), text.index(board))
+                self.assertLess(text.index('offer-tracker.js?v=3'), text.index(board))
                 self.assertLess(text.index('player-context.js?'), text.index(board))
+                # Only the lookup boards offer started games; picks and Market Watch never do.
+                self.assertEqual('id="history"' in text, name in ('props/index.html', 'totals/index.html'))
             for name in ['index.html', 'methods.html']:
                 self.assertNotIn('offer-tracker.js', (output / 'docs/nhl' / name).read_text())
 

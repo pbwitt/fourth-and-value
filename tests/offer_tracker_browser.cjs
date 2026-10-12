@@ -64,6 +64,22 @@ function nflTotalsPage(kickoff,quoted){
       assert(Math.abs(t.model_prob-.6/.9)<1e-12,'MLB model probability excludes pushes');
       assert(await p.locator('[data-fv-ticket]').first().isDisabled(),'saved offer is marked Tracked');await noOverflow();
     }
+    // Started MLB games: never a pick, hidden until included, labeled, and saved without the pregame model estimate.
+    mlb.rows=[mlbRow,{...mlbRow,event_id:'m0',game:'New York Mets @ Atlanta Braves',away_team:'New York Mets',player:'Pete Alonso',commence_time:new Date(+now-1800e3).toISOString()}];
+    await p.goto(base+'/mlb/picks.html');await p.waitForSelector('[data-fv-ticket]');
+    assert.equal(await p.locator('.prop-card').count(),1,'a started game is never a model pick');
+    await p.goto(base+'/mlb/props/');await p.waitForSelector('[data-fv-ticket]');
+    assert.equal(await p.locator('.prop-card').count(),1,'started games are hidden by default');
+    await p.locator('#history').check();assert.equal(await p.locator('.prop-card').count(),2);
+    const late=p.locator('.prop-card',{hasText:'Pete Alonso'});
+    assert.match(await late.textContent(),/Game started · historical quote.*Research forecast: game started/s);
+    await late.locator('[data-fv-ticket]').click();await p.waitForSelector('#fv-bet-tracker[open]');
+    assert.match(await p.locator('#fv-track-quote').textContent(),/This game has started, so no model estimate is saved/);
+    const lateTicket=await save(-150,10);
+    assert.deepEqual([lateTicket.player,lateTicket.market_type,lateTicket.model_prob,lateTicket.edge_bps],['Pete Alonso','batter_hits',null,null]);
+    await p.reload();await p.waitForSelector('[data-fv-ticket]');
+    assert(await p.locator('#history').isChecked(),'the choice survives the board reload');assert.equal(await p.locator('.prop-card').count(),2);await noOverflow();
+    mlb.rows=[mlbRow];
     // Expired MLB model inputs never become a saved probability.
     mlb.model_checked_at=new Date(+now-2*3600e3).toISOString();
     await p.goto(base+'/mlb/totals/');mlb.rows=[{...mlbRow,player:'',market:'h2h',market_label:'Moneyline',market_family:'lines',side:'Atlanta Braves',line:null,price:120}];
@@ -96,8 +112,11 @@ function nflTotalsPage(kickoff,quoted){
     const [yards,td]=[first,t].sort((a,b)=>a.market_type.localeCompare(b.market_type)).reverse();
     assert.deepEqual([yards.league,yards.market_type,yards.side,yards.line,yards.model_prob],['NFL','rush_yds','over',74.5,.56]);
     assert.deepEqual([td.market_type,td.side,td.line,td.model_prob],['anytime_td','yes',null,null]);
+    // A started game can still be tracked: the bet was placed earlier, so only the model estimate is left out.
     await p.locator('#history').check();await p.locator('#q').fill('Past');
-    assert.equal(await p.locator('[data-fv-ticket]').textContent(),'Game started');assert(await p.locator('[data-fv-ticket]').isDisabled());
+    assert.equal(await p.locator('[data-fv-ticket]').textContent(),'Track bet');await open(0);
+    assert.match(await p.locator('#fv-track-quote').textContent(),/This game has started/);
+    t=await save(-110,10);assert.deepEqual([t.player,t.market_type,t.model_prob,t.edge_bps],['Past Player','receptions',null,null]);
 
     // NFL game totals and spreads: every sportsbook row offers each exact quote, saved as game totals (not team totals).
     await p.route('**/nfl/totals/',route=>route.fulfill({contentType:'text/html',body:nflTotalsPage(future,quoted)}));

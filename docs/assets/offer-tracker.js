@@ -59,6 +59,8 @@
   const tickets=new Map();
   let dialog,form,draft,saving=false,trackingReady;
   const $=id=>document.getElementById('fv-track-'+id);
+  // A bet recorded after the start may be a live bet at another price, so it never carries the pregame model estimate.
+  const started=row=>!(Date.parse(row.commence_time)>Date.now());
   const time=value=>Number.isFinite(Date.parse(value))?new Date(value).toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' ET':'Unavailable';
   const odds=value=>(value>0?'+':'')+value;
   const script=src=>new Promise((resolve,reject)=>{
@@ -75,8 +77,8 @@
   }
   function updateButtons(){
     document.querySelectorAll('[data-fv-ticket]').forEach(button=>{
-      const saved=!!tickets.get(button.dataset.fvTicket)?.saved,started=Date.parse(button.dataset.fvStart)<=Date.now();
-      button.disabled=saved||started;button.textContent=saved?'Tracked':started?'Game started':button.dataset.fvLabel||'Track bet';
+      const saved=!!tickets.get(button.dataset.fvTicket)?.saved;
+      button.disabled=saved;button.textContent=saved?'Tracked':button.dataset.fvLabel||'Track bet';
     });
   }
   function mount(){
@@ -98,7 +100,7 @@
     form.addEventListener('submit',async event=>{
       event.preventDefault();if(saving||!draft||draft.saved||!form.reportValidity())return;
       let ticket;
-      try{ticket={...ticketData(draft.row,$('odds').value,$('stake').value),id:draft.id};}
+      try{ticket={...ticketData(draft.row,$('odds').value,$('stake').value),id:draft.id};if(started(draft.row))Object.assign(ticket,{model_prob:null,edge_bps:null});}
       catch(error){$('feedback').textContent=error.message;return;}
       saving=true;$('feedback').textContent='Saving…';$('signin').hidden=true;
       for(const id of ['save','close','odds','stake','confirm'])$(id).disabled=true;
@@ -116,13 +118,13 @@
     draft=tickets.get(key)||{id:crypto.randomUUID(),row:{...row},saved:false};tickets.set(key,draft);
     form.reset();$('save').disabled=!!draft.saved;$('feedback').textContent='';$('signin').hidden=true;
     $('description').textContent=[row.sport,row.game,row.player,row.side,row.line==null?'':row.line,row.market_label,row.book_label||row.book].filter(v=>v!==''&&v!=null).join(' · ');
-    $('quote').textContent=`Saved quote: ${odds(row.price)} at ${time(row.quoted_at)}. Confirm the exact line and sportsbook shown above and enter the price of the bet you actually placed. This saved quote may have changed.`;
+    $('quote').textContent=`Saved quote: ${odds(row.price)} at ${time(row.quoted_at)}. Confirm the exact line and sportsbook shown above and enter the price of the bet you actually placed. This saved quote may have changed.${started(row)?' This game has started, so no model estimate is saved with this bet.':''}`;
     $('rules').textContent=(row.settlement_scope||'Verify sportsbook settlement rules.')+(manualGrade(row)?' This market is not graded automatically; settle it in Bet Tracker after the game.':'');
     $('odds').value=row.price;dialog.showModal();$('stake').focus();
   }
-  // A button for one offer. Callers place it; open/saved/started state is shared page-wide.
+  // A button for one offer. Callers place it; open/saved state is shared page-wide.
   function button(row,label){
-    const el=document.createElement('button');el.type='button';el.dataset.fvTicket=identity(row);el.dataset.fvStart=row.commence_time;
+    const el=document.createElement('button');el.type='button';el.dataset.fvTicket=identity(row);
     if(label){el.dataset.fvLabel=label;el.setAttribute('aria-label','Track bet: '+label+' · '+(row.book_label||row.book));}
     el.textContent=label||'Track bet';
     el.addEventListener('click',()=>open(row));return el;

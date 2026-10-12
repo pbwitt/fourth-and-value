@@ -8,7 +8,7 @@ Prose times: convert to America/New_York (EST/EDT), including date rollover;
 never relabel UTC or print ISO clocks. Keep source fields/excerpts intact.
 Audit conversions against evidence.'''
 # Review packets have a tighter byte ceiling than article-writing requests.
-REVIEW_TIMEZONE_INSTRUCTIONS = '\nProse dates/times: convert to America/New_York (EST/EDT).'
+REVIEW_TIMEZONE_INSTRUCTIONS = '\nProse dates/times: America/New_York (EST/EDT).'
 
 
 def eastern_time(value, fmt='%b %d, %Y at %I:%M %p %Z'):
