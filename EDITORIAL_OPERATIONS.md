@@ -175,7 +175,7 @@ separate factual audit is **Claude Opus 5.5** (`writer.audit_model`, `claude-opu
 both at low effort, so the stronger model remains the gate before publication. From
 October 1 the writer was GPT-6.1 Sol with a GPT-6 Astra audit; before that Astra did
 both. `scripts/model_api.py` sends `claude-*` models to Anthropic (key
-`ANTHROPIC_API_KEY`); any other model name keeps the OpenAI request, so switching
+`ANTHROPIC_API_KEY`, from the GitHub secret of that name or else `CLAUDE_CODE`); any other model name keeps the OpenAI request, so switching
 back is a config change. Rates are per model in `editorial_budget.RATES`, input
 including the cache-write premium as a conservative allowance: Sonnet $2.50/M input
 (list $2) and $10/M output; Opus $5/M input (list $4) and $20/M output, checked

@@ -329,7 +329,8 @@ stay grouped by policy version. `scripts/model_api.py` sends any `claude-*` mode
 to Anthropic's Messages API and returns the same response fields the validators
 already read; any other model name keeps the original OpenAI request. Switching
 back is a model-name change in `astra.MODEL` and the two research configs. The
-key is `ANTHROPIC_API_KEY` (GitHub secret); the SDK makes no automatic retries.
+key reaches the scripts as `ANTHROPIC_API_KEY`, read from the GitHub secret
+`ANTHROPIC_API_KEY` or, if that is unset, `CLAUDE_CODE`; the SDK makes no automatic retries.
 
 Rates in `scripts/nhl/v2/astra.py` (`RATES`) are conservative: Opus $5/M input
 (list $4 plus the cache-write premium, though no caching is requested) and $20/M

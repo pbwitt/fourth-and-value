@@ -62,7 +62,7 @@ jobs:
         id: research
         continue-on-error: true
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || secrets.CLAUDE_CODE }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           TEST_EDITION: ${{ inputs.test_edition || false }}
           REPLACE_CARD: ${{ inputs.replace_card || false }}
