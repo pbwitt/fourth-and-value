@@ -109,7 +109,7 @@ def build_page(args, top_only=False):
 <div class="pager" id="pager" hidden><button id="previous">Previous</button><span id="page-info" aria-live="polite"></span><button id="next">Next</button></div>
 <noscript><p>The first 24 upcoming offers are shown. Enable JavaScript to filter and compare the full snapshot.</p></noscript>
 <footer><a href="{rel}/nfl/">NFL overview</a> · <a href="{rel}/methods.html">Methods &amp; limitations</a> · <a href="{rel}/terms.html">Terms &amp; privacy</a><p>Free sports analysis from Fourth &amp; Value. No guaranteed outcomes.</p></footer></main>
-<script type="application/json" id="props-data">{payload}</script><script src="{rel}/assets/offer-tracker.js?v=1" defer></script><script src="{rel}/assets/props.js?v=4" defer></script></body></html>'''
+<script type="application/json" id="props-data">{payload}</script><script src="{rel}/assets/offer-tracker.js?v=3" defer></script><script src="{rel}/assets/props.js?v=4" defer></script></body></html>'''
     Path(args.out).parent.mkdir(parents=True,exist_ok=True)
     Path(args.out).write_text(html)
     if top_only:

@@ -572,7 +572,7 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
     </footer>
   </main>
 
-  <script src="../../assets/offer-tracker.js?v=1"></script>
+  <script src="../../assets/offer-tracker.js?v=3"></script>
   <script>
   // Track bet buttons for each sportsbook's exact total and spread quotes.
   document.querySelectorAll('tr[data-offers]').forEach(row => {{
