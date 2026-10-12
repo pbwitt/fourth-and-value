@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Closing Line Value (CLV) Calculator: Did You Beat the Close?</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Compare the price you bet with the closing line. See the closing no-vig probability, your CLV in percentage points and the return it implies." />
+  <link rel="icon" href="../assets/logo.svg" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "WebApplication",
+ "name": "Closing Line Value Calculator",
+ "url": "https://fourthandvalue.com/tools/clv-calculator.html",
+ "description": "Compare the price you bet with the closing line. See the closing no-vig probability, your CLV in percentage points and the return it implies.",
+ "applicationCategory": "FinanceApplication",
+ "operatingSystem": "Any",
+ "isAccessibleForFree": true,
+ "image": "https://fourthandvalue.com/tools/clv-calculator/social.png",
+ "publisher": {"@type": "Organization", "name": "Fourth & Value", "logo": {"@type": "ImageObject", "url": "https://fourthandvalue.com/assets/logo.svg"}}
+}
+  </script>
+  <script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "FAQPage",
+ "mainEntity": [
+  {"@type": "Question", "name": "What is closing line value?", "acceptedAnswer": {"@type": "Answer", "text": "Closing line value (CLV) measures how the price you bet compares with the final price before the game. Beating the closing price means you got a better number than the market's final estimate."}},
+  {"@type": "Question", "name": "How do you calculate CLV?", "acceptedAnswer": {"@type": "Answer", "text": "Remove the vig from the closing prices on both sides to get the closing fair probability, then compare it with the break-even probability of your price. A bet at +120 that closes at −110 on both sides has a fair probability of 50% against a break-even of 45.45%, about 4.5 points of CLV and a 10% expected return if the close is right."}},
+  {"@type": "Question", "name": "Does beating the closing line guarantee profit?", "acceptedAnswer": {"@type": "Answer", "text": "No. Single bets that beat the close still lose often. CLV is evidence over many bets that your prices are better than the market's, which is why bettors track it."}}
+ ]
+}
+  </script>
+  <style>
+    :root{ --bg:#0b0e13; --surface:#12161d; --surface-2:#171c25; --ink:#eef1f5; --muted:#8b93a1; --line:#232a35; --accent:#6ea8fe; --good:#2dd4bf; --warn:#f0ab3d; --bad:#f87171; }
+    *{box-sizing:border-box}
+    html,body{ margin:0; background:var(--bg); }
+    body{ color:var(--ink); font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
+    a{ color:var(--accent); }
+    .wrap{ max-width:880px; margin:0 auto; padding:36px 24px 80px; }
+    .kicker{ font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-bottom:14px; }
+    h1{ font-family:'Fraunces',serif; font-weight:600; font-size:clamp(30px,5vw,44px); line-height:1.1; margin:0 0 12px; }
+    .lede{ color:var(--muted); font-size:16px; line-height:1.6; margin:0 0 24px; max-width:70ch; }
+    .panel{ background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px; margin:0 0 18px; }
+    .panel h2{ font-size:17px; margin:0 0 12px; font-family:'Inter',sans-serif; }
+    .controls{ display:flex; flex-wrap:wrap; gap:14px 18px; align-items:flex-end; }
+    .field{ display:flex; flex-direction:column; gap:6px; font-size:12.5px; color:var(--muted); }
+    .field input{ width:130px; }
+    input{ font:inherit; font-size:16px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:9px 10px; min-height:42px; }
+    input:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+    input[aria-invalid="true"]{ border-color:var(--bad); }
+    .note{ font-size:13px; color:var(--muted); margin:12px 0 0; line-height:1.5; }
+    .err{ color:var(--bad); font-size:13.5px; margin:10px 0 0; min-height:1px; }
+    .results{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:16px 0 0; }
+    .tile{ background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+    .tile .k{ font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+    .tile .v{ font-family:'JetBrains Mono',monospace; font-size:22px; font-weight:700; margin-top:6px; }
+    .tile .s{ font-size:12.5px; color:var(--muted); margin-top:4px; line-height:1.4; }
+    .tile.hero{ border-color:var(--accent); }
+    .tile.hero .v{ color:var(--accent); }
+    .tile.pos .v{ color:var(--good); } .tile.neg .v{ color:var(--warn); }
+    article{ font-size:16.5px; line-height:1.7; margin-top:40px; }
+    article h2{ font-family:'Fraunces',serif; font-weight:600; font-size:26px; line-height:1.2; margin:44px 0 14px; }
+    article h3{ font-size:17px; margin:28px 0 8px; }
+    article p{ margin:0 0 18px; }
+    article ul{ margin:0 0 18px; padding-left:22px; }
+    article li{ margin-bottom:8px; }
+    .formula{ font-family:'JetBrains Mono',monospace; font-size:14px; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 18px; margin:0 0 18px; line-height:1.8; overflow-x:auto; }
+    .faq h3{ margin-top:22px; }
+    @media (max-width:760px){ .wrap{ padding:24px 16px 64px; } .results{ grid-template-columns:1fr 1fr; } .field input{ width:120px; } }
+    @media (max-width:380px){ .results{ grid-template-columns:1fr; } .field{ flex:1 1 100%; } .field input{ width:100%; } }
+  </style>
+  <link rel="canonical" href="https://fourthandvalue.com/tools/clv-calculator.html">
+  <meta property="og:title" content="Closing line value (CLV) calculator: did you beat the close?">
+  <meta property="og:description" content="Compare the price you bet with the closing line. See the closing no-vig probability, your CLV in percentage points and the return it implies.">
+  <meta property="og:url" content="https://fourthandvalue.com/tools/clv-calculator.html">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://fourthandvalue.com/tools/clv-calculator/social.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="720">
+  <meta property="og:image:alt" content="CLV calculator: a bet at +120 that closes at even money is a 10% expected return.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://fourthandvalue.com/tools/clv-calculator/social.png">
+<link rel="stylesheet" href="/assets/responsible-use.css?v=1"></head>
+<body>
+  <div id="nav-root"></div>
+  <script src="../nav.js?v=47"></script>
+
+  <main class="wrap">
+    <div class="kicker"><a href="/learn/#tools" style="color:inherit">Learn</a> · Tools</div>
+    <h1>Closing Line Value Calculator</h1><!-- fv-notices:notice:start --><aside id="fv-betting-notice" class="fv-use-notice" aria-label="Betting information disclaimer"><strong>Analysis, not a guarantee.</strong> Picks and projections are uncertain; odds and player information can change. No outcome or profit is guaranteed. Any wager is your decision and responsibility. <a href="/terms.html#responsible-play">Read our limitations and responsible-play guidance</a>.</aside><!-- fv-notices:notice:end -->
+    <p class="lede">Did you beat the close? Enter the price you bet and the closing prices on both sides of the same market. Everything runs in your browser; nothing you enter is sent anywhere.</p>
+
+    <section class="panel" aria-labelledby="p-h">
+      <h2 id="p-h">Price CLV</h2>
+      <div class="controls">
+        <label class="field">Your price (American) <input id="mine" type="text" inputmode="text" value="+120" maxlength="9"></label>
+        <label class="field">Close, your side <input id="cy" type="text" inputmode="text" value="-110" maxlength="9"></label>
+        <label class="field">Close, other side <input id="co" type="text" inputmode="text" value="-110" maxlength="9"></label>
+      </div>
+      <p class="err" id="p-err" role="alert"></p>
+      <div class="results" aria-live="polite">
+        <div class="tile"><div class="k">Closing fair chance</div><div class="v" id="fair">—</div><div class="s" id="fair-s">Vig removed from the close</div></div>
+        <div class="tile"><div class="k">Your break-even</div><div class="v" id="be">—</div><div class="s">Win rate your price needed</div></div>
+        <div class="tile hero" id="clv-tile"><div class="k">CLV</div><div class="v" id="clv">—</div><div class="s">Closing fair chance minus your break-even</div></div>
+        <div class="tile" id="roi-tile"><div class="k">Expected return</div><div class="v" id="roi">—</div><div class="s">If the closing price is right</div></div>
+      </div>
+      <p class="note">Leave “close, other side” blank if you don’t have it; the calculator then uses the closing price with its vig, which understates your CLV.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="l-h">
+      <h2 id="l-h">Line CLV (spreads and totals)</h2>
+      <div class="controls">
+        <label class="field">You bet
+          <select id="side" style="font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 10px;min-height:42px">
+            <option value="over">Over</option><option value="under">Under</option><option value="spread">A spread (either side)</option>
+          </select>
+        </label>
+        <label class="field">Your number <input id="ln-mine" type="text" inputmode="decimal" value="224.5" maxlength="8"></label>
+        <label class="field">Closing number <input id="ln-close" type="text" inputmode="decimal" value="227.5" maxlength="8"></label>
+      </div>
+      <p class="err" id="l-err" role="alert"></p>
+      <div class="results" aria-live="polite">
+        <div class="tile hero" id="ln-tile"><div class="k">Points of CLV</div><div class="v" id="ln">—</div><div class="s" id="ln-s"></div></div>
+      </div>
+      <p class="note">For spreads, enter the number with its sign as you bet it: −3 for a favorite, +3 for an underdog.</p>
+    </section>
+
+    <article>
+      <h2>What closing line value tells you</h2>
+      <p>A line moves from open to close as news arrives and money comes in. By game time it reflects almost everything the market knows, which makes the closing price the best single estimate of a bet’s true chances. Closing line value (CLV) compares your price with that estimate.</p>
+      <p>Say you bet a side at <strong>+120</strong>. At the close both sides are −110, so the market’s no-vig estimate is 50%. Your +120 only needed to win 45.45% of the time to break even, so you beat the close by about 4.5 percentage points. If the closing 50% is right, you expect to make <strong>$10 for every $100</strong> bet.</p>
+      <div class="formula">CLV = closing no-vig probability − your break-even probability<br>Expected return = closing no-vig probability × your decimal odds − 1</div>
+
+      <h2>Line CLV</h2>
+      <p>For spreads and totals, CLV can also be counted in points. Bet an NBA over at 224.5, watch it close at 227.5, and you got three points of value: the market ended up expecting more scoring than your number. A point is worth more in some places than others. In the NFL, final margins land on 3 and 7 far more often than other numbers, so moving across them matters most. NBA scores are more spread out, so each point is worth less, but a three-point move on a total is still meaningful.</p>
+
+      <h2>Why professionals track it</h2>
+      <ul>
+        <li><strong>It’s faster than results.</strong> Win-loss records over a few dozen bets are mostly luck. CLV gives a useful signal much sooner.</li>
+        <li><strong>It measures the price, not the outcome.</strong> A bet that beat the close and lost was still a good bet at that price.</li>
+        <li><strong>It isn’t a guarantee.</strong> Closing lines are very good estimates, not perfect ones, and single bets that beat the close lose all the time.</li>
+      </ul>
+      <p>To track CLV, record your price and the closing prices on both sides for every bet. Over hundreds of bets, consistently beating the close is one of the best signs that your numbers are better than the market’s. More in <a href="/blog/early-lines-sharp-advantage.html">Opening Lines vs. Closing Lines</a>.</p>
+
+      <section class="faq">
+        <h2>Frequently asked questions</h2>
+        <h3>What is closing line value?</h3>
+        <p>Closing line value (CLV) measures how the price you bet compares with the final price before the game. Beating the closing price means you got a better number than the market’s final estimate.</p>
+        <h3>How do you calculate CLV?</h3>
+        <p>Remove the vig from the closing prices on both sides to get the closing fair probability, then compare it with the break-even probability of your price. A bet at +120 that closes at −110 on both sides has a fair probability of 50% against a break-even of 45.45%, about 4.5 points of CLV and a 10% expected return if the close is right.</p>
+        <h3>Does beating the closing line guarantee profit?</h3>
+        <p>No. Single bets that beat the close still lose often. CLV is evidence over many bets that your prices are better than the market’s, which is why bettors track it.</p>
+      </section>
+
+      <h3>Related</h3>
+      <ul>
+        <li><a href="/blog/early-lines-sharp-advantage.html">Opening Lines vs. Closing Lines: Why Sharp Bettors Bet Early</a></li>
+        <li><a href="/tools/odds-calculator.html">Odds Calculator</a></li>
+        <li><a href="/blog/how-books-make-money.html">What Is Vig? How Sportsbooks Make Money and How to Remove It</a></li>
+      </ul>
+    </article>
+  </main>
+
+  <script>
+  (function(){
+    var $=function(id){return document.getElementById(id);};
+    var M='−';
+    function num(v){ v=String(v).trim().replace(/[−–]/g,'-'); return v===''?NaN:Number(v); }
+    function amToP(a){ if(!(Math.abs(a)>=100)) return NaN; return a>0?100/(a+100):-a/(-a+100); }
+    function pct(p){ return (p*100).toFixed(2)+'%'; }
+    function signed(x,unit){ return (x>=0?'+':M)+Math.abs(x).toFixed(unit==='pts'?2:1)+(unit==='%'?'%':unit==='pts'?' pts':''); }
+    function bad(id,msg,els){ $(id).textContent=msg||''; els.forEach(function(e){ $(e).setAttribute('aria-invalid',msg?'true':'false'); }); }
+    function price(){
+      var me=num($('mine').value), be=amToP(me), cy=amToP(num($('cy').value)), coRaw=String($('co').value).trim(), co=coRaw===''?null:amToP(num(coRaw));
+      var ids=['fair','be','clv','roi'];
+      if(!(be>0)||!(cy>0)||(co!==null&&!(co>0))){ bad('p-err','Enter American odds of +100 or more, or −100 or less.',['mine','cy','co']); ids.forEach(function(i){$(i).textContent='—';}); return; }
+      bad('p-err','',['mine','cy','co']);
+      var fair=co===null?cy:cy/(cy+co), dec=me>0?1+me/100:1+100/(-me), clv=fair-be, roi=fair*dec-1;
+      $('fair').textContent=pct(fair); $('fair-s').textContent=co===null?'Closing price with vig (other side missing)':'Vig removed from the close';
+      $('be').textContent=pct(be); $('clv').textContent=signed(clv*100,'pts'); $('roi').textContent=signed(roi*100,'%');
+      $('clv-tile').className='tile hero'; $('roi-tile').className='tile '+(roi>=0?'pos':'neg');
+    }
+    function line(){
+      var a=num($('ln-mine').value), b=num($('ln-close').value), s=$('side').value;
+      if(!isFinite(a)||!isFinite(b)){ bad('l-err','Enter both numbers, for example 224.5 or −3.',['ln-mine','ln-close']); $('ln').textContent='—'; $('ln-s').textContent=''; return; }
+      bad('l-err','',['ln-mine','ln-close']);
+      var g=s==='over'?b-a:a-b;
+      $('ln').textContent=(g>0?'+':g<0?M:'')+Math.abs(g).toFixed(1);
+      $('ln-s').textContent=g>0?'You beat the closing number':g<0?'The close moved against you':'Same as the close';
+      $('ln-tile').className='tile hero '+(g>=0?'pos':'neg');
+    }
+    ['mine','cy','co'].forEach(function(i){$(i).addEventListener('input',price);});
+    ['ln-mine','ln-close'].forEach(function(i){$(i).addEventListener('input',line);});
+    $('side').addEventListener('change',line);
+    price(); line();
+  })();
+  </script>
+<!-- fv-notices:footer:start --><section id="fv-responsible-footer" class="fv-use-footer" aria-label="Responsible use"><p>Fourth &amp; Value provides sports analysis for informational and entertainment purposes. We do not accept wagers. You are responsible for your wagering decisions and for meeting applicable age and legal requirements. Never wager money you cannot afford to lose.</p><p><a href="/terms.html">Terms &amp; privacy</a> · <a href="/terms.html#responsible-play">Responsible play</a> · U.S. gambling support: call or text <a href="tel:+18006973738">1-800-MY-RESET</a> or <a href="https://www.ncpgambling.org/help-treatment/">find confidential help</a>.</p></section><!-- fv-notices:footer:end --></body>
+</html>
