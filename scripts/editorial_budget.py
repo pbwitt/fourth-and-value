@@ -9,8 +9,10 @@ import editorial as ed
 PATH=ed.DOCS/'editorial/budget.json'
 # Per-token (input, output) rates. Input includes the higher cache-write rate
 # (1.25x list); output is list price. Astra was checked September 22; GPT-6.1 Sol
-# ($2/$10 per million list) is used only for the shadow comparison drafts.
-RATES={'gpt-6-astra':(12.5/1000000,50/1000000),'gpt-6.1-sol':(2.5/1000000,10/1000000)}
+# ($2/$10 per million list). Claude Sonnet 5.5 lists at $2/$10 and Opus 5.5 at
+# $4/$20; they write and audit by default (config/editorial.json).
+RATES={'gpt-6-astra':(12.5/1000000,50/1000000),'gpt-6.1-sol':(2.5/1000000,10/1000000),
+       'claude-sonnet-5-5':(2.5/1000000,10/1000000),'claude-opus-5-5':(5/1000000,20/1000000)}
 INPUT_RATE,OUTPUT_RATE=RATES['gpt-6-astra']
 LIMITS={'write':(18000,3200),'audit':(24000,1000)}
 ASTRA='gpt-6-astra'

@@ -7,15 +7,17 @@ probabilities, synthetic quotes, staking, or automatic wagering.
 from copy import deepcopy
 from datetime import timedelta
 import json
-import os
 from statistics import median
 
+import model_api
 from nhl.v2 import astra, evidence
 from nhl.v2.data import ROOT, digest, iso, stamp, write_json
 from nhl.analyst import immutable
 import research_budget as budget
 
 PUBLIC = ROOT/'docs/briefing/discovery.json'
+# Room for high-effort thinking plus up to 24 directions.
+MAX_OUTPUT_TOKENS = 8000
 INSTRUCTIONS = '''Act as a skeptical professional sports researcher. Independently research the
 supplied upcoming slate as of the supplied time, without our model rankings. Look for defensible
 opportunities and reasons to avoid them: expected opportunity, matchups, starters, injuries,
@@ -90,7 +92,7 @@ def slate(offers):
 
 def search_request(games, now, questions=()):
     return dict(model=astra.MODEL, service_tier='default', store=False,
-        reasoning={'effort':'low'}, max_output_tokens=1600, max_tool_calls=1,
+        reasoning={'effort':astra.EFFORT}, max_output_tokens=MAX_OUTPUT_TOKENS, max_tool_calls=1,
         tools=[dict(type='web_search', search_context_size='low',
                     filters={'allowed_domains':list(evidence.HOSTS)})], tool_choice='required',
         include=['web_search_call.action.sources'], instructions=INSTRUCTIONS,
@@ -106,7 +108,7 @@ def bounds(request):
     if (request['model']!=astra.MODEL or request.get('previous_response_id') or
         request['max_tool_calls']!=1 or len(request['tools'])!=1 or
         request['tools'][0]['type']!='web_search' or request['service_tier']!='default' or
-        size>12000 or not 1<=request['max_output_tokens']<=1600):
+        size>12000 or not 1<=request['max_output_tokens']<=MAX_OUTPUT_TOKENS):
         raise ValueError('Search exceeds reserved bounds')
     return round(((131072+2*size+2048)*astra.INPUT_RATE+request['max_output_tokens']*astra.OUTPUT_RATE+.01)*1.05,6)
 
@@ -165,7 +167,7 @@ def run(feeds, now, config, *, archive, clock, public=PUBLIC, execute=False, que
         result['directions']=prior.get('directions',[])
         result['submitted_games']=[pair for pair in prior.get('submitted_games',[]) if any(pair==[g['sport'],g['game_id']] for g in games)]
     if execute and config.get('discovery_enabled') and games:
-        if not os.getenv('OPENAI_API_KEY'): result['status']='api_key_unavailable'
+        if not model_api.has_key(astra.MODEL): result['status']='api_key_unavailable'
         else:
             # A new slate or morning/later session can trigger fresh discovery;
             # individual price ticks do not. Rotating batches cover large slates.

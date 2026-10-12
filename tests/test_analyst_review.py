@@ -11,7 +11,9 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'scripts'))
 import analyst_review as analyst
 from nhl.v2 import astra, evidence
+import model_api
 from nhl.v2.data import ROOT, iso, write_json
+KEY = model_api.key_name(astra.MODEL)
 
 NOW = datetime(2026, 9, 27, 14, tzinfo=timezone.utc)
 CONFIG = json.loads(analyst.CONFIG.read_text())
@@ -196,16 +198,16 @@ class ResearchTests(unittest.TestCase):
     def test_payload_model_explanation_and_hard_bounds(self):
         b=board('NFL'); p=astra.payload(b,[source(b)],NOW,CONFIG,instructions=analyst.INSTRUCTIONS,
             schema=analyst.SCHEMA,prompt_version=analyst.PROMPT_VERSION,extra_fields=('probability_basis','model_limitations'))
-        self.assertEqual(p['model'],'gpt-6.1-sol'); self.assertNotIn('tools',p)
+        self.assertEqual(p['model'],'claude-opus-5-5'); self.assertNotIn('tools',p)
         self.assertIn('NOT current market consensus',p['instructions'])
         self.assertIn('historical game outcomes',p['instructions'])
-        self.assertEqual(analyst.PROMPT_VERSION,'sports-research-6')
+        self.assertEqual(analyst.PROMPT_VERSION,'sports-research-7')
         self.assertLess(astra.bounds(p,CONFIG),1)
         self.assertIsNone(json.loads(p['input'])['candidates'][0].get('independent_probability'))
 
     def test_success_preserves_forecast_archives_usage_and_deduplicates(self):
         b=board(); before=deepcopy(b['candidates'][0])
-        with tempfile.TemporaryDirectory() as td, patch.dict('os.environ',{'OPENAI_API_KEY':'synthetic'}), \
+        with tempfile.TemporaryDirectory() as td, patch.dict('os.environ',{KEY:'synthetic'}), \
              patch.object(evidence,'collect',return_value=([source(b)],{})), patch.object(astra,'checkpoint') as checkpoint, \
              patch.object(astra,'call_api',return_value=response(b)) as call:
             archive=Path(td)
@@ -221,9 +223,9 @@ class ResearchTests(unittest.TestCase):
 
     def test_missing_key_window_and_empty_slate_never_call(self):
         with tempfile.TemporaryDirectory() as td, patch.object(astra,'call_api') as call, patch.object(evidence,'collect',return_value=([],{})):
-            with patch.dict('os.environ',{'OPENAI_API_KEY':''}):
+            with patch.dict('os.environ',{KEY:''}):
                 self.assertEqual(analyst.review(board(),feeds(),CONFIG,Path(td),lambda:NOW)['review_status'],'api_key_unavailable')
-            with patch.dict('os.environ',{'OPENAI_API_KEY':'synthetic'}):
+            with patch.dict('os.environ',{KEY:'synthetic'}):
                 for changes,status in [(dict(candidates=[]),'no_candidates'),(dict(session=None),'outside_review_window')]:
                     self.assertEqual(analyst.review(dict(board(),**changes),feeds(),CONFIG,Path(td),lambda:NOW)['review_status'],status)
             call.assert_not_called()
@@ -233,7 +235,7 @@ class ResearchTests(unittest.TestCase):
         q=value['reviews'][0]; q['evidence']=[]
         q['assessment'].update(verdict='consider', blocking_checks=[])
         raw['output'][0]['content'][0]['text']=json.dumps(value)
-        with tempfile.TemporaryDirectory() as td, patch.dict('os.environ',{'OPENAI_API_KEY':'synthetic'}), \
+        with tempfile.TemporaryDirectory() as td, patch.dict('os.environ',{KEY:'synthetic'}), \
              patch.object(evidence,'collect',return_value=([],{'status':'no_usable_reporting'})), \
              patch.object(astra,'checkpoint'), patch.object(astra,'call_api',return_value=raw) as call:
             archive=Path(td)
@@ -268,7 +270,7 @@ class ResearchTests(unittest.TestCase):
     def test_expiry_during_collection_and_checkpoint_failure_prevent_payment(self):
         for elapsed, checkpoint_error in [(timedelta(hours=2),None),(timedelta(),RuntimeError('checkpoint'))]:
             b=board()
-            with tempfile.TemporaryDirectory() as td, patch.dict('os.environ',{'OPENAI_API_KEY':'synthetic'}), \
+            with tempfile.TemporaryDirectory() as td, patch.dict('os.environ',{KEY:'synthetic'}), \
                  patch.object(evidence,'collect',return_value=([source(b)],{})), \
                  patch.object(astra,'checkpoint',side_effect=checkpoint_error), patch.object(astra,'call_api') as call:
                 if checkpoint_error:
@@ -280,7 +282,7 @@ class ResearchTests(unittest.TestCase):
     def test_shared_cap_and_timeout_reservation_are_conservative(self):
         for spent,expected in [(5,'budget_exhausted'),(0,'review_unavailable')]:
             b=board()
-            with tempfile.TemporaryDirectory() as td, patch.dict('os.environ',{'OPENAI_API_KEY':'synthetic'}), \
+            with tempfile.TemporaryDirectory() as td, patch.dict('os.environ',{KEY:'synthetic'}), \
                  patch.object(evidence,'collect',return_value=([source(b)],{})), patch.object(analyst.daily_budget,'CAP',2.75), \
                  patch.object(astra,'checkpoint'), patch.object(astra,'call_api',side_effect=RuntimeError('timeout')) as call:
                 archive=Path(td)
@@ -308,7 +310,7 @@ class ResearchTests(unittest.TestCase):
     def test_authorized_test_allowance_reaches_review_without_erasing_spend(self):
         b=board()
         cfg=dict(CONFIG,test_budget_override=dict(date='2026-09-27',limit_usd=10,reason='Owner test'))
-        with tempfile.TemporaryDirectory() as td, patch.dict('os.environ',{'OPENAI_API_KEY':'synthetic'}), \
+        with tempfile.TemporaryDirectory() as td, patch.dict('os.environ',{KEY:'synthetic'}), \
              patch.object(evidence,'collect',return_value=([source(b)],{})), \
              patch.object(astra,'checkpoint'), patch.object(astra,'call_api',return_value=response(b)) as call:
             archive=Path(td)

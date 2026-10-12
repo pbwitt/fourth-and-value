@@ -76,7 +76,7 @@ The public homepage and morning briefing can run before the private database mig
 ## Automated original analysis — budget revision, September 22
 
 Enabled in `config/editorial.json`: **two published articles each morning, with an 8:30 AM Eastern delivery check**, exact model
-`gpt-6-astra`, low reasoning, standard service tier. No fallback model. Runs on GitHub
+`gpt-6-astra` at launch (current models below), low reasoning, standard service tier. No fallback model. Runs on GitHub
 Actions after the **07:05 America/New_York sports refreshes finish**, without the owner's computer. GitHub may delay
 scheduled jobs; publication follows research, factual checking and the Pages build.
 Recovery triggers and the watchdog follow the current schedule above. They require fresh morning models and retryable slots. Completed or uncertain paid attempts are not repeated, and an overdue edition remains a failed check.
@@ -168,18 +168,22 @@ Pirates prose is unchanged. A market-briefing lead fills an empty homepage safel
 ### Spending guard and recovery
 
 `docs/editorial/budget.json` enforces **$9 over a rolling seven days for this writer**.
-This new policy excludes the already incurred six-story launch cost, other OpenAI
+This new policy excludes the already incurred six-story launch cost, other model API
 jobs, Odds API charges and taxes. It is not an organization-wide billing limit.
-Since October 1 the writer is **GPT-6.1 Sol** (`writer.model`, `gpt-6.1-sol`) and the
-separate factual audit stays on **GPT-6 Astra** (`writer.audit_model`, `gpt-6-astra`), so
-the stronger model remains the gate before publication. Rates are per model in
-`editorial_budget.RATES`: Sol $2.50/M input (conservative allowance including cache
-writes; list $2) and $10/M output; Astra $12.50/M input (list $10) and $50/M output,
-as checked September 22. A typical story now costs about $0.08 (Sol write about $0.02 plus
-Astra audit about $0.05), compared with about $0.17 when Astra wrote and audited. Reservations and
-settlement use each call's own model rate. To move the audit to Sol as well, set
-`writer.audit_model` to `gpt-6.1-sol`. Recheck these rates before changing models or if
-OpenAI pricing changes.
+The writer is **Claude Sonnet 5.5** (`writer.model`, `claude-sonnet-5-5`) and the
+separate factual audit is **Claude Opus 5.5** (`writer.audit_model`, `claude-opus-5-5`),
+both at low effort, so the stronger model remains the gate before publication. From
+October 1 the writer was GPT-6.1 Sol with a GPT-6 Astra audit; before that Astra did
+both. `scripts/model_api.py` sends `claude-*` models to Anthropic (key
+`ANTHROPIC_API_KEY`); any other model name keeps the OpenAI request, so switching
+back is a config change. Rates are per model in `editorial_budget.RATES`, input
+including the cache-write premium as a conservative allowance: Sonnet $2.50/M input
+(list $2) and $10/M output; Opus $5/M input (list $4) and $20/M output, checked
+October 12; Sol matches Sonnet and Astra is $12.50/M input (list $10) and $50/M
+output, checked September 22. The largest possible story reservation falls from
+about $0.49 (Sol write plus Astra audit) to about $0.25. Reservations and settlement
+use each call's own model rate. Recheck these rates before changing models or if
+pricing changes.
 
 Each story allows one write (18,000 input UTF-8 bytes + framing allowance; 3,200
 output tokens) and one audit (24,000 input bytes + framing; 1,000 output tokens).
