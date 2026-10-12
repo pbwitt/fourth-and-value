@@ -91,13 +91,14 @@ class ArchiveTests(unittest.TestCase):
         if not payload['periods']:
             self.skipTest('No settled NHL games in the archive yet')
         rows = payload['rows']
-        totals = {r[3]: r for r in rows['totals']}
+        # A matchup can repeat within a season (CAR @ PHI on Oct 3 and Oct 11), so a game is its start and name.
+        totals = {(r[1], r[3]): r for r in rows['totals']}
         self.assertEqual(len(totals), sum(p['games'] for p in payload['periods']))
         for market in ('spreads', 'h2h'):
             for r in rows[market]:
                 self.assertGreaterEqual(r[5], 0.0)
                 self.assertLessEqual(r[5], 1.0)
-                self.assertIn(r[3], totals)
+                self.assertIn((r[1], r[3]), totals)
         for r in rows['h2h']:
             self.assertNotEqual(r[6], 0)  # NHL games are never tied once the shootout is counted.
         self.assertTrue(payload['through'])
