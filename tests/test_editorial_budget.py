@@ -95,6 +95,15 @@ class BudgetTests(unittest.TestCase):
             self.assertEqual(w.payload('x',{},'write')['reasoning']['effort'],'medium')
             self.assertEqual(w.payload('x',{},'audit')['reasoning']['effort'],'low')
         self.assertEqual(w.payload('x',{},'write')['max_output_tokens'],b.LIMITS['write'][1])
+        # Claude's thinking shares the ceiling with the short JSON verdict.
+        self.assertGreaterEqual(w.payload('x',{},'audit')['max_output_tokens'],4000)
+    def test_requested_length_clears_validation_floor(self):
+        # Drafts land near the bottom of the requested range, so it must sit above the floor.
+        import re
+        for prompt,floor in ((w.PROMPT,550),(w.OVERVIEW_PROMPT,400),(w.TEAM_PLAYOFF_PROMPT,400)):
+            low=int(re.search(r'(\d{3})–\d{3} word',prompt).group(1))
+            self.assertGreaterEqual(low,floor+80)
+            self.assertIn(f'under {floor} words are rejected',prompt)
     def test_checkpoint_retries_when_another_job_pushed_first(self):
         results=iter([0,0,0,0, 0,1, 0,0])  # config x2, add, commit; first push loses the race; retry wins
         calls=[]

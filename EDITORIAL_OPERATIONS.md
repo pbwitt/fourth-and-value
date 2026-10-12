@@ -184,12 +184,17 @@ including the cache-write premium as a conservative allowance: Sonnet $2.50/M in
 (list $2) and $10/M output; Opus $5/M input (list $4) and $20/M output, checked
 October 12; Sol matches Sonnet and Astra is $12.50/M input (list $10) and $50/M
 output, checked September 22. The largest possible story reservation falls from
-about $0.49 (Sol write plus Astra audit) to about $0.25. Reservations and settlement
+about $0.49 (Sol write plus Astra audit) to about $0.37 (Sonnet write plus Opus audit at
+the October 12 output ceilings below). Reservations and settlement
 use each call's own model rate. Recheck these rates before changing models or if
 pricing changes.
 
-Each story allows one write (18,000 input UTF-8 bytes + framing allowance; 3,200
-output tokens) and one audit (24,000 input bytes + framing; 1,000 output tokens).
+Each story allows one write (18,000 input UTF-8 bytes + framing allowance; 8,000
+output tokens) and one audit (24,000 input bytes + framing; 4,000 output tokens).
+Claude counts thinking against both ceilings; the audit's rose from 1,000 on October 12
+so its thinking cannot crowd out the verdict. The writer is asked for 650–850 words of
+section text (headline and deck excluded), above the 550-word validation floor: drafts
+requested at 550–750 had clustered at 561–656 words, and Claude's first draft fell short.
 No paid tools, retries or priority tier. A conservative full-story reservation with
 10% headroom is recorded **before** the first call. CI commits and pushes the budget
 and started slot before spending; checkpoint failure prevents the call. Settled
