@@ -424,7 +424,7 @@ def generate_blog_post(opportunities, incoherent, out_path='docs/blog/family_opp
 
       <p>When a book sets rush attempts at 18.5 and rush yards at 120.5, they're implicitly pricing YPC at 6.5—the upper bound of realistic efficiency. If our model sees 18 attempts at 4.5 YPC (81 yards), both markets show value.</p>
 
-      <a class="back" href="./index.html">← Back to Blog</a>
+      <a class="back" href="./">← Back to Blog</a>
     </article>
   </main>
 </body>

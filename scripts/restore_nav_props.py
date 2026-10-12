@@ -36,10 +36,10 @@ AUTO_JS = """
 NAV_HTML = """
 <header class="site-header">
   <nav class="navbar">
-    <a class="brand" href="../index.html">Fourth &amp; Value 🏈</a>
+    <a class="brand" href="../">Fourth &amp; Value 🏈</a>
     <div class="nav-links">
-      <a class="nav-link" href="../index.html">Home</a>
-      <a class="nav-link" href="index.html">Props</a>
+      <a class="nav-link" href="../">Home</a>
+      <a class="nav-link" href="./">Props</a>
       <a class="nav-link" href="consensus.html">Consensus</a>
       <a class="nav-link" href="top.html">Top Picks</a>
       <a class="nav-link" href="../methods.html">Methods</a>

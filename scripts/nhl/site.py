@@ -66,7 +66,7 @@ def build(state, archive=False):
         rel = '../..' if '/' in filename else '..'
         nhl = '..' if '/' in filename else '.'
         links = '<nav class="subnav" aria-label="NHL sections">' + ''.join(
-            f'<a href="{nhl}/{f}"' + (' aria-current="page"' if f == filename else '') + f'>{t}</a>'
+            f'<a href="{nhl}/{f.removesuffix("index.html")}"' + (' aria-current="page"' if f == filename else '') + f'>{t}</a>'
             for f,t,_ in pages if f != 'methods.html') + f'<a href="{nhl}/players/">Players</a></nav>'
         if page == 'overview':
             intro = '''<p class="lead">Fresh hockey markets, clear prices, and regular-season context.</p>
