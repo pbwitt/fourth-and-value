@@ -2,222 +2,162 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>When Prop Lines Disagree: A Chiefs–Jaguars Case Study (2025)</title>
+  <title>Over Receptions, Under Yards: Why It Isn’t Arbitrage</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="A 2025 Chiefs–Jaguars case study: what it means when a sportsbook’s receptions and yards props disagree, and why betting both sides is not arbitrage." />
+  <meta name="description" content="Betting over receptions and under yards on the same player looks like it can’t lose. It can. Every outcome, the math, and a 2025 Chiefs–Jaguars example." />
   <link rel="icon" href="../assets/logo.svg" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "Article",
+ "headline": "Over Receptions, Under Yards: The Prop Pair That Looks Free and Isn’t",
+ "description": "Betting over receptions and under yards on the same player looks like it can’t lose. It can. Every outcome, the math, and a 2025 Chiefs–Jaguars example.",
+ "image": ["https://fourthandvalue.com/blog/prop-pair-2026/social.png"],
+ "datePublished": "2026-10-12T16:00:00+00:00",
+ "dateModified": "2026-10-12T16:00:00+00:00",
+ "author": {"@type": "Organization", "name": "Fourth & Value", "url": "https://fourthandvalue.com/"},
+ "publisher": {"@type": "Organization", "name": "Fourth & Value", "logo": {"@type": "ImageObject", "url": "https://fourthandvalue.com/assets/logo.svg"}},
+ "mainEntityOfPage": "https://fourthandvalue.com/blog/family_arbitrage_mnf.html",
+ "articleSection": "Learning",
+ "keywords": ["arbitrage", "player props", "receptions", "receiving yards", "middle", "correlated bets"]
+}
+  </script>
+  <script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "FAQPage",
+ "mainEntity": [
+  {"@type": "Question", "name": "Is betting over receptions and under receiving yards arbitrage?", "acceptedAnswer": {"@type": "Answer", "text": "No. Arbitrage guarantees a profit whatever happens. Over receptions and under yards can both win, but they can also both lose, for example on one catch for 10 yards."}},
+  {"@type": "Question", "name": "When does the over receptions, under yards pair make money?", "acceptedAnswer": {"@type": "Answer", "text": "At −110 on both bets, the pair only breaks even if the chance that both win is at least about 4.8 percentage points higher than the chance that both lose. For most players, one catch for a decent gain is more likely than several catches for almost nothing, so the pair loses money."}},
+  {"@type": "Question", "name": "What is real arbitrage in sports betting?", "acceptedAnswer": {"@type": "Answer", "text": "Betting every outcome of the same market at different books when the prices add up to less than 100% implied probability, such as +105 on both sides of a game at two books. Even then, rule differences, limits and voided bets can break it."}}
+ ]
+}
+  </script>
   <style>
-    :root { --max: 860px; --bg:#0b0b0b; --fg:#e9e9e9; --muted:#b9b9b9; --line:#222; --input:#121212; --link:#8ab4ff; }
-    html,body { margin:0; background:var(--bg); color:var(--fg); }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; line-height:1.65; }
-    a { color: var(--link); text-decoration: underline; }
-    .wrap { max-width: var(--max); margin: 0 auto; padding: 16px; }
-    h1 { margin: 8px 0 4px; font-size: 1.8rem; }
-    .meta { font-size:.9rem; color: var(--muted); margin: 6px 0 18px; }
-    article h2, article h3 { margin-top: 1.4em; }
-    article table { width:100%; border-collapse:collapse; margin:16px 0; font-size:0.9rem; }
-    article th, article td { padding:8px; text-align:left; border-bottom:1px solid var(--line); }
-    article th { color:var(--muted); font-weight:600; }
-    article ul { line-height: 1.8; }
-    code, pre { background:#0f0f0f; border:1px solid var(--line); border-radius:8px; color:#e6e6e6; }
-    pre { padding:12px; overflow:auto; }
-    .back { display:inline-block; margin-top: 28px; color: var(--link); }
-    .highlight { background:#1a1a2e; border-left:4px solid var(--link); padding:12px 16px; margin:16px 0; }
+    :root{
+      --bg:#0b0e13; --surface:#12161d; --ink:#eef1f5; --muted:#8b93a1; --line:#232a35;
+      --accent:#6ea8fe; --good:#2dd4bf; --warn:#f0ab3d;
+    }
+    *{box-sizing:border-box}
+    html,body{ margin:0; background:var(--bg); }
+    body{ color:var(--ink); font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
+    a{ color:var(--accent); }
+    .wrap{ max-width:720px; margin:0 auto; padding:40px 24px 96px; }
+    .kicker{ font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); display:flex; align-items:center; gap:10px; margin-bottom:22px; }
+    .kicker .dot{ width:6px; height:6px; border-radius:50%; background:var(--accent); }
+    h1{ font-family:'Fraunces',serif; font-weight:600; font-size:clamp(32px,5.6vw,48px); line-height:1.08; letter-spacing:-.01em; margin:0 0 18px; text-wrap:balance; }
+    article{ font-size:17px; line-height:1.7; }
+    article p{ margin:0 0 22px; }
+    article ul{ margin:0 0 22px; padding-left:22px; }
+    article li{ margin-bottom:10px; }
+    h2{ font-family:'Fraunces',serif; font-weight:600; font-size:28px; line-height:1.2; margin:52px 0 16px; }
+    h3{ font-size:18px; margin:32px 0 10px; }
+    .formula{ font-family:'JetBrains Mono',monospace; font-size:15px; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 18px; margin:0 0 22px; line-height:1.8; overflow-x:auto; }
+    .tbl-wrap{ overflow-x:auto; margin:8px 0 22px; border:1px solid var(--line); border-radius:12px; position:relative; }
+    table{ width:100%; border-collapse:collapse; font-size:14.5px; }
+    th,td{ padding:10px 14px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap; }
+    th:first-child,td:first-child{ text-align:left; }
+    th{ font-weight:600; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.06em; background:var(--surface); }
+    td{ font-family:'JetBrains Mono',monospace; }
+    td:first-child{ font-family:'Inter',sans-serif; }
+    tr:last-child td{ border-bottom:0; }
+    td.best{ color:var(--good); font-weight:700; }
+    td.neg{ color:var(--warn); }
+    .callout{ border-left:3px solid var(--accent); background:color-mix(in oklab, var(--accent) 8%, var(--surface)); border-radius:0 12px 12px 0; padding:18px 22px; margin:28px 0; font-size:15.5px; line-height:1.65; }
+    .callout p{ margin:0 0 12px; }
+    .callout p:last-child{ margin:0; }
+    .callout .tag{ font-family:'JetBrains Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--accent); display:block; margin-bottom:8px; font-weight:700; }
+    .cta{ display:block; text-decoration:none; background:var(--surface); border:1px solid var(--accent); border-radius:14px; padding:20px 22px; margin:32px 0; color:var(--ink); }
+    .cta b{ font-family:'Fraunces',serif; font-size:21px; display:block; margin-bottom:4px; }
+    .cta span{ color:var(--muted); font-size:15px; }
+    .cta:hover{ background:color-mix(in oklab, var(--accent) 8%, var(--surface)); }
+    .faq h3{ margin-top:26px; }
+    .back{ display:inline-block; margin-top:40px; color:var(--accent); }
+    @media (max-width:560px){ .wrap{ padding:28px 16px 72px; } h2{ font-size:24px; } th,td{ padding:9px 10px; white-space:normal; } }
   </style>
-<link rel="canonical" href="https://fourthandvalue.com/blog/family_arbitrage_mnf.html"><meta property="og:title" content="When Prop Lines Disagree: A Chiefs–Jaguars Case Study (2025)"><meta property="og:description" content="A 2025 Chiefs–Jaguars case study: what it means when a sportsbook’s receptions and yards props disagree, and why betting both sides is not arbitrage."><meta property="og:url" content="https://fourthandvalue.com/blog/family_arbitrage_mnf.html"><meta property="og:type" content="website"><link rel="stylesheet" href="/assets/responsible-use.css?v=1"><meta property="og:image" content="https://fourthandvalue.com/assets/social-card.png"><meta property="og:image:alt" content="Fourth &amp; Value"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="https://fourthandvalue.com/assets/social-card.png"><script type="application/ld+json">{"@context": "https://schema.org", "@type": "Article", "headline": "When Books Contradict Themselves — and Why Our Model Doesn't", "description": "A 2025 Chiefs–Jaguars case study: what it means when a sportsbook’s receptions and yards props disagree, and why betting both sides is not arbitrage.", "datePublished": "2025-10-06T12:00:00+00:00", "dateModified": "2026-10-12T16:00:00+00:00", "author": {"@type": "Organization", "name": "Fourth & Value", "url": "https://fourthandvalue.com/"}, "publisher": {"@type": "Organization", "name": "Fourth & Value", "logo": {"@type": "ImageObject", "url": "https://fourthandvalue.com/assets/logo.svg"}}, "mainEntityOfPage": "https://fourthandvalue.com/blog/family_arbitrage_mnf.html", "articleSection": "Case study"}</script><meta property="article:published_time" content="2025-10-06T12:00:00+00:00"><meta property="article:section" content="Case study"></head>
+  <link rel="canonical" href="https://fourthandvalue.com/blog/family_arbitrage_mnf.html">
+  <meta property="og:title" content="Over receptions, under yards: the prop pair that looks free and isn’t">
+  <meta property="og:description" content="Betting over receptions and under yards on the same player looks like it can’t lose. It can. Every outcome, the math, and a 2025 Chiefs–Jaguars example.">
+  <meta property="og:url" content="https://fourthandvalue.com/blog/family_arbitrage_mnf.html">
+  <meta property="og:type" content="article">
+  <meta property="og:image" content="https://fourthandvalue.com/blog/prop-pair-2026/social.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="720">
+  <meta property="og:image:alt" content="Over 1.5 receptions and under 6.5 yards: one catch for 10 yards loses both bets.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://fourthandvalue.com/blog/prop-pair-2026/social.png">
+  <meta property="article:published_time" content="2026-10-12T16:00:00+00:00">
+  <meta property="article:section" content="Learning">
+<link rel="stylesheet" href="/assets/responsible-use.css?v=1"></head>
 <body>
   <div id="nav-root"></div>
   <script src="../nav.js?v=47"></script>
 
   <main class="wrap">
+    <header>
+      <div class="kicker"><span class="dot"></span>Fourth &amp; Value &middot; Learning &middot; Oct 12, 2026 &middot; 5 min read</div>
+      <h1>Over Receptions, Under Yards: The Prop Pair That Looks Free and Isn’t</h1>
+    </header><!-- fv-notices:notice:start --><aside id="fv-betting-notice" class="fv-use-notice" aria-label="Betting information disclaimer"><strong>Analysis, not a guarantee.</strong> Picks and projections are uncertain; odds and player information can change. No outcome or profit is guaranteed. Any wager is your decision and responsibility. <a href="/terms.html#responsible-play">Read our limitations and responsible-play guidance</a>.</aside><!-- fv-notices:notice:end -->
+
     <article>
-      <header>
-        <h1>🧬 When Books Contradict Themselves — and Why Our Model Doesn't</h1>
-        <div class="meta"><time datetime="2025-10-06">Oct 6, 2025</time> • 5 min read • Updated Oct 12, 2026</div>
-      </header><!-- fv-notices:notice:start --><aside id="fv-betting-notice" class="fv-use-notice" aria-label="Betting information disclaimer"><strong>Analysis, not a guarantee.</strong> Picks and projections are uncertain; odds and player information can change. No outcome or profit is guaranteed. Any wager is your decision and responsibility. <a href="/terms.html#responsible-play">Read our limitations and responsible-play guidance</a>.</aside><!-- fv-notices:notice:end -->
-      <aside class="fv-correction" style="border-left:3px solid #f0ab3d;background:rgba(240,171,61,.08);padding:12px 16px;border-radius:0 10px 10px 0;margin:16px 0 24px;font-size:15px;line-height:1.6"><strong>Updated Oct 12, 2026.</strong> We fact-checked this 2025 post. It called a pair of bets “arbitrage,” which it was not: arbitrage means a profit whatever happens, and over 1.5 receptions plus under 6.5 yards can both lose. Pacheco caught 3 passes for 20 yards, so the pair split. We also corrected the typical yards-per-catch range for running backs, and noted that dividing a yards line by a receptions line is only a rough screen for low-volume players.</aside>
+      <p>A running back is listed at 1.5 receptions and 6.5 receiving yards. Two catches for 5 yards would cash the over on catches <em>and</em> the under on yards. Bet both, the thinking goes, and the book has handed you a free shot at a double win.</p>
+      <p>It hasn’t. This pair can lose twice just as easily, and for most players it is more likely to. Here is every outcome, the math, and a real example from 2025.</p>
 
-      <p>Tonight's Kansas City Chiefs @ Jacksonville Jaguars matchup gave us a perfect live example of why our newest modeling framework — <strong>family-based multi-market modeling</strong> — matters. We now scan the entire market to check for coherence, grouping related player-prop families to identify lines that simply don't add up — cases where one stat (like receptions) implies an efficiency that makes the paired stat (like yards) look unlikely.</p>
-
-      <p>By analyzing the market as a whole rather than in isolation, bettors can uncover where sportsbooks have contradicted their own math — revealing possible mispricings before the books correct themselves.</p>
-
-      <h2>🧠 What's New in the Model</h2>
-
-      <p>As of October 2025, Fourth & Value's player-prop engine models related markets as <strong>families</strong> instead of isolated bets.</p>
-
-      <p>Each family shares a set of latent factors — such as volume, efficiency, and scoring rate — that keep projections internally consistent:</p>
-
-      <table>
-        <thead>
-          <tr>
-            <th>Family</th>
-            <th>Linked Markets</th>
-            <th>Key Shared Metric</th>
-          </tr>
-        </thead>
+      <h2>Every outcome</h2>
+      <p>Bet $110 to win $100 on each side at −110:</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>What happens</th><th>Over 1.5 catches</th><th>Under 6.5 yards</th><th>Net</th></tr></thead>
         <tbody>
-          <tr>
-            <td>Rush Family</td>
-            <td>rush_attempts ↔ rush_yds</td>
-            <td>Yards per Carry (YPC 2.5 – 6.5)</td>
-          </tr>
-          <tr>
-            <td>Receive Family</td>
-            <td>receptions ↔ recv_yds</td>
-            <td>Yards per Reception (YPR 6 – 18)</td>
-          </tr>
-          <tr>
-            <td>Pass Family</td>
-            <td>attempts ↔ completions ↔ pass_yds</td>
-            <td>Comp % 50 – 75 • Yds/Comp 5 – 12</td>
-          </tr>
+          <tr><td>0 catches</td><td class="neg">Loses</td><td class="best">Wins</td><td>−$10</td></tr>
+          <tr><td>1 catch, under 7 yards</td><td class="neg">Loses</td><td class="best">Wins</td><td>−$10</td></tr>
+          <tr><td>1 catch, 7+ yards</td><td class="neg">Loses</td><td class="neg">Loses</td><td class="neg">−$220</td></tr>
+          <tr><td>2+ catches, under 7 yards</td><td class="best">Wins</td><td class="best">Wins</td><td class="best">+$200</td></tr>
+          <tr><td>2+ catches, 7+ yards</td><td class="best">Wins</td><td class="neg">Loses</td><td>−$10</td></tr>
         </tbody>
-      </table>
+      </table></div>
+      <p>Most outcomes are a split, and a split loses the vig. The pair only makes money through the narrow both-win row, and it has a both-lose row of its own.</p>
 
-      <p>When a sportsbook moves one line (say, receptions) but doesn't move the other (receiving yards), the implied efficiency can fall outside those bounds. Our model never allows that. Each player's projection must satisfy all related markets simultaneously.</p>
+      <h2>The math</h2>
+      <p>At −110 on both sides, the pair breaks even only when the chance of a double win beats the chance of a double loss by about <strong>4.8 percentage points</strong>:</p>
+      <div class="formula">expected profit = $210 × (P(both win) − P(both lose)) − $10</div>
+      <p>For most players, that runs the wrong way. One catch for a decent gain is a lot more common than two or more catches that add up to almost nothing. With illustrative numbers for a pass-catching back, an 8% chance of a double win and an 18% chance of a double loss, the pair loses about <strong>$31 for every $220 bet</strong>, roughly −14%.</p>
 
-      <h2>⚙️ Why It Matters</h2>
+      <h2>A real example from 2025</h2>
+      <p>Before the Chiefs played the Jaguars on Monday night, October 6, 2025, six major sportsbooks listed Isiah Pacheco at 1.5 receptions and 6.5 receiving yards. At the time, we flagged the pair as an edge.</p>
+      <p>Pacheco caught 3 passes for 20 yards in Kansas City’s 31–28 loss. The receptions over won and the yards under lost: a split, and the vig was gone. That is a common way for this pair to finish, because two or more catches usually means more than 6.5 yards.</p>
 
-      <p>Traditional prop markets — and even most analytics models — treat every stat line independently. One trader adjusts rushing attempts for volume, another adjusts rushing yards for matchup. Over time, those independent adjustments drift apart.</p>
+      <h2>When the lines really do disagree</h2>
+      <p>Sometimes a book’s receptions and yards lines don’t fit together, and one of them is the better bet. The way to find out is to compare the probabilities the prices imply, then bet <strong>that side alone</strong>. Our guide to <a href="/blog/structural-arbitrage-explained.html">structural arbitrage</a> walks through the check.</p>
+      <p>The same trap shows up in the NBA. Over a player’s points and under his points + rebounds + assists only both win in a narrow band, when he scores plenty but barely rebounds or passes. Most of the time you get a split and pay the vig.</p>
 
-      <p>Family-based modeling fixes that by tying each market to its natural counterpart. If a back is projected for 14 carries and 65 yards, that's 4.6 YPC — realistic. If a book posts 14 carries and 95 yards (6.8 YPC), that's far outside a typical game. We catch that instantly, and it's often where inefficiencies appear.</p>
+      <h2>What real arbitrage looks like</h2>
+      <p>Real arbitrage covers every outcome of the <strong>same</strong> market at prices that add up to less than 100%. If one book offers +105 on a team and another offers +105 on its opponent, each side implies 48.78%, 97.56% in total. Bet $100 on each: one wins $105, the other loses $100, and you keep $5 whatever happens.</p>
+      <p>Even then, it can break. Books with different house rules may grade the “same” bet differently, limits can stop you from getting both sides down, and obvious pricing errors can be voided. Our <a href="/blog/settlement-rules.html">NHL rules guide</a> shows how mismatched rules turn an apparent sure thing into two losing tickets, and <a href="/blog/synthetic-hold.html">synthetic hold</a> shows how to spot a market whose best prices add up to less than 100%.</p>
 
-      <p>This coherence layer isn't about predicting better; it's about keeping the math real and revealing when books fail to do the same.</p>
+      <a class="cta" href="/blog/structural-arbitrage-explained.html"><b>Next: structural arbitrage</b><span>How to tell when a sportsbook’s related props really disagree, and which side to look at.</span></a>
 
-      <h2>🏈 Case Study: Isiah Pacheco's Receiving Lines</h2>
+      <section class="faq">
+        <h2>Frequently asked questions</h2>
+        <h3>Is betting over receptions and under receiving yards arbitrage?</h3>
+        <p>No. Arbitrage guarantees a profit whatever happens. Over receptions and under yards can both win, but they can also both lose, for example on one catch for 10 yards.</p>
+        <h3>When does the over receptions, under yards pair make money?</h3>
+        <p>At −110 on both bets, the pair only breaks even if the chance that both win is at least about 4.8 percentage points higher than the chance that both lose. For most players, one catch for a decent gain is more likely than several catches for almost nothing, so the pair loses money.</p>
+        <h3>What is real arbitrage in sports betting?</h3>
+        <p>Betting every outcome of the same market at different books when the prices add up to less than 100% implied probability, such as +105 on both sides of a game at two books. Even then, rule differences, limits and voided bets can break it.</p>
+      </section>
 
-      <p><strong>As of 2:09 PM ET on Oct 6, 2025</strong>, six major sportsbooks — BetMGM, BetOnline, Bovada, DraftKings, FanDuel, and William Hill — are offering the following:</p>
-
+      <h3>Related reading</h3>
       <ul>
-        <li><strong>Receptions:</strong> O/U 1.5</li>
-        <li><strong>Receiving Yards:</strong> O/U 6.5</li>
+        <li><a href="/blog/structural-arbitrage-explained.html">Structural Arbitrage: When Sportsbooks Contradict Themselves</a></li>
+        <li><a href="/blog/how-books-make-money.html">What Is Vig? How Sportsbooks Make Money and How to Remove It</a></li>
+        <li><a href="/blog/nfl-betting-rules.html">NFL Betting Rules: Overtime, Ties and Player Props</a></li>
       </ul>
 
-      <p>Do the math: <strong>6.5 ÷ 1.5 = 4.33 yards per reception</strong>.</p>
+      <p style="font-size:14px;color:var(--muted)">This guide replaces an earlier 2025 post at this address.</p>
 
-      <p>Running backs usually average about 6 to 9 yards per catch over a season, so 4.3 looks low. (Corrected: the original said 6 to 18, which is a wide receiver’s range.) But for a player who may catch only one or two passes, dividing one line by the other is only a rough screen: a prop line is closer to a midpoint than an average, and the chance of zero catches pulls the yards line down. Our <a href="/blog/structural-arbitrage-explained.html">structural arbitrage explainer</a> shows how to compare the probabilities instead.</p>
-
-      <h2>💡 The Structural Edge</h2>
-
-      <p>The original version of this post pointed out that both of these bets could win:</p>
-
-      <ul>
-        <li><strong>Bet Over 1.5 receptions</strong> (books expect 2+)</li>
-        <li><strong>Bet Under 6.5 yards</strong> (books expect &lt; 7)</li>
-      </ul>
-
-      <p>That is true: two catches for five yards cashes both. But it is <strong>not arbitrage</strong>. Arbitrage means a profit whatever happens, and this pair can also lose twice: one catch for 10 yards loses both. Each leg also carries the vig.</p>
-
-      <div class="highlight"><strong>What happened:</strong> Pacheco caught 3 passes for 20 yards in Kansas City’s 31–28 loss. The receptions over won and the yards under lost, a common way for this pair to split, because two or more catches usually means more than 6.5 yards. In this game the yards line was the one that proved too low.</div>
-
-      <h2>🚨 Other Violations — KC @ JAX</h2>
-
-      <table>
-        <thead>
-          <tr>
-            <th>Severity</th>
-            <th>Player</th>
-            <th>Book</th>
-            <th>Implied Eff.</th>
-            <th>Comment</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>High</td>
-            <td>Travis Etienne Jr.</td>
-            <td>Fanatics</td>
-            <td>2.5 rec → 10.5 yds = 4.2 YPR</td>
-            <td>Below RB floor</td>
-          </tr>
-          <tr>
-            <td>Medium</td>
-            <td>Kareem Hunt</td>
-            <td>BetMGM, BetOnline</td>
-            <td>1.5 rec → 7.5 yds = 5.0 YPR</td>
-            <td>Too low efficiency</td>
-          </tr>
-          <tr>
-            <td>Medium</td>
-            <td>Etienne Jr.</td>
-            <td>DraftKings</td>
-            <td>2.5 rec → 12.5 yds = 5.0 YPR</td>
-            <td>Understated YPR</td>
-          </tr>
-          <tr>
-            <td>Rush Fam</td>
-            <td>Xavier Worthy</td>
-            <td>BetMGM</td>
-            <td>1.5 att → 3.5 yds = 2.3 YPC</td>
-            <td>Below 2.5 minimum</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <p>Across all active books, tonight's model run flagged <strong>51 violations league-wide — 11 in this game alone</strong>.</p>
-
-      <h2>🧩 Model vs. Market Coherence</h2>
-
-      <table>
-        <thead>
-          <tr>
-            <th>Metric</th>
-            <th>Fourth & Value Model</th>
-            <th>Sportsbooks</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Implied YPC bounds</td>
-            <td>2.5 – 6.5 ✅</td>
-            <td>As low as 2.3 🚫</td>
-          </tr>
-          <tr>
-            <td>Implied YPR bounds</td>
-            <td>6 – 18 ✅</td>
-            <td>As low as 4.2 🚫</td>
-          </tr>
-          <tr>
-            <td>Completion % bounds</td>
-            <td>50 – 75 ✅</td>
-            <td>Occasional overshoot 🚫</td>
-          </tr>
-          <tr>
-            <td>Total violations (KC @ JAX)</td>
-            <td>0 ✅</td>
-            <td>11 🚫</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <h2>🔍 What It Means for Bettors</h2>
-
-      <p>When linked lines look inconsistent, check the probabilities, not just the ratio. Two bets that can both win can usually both lose too, so an inconsistency is a reason to look harder at one side, not a guaranteed edge.</p>
-
-      <p>Family-based modeling gives us the visibility to spot these mismatches the moment they appear. We still model performance and probability, but this added layer shows when the books have priced themselves into a corner.</p>
-
-      <div class="highlight">
-        <strong>✅ Model Coherence Check</strong><br>
-        Our model produced over 100 player projections for tonight's slate with <strong>0 violations</strong>. Every efficiency metric stayed within realistic NFL ranges. The books? 11 in one game.
-      </div>
-
-      <h2>🧭 Conclusion</h2>
-
-      <p>Family-based modeling does two things:</p>
-
-      <ol>
-        <li>It keeps every projection grounded in real-world efficiency.</li>
-        <li>It surfaces opportunities when sportsbooks don't follow their own math.</li>
-      </ol>
-
-      <p>The Pacheco case shows how independent line-setting can produce lines that look inconsistent. A coherence check finds them; deciding which side, if either, is mispriced still takes probability, price and context.</p>
-
-      <p>As sportsbooks get sharper, these gaps will close. Until then, our coherence checks will keep flagging when the numbers simply don't add up, and that's where to start looking for value.</p>
-
-      <p style="margin-top: 2em;"><strong>📚 Learn more about our modeling framework:</strong><br>
-      <a href="../methods.html">Methods: How Fourth & Value Models Player Props</a></p>
-
-      <a class="back" href="./index.html">← Back to Blog</a>
+      <a class="back" href="/blog/">← Back to Blog</a>
     </article>
   </main>
 <!-- fv-notices:footer:start --><section id="fv-responsible-footer" class="fv-use-footer" aria-label="Responsible use"><p>Fourth &amp; Value provides sports analysis for informational and entertainment purposes. We do not accept wagers. You are responsible for your wagering decisions and for meeting applicable age and legal requirements. Never wager money you cannot afford to lose.</p><p><a href="/terms.html">Terms &amp; privacy</a> · <a href="/terms.html#responsible-play">Responsible play</a> · U.S. gambling support: call or text <a href="tel:+18006973738">1-800-MY-RESET</a> or <a href="https://www.ncpgambling.org/help-treatment/">find confidential help</a>.</p></section><!-- fv-notices:footer:end --></body>

@@ -4,232 +4,183 @@
   <meta charset="utf-8" />
   <title>How Much Home Field Advantage Matters in NFL Player Props</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="How much does home field move NFL player props? Measured on 2012–2025 games: about 1.4% for passing and receiving yards, and about 5% for touchdowns." />
+  <meta name="description" content="Measured on 2012–2025 NFL games: home field moves passing and receiving yards about 1.4% and touchdowns about 5%. What that means for player props." />
   <link rel="icon" href="../assets/logo.svg" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "Article",
+ "headline": "Home Field Advantage in Player Props: Small for Yards, Bigger for Touchdowns",
+ "description": "Measured on 2012–2025 NFL games: home field moves passing and receiving yards about 1.4% and touchdowns about 5%. What that means for player props.",
+ "image": ["https://fourthandvalue.com/blog/home-field-2026/social.png"],
+ "datePublished": "2026-10-12T16:00:00+00:00",
+ "dateModified": "2026-10-12T16:00:00+00:00",
+ "author": {"@type": "Organization", "name": "Fourth & Value", "url": "https://fourthandvalue.com/"},
+ "publisher": {"@type": "Organization", "name": "Fourth & Value", "logo": {"@type": "ImageObject", "url": "https://fourthandvalue.com/assets/logo.svg"}},
+ "mainEntityOfPage": "https://fourthandvalue.com/blog/home-away-field-advantage.html",
+ "articleSection": "Learning",
+ "keywords": ["home field advantage", "player props", "NFL", "home away splits", "anytime touchdown"]
+}
+  </script>
+  <script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "FAQPage",
+ "mainEntity": [
+  {"@type": "Question", "name": "How much does home field advantage affect NFL player props?", "acceptedAnswer": {"@type": "Answer", "text": "Less than most bettors assume for yardage. Measured on 2012–2025 games, home teams gain about 1.4% in passing and receiving yards and about 2.4% in rushing yards. Touchdowns move more, about 5%."}},
+  {"@type": "Question", "name": "Do player home and away splits predict props?", "acceptedAnswer": {"@type": "Answer", "text": "In our testing, no. Once league-wide venue effects were in the forecast, a player's own home/away split added nothing measurable. Eight or nine home games a season is too small a sample to separate a real split from noise."}},
+  {"@type": "Question", "name": "How many points is NFL home field advantage worth?", "acceptedAnswer": {"@type": "Answer", "text": "Historically, home teams outscored visitors by roughly 2 to 3 points per game. Several analyses found the edge smaller since 2019."}}
+ ]
+}
+  </script>
   <style>
-    :root { --max: 860px; --bg:#0b0b0b; --fg:#e9e9e9; --muted:#b9b9b9; --line:#222; --input:#121212; --link:#8ab4ff; }
-    html,body { margin:0; background:var(--bg); color:var(--fg); }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; line-height:1.65; }
-    a { color: var(--link); text-decoration: underline; }
-    .wrap { max-width: var(--max); margin: 0 auto; padding: 16px; }
-    h1 { margin: 8px 0 4px; line-height: 1.3; }
-    .meta { font-size:.9rem; color: var(--muted); margin: 6px 0 18px; }
-    article h2, article h3 { margin-top: 1.4em; color: #f5f5f5; }
-    article p { margin: 1em 0; }
-    article ul, article ol { margin: 1em 0; padding-left: 24px; }
-    article li { margin: 0.5em 0; }
-    code, pre { background:#0f0f0f; border:1px solid var(--line); border-radius:8px; color:#e6e6e6; }
-    pre { padding:12px; overflow:auto; margin: 1.2em 0; }
-    .highlight { background: #1a2332; border-left: 3px solid #8ab4ff; padding: 16px; margin: 1.5em 0; border-radius: 6px; }
-    .example { background: #0f1419; border: 1px solid #2a2a2a; padding: 16px; margin: 1.5em 0; border-radius: 8px; }
-    .example-header { font-weight: 600; color: #4ade80; margin-bottom: 8px; font-size: 0.95rem; }
-    .back { display:inline-block; margin-top: 28px; color: var(--link); }
-    table { width: 100%; border-collapse: collapse; margin: 1.5em 0; font-size: 0.9rem; }
-    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line); }
-    th { background: #0f0f0f; font-weight: 600; color: #f5f5f5; }
-    td { color: var(--fg); }
-    .num { text-align: right; font-variant-numeric: tabular-nums; }
-    .green { color: #4ade80; }
-    .red { color: #f87171; }
-    strong { color: #f5f5f5; }
+    :root{
+      --bg:#0b0e13; --surface:#12161d; --ink:#eef1f5; --muted:#8b93a1; --line:#232a35;
+      --accent:#6ea8fe; --good:#2dd4bf; --warn:#f0ab3d;
+    }
+    *{box-sizing:border-box}
+    html,body{ margin:0; background:var(--bg); }
+    body{ color:var(--ink); font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
+    a{ color:var(--accent); }
+    .wrap{ max-width:720px; margin:0 auto; padding:40px 24px 96px; }
+    .kicker{ font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); display:flex; align-items:center; gap:10px; margin-bottom:22px; }
+    .kicker .dot{ width:6px; height:6px; border-radius:50%; background:var(--accent); }
+    h1{ font-family:'Fraunces',serif; font-weight:600; font-size:clamp(32px,5.6vw,48px); line-height:1.08; letter-spacing:-.01em; margin:0 0 18px; text-wrap:balance; }
+    article{ font-size:17px; line-height:1.7; }
+    article p{ margin:0 0 22px; }
+    article ul{ margin:0 0 22px; padding-left:22px; }
+    article li{ margin-bottom:10px; }
+    h2{ font-family:'Fraunces',serif; font-weight:600; font-size:28px; line-height:1.2; margin:52px 0 16px; }
+    h3{ font-size:18px; margin:32px 0 10px; }
+    .formula{ font-family:'JetBrains Mono',monospace; font-size:15px; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 18px; margin:0 0 22px; line-height:1.8; overflow-x:auto; }
+    .tbl-wrap{ overflow-x:auto; margin:8px 0 22px; border:1px solid var(--line); border-radius:12px; position:relative; }
+    table{ width:100%; border-collapse:collapse; font-size:14.5px; }
+    th,td{ padding:10px 14px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap; }
+    th:first-child,td:first-child{ text-align:left; }
+    th{ font-weight:600; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.06em; background:var(--surface); }
+    td{ font-family:'JetBrains Mono',monospace; }
+    td:first-child{ font-family:'Inter',sans-serif; }
+    tr:last-child td{ border-bottom:0; }
+    td.best{ color:var(--good); font-weight:700; }
+    td.neg{ color:var(--warn); }
+    .callout{ border-left:3px solid var(--accent); background:color-mix(in oklab, var(--accent) 8%, var(--surface)); border-radius:0 12px 12px 0; padding:18px 22px; margin:28px 0; font-size:15.5px; line-height:1.65; }
+    .callout p{ margin:0 0 12px; }
+    .callout p:last-child{ margin:0; }
+    .callout .tag{ font-family:'JetBrains Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--accent); display:block; margin-bottom:8px; font-weight:700; }
+    .cta{ display:block; text-decoration:none; background:var(--surface); border:1px solid var(--accent); border-radius:14px; padding:20px 22px; margin:32px 0; color:var(--ink); }
+    .cta b{ font-family:'Fraunces',serif; font-size:21px; display:block; margin-bottom:4px; }
+    .cta span{ color:var(--muted); font-size:15px; }
+    .cta:hover{ background:color-mix(in oklab, var(--accent) 8%, var(--surface)); }
+    .faq h3{ margin-top:26px; }
+    .back{ display:inline-block; margin-top:40px; color:var(--accent); }
+    @media (max-width:560px){ .wrap{ padding:28px 16px 72px; } h2{ font-size:24px; } th,td{ padding:9px 10px; white-space:normal; } }
   </style>
-<link rel="canonical" href="https://fourthandvalue.com/blog/home-away-field-advantage.html"><meta property="og:title" content="How Much Home Field Advantage Matters in NFL Player Props"><meta property="og:description" content="How much does home field move NFL player props? Measured on 2012–2025 games: about 1.4% for passing and receiving yards, and about 5% for touchdowns."><meta property="og:url" content="https://fourthandvalue.com/blog/home-away-field-advantage.html"><meta property="og:type" content="website"><link rel="stylesheet" href="/assets/responsible-use.css?v=1"><meta property="og:image" content="https://fourthandvalue.com/assets/social-card.png"><meta property="og:image:alt" content="Fourth &amp; Value"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="https://fourthandvalue.com/assets/social-card.png"><script type="application/ld+json">{"@context": "https://schema.org", "@type": "Article", "headline": "Home Field Advantage: Why Location Matters in NFL Player Props", "description": "How much does home field move NFL player props? Measured on 2012–2025 games: about 1.4% for passing and receiving yards, and about 5% for touchdowns.", "datePublished": "2025-10-08T12:00:00+00:00", "dateModified": "2026-10-12T16:00:00+00:00", "author": {"@type": "Organization", "name": "Fourth & Value", "url": "https://fourthandvalue.com/"}, "publisher": {"@type": "Organization", "name": "Fourth & Value", "logo": {"@type": "ImageObject", "url": "https://fourthandvalue.com/assets/logo.svg"}}, "mainEntityOfPage": "https://fourthandvalue.com/blog/home-away-field-advantage.html", "articleSection": "Modeling"}</script><meta property="article:published_time" content="2025-10-08T12:00:00+00:00"><meta property="article:section" content="Modeling"></head>
+  <link rel="canonical" href="https://fourthandvalue.com/blog/home-away-field-advantage.html">
+  <meta property="og:title" content="Home field advantage in player props: small for yards, bigger for touchdowns">
+  <meta property="og:description" content="Measured on 2012–2025 NFL games: home field moves passing and receiving yards about 1.4% and touchdowns about 5%. What that means for player props.">
+  <meta property="og:url" content="https://fourthandvalue.com/blog/home-away-field-advantage.html">
+  <meta property="og:type" content="article">
+  <meta property="og:image" content="https://fourthandvalue.com/blog/home-field-2026/social.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="720">
+  <meta property="og:image:alt" content="Home field in NFL player props: about 1.4% for yards and about 5% for touchdowns.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://fourthandvalue.com/blog/home-field-2026/social.png">
+  <meta property="article:published_time" content="2026-10-12T16:00:00+00:00">
+  <meta property="article:section" content="Learning">
+<link rel="stylesheet" href="/assets/responsible-use.css?v=1"></head>
 <body>
   <div id="nav-root"></div>
   <script src="../nav.js?v=47"></script>
 
   <main class="wrap">
+    <header>
+      <div class="kicker"><span class="dot"></span>Fourth &amp; Value &middot; Learning &middot; Oct 12, 2026 &middot; 6 min read</div>
+      <h1>Home Field Advantage in Player Props: Small for Yards, Bigger for Touchdowns</h1>
+    </header><!-- fv-notices:notice:start --><aside id="fv-betting-notice" class="fv-use-notice" aria-label="Betting information disclaimer"><strong>Analysis, not a guarantee.</strong> Picks and projections are uncertain; odds and player information can change. No outcome or profit is guaranteed. Any wager is your decision and responsibility. <a href="/terms.html#responsible-play">Read our limitations and responsible-play guidance</a>.</aside><!-- fv-notices:notice:end -->
+
     <article>
-      <header>
-        <h1>Home Field Advantage: Why Location Matters in NFL Player Props</h1>
-        <div class="meta">
-          <time datetime="2025-10-08">Oct 8, 2025</time> • 6 min read • Updated Oct 12, 2026
-        </div>
-      </header><!-- fv-notices:notice:start --><aside id="fv-betting-notice" class="fv-use-notice" aria-label="Betting information disclaimer"><strong>Analysis, not a guarantee.</strong> Picks and projections are uncertain; odds and player information can change. No outcome or profit is guaranteed. Any wager is your decision and responsibility. <a href="/terms.html#responsible-play">Read our limitations and responsible-play guidance</a>.</aside><!-- fv-notices:notice:end -->
-      <aside class="fv-correction" style="border-left:3px solid #f0ab3d;background:rgba(240,171,61,.08);padding:12px 16px;border-radius:0 10px 10px 0;margin:16px 0 24px;font-size:15px;line-height:1.6"><strong>Updated Oct 12, 2026.</strong> We fact-checked this 2025 post against our own later research. The home/away multipliers it describes were too large for yardage: measured on 2012–2025 games, home teams gain about 1.4% in passing and receiving yards, not 6%. The touchdown factors were close. We also fixed the Mahomes arithmetic and the historical points figure. The model now uses the measured values; see <a href="/research/player-matchups-and-home-field.html">Player Matchups and Home Field</a>.</aside>
+      <p>Everyone knows home field matters. For player props, the useful question is how much, stat by stat. A quarterback’s passing yards, a receiver’s catches and a running back’s chance of scoring don’t all move by the same amount when the game is at home.</p>
+      <p>We measured it on NFL games from 2012 through 2025. The short answer: home field barely moves yardage, and it moves touchdowns quite a bit more.</p>
 
-      <h2>Why It Matters</h2>
+      <h2>The team-level edge</h2>
+      <p>Historically, NFL home teams have outscored visitors by roughly <strong>2 to 3 points per game</strong>. Several analyses found the edge noticeably smaller from 2019 on, and almost nothing in 2020, when most games were played in empty stadiums. Point spreads already build this in.</p>
 
-      <p>You probably know that home-field advantage matters. What most bettors haven't done is quantify it — especially at the player level.</p>
-
-      <p>It's easy to think of "home field" as just crowd noise or comfort. But when you model player performance week to week, location quietly shifts outcomes across almost every stat line. Quarterbacks throw cleaner balls. Receivers run sharper routes. Offensive lines jump less. The result: small, measurable efficiency bumps that add up over hundreds of plays.</p>
-
-      <p><strong>When you're betting player props, you're not handicapping the player in a vacuum—you're handicapping the environment.</strong> A road QB at 240.5 yards isn't the same bet as a home QB at 240.5.</p>
-
-      <p>That's why Fourth & Value now integrates location-based adjustments directly into every projection.</p>
-
-      <h2>The Measurable Edge</h2>
-
-      <p>Across many seasons of NFL data, home teams:</p>
-
-      <ul>
-        <li><strong>Outscore visitors by about 2 to 3 points per game</strong> historically, an edge that has been smaller in recent seasons</li>
-        <li><strong>Gain a little more yardage</strong>: about 1.4% more passing and receiving yards and 2.4% more rushing yards in our measurement</li>
-        <li><strong>Score touchdowns more often</strong>: about 5% more, the largest player-level effect we found</li>
-      </ul>
-
-      <p>Here is what our model used in 2025, next to what we later measured:</p>
-
-      <table>
-        <thead>
-          <tr>
-            <th>Market</th>
-            <th class="num">2025 multiplier (home / away)</th>
-            <th class="num">Measured, 2012–2025</th>
-          </tr>
-        </thead>
+      <h2>What home field does to player stats</h2>
+      <p>For each stat, we compared players’ actual output with what was expected, separately at home and away, leaving out neutral-site games. Then we tested the fitted factors on later seasons the fit never saw. This is what we found:</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Stat</th><th>Home</th><th>Away</th><th>Likely range (home)</th></tr></thead>
         <tbody>
-          <tr>
-            <td><strong>Pass Yards</strong></td>
-            <td class="num">+6% / −6%</td>
-            <td class="num">+1.4% / −1.4%</td>
-          </tr>
-          <tr>
-            <td><strong>Pass TDs</strong></td>
-            <td class="num">+6% / −6%</td>
-            <td class="num">+4.6% / −4.6%</td>
-          </tr>
-          <tr>
-            <td><strong>Interceptions</strong></td>
-            <td class="num">−5% / +5%</td>
-            <td class="num">−1.8% / +1.8%</td>
-          </tr>
-          <tr>
-            <td><strong>Rush Yards</strong></td>
-            <td class="num">+4% / −4%</td>
-            <td class="num">+2.4% / −2.4%</td>
-          </tr>
-          <tr>
-            <td><strong>Rush Attempts</strong></td>
-            <td class="num">+2% / −2%</td>
-            <td class="num">+1.7% / −1.7%</td>
-          </tr>
-          <tr>
-            <td><strong>Receiving Yards</strong></td>
-            <td class="num">+6% / −6%</td>
-            <td class="num">+1.4% / −1.4%</td>
-          </tr>
-          <tr>
-            <td><strong>Receptions</strong></td>
-            <td class="num">+3% / −3%</td>
-            <td class="num">+0.7% / −0.7%</td>
-          </tr>
-          <tr>
-            <td><strong>Anytime TD</strong></td>
-            <td class="num">+5% / −5%</td>
-            <td class="num">+5.4% / −5.3%</td>
-          </tr>
+          <tr><td>Passing yards</td><td>+1.4%</td><td>−1.4%</td><td>+0.6% to +2.2%</td></tr>
+          <tr><td>Receiving yards</td><td>+1.4%</td><td>−1.4%</td><td>+0.5% to +2.2%</td></tr>
+          <tr><td>Rushing yards</td><td>+2.4%</td><td>−2.4%</td><td>+0.9% to +3.8%</td></tr>
+          <tr><td>Rush attempts</td><td>+1.7%</td><td>−1.7%</td><td>+0.7% to +2.7%</td></tr>
+          <tr><td>Receptions</td><td>+0.7%</td><td>−0.7%</td><td>−0.1% to +1.4%</td></tr>
+          <tr><td>Pass attempts</td><td>−0.2%</td><td>+0.2%</td><td>−1.1% to +0.6%</td></tr>
+          <tr><td>Completions</td><td>+0.8%</td><td>−0.8%</td><td>−0.1% to +1.6%</td></tr>
+          <tr><td>Passing TDs</td><td class="best">+4.6%</td><td>−4.6%</td><td>+2.8% to +6.4%</td></tr>
+          <tr><td>Anytime TD</td><td class="best">+5.4%</td><td>−5.3%</td><td>+3.8% to +6.8%</td></tr>
+          <tr><td>Interceptions</td><td>−1.8%</td><td>+1.8%</td><td>−5.1% to +1.2%</td></tr>
         </tbody>
-      </table>
-      <p style="font-size: 0.9rem; color: var(--muted);"><em>Corrected Oct 12, 2026: the measured column comes from our <a href="/research/player-matchups-and-home-field.html">2026 home-field research</a>, which fitted each gap on 2012–2025 games and tested it on held-out seasons. The yardage multipliers we used in 2025 were about four times too large. Touchdown factors held up.</em></p>
+      </table></div>
+      <p>The likely range is a 95% interval. Where it crosses zero, as for receptions, pass attempts, completions and interceptions, we can’t say the effect is real at all. The full method and data are in our research report, <a href="/research/player-matchups-and-home-field.html">Player Matchups and Home Field</a>.</p>
 
-      <p><strong>Why the differences?</strong></p>
+      <h2>What that looks like in a projection</h2>
+      <p><strong>Yardage barely moves.</strong> A quarterback projected for 280 passing yards at a neutral site projects to about 284 at home and 276 on the road. That 8-yard swing is small next to how much a quarterback’s output varies from game to game.</p>
+      <p><strong>Touchdowns move more.</strong> Take a running back with a 40% chance to score at a neutral site, a fair price of +150:</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Venue</th><th>Chance to score</th><th>Fair price</th></tr></thead>
+        <tbody>
+          <tr><td>Home</td><td>42.2%</td><td>+137</td></tr>
+          <tr><td>Neutral</td><td>40.0%</td><td>+150</td></tr>
+          <tr><td>Away</td><td>37.9%</td><td>+164</td></tr>
+        </tbody>
+      </table></div>
+      <p>A swing from +137 to +164 is real money on a touchdown prop, while the same venue effect is a rounding error on most yardage lines. We can’t say for certain why scoring moves more than yardage. One plausible reason is that touchdowns are the payoff of whole drives, so a small edge on each play compounds by the time a team reaches the end zone.</p>
 
+      <h2>“He’s a different player at home”</h2>
+      <p>Bettors often point to a player’s personal home/away split. We tested that too. Once the league-wide venue effects above were in the forecast, a player’s own split added <strong>nothing measurable</strong>, and the same was true of his history against a particular opponent.</p>
+      <p>The reason is sample size. A player gets eight or nine home games a season. A split built on a few dozen games is mostly noise, and in our tests it didn’t carry forward to future games.</p>
+
+      <h2>Other sports</h2>
       <ul>
-        <li><strong>Scoring moves more than yardage.</strong> Touchdown props carry the biggest venue effect, about 5%.</li>
-        <li><strong>Yardage barely moves.</strong> Passing and receiving yards gain about 1.4% at home. Pass attempts and completions show no reliable venue effect.</li>
-        <li><strong>Interceptions lean the right way</strong>, slightly fewer at home, but the measured effect is small and uncertain.</li>
+        <li><strong>MLB:</strong> per plate appearance, home batters get about 2% more hits, 3% more home runs and 7% more walks (including hit-by-pitches), and strike out about 4% less, from the same study.</li>
+        <li><strong>NHL:</strong> we tested personal venue splits for hockey as well, and they are not inputs to our model.</li>
+        <li><strong>NBA:</strong> we have not yet measured venue effects for NBA player props. Until we do, the same caution applies: a player’s personal home/away split from one season is mostly noise.</li>
       </ul>
 
-      <div class="example">
-        <div class="example-header">📊 Real Example</div>
-        <p>Under the 2025 multipliers, a quarterback with a 280-yard neutral projection became about 297 at home and 263 on the road, a <strong>34-yard swing</strong>. With the measured ±1.4%, it is about 284 at home and 276 on the road, an <strong>8-yard swing</strong>. (Corrected: the original example applied the road factor to a home projection.)</p>
-      </div>
-
-      <h2>How It Shows Up in Week 6</h2>
-
-      <h3>Passing Yards</h3>
+      <h2>What it means for your bets</h2>
       <ul>
-        <li><strong>Home QBs:</strong> 152.1-yard average (n = 3)</li>
-        <li><strong>Away QBs:</strong> 134.6-yard average (n = 4)</li>
-        <li><strong>Difference:</strong> +13% advantage at home</li>
-      </ul>
-      <p>The 2025 model moved a road QB at 240.5 yards down to about 226. With the measured factor, the move is about 3 yards, to roughly 237.</p>
-
-      <h3>Receiving Yards</h3>
-      <ul>
-        <li><strong>Home WRs/TEs:</strong> 42.0 yards vs 36.6 away (+15%)</li>
-      </ul>
-      <p>A 60-yard baseline becomes 56 on the road, often tightening the over/under band.</p>
-
-      <h3>Rushing Yards</h3>
-      <ul>
-        <li><strong>Home RBs:</strong> 54.4 yards vs 50.8 away (+7%)</li>
-      </ul>
-      <p>Not dramatic, but enough to shift marginal edges.</p>
-
-      <p style="font-size: 0.9rem; color: var(--muted);"><em>Corrected note: with three and four quarterbacks, these one-week gaps are mostly noise. They do not match the long-run splits, which are much smaller (about 1–2% for yardage).</em></p>
-
-      <h2>Layering Context</h2>
-
-      <p>Every projection now combines two context layers:</p>
-
-      <ol>
-        <li><strong>Opponent Defense</strong> (±15%)</li>
-        <li><strong>Game Location</strong> (±3–6% in 2025; the measured yardage effect is about ±1–2%)</li>
-      </ol>
-
-      <p>For example:</p>
-
-      <div class="example">
-        <p><strong>Road RB vs. tough defense:</strong><br>
-        Starts at 80 yards → 68 after defense → <strong>65 after location</strong> (−18% total)</p>
-
-        <p style="margin-top: 1em;"><strong>Home WR vs. weak defense:</strong><br>
-        Starts at 60 yards → 69 after defense → <strong>73 after location</strong> (+22% total)</p>
-      </div>
-
-      <p>Stacking layers creates big spreads between good and bad spots, which is exactly why each layer has to be sized from evidence. Oversized adjustments produce edges that are not really there.</p>
-
-      <h2>Before and After</h2>
-
-      <div class="example">
-        <p><strong>Before this update:</strong><br>
-        Model sees Mahomes at 280 yards → Market offers Over 265.5 → Model thinks "+15 yard edge!" → Reality: He's on the road (263 actual projection) → <span class="red"><strong>False edge</strong></span></p>
-
-        <p style="margin-top: 1em;"><strong>After this update:</strong><br>
-        Model adjusts to 263 yards → Market offers Over 265.5 → Model passes → <span class="green"><strong>Avoided a -EV bet</strong></span></p>
-      </div>
-
-      <p style="font-size: 0.9rem; color: var(--muted);"><em>Corrected Oct 12, 2026: with the measured factor, the road projection is about 276 yards, so the over 265.5 still shows a gap of about 10 yards. The “avoided bet” above came from an adjustment that was too large, not from evidence.</em></p>
-
-      <h2>Coverage & Transparency</h2>
-
-      <p>We're applying home/away adjustments to <strong>80.5% of all props</strong> (206 out of 256 player-markets in Week 6):</p>
-
-      <ul>
-        <li>✅ <strong>91 home games</strong> (35.5%)</li>
-        <li>✅ <strong>115 away games</strong> (44.9%)</li>
-        <li>❌ <strong>50 unknown</strong> (19.5%) — primarily Defense/Special Teams units and recently traded players</li>
+        <li><strong>Don’t move a yardage projection much for venue</strong>: a percent or two, not five or ten.</li>
+        <li><strong>Do account for it on touchdown props</strong>, where it is worth a couple of percentage points of probability.</li>
+        <li><strong>Ignore personal splits and “owns this team” narratives.</strong> They didn’t predict anything in our tests.</li>
+        <li><strong>Remember the books know this too.</strong> The edge is not knowing that home field exists; it is sizing it correctly when a line doesn’t.</li>
       </ul>
 
-      <p>For props without home/away data, we apply <strong>no adjustment</strong> (conservative approach). This means we're only adjusting when we have high-confidence location data.</p>
+      <a class="cta" href="/research/player-matchups-and-home-field.html"><b>Read the research</b><span>Player matchups and home field across the NFL, NHL and MLB, with the full method and evidence.</span></a>
 
-      <h2>What's Next</h2>
+      <section class="faq">
+        <h2>Frequently asked questions</h2>
+        <h3>How much does home field advantage affect NFL player props?</h3>
+        <p>Less than most bettors assume for yardage. Measured on 2012–2025 games, home teams gain about 1.4% in passing and receiving yards and about 2.4% in rushing yards. Touchdowns move more, about 5%.</p>
+        <h3>Do player home and away splits predict props?</h3>
+        <p>In our testing, no. Once league-wide venue effects were in the forecast, a player’s own home/away split added nothing measurable. Eight or nine home games a season is too small a sample to separate a real split from noise.</p>
+        <h3>How many points is NFL home field advantage worth?</h3>
+        <p>Historically, home teams outscored visitors by roughly 2 to 3 points per game. Several analyses found the edge smaller since 2019.</p>
+      </section>
 
-      <p><strong>Update, October 2026:</strong> we tested the ideas planned here. Each player’s own home/away split added nothing measurable once league-wide venue effects were in the forecast, so “road warrior” splits are not model inputs. The NFL model now uses the league-wide factors measured on 2012–2025 games, shown in the table above. The full study, across the NFL, NHL and MLB, is <a href="/research/player-matchups-and-home-field.html">Player Matchups and Home Field</a>.</p>
+      <h3>Related reading</h3>
+      <ul>
+        <li><a href="/research/player-matchups-and-home-field.html">Player Matchups and Home Field in Prop Forecasts</a></li>
+        <li><a href="/blog/the-under-tilt.html">Do Unders Hit More in NFL Props? 42,362 Lines Checked</a></li>
+        <li><a href="/methods.html">NFL methods</a></li>
+      </ul>
 
-      <h2>The Takeaway</h2>
+      <p style="font-size:14px;color:var(--muted)">This guide replaces an earlier 2025 post at this address.</p>
 
-      <p><strong>Handicapping player props isn't just about the player — it's about the environment.</strong></p>
-
-      <p>Defensive matchups, recent form and home-field context all matter. But home field matters less for yardage than most bettors assume, and more for touchdowns.</p>
-
-      <hr style="border: none; border-top: 1px solid var(--line); margin: 2em 0;">
-
-      <p style="font-size: 0.9rem; color: var(--muted);">
-        <strong>📘 See it in action:</strong> Home/away adjustments are now baked into all model projections. The model probabilities you see already account for game location.
-      </p>
-
-      <p style="font-size: 0.9rem; color: var(--muted);">
-        <strong>📖 Full methodology:</strong> See the updated <a href="../methods.html">Methods page</a> for complete details on how location, defense, and recency interact in our projections.
-      </p>
-
-      <p style="font-size: 0.9rem; color: var(--muted);">
-        <strong>💬 Questions?</strong> Find us on <a href="https://x.com/fourthandvalue">X/Twitter @fourthandvalue</a>.
-      </p>
-
-      <a class="back" href="./index.html">← Back to Blog</a>
+      <a class="back" href="/blog/">← Back to Blog</a>
     </article>
   </main>
 <!-- fv-notices:footer:start --><section id="fv-responsible-footer" class="fv-use-footer" aria-label="Responsible use"><p>Fourth &amp; Value provides sports analysis for informational and entertainment purposes. We do not accept wagers. You are responsible for your wagering decisions and for meeting applicable age and legal requirements. Never wager money you cannot afford to lose.</p><p><a href="/terms.html">Terms &amp; privacy</a> · <a href="/terms.html#responsible-play">Responsible play</a> · U.S. gambling support: call or text <a href="tel:+18006973738">1-800-MY-RESET</a> or <a href="https://www.ncpgambling.org/help-treatment/">find confidential help</a>.</p></section><!-- fv-notices:footer:end --></body>
