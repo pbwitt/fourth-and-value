@@ -23,6 +23,21 @@ review `scripts/research/daily_process.html`, regenerate the page, and run
    group the highest blended-EV score (`score`) is reviewed first and kickoff
    only breaks ties, so the batch limit cannot skip a strong late game for a
    weaker early one. The lower-reliability tier still follows.
+   Targeted verification (`scripts/research_verify.py`) runs just before a
+   batch is reviewed, for the first `verification_candidates` (6) in queue
+   order, at most `verification_per_batch` (2) per batch so each sport's
+   leaders are covered. Each is one isolated web search about that exact bet,
+   contrary evidence first (injury/practice status of player, teammates and
+   opponents, role and lineup changes, weather, published analyst picks and
+   projections). It returns at most three links that the search itself found;
+   `evidence.targeted` fetches each trusted, dated page and the review must
+   quote that text. The model's notes and other outlets' picks are never
+   evidence. One search is reserved like discovery (131,072 search-context
+   tokens, request bytes twice, output ceiling 4,000, $0.01) and settled on the
+   shared daily ledger; a candidate searched earlier that day reuses its saved
+   links instead of paying again. Discovery's single search now starts with
+   published expert picks and best bets; each lead records `lead_type`,
+   `outlet` and `published_line` so outlets can be graded later.
    Consider/wait/pass assessments precede reliability and numerical ordering.
    Changed evidence gets rechecked; unchanged price, forecast and evidence can
    reuse a review for three hours with the original timestamp preserved.
@@ -335,7 +350,7 @@ search-context-size setting; conservative search reservations still include
 maximum, $0.01 search fee ($10 per 1,000 searches) and margin. Refusals,
 truncation (`max_tokens`) and paused turns are incomplete responses and fail
 closed. Each Claude research call has a five-minute read timeout and the
-research job allows 75 minutes. Bounds can exceed remaining funds even when
+research job allows 90 minutes. Bounds can exceed remaining funds even when
 expected actual cost is small; skip rather than guess. Before the switch, a morning of discovery plus
 eight review batches settled at about $0.24 on Sol.
 

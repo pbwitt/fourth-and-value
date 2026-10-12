@@ -18,6 +18,7 @@ import model_api
 from nhl.v2 import astra, evidence
 import research_budget as daily_budget
 import research_discovery
+import research_verify
 from nhl.v2.data import ROOT, digest, iso, stamp, write_json
 
 ARCHIVE = ROOT/'artifacts/analyst'
@@ -364,6 +365,9 @@ def run_queue(boards, feeds, config, archive, clock, assessment_update=False):
     stopped=False
     attempts=0
     limit=max(1,int(config.get('max_review_batches',8)))
+    # Targeted searches go to the first, strongest candidates in queue order.
+    verify_left=max(0,int(config.get('verification_candidates',0)))
+    verify_each=max(1,int(config.get('verification_per_batch',3)))
     stop_reason=None
     while not stopped and any(b.get('_research_queue',{}).get('pending') for b in boards):
         for board in boards:
@@ -373,7 +377,20 @@ def run_queue(boards, feeds, config, archive, clock, assessment_update=False):
                 stopped=True;stop_reason='review_limit_reached';break
             batch={k:v for k,v in board.items() if k!='_research_queue'}
             batch['candidates']=queue['pending'][:size]
-            batch['_prepared_evidence']=(queue['sources'],queue['diagnostics'])
+            sources=queue['sources']
+            if verify_left:
+                try:
+                    found,records=research_verify.run(batch['candidates'][:min(verify_left,verify_each)],batch['candidates'],config,archive,clock)
+                except Exception as error:
+                    found,records=[],[dict(status='verification_unavailable',error=type(error).__name__)]
+                verify_left-=sum(r['status'] in ('completed','reused','verification_unavailable') for r in records)
+                if any(r['status'] in ('budget_exhausted','budget_halted') for r in records):verify_left=0
+                board.setdefault('verification',[]).extend(records)
+                # Fetched pages join this batch's evidence and the board's public source list.
+                sources=list({s['source_id']:s for s in sources+found}.values())
+                known={s['source_id'] for s in board.get('sources',[])}
+                board.setdefault('sources',[]).extend({k:v for k,v in s.items() if k!='excerpt'} for s in found if s['source_id'] not in known)
+            batch['_prepared_evidence']=(sources,queue['diagnostics'])
             try: reviewed=review(batch,feeds,config,archive,clock,assessment_update=assessment_update)
             except Exception as error: reviewed=dict(batch,review_status='review_unavailable',review_error=type(error).__name__)
             attempts+=1

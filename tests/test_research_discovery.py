@@ -26,7 +26,7 @@ class DiscoveryTests(unittest.TestCase):
     def test_real_quote_only_no_probability_fallback_and_stale_excluded(self):
         offers=discovery.catalog(feeds(),NOW);r=offers[0]
         direction=dict(game_id=r['game_id'],sport=r['sport'],market=r['market'],player=r['player'],side=r['side'],
-            hypothesis='Opportunity may exceed this threshold.',question='Confirm deployment.',source_urls=['https://www.nfl.com/news/test'])
+            hypothesis='Opportunity may exceed this threshold.',question='Confirm deployment.',lead_type='own_research',outlet='',published_line='',source_urls=['https://www.nfl.com/news/test'])
         result=discovery.resolve([direction],offers,iso(NOW))
         self.assertEqual(len(result),1);self.assertEqual(result[0]['price'],r['price']);self.assertEqual(result[0]['line'],r['line'])
         self.assertIsNone(result[0]['model_prob']);self.assertIsNone(result[0]['estimated_ev'])
@@ -36,7 +36,7 @@ class DiscoveryTests(unittest.TestCase):
     def test_unknown_search_urls_or_games_never_verify(self):
         games=discovery.slate(discovery.catalog(feeds(),NOW));g=games[0]
         d=dict(game_id=g['game_id'],sport=g['sport'],market=g['markets'][0],player='',side='Over',
-            hypothesis='A conditional research direction.',question='Confirm starters.',source_urls=['https://www.espn.com/example'])
+            hypothesis='A conditional research direction.',question='Confirm starters.',lead_type='published_pick',outlet='ESPN',published_line='Over 1.5 +110',source_urls=['https://www.espn.com/example'])
         response=dict(status='completed',output=[dict(type='message',content=[dict(type='output_text',text=json.dumps(dict(directions=[d])))])])
         self.assertEqual(discovery.response_directions(response,games),[])
         response['output'].append(dict(type='web_search_call',action=dict(sources=[dict(url=d['source_urls'][0])])))
@@ -112,7 +112,7 @@ class DiscoveryRunTests(unittest.TestCase):
         from nhl.v2 import astra
         f=feeds();offer=discovery.catalog(f,NOW)[0];calls=[]
         direction=dict(sport=offer['sport'],game_id=offer['game_id'],market=offer['market'],player=offer['player'],side=offer['side'],
-            hypothesis='Check whether the expected opportunity exceeds the offered threshold.',question='Confirm current role.',source_urls=['https://www.nfl.com/news/synthetic'])
+            hypothesis='Check whether the expected opportunity exceeds the offered threshold.',question='Confirm current role.',lead_type='own_research',outlet='',published_line='',source_urls=['https://www.nfl.com/news/synthetic'])
         response=dict(status='completed',usage=dict(input_tokens=1000,output_tokens=100),output=[
             dict(type='web_search_call',action=dict(sources=[dict(url=direction['source_urls'][0])])),
             dict(type='message',content=[dict(type='output_text',text=json.dumps(dict(directions=[direction])))])])

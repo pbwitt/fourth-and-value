@@ -19,6 +19,8 @@ NOW = datetime(2026, 9, 27, 14, tzinfo=timezone.utc)
 CONFIG = json.loads(analyst.CONFIG.read_text())
 # Baseline fixtures must not inherit a live, date-specific operator exception.
 CONFIG.pop('test_budget_override', None)
+# Targeted verification searches have their own tests (test_research_verify.py).
+CONFIG['verification_candidates'] = 0
 
 
 def feeds():
