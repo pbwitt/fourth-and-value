@@ -68,8 +68,6 @@ class BudgetTests(unittest.TestCase):
             budget.settle('a',dict(input_tokens=200000,output_tokens=0),path=p)
             self.assertEqual(budget.reserve('b',NOW,.1,path=p,legacy=()),'budget_halted')
 
-if __name__=='__main__':unittest.main()
-
 class ReservePolicyTests(unittest.TestCase):
     def test_authorized_test_day_expires_at_eastern_midnight(self):
         cfg={'daily_budget_usd':2.75,'test_budget_override':{
@@ -101,3 +99,5 @@ class ReservePolicyTests(unittest.TestCase):
         cfg={'daily_budget_usd':2.75,'later_reserve_usd':.75}
         self.assertEqual(budget.run_cap(NOW,cfg),2)
         self.assertEqual(budget.run_cap(NOW+timedelta(hours=3),cfg),2.75)
+
+if __name__=='__main__':unittest.main()

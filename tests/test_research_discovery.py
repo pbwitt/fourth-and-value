@@ -54,8 +54,6 @@ class DiscoveryTests(unittest.TestCase):
             self.assertIsNone(r['model_probability']);self.assertTrue(list((Path(td)/'data/nfl/lines/raw').glob('*.json')))
             self.assertEqual(len(discovery.catalog({'NFLGames':value},NOW)),2)
 
-if __name__=='__main__':unittest.main()
-
 class PipelineTests(unittest.TestCase):
     def test_full_queue_rotates_sports_and_preserves_pending_on_budget_exhaustion(self):
         from unittest.mock import patch
@@ -157,3 +155,5 @@ class QueuePriorityTests(unittest.TestCase):
         with patch.dict('os.environ',{KEY:'synthetic'}),patch.object(evidence,'collect',return_value=([],{})):
             result=analyst.review_batches(b,f,CONFIG,Path('/unused'),lambda:NOW,{})
         self.assertEqual([r['candidate_id'] for r in result['_research_queue']['pending']],['late-strong','early-weak','unscored'])
+
+if __name__=='__main__':unittest.main()
