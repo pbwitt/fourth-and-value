@@ -24,3 +24,10 @@ Open Graph/Twitter tags with a branded preview image, Article JSON-LD for articl
 sitemap entry and internal links. Generators must emit compliant tags. Run
 `python scripts/seo_check.py --changed` before shipping; it reports gaps and never
 fails a build.
+
+## Content coverage (standing preference)
+
+Keep the NBA in mind alongside the NFL, MLB and NHL. When planning or writing
+explainers, examples, tools or content batches, include NBA coverage or say why
+it doesn't apply. Verify factual and numerical claims before publishing, and
+correct published posts with a dated note rather than silently.
