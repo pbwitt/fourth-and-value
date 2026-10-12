@@ -192,7 +192,11 @@ pricing changes.
 Each story allows one write (18,000 input UTF-8 bytes + framing allowance; 8,000
 output tokens) and one audit (24,000 input bytes + framing; 4,000 output tokens).
 Claude counts thinking against both ceilings; the audit's rose from 1,000 on October 12
-so its thinking cannot crowd out the verdict. The writer is asked for 650–850 words of
+so its thinking cannot crowd out the verdict.
+Every article is public. Since October 12 the writer and the audit both carry one
+publication-voice rule (`PUBLIC_VOICE` in `editorial_writer.py`): write as a professional
+sports publication and never describe the workflow, data fields, screening, requests or
+how the piece was produced. The audit rejects drafts that do. The writer is asked for 650–850 words of
 section text (headline and deck excluded), above the 550-word validation floor: drafts
 requested at 550–750 had clustered at 561–656 words, and Claude's first draft fell short.
 No paid tools, retries or priority tier. A conservative full-story reservation with

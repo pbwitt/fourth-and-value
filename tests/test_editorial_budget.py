@@ -51,6 +51,8 @@ class BudgetTests(unittest.TestCase):
         with patch.object(w,'datetime',FixedDate),patch.object(w.ed,'DOCS',docs),patch.object(w.ed,'ROOT',root),patch.object(w,'STATE',state),patch.object(w,'evidence',return_value=packet),patch.object(w.reporting,'collect',return_value=reporting),patch.object(b,'checkpoint'),patch.object(w.ed,'render_home'),patch.object(w,'call_api',side_effect=[response(article),response({'pass':True})]) as api:
             w.run(self.now,1)
         self.assertEqual([c.args[0]['model'] for c in api.call_args_list],['claude-sonnet-5-5','claude-opus-5-5'])
+        # Articles are public: the writer and the audit both carry the publication-voice rule.
+        self.assertTrue(all(w.PUBLIC_VOICE in c.args[0]['instructions'] for c in api.call_args_list))
         (entry,)=b.read()['entries']
         self.assertEqual(entry['status'],'settled')
         self.assertAlmostEqual(entry['charge_usd'],(1000*2.5+800*10+1000*5+800*20)/1e6)
