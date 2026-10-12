@@ -580,25 +580,29 @@
           <div class="stat-value" id="totalBets">0</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Total Staked</div>
+          <div class="stat-label">Settled Stake</div>
           <div class="stat-value" id="totalStaked">$0</div>
+          <div class="stat-note" id="pendingNote"></div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Total Returned</div>
+          <div class="stat-label">Returned</div>
           <div class="stat-value" id="totalReturned">$0</div>
+          <div class="stat-note">Payouts on settled bets, stake included</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">ROI</div>
           <div class="stat-value" id="roi">0%</div>
+          <div class="stat-note" id="roiNote"></div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Win Rate</div>
-          <div class="stat-value" id="winRate">0%</div>
+          <div class="stat-value" id="winRate">—</div>
           <div class="stat-note" id="winRateNote"></div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Profit/Loss</div>
           <div class="stat-value" id="profitLoss">$0</div>
+          <div class="stat-note">Returned minus settled stake</div>
         </div>
       </div>
 
@@ -719,7 +723,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="bet-tracking.js?v=5"></script>
+  <script src="bet-tracking.js?v=6"></script>
   <script src="performance.js?v=2"></script>
   <script src="live-feeds.js?v=2"></script>
   <script src="live-stats.js?v=5"></script>
@@ -1345,18 +1349,22 @@
     setInterval(()=>{ const el=document.getElementById('liveUpdated'); if (el) el.textContent='Updated '+liveAgo(); },15000);
 
     function updateStats() {
-      // Pending tickets are exposure, not realized losses.
-      const {totalBets,totalStaked,totalReturned,profitLoss,roi,winRate}=betTrackerSummary(visibleBets());
+      // Pending tickets are exposure, not realized losses: stake, returns, P/L and ROI cover
+      // settled bets, so returned − stake = P/L and ROI scales to any amount staked.
+      const {totalBets,staked,pending,pendingStaked,pushes,totalReturned,profitLoss,roi,winRate}=betTrackerSummary(visibleBets());
 
       document.getElementById('totalBets').textContent = totalBets;
-      document.getElementById('totalStaked').textContent = '$' + totalStaked.toFixed(2);
-      document.getElementById('totalReturned').textContent = '$' + totalReturned.toFixed(2);
+      document.getElementById('totalStaked').textContent = money(staked);
+      document.getElementById('pendingNote').textContent = pending ? `${money(pendingStaked)} more on ${pending} pending` : '';
+      document.getElementById('totalReturned').textContent = money(totalReturned);
 
       const roiEl = document.getElementById('roi');
       roiEl.textContent = roi.toFixed(1) + '%';
       roiEl.className = 'stat-value ' + (roi > 0 ? 'positive' : roi < 0 ? 'negative' : '');
+      // ROI in percent is also the profit per $100 staked.
+      document.getElementById('roiNote').textContent = staked > 0 ? `${signedMoney(roi)} per $100 staked` : '';
 
-      document.getElementById('winRate').textContent = winRate.toFixed(1) + '%';
+      document.getElementById('winRate').textContent = winRate === null ? '—' : winRate.toFixed(1) + '%';
 
       const plEl = document.getElementById('profitLoss');
       plEl.textContent = (profitLoss >= 0 ? '+' : '') + '$' + profitLoss.toFixed(2);
@@ -1367,8 +1375,10 @@
       let perf=null;
       try { perf=window.FVPerformance?.render(document.getElementById('performance'), visibleBets()); }
       catch (error) { console.warn('Performance panel unavailable', error); }
-      document.getElementById('winRateNote').textContent=perf&&perf.settled&&Number.isFinite(perf.breakEven)
+      const breakEven=perf&&perf.settled&&Number.isFinite(perf.breakEven)
         ? `Break-even at your prices: ${(perf.breakEven*100).toFixed(1).replace(/\.0$/,'')}%` : '';
+      document.getElementById('winRateNote').textContent=[breakEven,pushes?`${pushes} push${pushes===1?'':'es'} not counted`:'']
+        .filter(Boolean).join(' · ');
     }
 
     // ---- Filters + CSV download ---------------------------------------------
