@@ -38,4 +38,10 @@ assert.equal(nhl.through,'2026-10-08');assert.equal(nhl.recent[0].mean,3);assert
 assert.equal(nhl.games.length,2);assert.equal(nhl.trend.rows[0][0],'2026-10-07');assert.equal(nhl.game_focus,'shots');
 assert.equal(stats.nhlContext('assists',games).recent[0].mean,0,'zero stats are real results');
 assert.equal(stats.nhlContext('saves',games),null);assert.equal(stats.nhlContext('sog',[]),null);
+assert.equal(stats.title(bet),'J.T. Pitcher');
+assert.equal(stats.title({league:'MLB',market_type:'h2h',side:'Los Angeles Dodgers'}),'Los Angeles Dodgers');
+assert.equal(stats.title({league:'MLB',market_type:'spreads',side:'LAD',line:-1.5}),'LAD');
+assert.equal(stats.title({league:'MLB',market_type:'totals',side:'over',line:8.5}),'Game total');
+assert.equal(stats.title({league:'NHL',market_type:'team_total',side:'Under',line:6.5}),'Game total','legacy NHL game totals');
+assert.equal(stats.title({league:'MLB',market_type:'h2h',side:''}),'Game market');
 console.log('PASS: tracker matches player and market, retains the saved pick, and displays only observed stats with honest dates.');

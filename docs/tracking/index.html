@@ -727,7 +727,7 @@
   <script src="manual-bet.js?v=2"></script>
   <script src="edit-bet.js?v=1"></script>
   <script src="../assets/player-context.js?v=9"></script>
-  <script src="player-stats.js?v=1"></script>
+  <script src="player-stats.js?v=2"></script>
   <script>
     let betsData = [];
 
@@ -887,6 +887,10 @@
         line=!ou && n>0 ? '+'+n : String(n);
       }
       const sideText=side ? side.charAt(0).toUpperCase()+side.slice(1) : '';
+      // A game bet's title already names the team ("Moneyline") or the total ("Over 8.5").
+      const title=bet.player ? '' : FVTrackerPlayerStats.title(bet);
+      if (title && title===side) return [fmtMarket(bet.market_type),line].filter(Boolean).join(' ');
+      if (title==='Game total') return [sideText,line].filter(Boolean).join(' ');
       return [sideText,line,fmtMarket(bet.market_type)].filter(Boolean).join(' ');
     }
 
@@ -901,7 +905,7 @@
     // Position ("RW", "D", "SP") from today's live box score, once the game has one.
     const playerPosition=bet=>bet.player ? liveViews.get(bet.id)?.playerPosition || '' : '';
     const playerTags=bet=>[playerPosition(bet),playerTeam(bet)].filter(Boolean).join(' · ');
-    const playerLabel=bet=>[bet.player||'Game market',playerTags(bet)].filter(Boolean).join(' · ');
+    const playerLabel=bet=>[FVTrackerPlayerStats.title(bet),playerTags(bet)].filter(Boolean).join(' · ');
     const teamTagHtml=bet=>playerTags(bet)?`<span class="team-tag">${esc(playerTags(bet))}</span>`:'';
 
     function toWin(bet) {
