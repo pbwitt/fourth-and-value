@@ -17,7 +17,7 @@ from .evidence import usable
 # 2026, then GPT-6.1 Sol; Claude Opus 5.5 at high effort replaced Sol.
 MODEL = 'claude-opus-5-5'
 EFFORT = 'high'
-PROMPT_VERSION = 'nhl-context-3'
+PROMPT_VERSION = 'nhl-context-4'
 # Conservative per-token rates: input includes the cache-write premium (1.25x list),
 # output is list price. Reservations and ledger settlement both use these.
 # Claude lists: Opus 5.5 $4/$20, Sonnet 5.5 $2/$10 per million tokens.
@@ -77,11 +77,12 @@ with official reports or lineups. Do not claim every archived row was reviewed i
 Separate material blockers from routine final checks (such as reconfirming an available price).
 Source status describes reporting ONLY; needs_information can coexist with any assessment verdict.
 Without relevant sources, use no evidence items and label context unverified while assessing the
-supplied quantitative case. Generic team articles do not support a specific prop. Refer to fixed
-numeric inputs without repeating percentages; never create confidence or adjusted probabilities.
+supplied quantitative case. Generic team articles do not support a specific prop. Outside
+excerpts, write no % figures (even supplied ones) or guaranteed, lock or sure bet; use words
+or odds, or the reply fails.
 Use brief, specific reader-facing prose: about 100-150 words total per candidate across all fields.
 Do not refer to the AI or the packet. Keep factual current-news claims in cited evidence; context_case
-should summarize its relevance or material gaps, not introduce uncited facts. No stake advice.
+should summarize its relevance or material gaps, not introduce uncited facts.
 '''
 INSTRUCTIONS += ASSESSMENT_INSTRUCTIONS
 
