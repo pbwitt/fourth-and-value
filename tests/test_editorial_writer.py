@@ -57,6 +57,53 @@ class WriterGuards(unittest.TestCase):
             'target_game':{'event_id':'target','game':'Padres @ Dodgers'}}
         self.article['market_ids']=['q1','m1']
         with self.assertRaisesRegex(ValueError,'another matchup'):w.validate(self.article,self.response,self.packet,self.now)
+    def test_every_article_rule_is_stated_to_the_writer(self):
+        # validate() rejects drafts on these rules, so each prompt must state them.
+        import editorial_opinion as opinion
+        for base,scope in [(w.PROMPT,None),(opinion.PROMPT,None),(w.OVERVIEW_PROMPT,'mlb_wildcard_overview'),
+                           (w.TEAM_PLAYOFF_PROMPT,'mlb_team_playoff_outlook')]:
+            text=w.writer_instructions(base)
+            floor=w.word_floor({'statistical_context':{'scope':scope}} if scope else {})
+            with self.subTest(prompt=base[:40]):
+                self.assertIn(f'under {floor} words',text)
+                self.assertIn(f'fewer than {w.MIN_SECTIONS} sections',text)
+                self.assertIn('any section whose source_ids is empty',text)
+                self.assertIn('url or published_at differs from the fetched reporting',text)
+                self.assertIn('fewer than two domains',text)
+                self.assertIn('market_ids entry that is not a supplied record ID',text)
+                self.assertIn('screening or review steps',text)
+    def test_rejections_name_the_failed_check(self):
+        self.article['sections'][1]['source_ids']=[]
+        with self.assertRaisesRegex(ValueError,r'Missing section citations \(section 2 of 4 lists no source\)'):
+            w.validate(self.article,self.response,self.packet,self.now)
+        self.article['sections']=self.article['sections'][:3]
+        with self.assertRaisesRegex(ValueError,r'Insufficient depth \(3 sections; at least 4 required\)'):
+            w.validate(self.article,self.response,self.packet,self.now)
+    def test_writer_and_audit_get_reader_facing_statuses(self):
+        packet={'model_rows':[{'id':'m1','model_status':'Eligible experimental model pick'}],
+            'model_references':[{'id':'r1','model_status':'Research forecast: unusually large discrepancy needs manual review'},
+                                {'id':'r2','model_status':'No pick: estimated value is below the 3% EV threshold'},
+                                {'id':'r3','model_status':'Calibration fitted; not prospectively validated'}],
+            'model_availability':[{'event_id':'g','available':False,'reason':'Waiting for both probable starters',
+                'statuses':['Waiting for both probable starters','Another offer is selected for this player and market']}],
+            'target_game':{'event_id':'g','model_availability':{'available':False,'reason':'Waiting for both probable starters'}}}
+        original=copy.deepcopy(packet)
+        shown=w.reader_facing(packet)
+        self.assertEqual(packet,original)
+        text=str(shown)
+        for internal in ('Research forecast','No pick','manual review','threshold','Another offer','Waiting for both'):
+            self.assertNotIn(internal,text)
+        self.assertEqual(shown['target_game']['model_availability']['reason'],
+                         'Forecast pending: both probable starting pitchers have not been announced.')
+        # Validation disclosures that are already reader-facing pass through.
+        self.assertEqual(shown['model_references'][2]['model_status'],'Calibration fitted; not prospectively validated')
+        self.assertEqual(w.reader_facing({'markets':[]}),{'markets':[]})
+    def test_rejected_draft_summary_is_its_shape_not_its_text(self):
+        self.article['sections'][2]['source_ids']=[]
+        summary=w.draft_summary(self.article,'Missing section citations (section 3 of 4 lists no source)')
+        self.assertEqual(summary,'Missing section citations (section 3 of 4 lists no source) Draft: 4 sections, 600 words, '
+                                 '2 sources from 2 domains. Sections without sources: Context.')
+        self.assertNotIn('word word',summary)
     def test_unvisited_source_rejected(self):
         self.article['sources'][0]['url']='https://mlb.com/invented'
         with self.assertRaises(ValueError):w.validate(self.article,self.response,self.packet,self.now)
