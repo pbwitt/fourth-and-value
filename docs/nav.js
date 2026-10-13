@@ -123,7 +123,7 @@
 
   const logoLink = document.createElement('a');
   logoLink.className = 'fv-logo';
-  logoLink.href = `${base}/index.html`;
+  logoLink.href = `${base}/`;
   logoLink.setAttribute('aria-label','Fourth & Value — Home');
 
   const img = document.createElement('img');
@@ -154,17 +154,17 @@
 
   // Navigation structure with sport dropdowns
   const navStructure = [
-    { type: 'link', href: `${base}/index.html`, label: 'Home' },
+    { type: 'link', href: `${base}/`, label: 'Home' },
     {
       type: 'dropdown',
       label: 'NFL 🏈',
       className: 'nfl-sport',
       items: [
         { href: `${base}/nfl/`, label: 'NFL Overview' },
-        { href: `${base}/props/index.html`, label: 'Player Props' },
+        { href: `${base}/props/`, label: 'Player Props' },
         { href: `${base}/props/top.html`, label: 'Top Picks' },
         { href: `${base}/props/arbitrage.html`, label: 'Pricing checks' },
-        { href: `${base}/nfl/totals/index.html`, label: 'Game Totals' },
+        { href: `${base}/nfl/totals/`, label: 'Game Totals' },
         { href: `${base}/markets/?sport=nfl`, label: 'Market Analytics' },
         { href: `${base}/methods.html`, label: 'NFL Methods' },
       ]
@@ -175,9 +175,9 @@
       className: 'nhl-sport',
       items: [
         { href: `${base}/nhl/`, label: 'NHL Overview' },
-        { href: `${base}/nhl/props/index.html`, label: 'Props' },
+        { href: `${base}/nhl/props/`, label: 'Props' },
         { href: `${base}/nhl/players/`, label: 'Player Pages' },
-        { href: `${base}/nhl/totals/index.html`, label: 'Game Lines' },
+        { href: `${base}/nhl/totals/`, label: 'Game Lines' },
         { href: `${base}/nhl/picks.html`, label: 'Top Picks' },
         { href: `${base}/nhl/top.html`, label: 'Market Watch' },
         { href: `${base}/nhl/arbitrage.html`, label: 'Arbitrage' },

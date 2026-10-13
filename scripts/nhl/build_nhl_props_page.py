@@ -370,8 +370,8 @@ def build_html(rows, date_str):
     <p>Model-driven NHL player prop picks with edge analysis.</p>
 
     <div class="tabs">
-      <a href="../../nhl/props/index.html" class="tab active">Props</a>
-      <a href="../../nhl/totals/index.html" class="tab">Totals</a>
+      <a href="../../nhl/props/" class="tab active">Props</a>
+      <a href="../../nhl/totals/" class="tab">Totals</a>
     </div>
 
     <div class="filters">

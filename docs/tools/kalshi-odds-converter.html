@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Kalshi Odds Converter: Cents to American Odds, With Fees</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Convert a Kalshi price in cents to American odds and a break-even win rate with the taker fee included, or find the Kalshi price that beats a sportsbook." />
+  <link rel="icon" href="../assets/logo.svg" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "WebApplication",
+ "name": "Kalshi Odds Converter",
+ "url": "https://fourthandvalue.com/tools/kalshi-odds-converter.html",
+ "description": "Convert a Kalshi price in cents to American odds and a break-even win rate with the taker fee included, or find the Kalshi price that beats a sportsbook.",
+ "applicationCategory": "FinanceApplication",
+ "operatingSystem": "Any",
+ "isAccessibleForFree": true,
+ "image": "https://fourthandvalue.com/tools/kalshi-odds-converter/social.png",
+ "publisher": {
+  "@type": "Organization",
+  "name": "Fourth & Value",
+  "logo": {
+   "@type": "ImageObject",
+   "url": "https://fourthandvalue.com/assets/logo.svg"
+  }
+ }
+}
+  </script>
+  <script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "FAQPage",
+ "mainEntity": [
+  {
+   "@type": "Question",
+   "name": "How do you convert a Kalshi price to American odds?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "A contract pays $1, so a price of P cents risks P to win 100 − P. At 50¢ or less, American odds are +100 × (100 − P) / P. Above 50¢, they are −100 × P / (100 − P). A 60¢ contract is −150 before fees."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "How are Kalshi fees calculated?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "Kalshi's published general taker fee is 0.07 × contracts × price × (1 − price), rounded up to the next cent. Some markets use a different rate. Ten contracts at 60¢ cost $6.00 plus a $0.17 fee."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "Is a Kalshi price the probability of the event?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "No. The all-in price is the break-even win rate you need to profit, not a forecast. Fees raise it, and contract settlement rules can differ from a sportsbook's."
+   }
+  },
+  {
+   "@type": "Question",
+   "name": "What Kalshi price beats −110 at a sportsbook?",
+   "acceptedAnswer": {
+    "@type": "Answer",
+    "text": "With the 7% general taker fee, 50¢ or less. At 51¢ the fee pushes the all-in cost to about 52.8¢, a worse price than −110, which breaks even at 52.38%."
+   }
+  }
+ ]
+}
+  </script>
+  <style>
+    :root{
+      --bg:#0b0e13; --surface:#12161d; --surface-2:#171c25; --ink:#eef1f5; --muted:#8b93a1; --line:#232a35;
+      --accent:#6ea8fe; --good:#2dd4bf; --warn:#f0ab3d; --bad:#f87171;
+    }
+    *{box-sizing:border-box}
+    html,body{ margin:0; background:var(--bg); }
+    body{ color:var(--ink); font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
+    a{ color:var(--accent); }
+    .wrap{ max-width:880px; margin:0 auto; padding:36px 24px 80px; }
+    .kicker{ font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-bottom:14px; }
+    h1{ font-family:'Fraunces',serif; font-weight:600; font-size:clamp(30px,5vw,44px); line-height:1.1; margin:0 0 12px; }
+    .lede{ color:var(--muted); font-size:16px; line-height:1.6; margin:0 0 24px; max-width:70ch; }
+    .panel{ background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px; margin:0 0 18px; }
+    .panel h2{ font-size:17px; margin:0 0 12px; font-family:'Inter',sans-serif; }
+    .controls{ display:flex; flex-wrap:wrap; gap:14px 18px; align-items:flex-end; }
+    .field{ display:flex; flex-direction:column; gap:6px; font-size:12.5px; color:var(--muted); }
+    .field input{ width:130px; }
+    input{ font:inherit; font-size:16px; color:var(--ink); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:9px 10px; min-height:42px; }
+    input:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+    input[aria-invalid="true"]{ border-color:var(--bad); }
+    .note{ font-size:13px; color:var(--muted); margin:12px 0 0; line-height:1.5; }
+    .err{ color:var(--bad); font-size:13.5px; margin:10px 0 0; min-height:1px; }
+    .results{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:16px 0 0; }
+    .tile{ background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+    .tile .k{ font-size:11.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+    .tile .v{ font-family:'JetBrains Mono',monospace; font-size:24px; font-weight:700; margin-top:6px; }
+    .tile .s{ font-size:12.5px; color:var(--muted); margin-top:4px; line-height:1.4; }
+    .tile.hero{ border-color:var(--accent); }
+    .tile.hero .v{ color:var(--accent); }
+    article{ font-size:16.5px; line-height:1.7; margin-top:40px; }
+    article h2{ font-family:'Fraunces',serif; font-weight:600; font-size:26px; line-height:1.2; margin:44px 0 14px; }
+    article h3{ font-size:17px; margin:28px 0 8px; }
+    article p{ margin:0 0 18px; }
+    article ul{ margin:0 0 18px; padding-left:22px; }
+    article li{ margin-bottom:8px; }
+    .formula{ font-family:'JetBrains Mono',monospace; font-size:14px; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 18px; margin:0 0 18px; line-height:1.8; overflow-x:auto; }
+    .tbl-wrap{ overflow-x:auto; margin:8px 0 18px; border:1px solid var(--line); border-radius:12px; }
+    table{ width:100%; border-collapse:collapse; font-size:14px; }
+    th,td{ padding:9px 12px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap; }
+    th:first-child,td:first-child{ text-align:left; }
+    th{ font-weight:600; color:var(--muted); font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; background:var(--surface); }
+    td{ font-family:'JetBrains Mono',monospace; }
+    tr:last-child td{ border-bottom:0; }
+    .callout{ border-left:3px solid var(--accent); background:color-mix(in oklab, var(--accent) 8%, var(--surface)); border-radius:0 12px 12px 0; padding:16px 20px; margin:24px 0; font-size:15.5px; line-height:1.65; }
+    .callout p{ margin:0 0 10px; }
+    .callout p:last-child{ margin:0; }
+    .faq h3{ margin-top:22px; }
+    @media (max-width:760px){
+      .wrap{ padding:24px 16px 64px; }
+      .results{ grid-template-columns:1fr 1fr; }
+      .field input{ width:120px; }
+    }
+    @media (max-width:380px){ .results{ grid-template-columns:1fr; } .field input{ width:100%; } .field{ flex:1 1 100%; } }
+  </style>
+  <link rel="canonical" href="https://fourthandvalue.com/tools/kalshi-odds-converter.html">
+  <meta property="og:title" content="Kalshi Odds Converter: cents to American odds, with fees">
+  <meta property="og:description" content="Convert a Kalshi price in cents to American odds and a break-even win rate with the taker fee included, or find the Kalshi price that beats a sportsbook.">
+  <meta property="og:url" content="https://fourthandvalue.com/tools/kalshi-odds-converter.html">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://fourthandvalue.com/tools/kalshi-odds-converter/social.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="720">
+  <meta property="og:image:alt" content="Kalshi odds converter: a 60¢ contract is −150 before fees and about −161 after.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://fourthandvalue.com/tools/kalshi-odds-converter/social.png">
+<link rel="stylesheet" href="/assets/responsible-use.css?v=1"></head>
+<body>
+  <div id="nav-root"></div>
+  <script src="../nav.js?v=47"></script>
+
+  <main class="wrap">
+    <div class="kicker"><a href="/learn/#tools" style="color:inherit">Learn</a> · Tools</div>
+    <h1>Kalshi Odds Converter</h1><!-- fv-notices:notice:start --><aside id="fv-betting-notice" class="fv-use-notice" aria-label="Betting information disclaimer"><strong>Analysis, not a guarantee.</strong> Picks and projections are uncertain; odds and player information can change. No outcome or profit is guaranteed. Any wager is your decision and responsibility. <a href="/terms.html#responsible-play">Read our limitations and responsible-play guidance</a>.</aside><!-- fv-notices:notice:end -->
+    <p class="lede">Turn a Kalshi contract price into sportsbook-style odds with the estimated fee included, or find the highest Kalshi price that beats a sportsbook line. Everything runs in your browser; nothing you enter is sent anywhere.</p>
+
+    <section class="panel" aria-labelledby="settings-h">
+      <h2 id="settings-h">Order size and fee</h2>
+      <div class="controls">
+        <label class="field">Contracts <input id="n" type="number" inputmode="numeric" min="1" max="100000" step="1" value="10"></label>
+        <label class="field">Taker fee rate (%) <input id="r" type="number" inputmode="decimal" min="0" max="100" step="0.01" value="7"></label>
+      </div>
+      <p class="err" id="s-err" role="alert"></p>
+      <p class="note">Kalshi’s published general taker fee is 7% of contracts × price × (1 − price), rounded up to the next cent. Some markets use a different rate. Check the fee shown in the app before you trade. Fees are rounded per order, so small orders pay proportionally more.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="to-odds-h">
+      <h2 id="to-odds-h">Kalshi price → odds</h2>
+      <div class="controls">
+        <label class="field">Contract price (¢) <input id="p" type="number" inputmode="decimal" min="1" max="99" step="1" value="60"></label>
+      </div>
+      <p class="err" id="p-err" role="alert"></p>
+      <div class="results" aria-live="polite">
+        <div class="tile"><div class="k">Before fees</div><div class="v" id="o-raw">—</div><div class="s" id="o-raw-s"></div></div>
+        <div class="tile hero"><div class="k">After fees</div><div class="v" id="o-fee">—</div><div class="s" id="o-fee-s"></div></div>
+        <div class="tile"><div class="k">Break-even win rate</div><div class="v" id="o-be">—</div><div class="s">All-in cost per contract</div></div>
+        <div class="tile"><div class="k">Estimated fee</div><div class="v" id="o-f">—</div><div class="s" id="o-f-s"></div></div>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="to-price-h">
+      <h2 id="to-price-h">Sportsbook odds → Kalshi price</h2>
+      <div class="controls">
+        <label class="field">American odds <input id="a" type="text" inputmode="text" value="-110" maxlength="8" aria-describedby="a-help"></label>
+      </div>
+      <p class="note" id="a-help">Enter odds such as −110, +150 or 120.</p>
+      <p class="err" id="a-err" role="alert"></p>
+      <div class="results" aria-live="polite">
+        <div class="tile"><div class="k">Same price, no fee</div><div class="v" id="b-raw">—</div><div class="s">The sportsbook’s break-even, in cents</div></div>
+        <div class="tile hero"><div class="k">Beat it after fees</div><div class="v" id="b-max">—</div><div class="s" id="b-max-s"></div></div>
+      </div>
+    </section>
+
+    <p class="note">These are estimates for whole-cent prices at a single price level. A large order can fill at several prices. Equivalent odds describe the return if a contract pays $1; they are not a win probability. See current <a href="/prediction-markets/">Kalshi sports prices with fees</a> on our prices board.</p>
+
+    <article>
+      <h2>How a Kalshi price works</h2>
+      <p>A Kalshi event contract pays <strong>$1 if the outcome happens</strong> and nothing if it doesn’t. The price is what you pay for that $1. Buy “Yes” at 60¢ and you risk 60¢ to win 40¢. Buy “No” on the same contract and you pay the other side, around 40¢, to win 60¢.</p>
+      <p>That is the same trade as a sportsbook bet, just quoted differently. A sportsbook says “−150”: risk $150 to win $100. Kalshi says “60¢”: risk 60¢ to win 40¢. Both are a 1.5-to-1 favorite’s price.</p>
+
+      <h2>Converting cents to American odds</h2>
+      <div class="formula">P ≤ 50¢: odds = +100 × (100 − P) / P<br>P &gt; 50¢: odds = −100 × P / (100 − P)</div>
+      <p>So 40¢ is +150, 50¢ is even money (+100), 60¢ is −150 and 75¢ is −300. Going the other way, a sportsbook price converts to cents the same way it converts to an implied probability: −110 is 110 / 210 = 52.38¢, and +150 is 100 / 250 = 40¢.</p>
+
+      <h2>What fees do to the price</h2>
+      <p>The headline price is not what you pay. Kalshi’s published general taker fee is:</p>
+      <div class="formula">fee = 0.07 × contracts × P × (1 − P), rounded up to the next cent</div>
+      <p>The fee is largest near 50¢ and shrinks toward the extremes. Here is what it does to ten contracts at the 7% rate:</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Price</th><th>Odds before fee</th><th>Fee (10)</th><th>All-in per contract</th><th>Odds after fee</th></tr></thead>
+        <tbody>
+          <tr><td>25¢</td><td>+300</td><td>$0.14</td><td>26.4¢</td><td>+279</td></tr>
+          <tr><td>40¢</td><td>+150</td><td>$0.17</td><td>41.7¢</td><td>+140</td></tr>
+          <tr><td>50¢</td><td>+100</td><td>$0.18</td><td>51.8¢</td><td>−107</td></tr>
+          <tr><td>60¢</td><td>−150</td><td>$0.17</td><td>61.7¢</td><td>−161</td></tr>
+          <tr><td>90¢</td><td>−900</td><td>$0.07</td><td>90.7¢</td><td>−975</td></tr>
+        </tbody>
+      </table></div>
+      <p>Because the fee is rounded up per order, one contract at 60¢ pays a 2¢ fee, which is about −163. A hundred contracts pay $1.68, about −161.</p>
+
+      <h2>Comparing Kalshi with a sportsbook</h2>
+      <p>To compare fairly, compare the <strong>all-in</strong> prices. A sportsbook’s −110 already includes its margin, and you need to win 52.38% of the time to break even. A Kalshi contract has to cost less than that after fees to be the better price.</p>
+      <div class="callout">
+        <p><strong>At the 7% rate, a Kalshi contract beats −110 only at 50¢ or less.</strong> At 51¢, the fee brings the all-in cost to about 52.8¢, a worse price than −110. At 50¢, it is about 51.8¢, roughly −107.</p>
+      </div>
+      <p>Make sure you are comparing the same bet, too. Kalshi contracts settle under their own rules, which can differ from a sportsbook’s house rules. Some NFL contracts pay 50¢ on a tie, for example, where a sportsbook moneyline would push and refund your stake. Read the contract’s rules before you treat the two as interchangeable. Our rules guides for the <a href="/blog/nfl-betting-rules.html">NFL</a>, <a href="/blog/mlb-betting-rules.html">MLB</a>, <a href="/blog/nba-betting-rules.html">NBA</a> and <a href="/blog/settlement-rules.html">NHL</a> cover the sportsbook side.</p>
+
+      <h3>Taker and maker orders</h3>
+      <p>This calculator estimates the <strong>taker</strong> fee: what you pay when your order fills right away against an order already on the book. An order that rests on the book until someone else fills it can be charged differently. Kalshi’s <a href="https://kalshi.com/fee-schedule" rel="noopener">fee schedule</a> has the current rates.</p>
+
+      <section class="faq">
+        <h2>Frequently asked questions</h2>
+        <h3>How do you convert a Kalshi price to American odds?</h3>
+        <p>A contract pays $1, so a price of P cents risks P to win 100 − P. At 50¢ or less, American odds are +100 × (100 − P) / P. Above 50¢, they are −100 × P / (100 − P). A 60¢ contract is −150 before fees.</p>
+        <h3>How are Kalshi fees calculated?</h3>
+        <p>Kalshi’s published general taker fee is 0.07 × contracts × price × (1 − price), rounded up to the next cent. Some markets use a different rate. Ten contracts at 60¢ cost $6.00 plus a $0.17 fee.</p>
+        <h3>Is a Kalshi price the probability of the event?</h3>
+        <p>No. The all-in price is the break-even win rate you need to profit, not a forecast. Fees raise it, and contract settlement rules can differ from a sportsbook’s.</p>
+        <h3>What Kalshi price beats −110 at a sportsbook?</h3>
+        <p>With the 7% general taker fee, 50¢ or less. At 51¢ the fee pushes the all-in cost to about 52.8¢, a worse price than −110, which breaks even at 52.38%.</p>
+      </section>
+
+      <h3>Related</h3>
+      <ul>
+        <li><a href="/prediction-markets/">Kalshi sports prices and fees</a></li>
+        <li><a href="/blog/how-books-make-money.html">What Is Vig? How Sportsbooks Make Money and How to Remove It</a></li>
+        <li><a href="/tools/synthetic-hold.html">Synthetic Hold Calculator</a></li>
+      </ul>
+    </article>
+  </main>
+
+  <script>
+  (function(){
+    var $=function(id){return document.getElementById(id);};
+    var MINUS='−';
+    function american(u){ // u: cost per $1 payout, 0<u<1
+      if(u<=0.5) return '+'+Math.round(100*(1-u)/u);
+      return MINUS+Math.round(100*u/(1-u));
+    }
+    function fee(p,n,rate){ // dollars, rounded up to the cent
+      return Math.ceil(rate*n*p*(1-p)*100-1e-9)/100;
+    }
+    function num(el){ var v=String(el.value).trim().replace(/−/g,'-'); return v===''?NaN:Number(v); }
+    function bad(el,msgEl,msg){ el.setAttribute('aria-invalid',msg?'true':'false'); msgEl.textContent=msg||''; }
+    function settings(){
+      var n=num($('n')), r=num($('r'));
+      var ok=Number.isInteger(n)&&n>=1&&n<=100000&&r>=0&&r<=100;
+      $('n').setAttribute('aria-invalid',Number.isInteger(n)&&n>=1&&n<=100000?'false':'true');
+      $('r').setAttribute('aria-invalid',r>=0&&r<=100?'false':'true');
+      $('s-err').textContent=ok||(n!==n&&r!==r)?'':'Contracts must be a whole number from 1 to 100,000, and the fee rate from 0% to 100%.';
+      return ok?{n:n,rate:r/100}:null;
+    }
+    function clear(ids){ ids.forEach(function(id){ $(id).textContent='—'; }); }
+    function toOdds(s){
+      var c=num($('p'));
+      if(!(c>=1&&c<=99)){ bad($('p'),$('p-err'),c===c?'Enter a price from 1¢ to 99¢.':''); clear(['o-raw','o-fee','o-be','o-f']); $('o-raw-s').textContent=$('o-fee-s').textContent=$('o-f-s').textContent=''; return; }
+      bad($('p'),$('p-err'),'');
+      var p=c/100;
+      $('o-raw').textContent=american(p);
+      $('o-raw-s').textContent='Risk '+c+'¢ to win '+(100-c).toFixed(c%1?1:0)+'¢';
+      if(!s){ clear(['o-fee','o-be','o-f']); return; }
+      var f=fee(p,s.n,s.rate), u=p+f/s.n;
+      $('o-fee').textContent=u<1?american(u):'n/a';
+      $('o-fee-s').textContent='Decimal '+(u<1?(1/u).toFixed(3):'n/a');
+      $('o-be').textContent=(u*100).toFixed(2)+'%';
+      $('o-f').textContent='$'+f.toFixed(2);
+      $('o-f-s').textContent='On '+s.n.toLocaleString()+' contract'+(s.n===1?'':'s')+' ($'+(p*s.n).toFixed(2)+' + fee)';
+    }
+    function toPrice(s){
+      var a=num($('a'));
+      if(!(Math.abs(a)>=100)){ bad($('a'),$('a-err'),a===a?'American odds are +100 or higher, or −100 or lower.':''); clear(['b-raw','b-max']); $('b-max-s').textContent=''; return; }
+      bad($('a'),$('a-err'),'');
+      var q=a>0?100/(a+100):-a/(-a+100);
+      $('b-raw').textContent=(q*100).toFixed(2)+'¢';
+      if(!s){ clear(['b-max']); $('b-max-s').textContent=''; return; }
+      var best=null;
+      for(var c=99;c>=1;c--){ var p=c/100; if(p+fee(p,s.n,s.rate)/s.n<q-1e-12){ best=c; break; } }
+      $('b-max').textContent=best?best+'¢':'None';
+      $('b-max-s').textContent=best?'or less: the highest whole-cent price that costs less after fees':'Even 1¢ costs more after fees';
+    }
+    function update(){
+      var s=settings(); toOdds(s); toPrice(s);
+      try{
+        var q=new URLSearchParams({p:$('p').value,a:$('a').value.replace(/−/g,'-'),n:$('n').value,r:$('r').value});
+        history.replaceState(null,'','?'+q.toString());
+      }catch(e){}
+    }
+    try{
+      var qs=new URLSearchParams(location.search);
+      ['p','a','n','r'].forEach(function(k){ if(qs.has(k)) $(k).value=qs.get(k).slice(0,12); });
+    }catch(e){}
+    ['p','a','n','r'].forEach(function(k){ $(k).addEventListener('input',update); });
+    update();
+  })();
+  </script>
+<!-- fv-notices:footer:start --><section id="fv-responsible-footer" class="fv-use-footer" aria-label="Responsible use"><p>Fourth &amp; Value provides sports analysis for informational and entertainment purposes. We do not accept wagers. You are responsible for your wagering decisions and for meeting applicable age and legal requirements. Never wager money you cannot afford to lose.</p><p><a href="/terms.html">Terms &amp; privacy</a> · <a href="/terms.html#responsible-play">Responsible play</a> · U.S. gambling support: call or text <a href="tel:+18006973738">1-800-MY-RESET</a> or <a href="https://www.ncpgambling.org/help-treatment/">find confidential help</a>.</p></section><!-- fv-notices:footer:end --></body>
+</html>

@@ -44,6 +44,10 @@ const rows=[
       assert.match(text,/8 settled bets in this view, 1 pending/);
       assert.doesNotMatch(text,/Bets won|ROI on \$/,'win rate and ROI are the tiles above');
       assert.equal(await p.locator('#winRateNote').textContent(),'Break-even at your prices: 48.9%','break-even sits with the win rate');
+      // Stake, returns, P/L and ROI cover the same settled bets; the pending ticket is listed apart.
+      const tile=id=>p.locator('#'+id).textContent();
+      assert.deepEqual(await Promise.all(['totalStaked','pendingNote','totalReturned','profitLoss','roi','roiNote','winRate'].map(tile)),
+        ['$40.00','$5.00 more on 1 pending','$51.29','+$11.29','28.2%','+$28.23 per $100 staked','62.5%']);
       assert.equal(await panel.locator('[data-perf=path] .perf-dot').count(),8);
       assert.match(await panel.locator('[data-perf=scale]').textContent(),/You \+28\.2%/);
       assert.deepEqual((await panel.locator('.perf-sports tbody th').allTextContents()),['NFL','NHL','MLB']);

@@ -47,8 +47,8 @@ tbody tr:hover{background:color-mix(in oklab, var(--accent) 12%, var(--card))}
   <div class="header-inner">
     <div class="brand">Fourth &amp; Value</div>
     <nav class="nav">
-      <a class="active" href="index.html">Home</a>
-      <a href="props/index.html">Player Props</a>
+      <a class="active" href="./">Home</a>
+      <a href="props/">Player Props</a>
       <a href="props/top.html">Top Picks</a>
       <a href="props/consensus.html">Consensus</a>
       <a href="https://github.com/pbwitt/fourth-and-value">GitHub</a>

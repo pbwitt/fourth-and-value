@@ -202,9 +202,9 @@ def build_totals_page(predictions_path, consensus_path, edges_path, lines_path, 
     <div class="notice"><p>{notice}</p></div>
 
     <nav class="subnav" aria-label="NFL sections">
-      <a href="../../props/index.html">Player props</a>
+      <a href="../../props/">Player props</a>
       <a href="../../props/top.html">Top picks</a>
-      <a href="../../nfl/totals/index.html" aria-current="page">Team totals</a>
+      <a href="../../nfl/totals/" aria-current="page">Team totals</a>
       <a href="../../props/arbitrage.html">Price checks</a>
       <a href="../../methods.html">Methods</a>
     </nav>

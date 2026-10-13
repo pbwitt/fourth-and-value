@@ -2,82 +2,196 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Fourth & Value — How Sportsbooks Make Money (and Why We Devig)</title>
+  <title>What Is Vig? How Sportsbooks Make Money and How to Remove It</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="Sportsbooks don’t predict the future—they charge a fee called vig. Here’s why we remove it (devig) to show true probabilities." />
-  <link rel="icon" href="../favicon.ico" />
+  <meta name="description" content="What the vig is, why −110 on both sides adds up to 104.76%, how much a sportsbook really keeps, and how to remove the vig to find fair probabilities." />
+  <link rel="icon" href="../assets/logo.svg" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "Article",
+ "headline": "What Is Vig? How Sportsbooks Make Money, and How to Remove It",
+ "description": "What the vig is, why −110 on both sides adds up to 104.76%, how much a sportsbook really keeps, and how to remove the vig to find fair probabilities.",
+ "image": ["https://fourthandvalue.com/blog/how-books-make-money-2026/social.png"],
+ "datePublished": "2026-10-12T16:00:00+00:00",
+ "dateModified": "2026-10-12T16:00:00+00:00",
+ "author": {"@type": "Organization", "name": "Fourth & Value", "url": "https://fourthandvalue.com/"},
+ "publisher": {"@type": "Organization", "name": "Fourth & Value", "logo": {"@type": "ImageObject", "url": "https://fourthandvalue.com/assets/logo.svg"}},
+ "mainEntityOfPage": "https://fourthandvalue.com/blog/how-books-make-money.html",
+ "articleSection": "Learning",
+ "keywords": ["vig", "juice", "overround", "hold", "devig", "no-vig odds"]
+}
+  </script>
+  <script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "FAQPage",
+ "mainEntity": [
+  {"@type": "Question", "name": "What is vig in sports betting?", "acceptedAnswer": {"@type": "Answer", "text": "Vig, short for vigorish and also called juice, is the sportsbook's fee built into the odds. It is why both sides of an even matchup are priced at −110 instead of +100."}},
+  {"@type": "Question", "name": "How much vig is in −110 odds?", "acceptedAnswer": {"@type": "Answer", "text": "With −110 on both sides, the implied probabilities add up to 104.76%, an overround of 4.76%. The book's hold, the share of money wagered it keeps when action is balanced, is about 4.55%."}},
+  {"@type": "Question", "name": "What is the difference between vig, overround and hold?", "acceptedAnswer": {"@type": "Answer", "text": "Vig is the general name for the fee. Overround is how far the implied probabilities add up above 100%. Hold is the share of all money wagered the book expects to keep: 1 minus 1 divided by the total of the implied probabilities."}},
+  {"@type": "Question", "name": "How do you remove the vig from betting odds?", "acceptedAnswer": {"@type": "Answer", "text": "Convert both sides to implied probabilities, add them up, and divide each side by the total. For −150 and +130, 60.00% and 43.48% add to 103.48%, so the no-vig probabilities are 57.98% and 42.02%."}}
+ ]
+}
+  </script>
   <style>
-    :root { --max: 860px; --bg:#0b0b0b; --fg:#e9e9e9; --muted:#b9b9b9; --line:#222; --input:#121212; --link:#8ab4ff; }
-    html,body { margin:0; background:var(--bg); color:var(--fg); }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; line-height:1.65; }
-    a { color: var(--link); text-decoration: underline; }
-    .wrap { max-width: var(--max); margin: 0 auto; padding: 16px; }
-    h1 { margin: 8px 0 4px; }
-    .meta { font-size:.9rem; color: var(--muted); margin: 6px 0 18px; }
-    article h2, article h3 { margin-top: 1.4em; }
-    code, pre { background:#0f0f0f; border:1px solid var(--line); border-radius:8px; color:#e6e6e6; }
-    pre { padding:12px; overflow:auto; }
-    .back { display:inline-block; margin-top: 28px; color: var(--link); }
+    :root{
+      --bg:#0b0e13; --surface:#12161d; --ink:#eef1f5; --muted:#8b93a1; --line:#232a35;
+      --accent:#6ea8fe; --good:#2dd4bf; --warn:#f0ab3d;
+    }
+    *{box-sizing:border-box}
+    html,body{ margin:0; background:var(--bg); }
+    body{ color:var(--ink); font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
+    a{ color:var(--accent); }
+    .wrap{ max-width:720px; margin:0 auto; padding:40px 24px 96px; }
+    .kicker{ font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); display:flex; align-items:center; gap:10px; margin-bottom:22px; }
+    .kicker .dot{ width:6px; height:6px; border-radius:50%; background:var(--accent); }
+    h1{ font-family:'Fraunces',serif; font-weight:600; font-size:clamp(32px,5.6vw,48px); line-height:1.08; letter-spacing:-.01em; margin:0 0 18px; text-wrap:balance; }
+    article{ font-size:17px; line-height:1.7; }
+    article p{ margin:0 0 22px; }
+    article ul{ margin:0 0 22px; padding-left:22px; }
+    article li{ margin-bottom:10px; }
+    h2{ font-family:'Fraunces',serif; font-weight:600; font-size:28px; line-height:1.2; margin:52px 0 16px; }
+    h3{ font-size:18px; margin:32px 0 10px; }
+    .formula{ font-family:'JetBrains Mono',monospace; font-size:15px; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 18px; margin:0 0 22px; line-height:1.8; overflow-x:auto; }
+    .tbl-wrap{ overflow-x:auto; margin:8px 0 22px; border:1px solid var(--line); border-radius:12px; position:relative; }
+    table{ width:100%; border-collapse:collapse; font-size:14.5px; }
+    th,td{ padding:10px 14px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap; }
+    th:first-child,td:first-child{ text-align:left; }
+    th{ font-weight:600; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.06em; background:var(--surface); }
+    td{ font-family:'JetBrains Mono',monospace; }
+    td:first-child{ font-family:'Inter',sans-serif; }
+    tr:last-child td{ border-bottom:0; }
+    td.best{ color:var(--good); font-weight:700; }
+    td.neg{ color:var(--warn); }
+    .callout{ border-left:3px solid var(--accent); background:color-mix(in oklab, var(--accent) 8%, var(--surface)); border-radius:0 12px 12px 0; padding:18px 22px; margin:28px 0; font-size:15.5px; line-height:1.65; }
+    .callout p{ margin:0 0 12px; }
+    .callout p:last-child{ margin:0; }
+    .callout .tag{ font-family:'JetBrains Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--accent); display:block; margin-bottom:8px; font-weight:700; }
+    .cta{ display:block; text-decoration:none; background:var(--surface); border:1px solid var(--accent); border-radius:14px; padding:20px 22px; margin:32px 0; color:var(--ink); }
+    .cta b{ font-family:'Fraunces',serif; font-size:21px; display:block; margin-bottom:4px; }
+    .cta span{ color:var(--muted); font-size:15px; }
+    .cta:hover{ background:color-mix(in oklab, var(--accent) 8%, var(--surface)); }
+    .faq h3{ margin-top:26px; }
+    .back{ display:inline-block; margin-top:40px; color:var(--accent); }
+    @media (max-width:560px){ .wrap{ padding:28px 16px 72px; } h2{ font-size:24px; } th,td{ padding:9px 10px; white-space:normal; } }
   </style>
-<link rel="canonical" href="https://fourthandvalue.com/blog/how-books-make-money.html"><meta property="og:title" content="Fourth &amp; Value — How Sportsbooks Make Money (and Why We Devig)"><meta property="og:description" content="Fourth &amp; Value — How Sportsbooks Make Money (and Why We Devig). Sports analysis and research from Fourth &amp; Value."><meta property="og:url" content="https://fourthandvalue.com/blog/how-books-make-money.html"><meta property="og:type" content="website"><link rel="stylesheet" href="/assets/responsible-use.css?v=1"><meta property="og:image" content="https://fourthandvalue.com/assets/social-card.png"><meta property="og:image:alt" content="Fourth &amp; Value"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="https://fourthandvalue.com/assets/social-card.png"></head>
+  <link rel="canonical" href="https://fourthandvalue.com/blog/how-books-make-money.html">
+  <meta property="og:title" content="What is vig? How sportsbooks make money, and how to remove it">
+  <meta property="og:description" content="What the vig is, why −110 on both sides adds up to 104.76%, how much a sportsbook really keeps, and how to remove the vig to find fair probabilities.">
+  <meta property="og:url" content="https://fourthandvalue.com/blog/how-books-make-money.html">
+  <meta property="og:type" content="article">
+  <meta property="og:image" content="https://fourthandvalue.com/blog/how-books-make-money-2026/social.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="720">
+  <meta property="og:image:alt" content="What is vig: −110 on both sides adds up to 104.76%, and the book keeps about 4.55%.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://fourthandvalue.com/blog/how-books-make-money-2026/social.png">
+  <meta property="article:published_time" content="2026-10-12T16:00:00+00:00">
+  <meta property="article:section" content="Learning">
+<link rel="stylesheet" href="/assets/responsible-use.css?v=1"></head>
 <body>
   <div id="nav-root"></div>
   <script src="../nav.js?v=47"></script>
 
   <main class="wrap">
+    <header>
+      <div class="kicker"><span class="dot"></span>Fourth &amp; Value &middot; Learning &middot; Oct 12, 2026 &middot; 7 min read</div>
+      <h1>What Is Vig? How Sportsbooks Make Money, and How to Remove It</h1>
+    </header><!-- fv-notices:notice:start --><aside id="fv-betting-notice" class="fv-use-notice" aria-label="Betting information disclaimer"><strong>Analysis, not a guarantee.</strong> Picks and projections are uncertain; odds and player information can change. No outcome or profit is guaranteed. Any wager is your decision and responsibility. <a href="/terms.html#responsible-play">Read our limitations and responsible-play guidance</a>.</aside><!-- fv-notices:notice:end -->
+
     <article>
-      <header>
-        <h1>How Sportsbooks Make Money (and Why We Devig)</h1>
-        <div class="meta"><time datetime="2025-09-17">Sep 17, 2025</time> • 6 min read</div>
-      </header><!-- fv-notices:notice:start --><aside id="fv-betting-notice" class="fv-use-notice" aria-label="Betting information disclaimer"><strong>Analysis, not a guarantee.</strong> Picks and projections are uncertain; odds and player information can change. No outcome or profit is guaranteed. Any wager is your decision and responsibility. <a href="/terms.html#responsible-play">Read our limitations and responsible-play guidance</a>.</aside><!-- fv-notices:notice:end -->
+      <p>A sportsbook doesn’t need to know who wins. It makes money by charging a small fee on every bet, built into the prices. That fee is the <strong>vig</strong>, short for vigorish and also called the juice. Once you can see it, you can remove it, and the odds start telling you what the market actually thinks.</p>
 
-      <p>Sportsbooks aren’t crystal balls. They don’t know the outcome of a game any more than you do. What they do know is how to set prices in a way that guarantees a profit over the long run. That profit comes from a built-in fee called the <em>vig</em> (short for “vigorish,” also called the “juice”).</p>
+      <h2>What −110 means</h2>
+      <p>A price of −110 means you risk $110 to win $100. To break even at that price, you need to win <strong>52.38%</strong> of the time: 110 ÷ (110 + 100).</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Price</th><th>Risk to win $100</th><th>Break-even win rate</th></tr></thead>
+        <tbody>
+          <tr><td>+100</td><td>$100</td><td>50.00%</td></tr>
+          <tr><td>−105</td><td>$105</td><td>51.22%</td></tr>
+          <tr><td>−110</td><td>$110</td><td>52.38%</td></tr>
+          <tr><td>−115</td><td>$115</td><td>53.49%</td></tr>
+          <tr><td>−120</td><td>$120</td><td>54.55%</td></tr>
+        </tbody>
+      </table></div>
+      <p>A fair coin flip, priced fairly, would be +100 on both sides. Sportsbooks list it at −110 on both sides instead. The gap between those prices is the fee.</p>
 
-      <h2>What is the Vig?</h2>
-      <p>The vig is the sportsbook’s commission. It’s why a standard point spread or total bet is often priced at <strong>-110</strong> instead of true “even odds” (+100).</p>
+      <h2>The prices add up to more than 100%</h2>
+      <p>Turn each price into the probability it implies, and add the two sides:</p>
+      <div class="formula">Heads −110 → 52.38%<br>Tails −110 → 52.38%<br>Total &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ 104.76%</div>
+      <p>In a fair market the two sides would add up to exactly 100%. The extra 4.76% is the <strong>overround</strong>: the margin built into the prices.</p>
 
-      <p>Take a coin flip — 50/50 in reality. If a sportsbook priced both sides fairly, you’d see +100 on heads and +100 on tails. Bet $100, win $100. But that wouldn’t make them money. Instead, they list both at -110:</p>
+      <h2>What the book actually keeps</h2>
+      <p>The overround is not quite the book’s cut. Suppose the book takes $110 on each side of a −110/−110 market. It holds $220. Whichever side wins collects $210: their $110 back plus $100 in winnings. The book keeps <strong>$10</strong>, or <strong>4.55%</strong> of the money wagered. That is the <strong>hold</strong>.</p>
+      <div class="formula">hold = 1 − 1 ÷ (sum of implied probabilities)<br>1 − 1 ÷ 1.0476 = 4.55%</div>
+      <p>That $10 is only locked in when the money on each side is balanced. If most bets land on one side, the book has a position and can lose on that game. Books manage this by moving the line, adjusting prices and limiting bet sizes. Over thousands of bets, the hold is their expected profit, not a guarantee on any single game.</p>
 
-      <pre><code>Heads:  -110  (implies ~52.38%)
-Tails:  -110  (implies ~52.38%)</code></pre>
+      <h2>How much vig different bets carry</h2>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Example</th><th>Prices</th><th>Overround</th><th>Hold</th></tr></thead>
+        <tbody>
+          <tr><td>NFL spread or total</td><td>−110 / −110</td><td>4.76%</td><td>4.55%</td></tr>
+          <tr><td>Player prop</td><td>−115 / −115</td><td>6.98%</td><td>6.52%</td></tr>
+          <tr><td>NBA player points, priced to one side</td><td>−120 / −100</td><td>4.55%</td><td>4.35%</td></tr>
+          <tr><td>Moneyline</td><td>−150 / +130</td><td>3.48%</td><td>3.36%</td></tr>
+        </tbody>
+      </table></div>
+      <p>These are illustrations; real margins vary by book, sport and market. As a rule, player props, alternate lines, parlays and futures carry more vig than main spreads and totals, so the same opinion costs more to bet there.</p>
 
-      <p>Do the math: 52.38% + 52.38% = 104.76%. That extra 4.76% is the vig. It ensures that no matter how the bets split, the house takes a slice.</p>
+      <h2>Removing the vig</h2>
+      <p>To see what the market really thinks, strip the margin out. This is called <strong>devigging</strong>. The simplest way divides each side’s implied probability by the total:</p>
+      <div class="formula">no-vig probability = implied probability ÷ sum of both sides</div>
+      <p>For the coin flip, 52.38% ÷ 104.76% = 50%, back where it should be. For a moneyline of −150 and +130:</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Side</th><th>Price</th><th>Implied</th><th>No-vig</th><th>Fair odds</th></tr></thead>
+        <tbody>
+          <tr><td>Favorite</td><td>−150</td><td>60.00%</td><td>57.98%</td><td>−138</td></tr>
+          <tr><td>Underdog</td><td>+130</td><td>43.48%</td><td>42.02%</td><td>+138</td></tr>
+          <tr><td>Total</td><td></td><td>103.48%</td><td>100.00%</td><td></td></tr>
+        </tbody>
+      </table></div>
+      <p>So the market’s no-vig estimate is that the favorite wins about 58% of the time, a fair price of −138. Betting the favorite at −150 means paying for 60%.</p>
+      <p>This is the <strong>proportional</strong> method, the most common one. Other methods, such as the power and Shin methods, put more of the margin on the longshot. On an even −110/−110 market they all agree; on lopsided prices they can differ by a percentage point or so.</p>
 
-      <h2>Why Raw Odds Don’t Tell the Whole Story</h2>
-      <p>Those -110 prices make it look like each side is more likely than it really is. In truth, the game is still a 50/50 coin flip — the book just built in a margin. If you read raw odds as probabilities, you’ll overestimate every outcome slightly.</p>
-
-      <h2>What Does “Devigging” Mean?</h2>
-      <p>To level the playing field, we <strong>devig</strong> the odds. Devigging means stripping out the sportsbook’s margin to reveal the underlying probabilities the odds imply.</p>
-
-      <p>In the coin flip example:</p>
-
-      <pre><code>Raw odds:
-  -110 = 52.38% each side
-
-Sum = 104.76% (includes vig)
-
-Devigged odds:
-  52.38 / 104.76 = 50.0% each side
-</code></pre>
-
-      <p>Now you’re back to reality: 50% vs 50%.</p>
-
-      <h2>Why We Show Market % on Fourth &amp; Value</h2>
-      <p>If you’ve looked at our <a href="../props/index.html">Player Props</a> tables, you’ll see two key columns:</p>
-
+      <h2>Why this matters</h2>
       <ul>
-        <li><strong>Market %</strong> — the devigged, fair probability implied by the sportsbook’s line.</li>
-        <li><strong>Model %</strong> — our own estimate of the true probability.</li>
+        <li><strong>Compare opinions to the fair price.</strong> If you think the favorite above wins 59% of the time, you disagree with the market by about one point (59% vs. 58%), even though the −150 price makes it look like you’re below the market. And at −150 you still need to win 60% just to break even.</li>
+        <li><strong>Know your break-even.</strong> Winning half your bets at −110 loses money. You need 52.38%.</li>
+        <li><strong>Shop for lower vig.</strong> Taking the best price on each side across several books can cut the margin sharply. Our guide to <a href="/blog/synthetic-hold.html">synthetic hold</a> shows how.</li>
+        <li><strong>Make sure the bets match.</strong> Devigging only works when both sides are graded the same way. Check your book’s house rules: <a href="/blog/nfl-betting-rules.html">NFL</a>, <a href="/blog/nba-betting-rules.html">NBA</a>, <a href="/blog/mlb-betting-rules.html">MLB</a>, <a href="/blog/settlement-rules.html">NHL</a>.</li>
+      </ul>
+      <p>Prediction markets charge their fee differently, as a trading fee rather than built into the price. The <a href="/tools/kalshi-odds-converter.html">Kalshi odds converter</a> puts a Kalshi price and its fee on the same footing as a sportsbook line.</p>
+
+      <h2>Quick formulas</h2>
+      <div class="formula">Negative odds: implied = |odds| ÷ (|odds| + 100)<br>Positive odds: implied = 100 ÷ (odds + 100)<br>Overround = sum of implied − 100%<br>Hold = 1 − 1 ÷ sum of implied<br>No-vig = implied ÷ sum of implied</div>
+
+      <a class="cta" href="/blog/synthetic-hold.html"><b>Next: synthetic hold</b><span>Take the best price on each side across every book and see what the whole market charges.</span></a>
+
+      <section class="faq">
+        <h2>Frequently asked questions</h2>
+        <h3>What is vig in sports betting?</h3>
+        <p>Vig, short for vigorish and also called juice, is the sportsbook’s fee built into the odds. It is why both sides of an even matchup are priced at −110 instead of +100.</p>
+        <h3>How much vig is in −110 odds?</h3>
+        <p>With −110 on both sides, the implied probabilities add up to 104.76%, an overround of 4.76%. The book’s hold, the share of money wagered it keeps when action is balanced, is about 4.55%.</p>
+        <h3>What is the difference between vig, overround and hold?</h3>
+        <p>Vig is the general name for the fee. Overround is how far the implied probabilities add up above 100%. Hold is the share of all money wagered the book expects to keep: 1 minus 1 divided by the total of the implied probabilities.</p>
+        <h3>How do you remove the vig from betting odds?</h3>
+        <p>Convert both sides to implied probabilities, add them up, and divide each side by the total. For −150 and +130, 60.00% and 43.48% add to 103.48%, so the no-vig probabilities are 57.98% and 42.02%.</p>
+      </section>
+
+      <h3>Related reading</h3>
+      <ul>
+        <li><a href="/blog/synthetic-hold.html">Synthetic Hold: How to Find the True Price of Any Betting Market</a></li>
+        <li><a href="/blog/early-lines-sharp-advantage.html">Opening Lines vs. Closing Lines: Why Sharp Bettors Bet Early</a></li>
+        <li><a href="/tools/kalshi-odds-converter.html">Kalshi Odds Converter</a></li>
       </ul>
 
-      <p>Without devigging, you’d be comparing apples to oranges — our “fair” model vs the book’s “padded” prices. By removing vig, we can show a cleaner head-to-head comparison.</p>
+      <p style="font-size:14px;color:var(--muted)">This guide replaces an earlier 2025 post at this address.</p>
 
-      <h2>Takeaway</h2>
-      <p>The vig is how sportsbooks keep the lights on. But once you understand it, you can strip it away and see the real picture. That’s why we always devig — and why our tables focus on <em>Market % vs Model %</em>.</p>
-
-      <p>Mastering this concept is step one in betting smarter. In our next fundamentals post, we’ll dive into what we mean by <strong>edge (in basis points)</strong> and why it’s the most important column on the site.</p>
-
-      <a class="back" href="./index.html">← Back to Blog</a>
+      <a class="back" href="/blog/">← Back to Blog</a>
     </article>
   </main>
 <!-- fv-notices:footer:start --><section id="fv-responsible-footer" class="fv-use-footer" aria-label="Responsible use"><p>Fourth &amp; Value provides sports analysis for informational and entertainment purposes. We do not accept wagers. You are responsible for your wagering decisions and for meeting applicable age and legal requirements. Never wager money you cannot afford to lose.</p><p><a href="/terms.html">Terms &amp; privacy</a> · <a href="/terms.html#responsible-play">Responsible play</a> · U.S. gambling support: call or text <a href="tel:+18006973738">1-800-MY-RESET</a> or <a href="https://www.ncpgambling.org/help-treatment/">find confidential help</a>.</p></section><!-- fv-notices:footer:end --></body>

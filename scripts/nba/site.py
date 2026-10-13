@@ -16,7 +16,7 @@ def build(state):
         rel = '../..' if '/' in filename else '..'
         nba = '..' if '/' in filename else '.'
         links = '<nav class="subnav" aria-label="NBA sections">' + ''.join(
-            f'<a href="{nba}/{f}"' + (' aria-current="page"' if f == filename else '') + f'>{t}</a>' for f,t in pages if f != 'methods.html') + '</nav>'
+            f'<a href="{nba}/{f.removesuffix("index.html")}"' + (' aria-current="page"' if f == filename else '') + f'>{t}</a>' for f,t in pages if f != 'methods.html') + '</nav>'
         if filename == 'index.html':
             intro = '''<p class="lead">Follow the schedule, compare sportsbooks and inspect NBA player props in one place.</p>
 <div class="actions"><a class="button primary" href="props/">Compare player props →</a><a class="button" href="totals/">Compare game lines →</a></div>

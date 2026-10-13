@@ -2,194 +2,198 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Fourth & Value — What is Structural Arbitrage?</title>
+  <title>Structural Arbitrage: When Sportsbooks Contradict Themselves</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="Understanding how sportsbooks contradict themselves and how to exploit pricing errors in correlated props." />
+  <meta name="description" content="When a sportsbook’s related props disagree: how to spot it, why simple ratios mislead for low-volume players, and how to check the gap with probabilities." />
   <link rel="icon" href="../assets/logo.svg" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "Article",
+ "headline": "Structural Arbitrage: When a Sportsbook’s Props Contradict Each Other",
+ "description": "When a sportsbook’s related props disagree: how to spot it, why simple ratios mislead for low-volume players, and how to check the gap with probabilities.",
+ "image": ["https://fourthandvalue.com/blog/structural-arbitrage-2026/social.png"],
+ "datePublished": "2026-10-12T16:00:00+00:00",
+ "dateModified": "2026-10-12T16:00:00+00:00",
+ "author": {"@type": "Organization", "name": "Fourth & Value", "url": "https://fourthandvalue.com/"},
+ "publisher": {"@type": "Organization", "name": "Fourth & Value", "logo": {"@type": "ImageObject", "url": "https://fourthandvalue.com/assets/logo.svg"}},
+ "mainEntityOfPage": "https://fourthandvalue.com/blog/structural-arbitrage-explained.html",
+ "articleSection": "Learning",
+ "keywords": ["structural arbitrage", "correlated props", "player props", "PRA", "implied yards per catch", "pricing errors"]
+}
+  </script>
+  <script type="application/ld+json">
+{
+ "@context": "https://schema.org",
+ "@type": "FAQPage",
+ "mainEntity": [
+  {"@type": "Question", "name": "Is structural arbitrage real arbitrage?", "acceptedAnswer": {"@type": "Answer", "text": "No. True arbitrage guarantees a profit whatever happens. Structural arbitrage means a book's related props are priced inconsistently, which may make one side a good bet, but it is never risk-free."}},
+  {"@type": "Question", "name": "Can you bet both related props to lock in a profit?", "acceptedAnswer": {"@type": "Answer", "text": "No. Pairs such as over receptions and under receiving yards can both win, but they can also both lose, and each bet carries the vig."}},
+  {"@type": "Question", "name": "What is implied yards per catch?", "acceptedAnswer": {"@type": "Answer", "text": "It is the receiving yards line divided by the receptions line. It is a quick screen for high-volume players, but for players who may catch zero or one pass it is misleading, because prop lines are midpoints, not averages."}},
+  {"@type": "Question", "name": "Should a points + rebounds + assists line equal the sum of the separate lines?", "acceptedAnswer": {"@type": "Answer", "text": "Roughly. Because these stats are skewed toward big games, a combined line usually sits at or a little above the sum of the individual lines. A combined line well below the sum is the pattern worth checking."}}
+ ]
+}
+  </script>
   <style>
-    :root { --max: 860px; --bg:#0b0b0b; --fg:#e9e9e9; --muted:#b9b9b9; --line:#222; --input:#121212; --link:#8ab4ff; }
-    html,body { margin:0; background:var(--bg); color:var(--fg); }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; line-height:1.65; }
-    a { color: var(--link); text-decoration: underline; }
-    .wrap { max-width: var(--max); margin: 0 auto; padding: 16px; }
-    h1 { margin: 8px 0 4px; }
-    .meta { font-size:.9rem; color: var(--muted); margin: 6px 0 18px; }
-    article h2, article h3 { margin-top: 1.4em; }
-    code, pre { background:#0f0f0f; border:1px solid var(--line); border-radius:8px; color:#e6e6e6; }
-    pre { padding:12px; overflow:auto; }
-    .back { display:inline-block; margin-top: 28px; color: var(--link); }
-    .example { background:#1a1a1a; border-left:3px solid #4ade80; padding:16px; margin:20px 0; border-radius:8px; }
-    .warning { background:#1a1a1a; border-left:3px solid #f59e0b; padding:16px; margin:20px 0; border-radius:8px; }
+    :root{
+      --bg:#0b0e13; --surface:#12161d; --ink:#eef1f5; --muted:#8b93a1; --line:#232a35;
+      --accent:#6ea8fe; --good:#2dd4bf; --warn:#f0ab3d;
+    }
+    *{box-sizing:border-box}
+    html,body{ margin:0; background:var(--bg); }
+    body{ color:var(--ink); font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif; -webkit-font-smoothing:antialiased; }
+    a{ color:var(--accent); }
+    .wrap{ max-width:720px; margin:0 auto; padding:40px 24px 96px; }
+    .kicker{ font-family:'JetBrains Mono',monospace; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); display:flex; align-items:center; gap:10px; margin-bottom:22px; }
+    .kicker .dot{ width:6px; height:6px; border-radius:50%; background:var(--accent); }
+    h1{ font-family:'Fraunces',serif; font-weight:600; font-size:clamp(32px,5.6vw,48px); line-height:1.08; letter-spacing:-.01em; margin:0 0 18px; text-wrap:balance; }
+    article{ font-size:17px; line-height:1.7; }
+    article p{ margin:0 0 22px; }
+    article ul{ margin:0 0 22px; padding-left:22px; }
+    article li{ margin-bottom:10px; }
+    h2{ font-family:'Fraunces',serif; font-weight:600; font-size:28px; line-height:1.2; margin:52px 0 16px; }
+    h3{ font-size:18px; margin:32px 0 10px; }
+    .formula{ font-family:'JetBrains Mono',monospace; font-size:15px; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px 18px; margin:0 0 22px; line-height:1.8; overflow-x:auto; }
+    .tbl-wrap{ overflow-x:auto; margin:8px 0 22px; border:1px solid var(--line); border-radius:12px; position:relative; }
+    table{ width:100%; border-collapse:collapse; font-size:14.5px; }
+    th,td{ padding:10px 14px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap; }
+    th:first-child,td:first-child{ text-align:left; }
+    th{ font-weight:600; color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.06em; background:var(--surface); }
+    td{ font-family:'JetBrains Mono',monospace; }
+    td:first-child{ font-family:'Inter',sans-serif; }
+    tr:last-child td{ border-bottom:0; }
+    td.best{ color:var(--good); font-weight:700; }
+    td.neg{ color:var(--warn); }
+    .callout{ border-left:3px solid var(--accent); background:color-mix(in oklab, var(--accent) 8%, var(--surface)); border-radius:0 12px 12px 0; padding:18px 22px; margin:28px 0; font-size:15.5px; line-height:1.65; }
+    .callout p{ margin:0 0 12px; }
+    .callout p:last-child{ margin:0; }
+    .callout .tag{ font-family:'JetBrains Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--accent); display:block; margin-bottom:8px; font-weight:700; }
+    .cta{ display:block; text-decoration:none; background:var(--surface); border:1px solid var(--accent); border-radius:14px; padding:20px 22px; margin:32px 0; color:var(--ink); }
+    .cta b{ font-family:'Fraunces',serif; font-size:21px; display:block; margin-bottom:4px; }
+    .cta span{ color:var(--muted); font-size:15px; }
+    .cta:hover{ background:color-mix(in oklab, var(--accent) 8%, var(--surface)); }
+    .faq h3{ margin-top:26px; }
+    .back{ display:inline-block; margin-top:40px; color:var(--accent); }
+    @media (max-width:560px){ .wrap{ padding:28px 16px 72px; } h2{ font-size:24px; } th,td{ padding:9px 10px; white-space:normal; } }
   </style>
-<link rel="canonical" href="https://fourthandvalue.com/blog/structural-arbitrage-explained.html"><meta property="og:title" content="Fourth &amp; Value — What is Structural Arbitrage?"><meta property="og:description" content="Fourth &amp; Value — What is Structural Arbitrage?. Sports analysis and research from Fourth &amp; Value."><meta property="og:url" content="https://fourthandvalue.com/blog/structural-arbitrage-explained.html"><meta property="og:type" content="website"><link rel="stylesheet" href="/assets/responsible-use.css?v=1"><meta property="og:image" content="https://fourthandvalue.com/assets/social-card.png"><meta property="og:image:alt" content="Fourth &amp; Value"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="https://fourthandvalue.com/assets/social-card.png"></head>
+  <link rel="canonical" href="https://fourthandvalue.com/blog/structural-arbitrage-explained.html">
+  <meta property="og:title" content="Structural arbitrage: when a sportsbook’s props contradict each other">
+  <meta property="og:description" content="When a sportsbook’s related props disagree: how to spot it, why simple ratios mislead for low-volume players, and how to check the gap with probabilities.">
+  <meta property="og:url" content="https://fourthandvalue.com/blog/structural-arbitrage-explained.html">
+  <meta property="og:type" content="article">
+  <meta property="og:image" content="https://fourthandvalue.com/blog/structural-arbitrage-2026/social.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="720">
+  <meta property="og:image:alt" content="Structural arbitrage: points, rebounds and assists lines add to 37.5 while the combined line is 35.5.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://fourthandvalue.com/blog/structural-arbitrage-2026/social.png">
+  <meta property="article:published_time" content="2026-10-12T16:00:00+00:00">
+  <meta property="article:section" content="Learning">
+<link rel="stylesheet" href="/assets/responsible-use.css?v=1"></head>
 <body>
   <div id="nav-root"></div>
   <script src="../nav.js?v=47"></script>
 
   <main class="wrap">
+    <header>
+      <div class="kicker"><span class="dot"></span>Fourth &amp; Value &middot; Learning &middot; Oct 12, 2026 &middot; 8 min read</div>
+      <h1>Structural Arbitrage: When a Sportsbook’s Props Contradict Each Other</h1>
+    </header><!-- fv-notices:notice:start --><aside id="fv-betting-notice" class="fv-use-notice" aria-label="Betting information disclaimer"><strong>Analysis, not a guarantee.</strong> Picks and projections are uncertain; odds and player information can change. No outcome or profit is guaranteed. Any wager is your decision and responsibility. <a href="/terms.html#responsible-play">Read our limitations and responsible-play guidance</a>.</aside><!-- fv-notices:notice:end -->
+
     <article>
-      <header>
-        <h1>What is Structural Arbitrage? When Sportsbooks Contradict Themselves</h1>
-        <div class="meta"><time datetime="2025-11-06">Nov 6, 2025</time> • 6 min read</div>
-      </header><!-- fv-notices:notice:start --><aside id="fv-betting-notice" class="fv-use-notice" aria-label="Betting information disclaimer"><strong>Analysis, not a guarantee.</strong> Picks and projections are uncertain; odds and player information can change. No outcome or profit is guaranteed. Any wager is your decision and responsibility. <a href="/terms.html#responsible-play">Read our limitations and responsible-play guidance</a>.</aside><!-- fv-notices:notice:end -->
+      <p>Some player props are tied together by arithmetic. Receiving yards come from receptions. Completions can’t exceed pass attempts. Points, rebounds and assists add up to a combined line. When one book prices related props in a way that doesn’t fit together, one of those prices is probably wrong.</p>
+      <p>Bettors call this <strong>structural arbitrage</strong>. The name oversells it. True arbitrage guarantees a profit; this doesn’t. What it gives you is a reason to look closely at one side of a bet. Here is how to spot it, the trap that catches most people, and the check that actually works.</p>
 
-      <p>Structural arbitrage sounds complicated, but it's actually one of the simplest edges in sports betting: <strong>finding situations where a sportsbook's own lines contradict each other</strong>. When a book prices two related props in a way that's mathematically impossible, you have an opportunity to exploit the error.</p>
+      <h2>The quick screen: ratios</h2>
+      <p>The fastest check divides one line by another and asks whether the result is realistic.</p>
+      <ul>
+        <li><strong>Pass attempts 35.5, completions 27.5:</strong> that implies a 77% completion rate. If the quarterback usually completes about 65%, 36 attempts means about 23 completions, so the completions under is worth checking.</li>
+        <li><strong>Rush attempts 16.5, rushing yards 52.5:</strong> that implies 3.2 yards per carry. If the back usually averages 4.5, 16 carries is about 72 yards, so the yards over is worth checking.</li>
+      </ul>
+      <p>For high-volume stats like these, the ratio is a reasonable screen. A quarterback is almost certain to throw 25 or more passes, so the lines behave roughly like averages.</p>
 
-      <p>Let's break down exactly what this means and how to recognize it.</p>
+      <h2>NBA combined props</h2>
+      <p>Basketball has its own version. Say a book posts a player at:</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Market</th><th>Line</th></tr></thead>
+        <tbody>
+          <tr><td>Points</td><td>24.5</td></tr>
+          <tr><td>Rebounds</td><td>7.5</td></tr>
+          <tr><td>Assists</td><td>5.5</td></tr>
+          <tr><td>Sum of the three</td><td>37.5</td></tr>
+          <tr><td>Points + rebounds + assists (PRA)</td><td class="neg">35.5</td></tr>
+        </tbody>
+      </table></div>
+      <p>Because these stats are skewed toward big games, the combined line usually sits at or a little above the sum of the separate lines. A PRA line two points <em>below</em> the sum is the pattern worth checking: either the PRA over is cheap, or one of the separate lines is too high. Check the prices on each before you decide which.</p>
 
-      <h2>The Basic Concept</h2>
+      <h2>The trap: low-volume players</h2>
+      <p>Ratios break down for players who may barely touch the ball. Take a tight end at:</p>
+      <ul>
+        <li>Receptions 1.5: over −130, under +100</li>
+        <li>Receiving yards 6.5: over −115, under −115</li>
+      </ul>
+      <p>Divide 6.5 by 1.5 and you get 4.33 yards per catch, which looks absurdly low for a tight end. It’s tempting to call the yards line a mistake. But that division treats each line like an average, and a prop line is closer to a <strong>midpoint</strong>. For a player with a real chance of catching nothing, that zero pulls the yards line down far more than it moves the receptions line. The 4.33 number doesn’t mean the book expects 4.33 yards per catch.</p>
 
-      <p>Some player props are inherently related. For a wide receiver, receptions and receiving yards are connected by a simple formula:</p>
-
-      <p><strong>Receiving Yards ÷ Receptions = Yards Per Reception (YPR)</strong></p>
-
-      <p>If a book offers separate lines for receptions and receiving yards, those lines imply a specific YPR. And here's the key: <strong>that implied YPR has to be realistic</strong>. If it's not, the book has made a pricing error you can exploit.</p>
-
-      <h2>A Real Example: Adam Trautman</h2>
-
-      <div class="example">
-        <strong>BetMGM Lines (Raiders @ Broncos):</strong><br>
-        • Receptions: 1.5 (Over -130, Under +100)<br>
-        • Receiving Yards: 6.5 (Over -115, Under -115)<br>
-        <br>
-        <strong>Our Model:</strong> 1.35 receptions (43% over, 57% under)<br>
-        <br>
-        <strong>Implied YPR:</strong> 6.5 ÷ 1.5 = <span style="color:#f59e0b">4.33 yards per reception</span><br>
-        <br>
-        <strong>Realistic NFL TE Range:</strong> <span style="color:#4ade80">6-18 yards per reception</span>
+      <h2>The check that works: compare probabilities</h2>
+      <p>Use the book’s own prices instead. Removing the vig, over 1.5 receptions at −130 against +100 prices two or more catches at <strong>53.1%</strong>. The yards over at −115 on both sides is priced at <strong>50%</strong>.</p>
+      <p>Now reason about the link between them. Two catches almost always add up to 7 or more yards. So the chance of 7+ yards should be at least about the chance of two catches, plus the chance of one longer catch. Using two sets of assumptions:</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Assumption</th><th>Cautious</th><th>Generous</th></tr></thead>
+        <tbody>
+          <tr><td>2+ catches reach 7+ yards</td><td>85%</td><td>90%</td></tr>
+          <tr><td>Chance of exactly 1 catch</td><td>28%</td><td>28%</td></tr>
+          <tr><td>1 catch reaches 7+ yards</td><td>30%</td><td>45%</td></tr>
+          <tr><td><strong>Chance of 7+ yards</strong></td><td><strong>53.5%</strong></td><td><strong>60.4%</strong></td></tr>
+        </tbody>
+      </table></div>
+      <p>The book priced the yards over at 50%. To profit at −115 you need 53.5%. So under cautious assumptions there is no edge at all once you pay the vig, and under generous ones there are a few points. That is the honest size of this “contradiction”: real, but far smaller than “4.33 yards per catch” makes it sound.</p>
+      <div class="callout"><span class="tag">Watch the market too</span>
+        <p>Lines like these often move fast. If the receptions under is bet from +100 to −210, two catches drop to roughly a one-in-three chance, and the yards under no longer looks out of line. When a sharp move resolves the inconsistency, the market is usually telling you which side was wrong.</p>
       </div>
 
-      <p>The book is pricing Trautman's props as if he'll average 4.33 yards per catch. That's impossibly low for an NFL tight end. Even the shortest-target TEs in the league average 6+ yards per reception. This is a structural error.</p>
-
-      <p>Now here's where it gets interesting: <strong>our model projects 1.35 receptions—slightly under the 1.5 line</strong>. But when we look at the receiving yards lines from other books (Caesars at 7.5, FanDuel at 7.5), we can work backwards to estimate what those books think about receptions. At realistic YPR (8-12 yards), 7.5 receiving yards implies roughly 0.6-0.9 receptions—well under 1. This suggests the broader market actually expects very low volume, making BetMGM's 1.5 receptions line look too high, not accurate.</p>
-
-      <p>This is a key strategy: <strong>when books post one leg of a prop family but not the others, you can reverse-engineer their implied expectations</strong>. The receiving yards lines from Caesars and FanDuel are telling us what they think about receptions, even though they're not posting receptions lines directly.</p>
-
-      <h2>What Makes It "Structural"?</h2>
-
-      <p>The term "structural" means the error is built into the relationship between the two props. The book hasn't just mispriced one prop—they've priced two related props in a way that <strong>creates a mathematical contradiction</strong>.</p>
-
-      <p>Let's think through what happens in this game:</p>
-
-      <h3>Scenario 1: Trautman Gets Volume</h3>
-
-      <p>If Trautman catches 2 passes (hitting the over on 1.5 receptions), what happens to his receiving yards?</p>
-
+      <h2>Why books get this wrong</h2>
       <ul>
-        <li>At a realistic 8 YPR (low for a TE): 2 catches × 8 = <strong>16 yards</strong></li>
-        <li>At 10 YPR (average for a TE): 2 catches × 10 = <strong>20 yards</strong></li>
-        <li>At the book's implied 4.33 YPR: 2 catches × 4.33 = <strong>8.66 yards</strong></li>
+        <li><strong>Separate pricing.</strong> Related markets can come from different models or data feeds, and they don’t always get reconciled.</li>
+        <li><strong>Uneven updates.</strong> News moves one market before another, so for a while they disagree.</li>
+        <li><strong>Copied lines.</strong> A book that copies another book’s line in one market but not the related one can end up inconsistent.</li>
+        <li><strong>Less attention.</strong> Backups, tight ends and low-volume props get less scrutiny than star markets.</li>
       </ul>
 
-      <p>For Trautman to stay under 6.5 yards while catching 2 passes, he'd need to average just 3.25 yards per catch. That would require both catches to be immediate tackles at or near the line of scrimmage. Possible? Sure. Likely? Not at all.</p>
-
-      <p><strong>The receptions line and the yards line can't both be accurate.</strong> If the receptions over hits, the yards over almost certainly hits too—which means the yards line is mispriced.</p>
-
-      <h3>Scenario 2: Trautman Gets No Volume</h3>
-
-      <p>If Trautman catches 0-1 passes, he's very unlikely to reach 7+ yards. In this case, the under on receiving yards is the right side, but the receptions line was probably accurate all along.</p>
-
-      <h2>How to Actually Bet This</h2>
-
-      <div class="warning">
-        <strong>Important:</strong> This is NOT about betting both sides. You don't get a guaranteed profit by betting over receptions and under yards. One of those bets will lose.
-      </div>
-
-      <p>What you're doing is <strong>identifying which side of the contradiction to exploit</strong>. You pick the prop that benefits most from the book's error.</p>
-
-      <h3>The Decision Process</h3>
-
-      <p>This is where structural arbitrage gets interesting—and where you need to interpret what the market is telling you.</p>
-
-      <p><strong>Our model:</strong> 1.35 receptions, 17.4 receiving yards<br>
-      <strong>BetMGM lines:</strong> 1.5 receptions, 6.5 yards<br>
-      <strong>Other books (Caesars, FanDuel):</strong> 7.5 receiving yards (no receptions line offered)</p>
-
-      <p>Let's work backwards from those 7.5 yard lines to see what they imply about receptions:</p>
-
+      <h2>How to bet it</h2>
       <ul>
-        <li>7.5 yards ÷ 12 YPR = <strong>0.625 receptions</strong></li>
-        <li>7.5 yards ÷ 10 YPR = <strong>0.75 receptions</strong></li>
-        <li>7.5 yards ÷ 8 YPR = <strong>0.94 receptions</strong></li>
+        <li><strong>Bet one side, not both.</strong> Pairs like over receptions and under yards can both win, but they can also both lose. See <a href="/blog/family_arbitrage_mnf.html">why that pair isn’t arbitrage</a>.</li>
+        <li><strong>Price it after the vig.</strong> A gap of two or three points can disappear inside a −115 price.</li>
+        <li><strong>Prefer high-volume stats.</strong> That is where ratios are trustworthy and gaps are easier to size.</li>
+        <li><strong>Don’t expect a same-game parlay to escape it.</strong> Books generally price correlation into same-game parlays.</li>
+      </ul>
+      <p>Our <a href="/props/arbitrage.html">pricing checks</a> page flags related props whose implied rates fall outside normal ranges. Treat each flag as a question to check with the probabilities above, not a guaranteed error.</p>
+
+      <a class="cta" href="/blog/family_arbitrage_mnf.html"><b>Next: over receptions, under yards</b><span>The prop pair that looks like it can’t lose, every outcome, and a 2025 example.</span></a>
+
+      <section class="faq">
+        <h2>Frequently asked questions</h2>
+        <h3>Is structural arbitrage real arbitrage?</h3>
+        <p>No. True arbitrage guarantees a profit whatever happens. Structural arbitrage means a book’s related props are priced inconsistently, which may make one side a good bet, but it is never risk-free.</p>
+        <h3>Can you bet both related props to lock in a profit?</h3>
+        <p>No. Pairs such as over receptions and under receiving yards can both win, but they can also both lose, and each bet carries the vig.</p>
+        <h3>What is implied yards per catch?</h3>
+        <p>It is the receiving yards line divided by the receptions line. It is a quick screen for high-volume players, but for players who may catch zero or one pass it is misleading, because prop lines are midpoints, not averages.</p>
+        <h3>Should a points + rebounds + assists line equal the sum of the separate lines?</h3>
+        <p>Roughly. Because these stats are skewed toward big games, a combined line usually sits at or a little above the sum of the individual lines. A combined line well below the sum is the pattern worth checking.</p>
+      </section>
+
+      <h3>Related reading</h3>
+      <ul>
+        <li><a href="/blog/how-books-make-money.html">What Is Vig? How Sportsbooks Make Money and How to Remove It</a></li>
+        <li><a href="/blog/synthetic-hold.html">Synthetic Hold: How to Find the True Price of Any Betting Market</a></li>
+        <li><a href="/blog/nba-betting-rules.html">NBA Betting Rules: Overtime, Player Props and the Player Who Sits</a></li>
       </ul>
 
-      <p>The 7.5 yard consensus from Caesars and FanDuel implies they think Trautman gets <strong>under 1 reception</strong>—probably 0-1 catches with heavy weight on zero. BetMGM's 6.5 line implies even less.</p>
+      <p style="font-size:14px;color:var(--muted)">This guide replaces an earlier 2025 post at this address.</p>
 
-      <p><strong>But BetMGM is simultaneously offering 1.5 receptions.</strong> That's the contradiction.</p>
-
-      <h3>Two Ways to Play This</h3>
-
-      <p><strong>If you believe Trautman will be involved (1-2+ receptions):</strong></p>
-      <ul>
-        <li>Bet <strong>OVER 6.5 receiving yards</strong></li>
-        <li>Why? At realistic YPR (8-12 yards), even 1 catch should clear 6.5 yards</li>
-        <li>Our model projects 17.4 yards with 84% confidence in the over</li>
-        <li>The implied 4.33 YPR at BetMGM (or ~5 YPR at the 7.5 lines) is impossibly low</li>
-        <li>You could also bet <strong>OVER 1.5 receptions</strong> if you think the 7.5 yard consensus reveals the books expect near-zero volume</li>
-      </ul>
-
-      <p><strong>If you believe Trautman will be a non-factor (0-1 receptions with heavy weight on zero):</strong></p>
-      <ul>
-        <li>Bet <strong>UNDER 1.5 receptions</strong></li>
-        <li>Why? The sharp money moved this line from +100 to -210 in a few hours</li>
-        <li>The 7.5 yard consensus from Caesars/FanDuel suggests the broader market expects minimal volume</li>
-        <li>In this scenario, both receptions under AND yards under likely hit</li>
-      </ul>
-
-      <h3>What the Sharp Money Is Saying</h3>
-
-      <p>Since this morning, BetMGM's receptions line moved dramatically: the under went from +100 to -210. That's a 110-point move in juice, indicating heavy sharp action on the under. The sharp bettors may be seeing what Caesars and FanDuel are pricing into their 7.5 yard lines: Trautman is expected to be a non-factor.</p>
-
-      <p>This is the essence of structural arbitrage analysis: <strong>identify the mathematical contradiction, then use your model, market signals, and game context to decide which side of the error to exploit</strong>. There's no "correct" answer here—it depends on your read of Trautman's likely involvement in the game.</p>
-
-      <h2>Why This Happens</h2>
-
-      <p>Sportsbooks often set lines for different prop markets independently. The team pricing receptions might not coordinate with the team pricing receiving yards. When they don't properly correlate these lines, you get situations like this where the implied stats become unrealistic.</p>
-
-      <p>It's more common with:</p>
-      <ul>
-        <li>Secondary receivers or tight ends (less liquidity, less market attention)</li>
-        <li>Lower-volume props where books are less worried about being off by a yard or two</li>
-        <li>Books that copy lines from competitors without checking internal consistency</li>
-      </ul>
-
-      <h2>Other Examples of Structural Arbitrage</h2>
-
-      <p>The receptions/yards relationship is the most common, but similar opportunities exist elsewhere:</p>
-
-      <h3>Rush Attempts vs Rush Yards (YPC)</h3>
-
-      <p>If a book prices a running back at 15.5 attempts and 45.5 yards, they're implying 3.0 yards per carry. If that RB typically averages 4.5 YPC, the rush attempts over becomes attractive—because hitting 16 carries likely means 70+ yards, making both overs viable.</p>
-
-      <h3>Pass Attempts vs Completions (Completion %)</h3>
-
-      <p>If a QB is priced at 35.5 attempts and 28.5 completions, that's an 80% completion rate. If the QB normally completes 65%, the completions under might be the play—because hitting 36 attempts at his real completion rate means only 23-24 completions.</p>
-
-      <h3>Receptions vs Targets (Catch Rate)</h3>
-
-      <p>Less commonly offered, but if a receiver is priced at 8.5 targets and 6.5 receptions, that's a 76% catch rate. If the player typically catches 55% of targets, something's off.</p>
-
-      <h2>How to Find These Opportunities</h2>
-
-      <p>Our model automatically calculates implied rates for correlated props and flags situations where the implied metric falls outside realistic ranges. That's what powers the <strong>Arbitrage page</strong>—it's not about betting both sides, it's about surfacing these internal contradictions so you can pick the mispriced side.</p>
-
-      <p>When you see a prop flagged for structural arbitrage:</p>
-      <ol>
-        <li>Check the implied rate (YPR, YPC, completion %, etc.)</li>
-        <li>Compare it to the player's historical average and the realistic range for their position</li>
-        <li>Decide which line is more likely correct based on game context, usage, matchup</li>
-        <li>Bet the side that benefits from the book's pricing error</li>
-      </ol>
-
-      <h2>The Bottom Line</h2>
-
-      <p>Structural arbitrage isn't magic and it's not a guaranteed profit. It's pattern recognition: spotting when sportsbooks have priced related props in ways that don't make mathematical sense.</p>
-
-      <p>When you see these contradictions, you're not betting both sides—you're making an informed decision about which side of the book's error to exploit. The edge comes from recognizing the mistake before the market corrects it.</p>
-
-      <p>Look for implied metrics that fall outside realistic ranges. When you find them, you've found a pricing error. Then it's just a matter of figuring out which prop is mispriced and betting accordingly.</p>
-
-      <a class="back" href="./index.html">← Back to Blog</a>
+      <a class="back" href="/blog/">← Back to Blog</a>
     </article>
   </main>
 <!-- fv-notices:footer:start --><section id="fv-responsible-footer" class="fv-use-footer" aria-label="Responsible use"><p>Fourth &amp; Value provides sports analysis for informational and entertainment purposes. We do not accept wagers. You are responsible for your wagering decisions and for meeting applicable age and legal requirements. Never wager money you cannot afford to lose.</p><p><a href="/terms.html">Terms &amp; privacy</a> · <a href="/terms.html#responsible-play">Responsible play</a> · U.S. gambling support: call or text <a href="tel:+18006973738">1-800-MY-RESET</a> or <a href="https://www.ncpgambling.org/help-treatment/">find confidential help</a>.</p></section><!-- fv-notices:footer:end --></body>
