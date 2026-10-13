@@ -322,12 +322,14 @@ record the trigger source and gate execution time. GitHub documents timezone
 support and delayed/dropped cron events:
 https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule
 
-Owner-authorized release testing on **September 27, 2026 only** uses a **$20
-shared ceiling**, configured by `test_budget_override` with an exact Eastern date
-and authorization reason. It includes every charge already recorded that day;
-it does not reset or create another ledger. Both discovery and review use the
-same override, and each reservation records the effective limit and reason.
-The exception expires automatically at Eastern midnight; September 28 resumes
+Owner-authorized exceptions use `test_budget_override` with an exact Eastern
+date and authorization reason: a **$20 shared ceiling** for release testing on
+**September 27, 2026**, and **$6.00** on **October 13, 2026** to re-run research
+after the morning's review batches failed validation. The override includes every
+charge already recorded that day; it does not reset or create another ledger.
+Both discovery and review use the same override, and each reservation records the
+effective limit and reason. Only one date can be configured at a time. The
+exception expires automatically at Eastern midnight, and the next day resumes
 $2.75 without a deployment or manual reset. Increasing `daily_budget_usd` alone
 cannot bypass the normal cap. This is a testing allowance, not a spending target.
 
