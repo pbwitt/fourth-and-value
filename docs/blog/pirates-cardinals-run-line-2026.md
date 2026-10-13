@@ -111,6 +111,6 @@ They’re also recent enough to keep us cautious.
 
 **That’s the bet: Pittsburgh −1.5, with the bullpen doing most of the work.**
 
-**Data.** [Bullpen splits](pirates-cardinals-2026/bullpen-splits.csv), [book quotes](pirates-cardinals-2026/book-prices.csv), [Jones’ 2026 log](pirates-cardinals-2026/jones-2026-game-log.csv) and [all calculations](pirates-cardinals-2026/analysis.json). Bullpen splits are computed from cached game files by removing each game’s listed starter. Prices and model output come from the saved board snapshot of September 21, 2026 at 23:27 UTC, with model inputs through September 20. See the [reproduction script](https://github.com/pbwitt/fourth-and-value/blob/main/scripts/analyze_pirates_runline_2026.py) and the [MLB methodology](../mlb/methods.html).
+**Data.** [Bullpen splits](pirates-cardinals-2026/bullpen-splits.csv), [book quotes](pirates-cardinals-2026/book-prices.csv), [Jones’ 2026 log](pirates-cardinals-2026/jones-2026-game-log.csv) and [all calculations](pirates-cardinals-2026/analysis.json). Bullpen splits are computed from cached game files by removing each game’s listed starter. Prices and model output come from the saved board snapshot of September 21, 2026 at 7:27 p.m. EDT, with model inputs through September 20. See the [reproduction script](https://github.com/pbwitt/fourth-and-value/blob/main/scripts/analyze_pirates_runline_2026.py) and the [MLB methodology](../mlb/methods.html).
 
 [← Back to Blog](index.html) · [See the MLB picks board](../mlb/picks.html)

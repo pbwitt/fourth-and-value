@@ -25,6 +25,7 @@ jobs:
           node-version: '22'
       - run: pip install requests==2.32.5 anthropic==1.13.0
       - run: python scripts/build_daily_process.py --check
+      - run: python -m unittest discover -s tests -p 'test_display_time.py'
       - run: node tests/briefing_picks.cjs
       - run: python -m unittest discover -s tests -p 'test_research*.py'
       - run: python -m unittest discover -s tests -p 'test_analyst_review.py'

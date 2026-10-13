@@ -207,7 +207,7 @@
 
   function timeLabel(iso) {
     const t = Date.parse(iso);
-    return Number.isFinite(t) ? new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+    return Number.isFinite(t) ? new Date(t).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }) : '';
   }
 
   // One bet + its game (+ box when fetched) -> everything the UI draws.

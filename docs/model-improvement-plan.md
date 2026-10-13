@@ -40,7 +40,7 @@ changes to the models.
 - `clv_ev = closing_fair_prob × decimal(odds) − 1`, where `closing_fair_prob` is the median
   no-vig probability across US books at the bet's exact line.
 - Edge function `closing-lines` runs every 5 minutes and prices each game in the final 6 minutes
-  before it starts. A daily backfill runs at 10:00 UTC. Market mappings, including NBA, live in
+  before it starts. A daily backfill runs at 5 a.m. EST / 6 a.m. EDT. Market mappings, including NBA, live in
   `clv.mjs`.
 
 ### What week 1 showed (28 bets, $5 flat stakes)
@@ -338,7 +338,7 @@ Merged in pbwitt/fourth-and-value#86.
 
 - Shared 2,000-credit floor and 2,000 per-run cap (`scripts/odds_budget.py`) wired into every scheduled
   Odds API caller. `closing-lines` v2 deployed after the merge: 2,000 reserve (a lower setting is
-  ignored), cost-aware check, 2,000 per-run cap. Its 5-minute runs returned 200 from 14:05 to 15:00 UTC.
+  ignored), cost-aware check, 2,000 per-run cap. Its 5-minute runs returned 200 from 10:05 to 11:00 a.m. EDT.
   The deployed `clv.mjs` writes the accent-stripping regex range as literal characters rather than
   `\u0300-\u036f` escapes; it matches the same characters.
 - `closing-lines` source, migration and schedule committed from Supabase.
@@ -431,7 +431,7 @@ Open: read each book's published rules and replace `assumed` with a source.
   48 hours, row text 135–205 characters, e.g. "Boston Bruins: likely Jeremy Swayman 88% (sv 0.906),
   Michael DiPietro 12%". All 25 roster requests answered 200 in a separate check; an earlier
   burst run got 19, which led to spacing and one retry on 429/5xx.
-- Point in time: only box scores available by the decision (next day 12:00 UTC, the history's
+- Point in time: only box scores available by the decision (next day 7 a.m. EST / 8 a.m. EDT, the history's
   convention) count, so the 7:05 AM run does not yet see last night's starter; the 4:30 PM
   refresh does.
 - Output: `goalie_assumption` on every row in that window ("Projected, not confirmed", the

@@ -18,6 +18,7 @@ import editorial_budget as budget
 import editorial_sources as reporting
 import editorial_ideas as ideas
 import model_api
+from display_time import TIMEZONE_INSTRUCTIONS
 
 STATE=ed.DOCS/'editorial/runs'
 # Every article is public: the same voice rule goes to the writer and the audit.
@@ -468,7 +469,7 @@ def audit_model(cfg):
 def payload(instructions,data,phase,model=None):
     effort=ed.CFG['writer'].get('reasoning_effort','low') if phase=='write' else 'low'
     result=dict(model=model or ed.CFG['writer']['model'],service_tier='default',reasoning={'effort':effort},
-        max_output_tokens=budget.LIMITS[phase][1],instructions=instructions,input=json.dumps(data,separators=(',',':')))
+        max_output_tokens=budget.LIMITS[phase][1],instructions=instructions+TIMEZONE_INSTRUCTIONS,input=json.dumps(data,separators=(',',':')))
     budget.bounds(result,phase)
     return result
 

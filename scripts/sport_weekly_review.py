@@ -20,6 +20,7 @@ from zoneinfo import ZoneInfo
 
 import numpy as np
 import requests
+from display_time import eastern_time
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
@@ -494,7 +495,7 @@ def publish(public, root):
             qtext += ' The game-block 95% interval for model minus market Brier is '+ ' to '.join(f'{x:+.4f}' for x in quality['difference_ci95'])+'.'
         else:
             qtext += ' Too few games for a game-block uncertainty interval.'
-    preview = ''.join(f'<li>{escape(r["game"])}: saved model {r["mean"]:.2f}, line {r["line"]:g}, gap {r["gap"]:+.2f}. Snapshot {escape(r["captured"])}.</li>' for r in s['preview'])
+    preview = ''.join(f'<li>{escape(r["game"])}: saved model {r["mean"]:.2f}, line {r["line"]:g}, gap {r["gap"]:+.2f}. Snapshot {escape(eastern_time(r["captured"]))}.</li>' for r in s['preview'])
     evidence = ('Partial full-board archive coverage: saved game snapshots begin '+str(s['first_archived_game'])+'. '
                 if s['partial_coverage'] and s['first_archived_game'] else '')
     evidence += (f'The full-board sample has {s["games_with_quotes"]} games with saved pregame quotes; '

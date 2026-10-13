@@ -2,6 +2,17 @@
 
 The homepage combines a curated lead, an automated market rundown, recent reporting, dated model features, opinion and results. Existing authored posts remain unchanged.
 
+## Time zone
+
+Use U.S. Eastern Time (`America/New_York`) in every article, analysis, caption,
+snapshot label, publication time and other reader-facing output. Convert both
+the clock and calendar date from source timestamps. Label specific times EST in
+winter or EDT during daylight saving; ET is appropriate for recurring schedules.
+Do not publish UTC or raw ISO timestamps in prose. Stored evidence, API fields,
+HTML datetime attributes and structured metadata retain their original instants.
+The writer, rewrite and factual-audit requests share this rule through
+`scripts/display_time.py`; the audit must check conversions against the evidence.
+
 ## Schedule and costs
 
 The coordinated **07:05 America/New_York** sports refresh starts the day. After

@@ -4,15 +4,21 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Fourth &amp; Value — NHL Forecasting and Market Pricing</title>
-  <meta name="description" content="A technical evaluation of NHL score and player-count models across four seasons, with timestamped market comparisons, push-aware pricing, and explicit limits on betting conclusions.">
+  <meta name="description" content="Evaluate NHL score and player-count forecasts across four seasons, with dated market comparisons, push-aware pricing and limits on betting conclusions.">
   <link rel="canonical" href="https://fourthandvalue.com/research/nhl-forecasting-and-market-pricing.html">
   <meta property="og:title" content="NHL Forecasting and Market Pricing: Evidence, Coherence, and Limits">
   <meta property="og:description" content="Player count forecasts improved modestly. The available evidence does not establish a betting edge. Read the models, evaluation, and limitations.">
   <meta property="og:url" content="https://fourthandvalue.com/research/nhl-forecasting-and-market-pricing.html">
   <meta property="og:type" content="article">
-  <meta name="twitter:card" content="summary">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta property="og:image" content="https://fourthandvalue.com/assets/social-card.png">
+  <meta property="og:image:alt" content="Fourth &amp; Value">
+  <meta name="twitter:image" content="https://fourthandvalue.com/assets/social-card.png">
+  <meta property="article:published_time" content="2026-09-26">
+  <meta property="article:section" content="NHL Research">
   <link rel="icon" href="/assets/logo.svg">
   <link rel="stylesheet" href="./nhl-forecasting.css">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "Article", "headline": "NHL Forecasting and Market Pricing", "description": "Evaluate NHL score and player-count forecasts across four seasons, with dated market comparisons, push-aware pricing and limits on betting conclusions.", "datePublished": "2026-09-26", "dateModified": "2026-10-10", "author": {"@type": "Organization", "name": "Fourth \u0026 Value"}, "publisher": {"@type": "Organization", "name": "Fourth \u0026 Value"}, "url": "https://fourthandvalue.com/research/nhl-forecasting-and-market-pricing.html", "image": "https://fourthandvalue.com/assets/social-card.png"}</script>
 </head>
 <body>
 <a class="skip" href="#paper">Skip to paper</a>
@@ -59,7 +65,7 @@
     <h3>2.2 Reconstructed and observed information sets</h3>
     <p>Let <i>t</i><sub>g</sub> denote a decision cutoff for game <i>g</i>, and let <i>a</i><sub>j</sub> denote an observation’s availability time. A feature is measurable with respect to the modeled information set only when its inputs satisfy:</p>
     <div class="eq-block">ℐ(t<sub>g</sub>) = {x<sub>j</sub> : a<sub>j</sub> ≤ t<sub>g</sub>}. <span class="eq-num">(1)</span></div>
-    <p>For historical box scores, original publication and revision times are absent. We therefore assign a reconstructed availability time of 12:00 UTC on the day following the recorded game date. Features for a date use the 10:30 Eastern cutoff and cannot consume that date’s outcomes. Event date, assigned availability, actual ingestion, and publication time are distinct fields; unavailable publication times remain null. This enforces a declared lag, but it cannot recover the exact statistical values originally visible to an analyst. Consequently, the experiment is a <em>reconstructed predictive evaluation</em>, not a certified replay of historical data vintages.</p>
+    <p>For historical box scores, original publication and revision times are absent. We therefore assign a reconstructed availability time of 7 a.m. EST / 8 a.m. EDT on the day following the recorded game date. Features for a date use the 10:30 Eastern cutoff and cannot consume that date’s outcomes. Event date, assigned availability, actual ingestion, and publication time are distinct fields; unavailable publication times remain null. This enforces a declared lag, but it cannot recover the exact statistical values originally visible to an analyst. Consequently, the experiment is a <em>reconstructed predictive evaluation</em>, not a certified replay of historical data vintages.</p>
     <p>The whole-season statistics also lack original puck-drop timestamps. Their date-level morning evaluation cannot certify whether an unusually early international game had already begun. Historical price comparisons and live inference separately use observed start times and exclude games already started. Within a held-out season, completed outcomes may enter rolling histories after their availability cutoff, while fitted regression, dispersion, and overtime parameters remain frozen. This is sequential forecasting with updating covariates, not season-final feature construction.</p>
     <h3>2.3 Audit findings and unavailable context</h3>
     <p>The inherited totals feature pipeline used full-sample opponent/home-away averages, and its training path selected same-game shots, points, power-play goals, and goalie save percentage. Those variables could reveal the target game. The inherited player path predominantly used historical rates, Normal/Poisson assumptions, calibration toward consensus rather than realized outcomes, and a default 0.5 probability for an unknown player. The contemporary public board displayed historical references; it did not itself demonstrate an ML betting edge. None of those artifacts or performance claims provides evidence for this study. The five-entry NHL betting ledger also has inconsistent labels and is not used as a validation sample <a href="#ref-audit">[4]</a>.</p>

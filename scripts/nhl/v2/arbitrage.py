@@ -9,6 +9,7 @@ which refunds both legs, so the locked return holds on every outcome.
 from collections import defaultdict
 from datetime import timedelta
 import math
+from display_time import eastern_time
 
 from .data import stamp
 from .pricing import PAIR_WINDOW, decimal, push_capable
@@ -174,7 +175,7 @@ def _odds(price):
 
 
 def _when(value):
-    return stamp(value).strftime('%b %d, %H:%M UTC') if value else 'not yet checked'
+    return eastern_time(stamp(value), '%b %d, %I:%M %p %Z') if value else 'not yet checked'
 
 
 def _offer(row):

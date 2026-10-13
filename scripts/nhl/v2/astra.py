@@ -9,6 +9,7 @@ import subprocess
 import requests
 
 import model_api
+from display_time import REVIEW_TIMEZONE_INSTRUCTIONS
 from .data import ROOT, digest, iso, stamp, write_json
 from .evidence import usable
 
@@ -150,7 +151,7 @@ def payload(board, sources, asof, config, *, instructions=INSTRUCTIONS, schema=S
                   candidates=[{k: r[k] for k in fields if r.get(k) is not None} for r in rows], sources=sources,
                   instructions_for_human='Original model remains unchanged; verify all research before deciding.')
     return dict(model=MODEL, service_tier='default', store=False, reasoning={'effort': EFFORT},
-                max_output_tokens=config['max_output_tokens'], instructions=instructions,
+                max_output_tokens=config['max_output_tokens'], instructions=instructions+REVIEW_TIMEZONE_INSTRUCTIONS,
                 input=json.dumps(packet, ensure_ascii=False, separators=(',', ':')),
                 text={'format': dict(type='json_schema', name='sports_context_review', strict=True, schema=schema)})
 

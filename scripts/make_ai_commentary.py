@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 import pandas as pd
 import numpy as np
+from display_time import TIMEZONE_INSTRUCTIONS
 
 # --- optional OpenAI client ---
 def _get_openai_client():
@@ -272,7 +273,7 @@ def _call_llm(client, model, prompt: str) -> str:
             model=model,
             instructions=("Explain only the supplied NFL data. Distinguish the named bet side from the sign of an edge. "
                           "Do not invent injuries, lineup news, causes, guarantees, or calibrated performance. "
-                          "Model estimates are experimental; say so. Return only the requested paragraph."),
+                          "Model estimates are experimental; say so. Return only the requested paragraph." + TIMEZONE_INSTRUCTIONS),
             input=prompt,
         )
         return (getattr(resp, "output_text", "") or "").strip()

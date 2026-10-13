@@ -6,6 +6,16 @@ schedule and policy fields. After changing a workflow or selection policy,
 review `scripts/research/daily_process.html`, regenerate the page, and run
 `python scripts/build_daily_process.py --check`. PR checks detect drift.
 
+## Time zone
+
+All analysis and reader-facing times use U.S. Eastern Time (`America/New_York`),
+including snapshot, quote, game, source and review times. Convert the date as well
+as the clock; label specific times EST or EDT as applicable, and recurring
+schedules ET. Never publish UTC clocks or raw ISO timestamps in prose. Original
+machine-readable timestamps and immutable evidence remain intact; freshness,
+ordering, cutoffs and budget windows keep their existing semantics. Discovery
+and review prompts share the presentation rule in `scripts/display_time.py`.
+
 ## Flow and contracts
 
 1. Sport refreshes publish statistics, forecasts and exact sportsbook offers.

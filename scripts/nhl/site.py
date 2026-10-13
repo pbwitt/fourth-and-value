@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from nhl.refresh import ROOT
 from site_metadata import metadata
+from display_time import eastern_time
 from nba.pipeline import save_json
 from nhl.v2.arbitrage import report, render
 from nhl.v2 import coherence
@@ -107,7 +108,7 @@ def build(state, archive=False):
 {metadata(path, search_title+' | Fourth & Value', descriptions[page])}
 <link rel="stylesheet" href="{rel}/assets/site.css"><link rel="stylesheet" href="{rel}/assets/player-context.css?v=7"><script src="{rel}/assets/player-context.js?v=8" defer></script><link rel="icon" href="{rel}/assets/logo.svg"></head><body><a class="skip-link" href="#main">Skip to content</a><div id="nav-root"></div><script src="{rel}/nav.js?v=47"></script>
 <main class="wrap" id="main" data-nhl-page="{page}" data-feed="{nhl}/data/latest.json">{links}<p class="eyebrow">NHL · {label}</p><h1>{title}</h1>
-<div class="notice" id="feed-status" role="status"><strong>NHL regular-season market snapshot</strong><p>Last successful check: {escape(str(state.get('last_success_at') or 'Not yet checked'))}. Enable JavaScript to view current quote availability.</p></div>
+<div class="notice" id="feed-status" role="status"><strong>NHL regular-season market snapshot</strong><p>Last successful check: {escape(eastern_time(state['last_success_at']) if state.get('last_success_at') else 'Not yet checked')}. Enable JavaScript to view current quote availability.</p></div>
 <p class="muted" id="history-status"></p><p class="muted" id="model-status"></p>{intro}<footer>Fourth &amp; Value · <a href="{rel}/terms.html">Terms &amp; privacy</a> · <a href="{rel}/videos/">Videos</a></footer></main><script src="{rel}/assets/nhl.js?v=3" defer></script></body></html>'''
         path.parent.mkdir(parents=True, exist_ok=True)
         if page == 'arbitrage':

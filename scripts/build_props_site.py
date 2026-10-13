@@ -11,6 +11,7 @@ import pandas as pd
 from market_math import add_market_comparisons, expected_profit
 from site_metadata import metadata, nfl_links, root_relative
 from site_common import pretty_market, kickoff_et
+from display_time import eastern_time
 
 LABELS = {'rush_yds':'Rushing yards', 'recv_yds':'Receiving yards', 'pass_yds':'Passing yards',
           'rush_attempts':'Rushing attempts', 'receptions':'Receptions', 'pass_attempts':'Passing attempts',
@@ -91,7 +92,7 @@ def build_page(args, top_only=False):
 <main id="main" class="wrap">{nfl_links(rel, 'Top picks' if top_only else 'Player props')}
 <p class="eyebrow">{context}</p><h1>{title}</h1>
 <p class="lead">{'A shortlist of positive model edges with player data, fitted calibration and recent quotes.' if top_only else 'Find a player, compare the same line across books, and see what supports the model estimate.'}</p>
-<div class="notice" role="status"><strong id="freshness">{status}</strong><p class="meta">Page built <time datetime="{now.isoformat()}">{now.strftime('%b %d, %Y at %H:%M UTC')}</time>. Model estimates are experimental; calibration is not proof of profitability.</p></div>
+<div class="notice" role="status"><strong id="freshness">{status}</strong><p class="meta">Page built <time datetime="{now.isoformat()}">{eastern_time(now)}</time>. Model estimates are experimental; calibration is not proof of profitability.</p></div>
 <details class="help"><summary>How to read prices, probabilities and edges</summary>
 <p><strong>Book probability</strong> is the break-even probability implied by the offered odds, including margin. <strong>Paired fair probability</strong> removes margin using both sides at the same book, game and line; it is unavailable without a matching opposite side.</p>
 <p><strong>Model probability</strong> is conditional on the bet settling without a push. <strong>Edge</strong> is model probability minus book probability: 100 basis points = 1 percentage point. <strong>Expected profit / $100</strong> accounts for pushes and is an uncertain estimate, not a payout promise.</p>
@@ -109,7 +110,7 @@ def build_page(args, top_only=False):
 <div class="pager" id="pager" hidden><button id="previous">Previous</button><span id="page-info" aria-live="polite"></span><button id="next">Next</button></div>
 <noscript><p>The first 24 upcoming offers are shown. Enable JavaScript to filter and compare the full snapshot.</p></noscript>
 <footer><a href="{rel}/nfl/">NFL overview</a> · <a href="{rel}/methods.html">Methods &amp; limitations</a> · <a href="{rel}/terms.html">Terms &amp; privacy</a><p>Free sports analysis from Fourth &amp; Value. No guaranteed outcomes.</p></footer></main>
-<script type="application/json" id="props-data">{payload}</script><script src="{rel}/assets/offer-tracker.js?v=3" defer></script><script src="{rel}/assets/props.js?v=4" defer></script></body></html>'''
+<script type="application/json" id="props-data">{payload}</script><script src="{rel}/assets/offer-tracker.js?v=3" defer></script><script src="{rel}/assets/props.js?v=5" defer></script></body></html>'''
     Path(args.out).parent.mkdir(parents=True,exist_ok=True)
     Path(args.out).write_text(html)
     if top_only:
