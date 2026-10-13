@@ -257,6 +257,74 @@ class ResearchTests(unittest.TestCase):
             raw['output'][0]['content'][0]['text']=json.dumps(value)
             with self.assertRaises(ValueError): astra.parse_response(raw,b,[source(b)],NOW,schema=analyst.SCHEMA)
 
+    def two_candidate_reply(self, *breaks):
+        b=board(); b['candidates'].append(dict(b['candidates'][0],candidate_id='second'))
+        raw=response(b); value=json.loads(raw['output'][0]['content'][0]['text'])
+        value['reviews'].append(dict(deepcopy(value['reviews'][0]),candidate_id='second',evidence=[]))
+        for i,field,text in breaks: value['reviews'][i]['assessment'][field]=text
+        raw['output'][0]['content'][0]['text']=json.dumps(value)
+        return b,raw
+
+    def test_one_broken_review_drops_only_that_candidate_with_its_reason(self):
+        b,raw=self.two_candidate_reply((1,'model_case','The ±10% sensitivity range spans break-even.'))
+        accepted,rejected=astra.parse_reviews(raw,b,[source(b)],NOW,schema=analyst.SCHEMA,prompt_version=analyst.PROMPT_VERSION)
+        self.assertEqual([q['candidate_id'] for q in accepted],[b['candidates'][0]['candidate_id']])
+        self.assertEqual(rejected,[dict(candidate_id='second',reason="assessment.model_case: percent figure '±10%'")])
+        b,raw=self.two_candidate_reply((0,'model_case','x'*351))
+        self.assertEqual(astra.parse_reviews(raw,b,[source(b)],NOW,schema=analyst.SCHEMA)[1][0]['reason'],
+                         'assessment.model_case: 351 characters; allowed 1-350')
+        # The all-or-nothing check still rejects the whole reply, now naming the rule.
+        b,raw=self.two_candidate_reply((1,'model_case','Up 5% on the week.'))
+        with self.assertRaisesRegex(astra.ReviewRejected,"second: assessment.model_case: percent figure '5%'"):
+            astra.parse_response(raw,b,[source(b)],NOW,schema=analyst.SCHEMA)
+        # A reply that drops or confuses candidates is still rejected as a whole.
+        b,raw=self.two_candidate_reply(); value=json.loads(raw['output'][0]['content'][0]['text'])
+        value['reviews'].pop(); raw['output'][0]['content'][0]['text']=json.dumps(value)
+        with self.assertRaisesRegex(astra.ReviewRejected,'identity mismatch'):
+            astra.parse_reviews(raw,b,[source(b)],NOW,schema=analyst.SCHEMA)
+
+    def test_paid_batch_keeps_valid_reviews_and_records_rejections(self):
+        for breaks,status in [(((1,'model_case','The ±10% range spans break-even.'),),'completed_with_rejections'),
+                              (((0,'reason','Win chance near 60%.'),(1,'model_case','A sure bet.')),'review_unavailable')]:
+            b,raw=self.two_candidate_reply(*breaks)
+            with self.subTest(status=status), tempfile.TemporaryDirectory() as td, patch.dict('os.environ',{KEY:'synthetic'}), \
+                 patch.object(evidence,'collect',return_value=([source(b)],{})), patch.object(astra,'checkpoint'), \
+                 patch.object(astra,'call_api',return_value=raw), patch('builtins.print') as log:
+                result=analyst.review(b,feeds(),CONFIG,Path(td),lambda:NOW)
+                self.assertEqual(result['review_status'],status)
+                first,second=result['candidates']
+                self.assertIn("percent figure '±10%'" if len(breaks)==1 else "certainty wording 'sure bet'",second['review_rejected']['reason'])
+                self.assertEqual(second['review_rejected']['request_id'],result['review_request_id'])
+                self.assertNotIn('qualitative_review',second)
+                self.assertEqual('qualitative_review' in first,len(breaks)==1)
+                if len(breaks)==2:
+                    self.assertEqual(result['review_error_detail'],'every review in the reply broke a rule')
+                self.assertTrue(any('review rejected for second' in str(c) for c in log.call_args_list))
+                ledger=json.loads((Path(td)/'daily-budget.json').read_text())
+                self.assertEqual([e for e in ledger['entries'] if not e.get('legacy')][0]['status'],'settled')
+
+    def test_every_validator_rule_is_stated_to_the_reviewer(self):
+        # Claude never sees schema limits it cannot enforce, so each rule the local
+        # validator applies must reach it through the instructions or a description.
+        text=analyst.INSTRUCTIONS
+        self.assertRegex(text,r'no % figures \(even supplied ones\)')
+        for term in astra.CERTAINTY_TERMS:
+            self.assertRegex(text,r'\b'+term+r'\b')
+        self.assertIn(f'3-{astra.EXCERPT_MAX_WORDS}-word excerpt',text)
+        self.assertIn(f'at most {astra.SOURCE_MAX_WORDS} words per source',text)
+        self.assertIn('Consider must have no blocking_checks; wait must have at least one',text)
+        self.assertIn('research_support requires relevant sourced support; concern requires adverse',text)
+        sent=model_api.claude_params(dict(model=astra.MODEL,max_output_tokens=1000,instructions=text,input='{}',
+            text={'format':dict(type='json_schema',name='r',strict=True,schema=analyst.SCHEMA)}))['output_config']['format']['schema']
+        def walk(original,shown,path):
+            if isinstance(original.get('maxLength'),int):
+                self.assertIn(f"At most {original['maxLength']} characters.",shown.get('description',''),path)
+            if isinstance(original.get('maxItems'),int):
+                self.assertIn(f"At most {original['maxItems']} items.",shown.get('description',''),path)
+            for k,spec in original.get('properties',{}).items(): walk(spec,shown['properties'][k],path+'.'+k)
+            if 'items' in original: walk(original['items'],shown['items'],path+'[]')
+        walk(analyst.SCHEMA,sent,'reply')
+
     def test_packet_includes_model_projection_and_exact_market_comparison(self):
         f=feeds(); f['NFL']['rows'][0].update(mu=4.2,consensus_line=2.5,consensus_prob=.52,book_count=3)
         row=analyst.normalized(next(r for r in analyst.selected(f,NOW)['selected'] if r['sport']=='NFL'))

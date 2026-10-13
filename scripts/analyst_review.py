@@ -279,16 +279,30 @@ def review(board, feeds, config, archive, clock, *, assessment_update=False):
         # Validate citations against exactly the excerpts the model received.
         supplied = {s['source_id']: s for s in json.loads(request['input'])['sources']}
         reviewed_sources = [dict(s, excerpt=supplied[s['source_id']]['excerpt']) for s in sources if s['source_id'] in supplied]
-        results = astra.parse_response(response, board, reviewed_sources, asof, schema=SCHEMA, prompt_version=PROMPT_VERSION)
-        by_id = {q['candidate_id']: q for q in results}
+        accepted, rejected = astra.parse_reviews(response, board, reviewed_sources, asof, schema=SCHEMA, prompt_version=PROMPT_VERSION)
+        # One review that breaks a rule is dropped with its reason; the paid
+        # batch's other reviews stand. Rejected candidates stay unreviewed.
+        by_id = {q['candidate_id']: q for q in accepted}
+        for q in rejected:
+            print(f"::warning::{board['sport']} review rejected for {q['candidate_id']}: {q['reason']}", flush=True)
+        reasons = {q['candidate_id']: q['reason'] for q in rejected}
         for r in board['candidates']:
-            r['qualitative_review'] = dict(by_id[r['candidate_id']], evidence_asof=iso(asof),
-                reviewed_at=iso(finished), request_id=request_id)
-        board.update(review_status='completed', review_completed_at=iso(finished))
+            if r['candidate_id'] in by_id:
+                r['qualitative_review'] = dict(by_id[r['candidate_id']], evidence_asof=iso(asof),
+                    reviewed_at=iso(finished), request_id=request_id)
+            else:
+                r['review_rejected'] = dict(reason=reasons[r['candidate_id']], request_id=request_id, rejected_at=iso(finished))
+        if not accepted:
+            raise astra.ReviewRejected('every review in the reply broke a rule')
+        board.update(review_status='completed_with_rejections' if rejected else 'completed', review_completed_at=iso(finished))
     except Exception as failure:
         error = failure
         board.update(review_status='review_unavailable', review_error=type(error).__name__)
-        model_api.report_failure('Review', error)
+        if isinstance(error, astra.ReviewRejected):
+            board['review_error_detail'] = str(error)
+            print(f"::warning::{board['sport']} review batch rejected: {error}", flush=True)
+        else:
+            model_api.report_failure('Review', error)
     finally:
         daily_budget.settle(key, response.get('usage') if isinstance(response, dict) else None, path=budget,
                             not_billed=error if isinstance(error, model_api.NotBilled) else None)
@@ -398,6 +412,10 @@ def run_queue(boards, feeds, config, archive, clock, assessment_update=False):
             except Exception as error: reviewed=dict(batch,review_status='review_unavailable',review_error=type(error).__name__)
             attempts+=1
             queue['statuses'].append(reviewed['review_status'])
+            if reviewed.get('review_error'):
+                # Batch copies are discarded; keep why a paid or attempted batch failed.
+                board.setdefault('batch_failures',[]).append({k:reviewed[k] for k in
+                    ('review_status','review_error','review_error_detail','review_request_id') if reviewed.get(k)})
             queue['pending']=queue['pending'][size:]
             if reviewed['review_status'] in ('budget_exhausted','budget_halted'):
                 stopped=True;stop_reason=reviewed['review_status'];break

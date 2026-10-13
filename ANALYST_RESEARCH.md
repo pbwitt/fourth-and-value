@@ -200,6 +200,16 @@ in an archived table was read. Search coverage counts games submitted, not games
 exhaustively researched. Missing, blocked, stale and mismatched sources remain
 explicit. Positive/adverse source statuses require verified excerpts. Numeric
 confidence, unsupported fields and fabricated excerpts are rejected locally.
+Since October 13, 2026 (`astra.parse_reviews`), each candidate's review is checked
+separately: a review that breaks a rule is dropped and its candidate gets
+`review_rejected` (reason naming the field and limit, such as
+`assessment.model_case: 371 characters; allowed 1-350`, request ID and time), and
+the job log prints a warning. The batch's other reviews stand, and its status is
+`completed_with_rejections`. A reply that is unreadable or does not return every
+candidate exactly once is still rejected whole, as is a batch whose every review
+fails; those batches are `review_unavailable`, and `batch_failures` on the sport
+board keeps the error and detail. Cards report `rejected_count` per sport;
+dropped reviews alone do not make an edition `research_incomplete`.
 All bets should be reviewed before deciding. Missing news alone is not a veto.
 
 ## Schedule, budget and failures

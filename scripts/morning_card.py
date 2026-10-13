@@ -35,8 +35,11 @@ def research_health(feeds, reviews, selected, now, refresh_results):
         count = board.get('candidate_count', len(board.get('candidates', [])))
         done = board.get('reviewed_count', sum(bool(r.get('qualitative_review')) for r in board.get('candidates', [])))
         state = board.get('review_status', 'not_requested')
+        # A review dropped for breaking a rule leaves its candidate unreviewed; only a
+        # whole failed batch ('review_unavailable') marks the research incomplete.
+        rejected = sum(bool(r.get('review_rejected')) for r in board.get('candidates', []))
         sports[sport] = dict(review_status=state, candidate_count=count, reviewed_count=done,
-            pending_count=max(0, count-done), source_status=feed.get('status', 'unavailable'),
+            pending_count=max(0, count-done), rejected_count=rejected, source_status=feed.get('status', 'unavailable'),
             refresh_status=refresh_results.get(sport, 'not_supplied'),
             available_at_publication=coverage['available'],
             batch_statuses=board.get('batch_statuses', []))
