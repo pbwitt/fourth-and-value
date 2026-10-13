@@ -51,6 +51,10 @@ def safe_reason(value):
     text=str(value or '').lower()
     for terms,label in [
         (('audit','unsupported'),'Factual review did not pass'),
+        # Draft checks name sources too; classify them before missing reporting.
+        (('section citations','insufficient depth','length outside bounds','source diversity','source date mismatch',
+          'unverified source url','duplicate source ids','invalid headline','invented market reference',
+          'experimental model status'),'Draft failed an automatic check'),
         (('publisher','reporting','source'),'Insufficient current reporting'),
         (('budget','reservation'),'Spending limit or existing reservation'),
         (('fund','credit','quota','api_key'),'Writing credentials or funding need attention'),
@@ -148,6 +152,15 @@ def store_writer_note(slot,model,reason,root=ROOT,now=None,requested=False):
             title='Requested story ('+slot.split('-')[-1].upper()+')',url=None,reason=None,review='not_recorded',**note))
     for article in report['articles'] if not requested else ():
         if article['slot']==slot:article.update(note)
+    store_report(report)
+
+
+def store_rejection_note(slot,model,detail,root=ROOT,now=None):
+    """Private only: why a paid draft was rejected and its shape (sections, words,
+    sources, headings of uncited sections). The draft itself is never stored."""
+    report=build_report(root,now,phase='rejected-'+slot)
+    for article in report['articles']:
+        if article['slot']==slot:article.update(writer_model=model,rejection_detail=str(detail)[:1200])
     store_report(report)
 
 

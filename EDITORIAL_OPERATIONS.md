@@ -153,6 +153,14 @@ the packet preserves the model's explicit reason when available (for example,
 waiting for both probable starters) rather than substituting a forecast from a
 different game or vaguely implying that all model data are missing. Publication
 validation rejects model evidence from another matchup when a target game is set.
+Since October 13, 2026 the writer and the audit see these reasons and row statuses in
+reader-facing words (`READER_STATUS`/`reader_facing` in `editorial_writer.py`): for
+example "Research forecast: unusually large discrepancy needs manual review" becomes
+"Experimental estimate that differs sharply from the market; treat it with extra
+caution". The writer was told to explain the supplied reason while `PUBLIC_VOICE` and the
+audit forbid describing screening or review, so on October 13 the audit rejected an MLB
+draft that repeated the raw status. Statuses that are already reader-facing validation
+disclosures pass through unchanged.
 
 Fresh future-game quotes have a six-hour maximum age. Background model references
 must be at most six hours old and carry no stale quote or EV. Feature packets retain
@@ -207,7 +215,17 @@ so its thinking cannot crowd out the verdict.
 Every article is public. Since October 12 the writer and the audit both carry one
 publication-voice rule (`PUBLIC_VOICE` in `editorial_writer.py`): write as a professional
 sports publication and never describe the workflow, data fields, screening, requests or
-how the piece was produced. The audit rejects drafts that do. The writer is asked for 650–850 words of
+how the piece was produced. The audit rejects drafts that do. Every writer prompt also
+ends with `ARTICLE_RULES`, which states the publication checks a draft fails on: at least
+four sections, at least one source ID in every section, each source's URL and
+publication date copied exactly from the fetched reporting, sources from at least two
+domains, and only supplied record IDs in `market_ids`. A test
+(`test_every_article_rule_is_stated_to_the_writer`) fails if a check is not stated.
+Rejection reasons in the public run ledger name the check without draft text (for example
+"Missing section citations (section 2 of 4 lists no source)"). For a rejected daily draft,
+the private diagnostics dashboard also gets a "Rejected draft" note with its shape: section,
+word, source and domain counts and the headings of uncited sections, never its text.
+The writer is asked for 650–850 words of
 section text (headline and deck excluded), above the 550-word validation floor: drafts
 requested at 550–750 had clustered at 561–656 words, and Claude's first draft fell short.
 No paid tools, retries or priority tier. A conservative full-story reservation with

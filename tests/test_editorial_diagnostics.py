@@ -80,6 +80,17 @@ class DiagnosticTests(unittest.TestCase):
         daily,requested=payload['report']['articles']
         self.assertNotIn('writer_reason',daily)
         self.assertEqual((requested['slot'],requested['sport'],requested['writer_reason']),('requested-0-nfl','NFL','Request needs a narrower angle'))
+    def test_rejected_draft_note_is_private_and_attached_to_its_slot(self):
+        self.write('docs/editorial/runs/2026-09-26.json',{'allocation':[['NFL','matchup:e1']],'slots':{'0-nfl':{'status':'skipped','reason':'Missing section citations (section 3 of 5 lists no source)'}}})
+        with patch.dict(os.environ,{'SUPABASE_URL':'https://example.supabase.co','SUPABASE_SERVICE_ROLE_KEY':'secret','GITHUB_RUN_ID':'125'}),patch.object(diag.requests,'post',return_value=Mock(ok=True,status_code=201)) as post:
+            diag.store_rejection_note('0-nfl','claude-sonnet-5-5','Missing section citations Draft: 5 sections, 700 words.',self.root,self.now)
+        payload=post.call_args.kwargs['json'];self.assertEqual(payload['id'],'125-1-rejected-0-nfl')
+        article=payload['report']['articles'][0]
+        self.assertEqual((article['writer_model'],article['rejection_detail']),('claude-sonnet-5-5','Missing section citations Draft: 5 sections, 700 words.'))
+        # Draft-check failures are not mislabelled as missing reporting.
+        self.assertEqual(article['reason'],'Draft failed an automatic check')
+        self.assertEqual(diag.safe_reason('Source date mismatch (source a: url or published_at differs from the fetched reporting)'),'Draft failed an automatic check')
+        self.assertEqual(diag.safe_reason('Insufficient current publisher evidence for the assigned matchup'),'Insufficient current reporting')
     def test_missing_schema_has_actionable_error_without_response_body(self):
         with patch.dict(os.environ,{'SUPABASE_URL':'https://example.supabase.co','SUPABASE_SERVICE_ROLE_KEY':'secret'}),patch.object(diag.requests,'post',return_value=Mock(ok=False,status_code=404)):
             with self.assertRaisesRegex(RuntimeError,'one-time'):diag.store_report(diag.build_report(self.root,self.now))
