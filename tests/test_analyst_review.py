@@ -325,6 +325,14 @@ class ResearchTests(unittest.TestCase):
             if 'items' in original: walk(original['items'],shown['items'],path+'[]')
         walk(analyst.SCHEMA,sent,'reply')
 
+    def test_reviewer_packet_states_the_sensitivity_assumption_without_a_percent(self):
+        b=board()
+        b['candidates'][0]['sensitivity']=dict(assumption='Team rates ±10%; not a confidence interval',win_min=.4576,win_max=.6415)
+        sent=json.loads(analyst.review_payload(b,[source(b)],NOW,CONFIG)['input'])['candidates'][0]['sensitivity']
+        self.assertEqual(sent,dict(assumption='Team rates scaled up and down by a tenth; not a confidence interval',win_min=.4576,win_max=.6415))
+        # The archived board keeps the original wording.
+        self.assertEqual(b['candidates'][0]['sensitivity']['assumption'],'Team rates ±10%; not a confidence interval')
+
     def test_packet_includes_model_projection_and_exact_market_comparison(self):
         f=feeds(); f['NFL']['rows'][0].update(mu=4.2,consensus_line=2.5,consensus_prob=.52,book_count=3)
         row=analyst.normalized(next(r for r in analyst.selected(f,NOW)['selected'] if r['sport']=='NFL'))

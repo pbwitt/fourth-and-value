@@ -10,6 +10,7 @@ import fcntl
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 from zoneinfo import ZoneInfo
 
@@ -160,6 +161,11 @@ def review_payload(board, sources, asof, config):
         for r in packet['candidates']:
             r['model_diagnostics']['projection'].pop('limitations')
     for r in packet['candidates']:
+        # Reviewers echo NHL's supplied "±10%" into prose, which the no-% rule
+        # rejects. Same assumption in words; win_min/win_max keep the numbers.
+        s = r.get('sensitivity')
+        if isinstance(s, dict) and isinstance(s.get('assumption'), str):
+            r['sensitivity'] = dict(s, assumption=re.sub(r'±\s*10\s*%', 'scaled up and down by a tenth', s['assumption']))
         # The market blend, compactly: model, market and book count already travel
         # in review_context, so only the blended chance, its EV and weight are added.
         b = r.get('blend')

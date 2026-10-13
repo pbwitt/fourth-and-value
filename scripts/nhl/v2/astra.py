@@ -263,11 +263,11 @@ def prose_problem(review):
     fields += [(f'assessment.blocking_checks[{i}]', t) for i, t in enumerate(review['assessment']['blocking_checks'])]
     fields += [(f'evidence[{i}].interpretation', e['interpretation']) for i, e in enumerate(review['evidence'])]
     for field, text in fields:
-        # An explicit caution such as "not guaranteed volume" is not a
-        # certainty claim. Remove only that exact negation; any affirmative
-        # guarantee elsewhere and every numeric percentage still fail closed.
+        # An explicit caution such as "not guaranteed volume" or "not a guaranteed
+        # return" is not a certainty claim. Remove only those negations; any
+        # affirmative guarantee elsewhere and every numeric percentage still fail closed.
         percent = re.search(r'\S*\d\s*%', text)
-        certainty = CERTAINTY.search(re.sub(r'\bnot guaranteed\b', '', text, flags=re.I))
+        certainty = CERTAINTY.search(re.sub(r'\bnot (?:a )?guaranteed\b', '', text, flags=re.I))
         if percent:
             return f'{field}: percent figure {percent.group(0)!r}'
         if certainty:
