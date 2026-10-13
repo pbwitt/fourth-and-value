@@ -200,6 +200,22 @@ in an archived table was read. Search coverage counts games submitted, not games
 exhaustively researched. Missing, blocked, stale and mismatched sources remain
 explicit. Positive/adverse source statuses require verified excerpts. Numeric
 confidence, unsupported fields and fabricated excerpts are rejected locally.
+Since October 13, 2026 (`astra.parse_reviews`), each candidate's review is checked
+separately: a review that breaks a rule is dropped and its candidate gets
+`review_rejected` (reason naming the field and limit, such as
+`assessment.model_case: 371 characters; allowed 1-350`, request ID and time), and
+the job log prints a warning. The batch's other reviews stand, and its status is
+`completed_with_rejections`. A reply that is unreadable or does not return every
+candidate exactly once is still rejected whole, as is a batch whose every review
+fails; those batches are `review_unavailable`, and `batch_failures` on the sport
+board keeps the error and detail. Cards report `rejected_count` per sport;
+dropped reviews alone do not make an edition `research_incomplete`.
+The certainty check excuses only negated cautions: "not guaranteed" and "not a
+guaranteed" (as in "the listed date is not a guaranteed return"); any affirmative
+"guaranteed", "lock" or "sure bet" still fails. Because reviewers echoed NHL's
+supplied "Team rates ±10%" into prose even when told not to, the reviewer packet
+states that sensitivity assumption as "scaled up and down by a tenth"; `win_min`
+and `win_max`, the archived board and the public pages keep the original values.
 All bets should be reviewed before deciding. Missing news alone is not a veto.
 
 ## Schedule, budget and failures

@@ -160,6 +160,8 @@ class EvidenceAndAstraTests(unittest.TestCase):
 
     def test_negated_guarantee_is_caution_without_allowing_certainty_or_percentages(self):
         for text, allowed in [('Reported usage supports involvement, not guaranteed volume.', True),
+                              ('The listed date is not a guaranteed return.', True),
+                              ('Not a guaranteed start, but a guaranteed win.', False),
                               ('This is guaranteed to win.', False),
                               ('Not guaranteed volume, but this is a guaranteed win.', False),
                               ('Not guaranteed, but 88% confidence.', False),

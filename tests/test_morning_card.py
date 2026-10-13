@@ -67,6 +67,17 @@ class MorningCardTests(unittest.TestCase):
             failed=card.publish_card(empty_feeds(),reviews,NOW,root=Path(td))
             self.assertEqual(failed['status'],'research_incomplete')
 
+    def test_one_dropped_review_is_counted_without_failing_the_edition(self):
+        with TemporaryDirectory() as td:
+            reviews=empty_reviews()
+            reviews['sports']['NHL'].update(review_status='partially_reviewed',candidate_count=3,reviewed_count=2,
+                batch_statuses=['completed_with_rejections'],
+                candidates=[dict(review_rejected=dict(reason="assessment.model_case: percent figure '±10%'"))])
+            value=card.publish_card(empty_feeds(),reviews,NOW,root=Path(td))
+            self.assertEqual(value['status'],'no_reviewed_candidates')
+            self.assertEqual(value['research']['sports']['NHL']['rejected_count'],1)
+            self.assertEqual(value['research']['issues'],[])
+
     def test_failed_refresh_and_discovery_not_hidden_by_empty_selection(self):
         with TemporaryDirectory() as td:
             reviews=empty_reviews();reviews['discovery_status']='discovery_unavailable'
