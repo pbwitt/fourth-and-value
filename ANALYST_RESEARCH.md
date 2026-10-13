@@ -332,7 +332,7 @@ $2.75 without a deployment or manual reset. Increasing `daily_budget_usd` alone
 cannot bypass the normal cap. This is a testing allowance, not a spending target.
 
 Use Claude Opus 5.5 (`claude-opus-5-5`) at high effort under policy
-`morning-edition-4` and prompt `sports-research-7`. GPT-6 Astra (`gpt-6-astra`,
+`morning-edition-4` and prompt `sports-research-8`. GPT-6 Astra (`gpt-6-astra`,
 low reasoning) was used through October 1, 2026, then GPT-6.1 Sol (`gpt-6.1-sol`,
 low reasoning); reviews and ledger entries record the model used, and results
 stay grouped by policy version. `scripts/model_api.py` sends any `claude-*` model
@@ -351,6 +351,15 @@ ceilings rose with the switch. Reviews have no tools, at most 26,000 serialized
 request bytes and 12,000 output tokens; Claude's JSON outputs enforce the review
 schema's types, enums and required fields, while length and count limits are
 removed from the sent schema and still enforced locally by `validate_shape`.
+Each removed limit is restated in that field's description (for example "At
+most 350 characters."), so the model sees it. The prompt also states the local
+prose rule: outside verbatim excerpts, no `%` figure (even a supplied one, such
+as the NHL ±10% sensitivity range or a break-even) and no "guaranteed", "lock"
+or "sure bet". Before `sports-research-8` and `nhl-context-4` (October 13,
+2026), Claude saw neither the length limits nor a firm percent rule (only "without
+repeating percentages"): October 13 published no picks after all three NHL review
+batches were rejected for writing "±10%" and the remaining NHL candidates hit the
+daily allowance.
 Discovery uses an isolated request with one basic web search
 (`web_search_20250305`, `max_uses: 1`, the trusted domain list), no response
 history, at most 12,000 request bytes and 8,000 output tokens. Search citations

@@ -36,6 +36,12 @@ class RequestTests(unittest.TestCase):
             self.assertNotIn(word, schema)
         self.assertIn('"minItems": 1', schema)
         self.assertIn('needs_information', schema)
+        # Claude cannot enforce the limits, so each one is stated where the model reads it.
+        sent = p['output_config']['format']['schema']['properties']['reviews']
+        assessment = sent['items']['properties']['assessment']['properties']
+        self.assertEqual(assessment['reason']['description'], 'At most 350 characters.')
+        self.assertEqual(sent['description'], 'At most 4 items.')
+        self.assertNotIn('description', assessment['verdict'])
         self.assertNotIn('tools', p)
         # The original schema, with every limit, is still what validate_shape enforces.
         self.assertIn('maxLength', json.dumps(REVIEW['text']))

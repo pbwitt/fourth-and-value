@@ -203,7 +203,7 @@ class ResearchTests(unittest.TestCase):
         self.assertEqual(p['model'],'claude-opus-5-5'); self.assertNotIn('tools',p)
         self.assertIn('NOT current market consensus',p['instructions'])
         self.assertIn('historical game outcomes',p['instructions'])
-        self.assertEqual(analyst.PROMPT_VERSION,'sports-research-7')
+        self.assertEqual(analyst.PROMPT_VERSION,'sports-research-8')
         self.assertLess(astra.bounds(p,CONFIG),1)
         self.assertIsNone(json.loads(p['input'])['candidates'][0].get('independent_probability'))
 

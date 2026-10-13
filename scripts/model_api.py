@@ -45,7 +45,10 @@ def has_key(model):
 
 
 def supported_schema(schema):
-    """Drop length/count limits Claude cannot enforce; keep types, enums and required."""
+    """Drop length/count limits Claude cannot enforce; keep types, enums and required.
+
+    Each dropped limit is restated in the field's description so the model still
+    sees it; validate_shape enforces the original schema on the reply."""
     if isinstance(schema, list):
         return [supported_schema(v) for v in schema]
     if not isinstance(schema, dict):
@@ -53,6 +56,15 @@ def supported_schema(schema):
     result = {k: supported_schema(v) for k, v in schema.items() if k not in UNSUPPORTED}
     if result.get('minItems', 0) > 1:
         result.pop('minItems')
+    limits = []
+    if isinstance(schema.get('maxLength'), int):
+        limits.append(f"At most {schema['maxLength']} characters.")
+    if isinstance(schema.get('minItems'), int) and schema['minItems'] > 1:
+        limits.append(f"At least {schema['minItems']} items.")
+    if isinstance(schema.get('maxItems'), int):
+        limits.append(f"At most {schema['maxItems']} items.")
+    if limits:
+        result['description'] = ' '.join(filter(None, [schema.get('description')] + limits))
     return result
 
 
