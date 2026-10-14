@@ -119,10 +119,19 @@ only. NHL retains its coherent scoring/opportunity forecasts, verified settlemen
 fixed-fraction log growth; the fraction is not stake advice.
 
 **Market blend (since October 5, 2026; confidence tiers from edition policy
-`morning-edition-3`).** After each sport's screen above, every model candidate is
-blended with the market: `f = sigmoid(0.25 * logit(model) + 0.75 * logit(market))`,
+`morning-edition-3`; weights by sport and the market-agreement rule from
+`morning-edition-5`).** After each sport's screen above, every model candidate is
+blended with the market: `f = sigmoid(w * logit(model) + (1 - w) * logit(market))`,
 where `market` is the median no-vig probability at the exact line (NFL consensus may
-include the offered book; MLB/NHL use other books). At least two books must post
+include the offered book; MLB/NHL use other books). `w` is `BLEND.weights` in
+`docs/assets/briefing-picks.js`: 0.10 for NHL, NFL props and MLB h2h/spreads/totals,
+0.25 for MLB player props (every sport used 0.25 from `morning-edition-2` through
+`morning-edition-4`). The October 14, 2026 fit on graded recap lines put the best
+weight near zero for NHL (5,112 lines, 86 games; 90% game-bootstrap range 0-0.21,
+0-0.11 on 10-point disagreements) and NFL props (567 lines, weeks 3-5; 0-0.18); MLB
+props favored the model over only six games. The candidate's model probability must
+be at least the market's (`model_below_market` otherwise, withheld and never a lean):
+a better price alone is Market Watch's signal. At least two books must post
 that line, counting the offered book: NFL `book_count >= 2`, MLB/NHL
 `other_books >= 1`, so an MLB/NHL consensus can rest on a single other book. NHL pools
 only books with a settlement profile in `config/nhl_settlement.json`: DraftKings and
@@ -134,9 +143,11 @@ more it is labeled high confidence, from 1% to 3% moderate confidence; high rank
 before moderate on the card. The label describes the size of the blended EV, not a
 win probability, and research never changes it. Above 30% a candidate drops to the
 research tier. NFL uses the smaller of raw and calibrated model probability, and
-withholds a calibrated 50% (the curve's flat centre, no information). The 0.25
-weight and the 1% and 3% bars are starting values from
-`docs/model-improvement-plan.md` until fitted out of sample per market. The best
+withholds a calibrated 50% (the curve's flat centre, no information). The 1% and
+3% bars are starting values from `docs/model-improvement-plan.md`; the weights are
+refit as recaps accumulate (Step 2c there). Pinnacle no-vig prices are recorded each
+morning by `scripts/pinnacle_snapshot.py` for that refit only; they do not enter
+`market` or any pick. The best
 positive offer below 1% per sport is shown as a lean (not a pick, not tracked).
 Tickets record `market_prob`, `final_prob`, `blend_weight`, `expected_value` (at
 the price taken) and `decision_at` beside `model_prob`
