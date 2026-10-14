@@ -1,0 +1,46 @@
+name: Pinnacle Coverage Check
+
+# One-off research: what Pinnacle (eu region) posts for our markets. Read-only;
+# results go to the job summary and an artifact, never to the site or a model.
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/gallant-noether-ewhzja]
+    paths: ['.github/workflows/pinnacle-coverage.yml', 'scripts/pinnacle_coverage.py']
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Latest feeds from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main-data
+          sparse-checkout: |
+            docs/nfl/data
+            docs/props
+            docs/mlb/data
+            docs/nhl/data
+            docs/nba/data
+            docs/briefing
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests==2.32.5
+      - name: Pull Pinnacle and compare with our US feeds
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY || secrets.NHL_ODDS_API_KEY || secrets.MLB_ODDS_API_KEY }}
+        run: python scripts/pinnacle_coverage.py --root main-data --max-credits 120 --out artifacts/pinnacle/coverage.json
+      - name: Archive Pinnacle quotes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pinnacle-coverage-${{ github.run_id }}
+          path: artifacts/pinnacle/
+          retention-days: 30
