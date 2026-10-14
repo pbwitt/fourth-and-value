@@ -5,7 +5,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
-from display_time import eastern_time
+from display_time import eastern_label, eastern_time
 from nhl.v2.arbitrage import _when
 
 
@@ -28,6 +28,15 @@ class EasternTimeTests(unittest.TestCase):
     def test_requires_known_source_zone(self):
         with self.assertRaises(ValueError):
             eastern_time(datetime(2026, 10, 10, 12))
+        with self.assertRaises(ValueError):
+            eastern_label(datetime(2026, 10, 10, 12))
+
+    def test_label_carries_the_eastern_weekday(self):
+        self.assertEqual(eastern_label('2026-10-14T11:08:00Z'), 'Wed, Oct 14, 2026, 7:08 AM EDT')
+        # A late-evening game rolls back to the previous Eastern day.
+        self.assertEqual(eastern_label('2026-10-14T02:13:00+00:00'), 'Tue, Oct 13, 2026, 10:13 PM EDT')
+        self.assertEqual(eastern_label('2026-12-01T17:00:00Z'), 'Tue, Dec 1, 2026, 12:00 PM EST')
+        self.assertEqual(eastern_label('2026-01-01T05:30:00Z'), 'Thu, Jan 1, 2026, 12:30 AM EST')
 
     def test_arbitrage_uses_eastern_calendar_date(self):
         self.assertEqual(_when('2026-10-11T02:00:00Z'), 'Oct 10, 10:00 PM EDT')

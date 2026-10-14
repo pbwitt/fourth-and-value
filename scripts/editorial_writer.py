@@ -18,7 +18,7 @@ import editorial_budget as budget
 import editorial_sources as reporting
 import editorial_ideas as ideas
 import model_api
-from display_time import TIMEZONE_INSTRUCTIONS
+from display_time import TIMEZONE_INSTRUCTIONS, eastern_label
 
 STATE=ed.DOCS/'editorial/runs'
 # Every article is public: the same voice rule goes to the writer and the audit.
@@ -530,10 +530,31 @@ def audit_model(cfg):
     """The factual audit may use a different (stronger) model than the writer."""
     return cfg.get('audit_model') or cfg['model']
 
+STAMP=re.compile(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})')
+EASTERN_LABELS='\nevidence.eastern_times maps each evidence timestamp to its Eastern weekday, date and time. Use those labels for every day and time; never work out a weekday yourself.'
+
+def eastern_times(packet):
+    """Label every timestamp in the evidence in Eastern Time, weekday included, so the
+    writer quotes days and times instead of converting UTC itself (Oct 14: a 7:08 a.m.
+    Wednesday quote was called Tuesday). The audit receives the same labels."""
+    found={}
+    def walk(value):
+        if isinstance(value,dict):
+            for key,item in value.items():
+                if key!='eastern_times':walk(item)
+        elif isinstance(value,list):
+            for item in value:walk(item)
+        elif isinstance(value,str) and STAMP.fullmatch(value):
+            try:found[value]=eastern_label(value)
+            except ValueError:pass
+    walk(packet)
+    return dict(packet,eastern_times=dict(sorted(found.items())))
+
 def payload(instructions,data,phase,model=None):
     effort=ed.CFG['writer'].get('reasoning_effort','low') if phase=='write' else 'low'
+    labels=EASTERN_LABELS if isinstance(data,dict) and isinstance(data.get('evidence'),dict) and data['evidence'].get('eastern_times') else ''
     result=dict(model=model or ed.CFG['writer']['model'],service_tier='default',reasoning={'effort':effort},
-        max_output_tokens=budget.LIMITS[phase][1],instructions=instructions+TIMEZONE_INSTRUCTIONS,input=json.dumps(data,separators=(',',':')))
+        max_output_tokens=budget.LIMITS[phase][1],instructions=instructions+TIMEZONE_INSTRUCTIONS+labels,input=json.dumps(data,separators=(',',':')))
     budget.bounds(result,phase)
     return result
 
@@ -661,7 +682,7 @@ def run(now,limit=2,idea_id=None,publish_own=False):
             state['slots'][key]={'status':'waiting_for_data','reason':'Insufficient current publisher evidence for the assigned matchup'}
             ed.write_json(statepath,state)
             continue
-        packet=reader_facing(packet)
+        packet=eastern_times(reader_facing(packet))
         assignment={'assignment':angle,'evidence':packet,'recent_titles':recent}
         if idea:assignment['requested_angle']=idea['idea'][:12000]
         rewrite=bool(idea_id and idea and idea.get('body','').strip())

@@ -27,6 +27,19 @@ class WriterGuards(unittest.TestCase):
         self.assertEqual({s for s,_ in next_slots},{'NBA','NHL'})
     def test_valid(self):
         self.assertEqual(w.validate(self.article,self.response,self.packet,self.now),600)
+    def test_evidence_timestamps_get_eastern_labels(self):
+        packet={'as_of':'2026-10-14T11:10:55.124898+00:00','markets':[{'id':'q1','quotes':[{'quoted_at':'2026-10-14T11:08:00Z'}],
+            'commence_time':'2026-10-16T00:15:00Z'}],'reporting':[{'published_at':'2026-10-13','title':'Posted 2026-10-14T11:08:00Z'}]}
+        labeled=w.eastern_times(packet)
+        self.assertEqual(labeled['eastern_times'],{'2026-10-14T11:08:00Z':'Wed, Oct 14, 2026, 7:08 AM EDT',
+            '2026-10-14T11:10:55.124898+00:00':'Wed, Oct 14, 2026, 7:10 AM EDT','2026-10-16T00:15:00Z':'Thu, Oct 15, 2026, 8:15 PM EDT'})
+        self.assertEqual({k:v for k,v in labeled.items() if k!='eastern_times'},packet,'source timestamps stay unchanged')
+        self.assertNotIn('eastern_times',packet)
+        self.assertEqual(w.eastern_times(labeled)['eastern_times'],labeled['eastern_times'],'relabeling is stable')
+        # Writer and audit requests that carry the labels are told to use them.
+        self.assertIn('evidence.eastern_times',w.payload('Write.',{'evidence':labeled},'write')['instructions'])
+        self.assertIn('evidence.eastern_times',w.payload('Audit.',{'article':{},'evidence':labeled},'audit')['instructions'])
+        self.assertNotIn('eastern_times',w.payload('Write.',{'evidence':packet},'write')['instructions'])
     def test_any_cited_model_must_be_called_experimental(self):
         self.packet['model_references']=[{'id':'m1','model_mean':2.1}]
         self.assertEqual(w.validate(self.article,self.response,self.packet,self.now),600)  # market-only article
