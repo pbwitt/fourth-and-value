@@ -243,15 +243,28 @@ assert.equal(shortlist([absent],now)[0].card_rank_score,null);
 assert.equal(shortlist([{...absent,human_decision:'select'},mlbCard],now)[0].player,'Unknown');
 console.log('PASS: cross-sport card order, comparable units, conservative NFL probability, pushes and missing models.');
 
-// Market blend (Phase 3): 25% model in log-odds, exact-line market; a pick needs 1% EV
-// at its price, and 3% or more is labeled high confidence.
+// Market blend (Phase 3): model weight in log-odds by sport, exact-line market; a pick
+// needs 1% EV at its price, and 3% or more is labeled high confidence.
 {
   const {blend,BLEND}=require('../docs/assets/briefing-picks.js');
-  assert.deepEqual([BLEND.weight,BLEND.minEV,BLEND.highEV,BLEND.minBooks],[.25,.01,.03,2]);
-  // The brief's example: an SOG Under at -140, model 71%, market 52% -> about 57%, no bet.
+  const lg=p=>Math.log(p/(1-p)),mix=(w,m,c)=>1/(1+Math.exp(-(w*lg(m)+(1-w)*lg(c))));
+  assert.deepEqual([BLEND.weights,BLEND.minEV,BLEND.highEV,BLEND.minBooks],[{NFL:.10,NHL:.10,MLB:.25,MLB_game:.10},.01,.03,2]);
+  // The brief's example: an SOG Under at -140, model 71%, market 52%. At 25% it blended to
+  // about 57%; at NHL's 10% it is about 54%. Either way below the 58.3% break-even.
   const sog={sport:'NHL',price:-140,final_probability:.71,push_probability:0,market_probability:.52,other_books:4};
   const b=blend(sog);
-  assert(Math.abs(b.final-.5705)<5e-4,b.final);assert(b.ev<0);assert.equal(b.status,'below_threshold');
+  assert(Math.abs(b.final-mix(.10,.71,.52))<1e-12,b.final);assert(Math.abs(b.final-.5403)<5e-4);
+  assert.equal(b.weight,.10);assert(b.ev<0);assert.equal(b.status,'below_threshold');
+  // MLB props keep 25%; MLB game lines and NFL props use 10%.
+  const mlbRow={sport:'MLB',market:'pitcher_outs',price:140,model_probability:.532,model_push_probability:0,other_book_probability:.403,other_books:3};
+  assert.equal(blend(mlbRow).weight,.25);assert(Math.abs(blend(mlbRow).final-mix(.25,.532,.403))<1e-12);
+  for(const market of ['h2h','spreads','totals'])assert.equal(blend({...mlbRow,market}).weight,.10,market);
+  assert.equal(blend({sport:'NFL',price:110,model_prob:.6,push_prob:0,consensus_prob:.53,book_count:2}).weight,.10);
+  // The model must give the side at least the market's chance; price alone is Market Watch.
+  const shopped={sport:'NHL',price:280,final_probability:.302,push_probability:0,market_probability:.314,other_books:2};
+  assert.equal(blend(shopped).status,'model_below_market');assert.equal(blend(shopped).final,undefined);
+  assert.equal(blend({...shopped,final_probability:.314}).status,'qualifies','agreeing with the market is allowed');
+  assert.equal(blend({...shopped,other_books:0}).status,'thin_market','thin markets are reported first');
   // Thin market: fewer than two books at this exact line, counting the offered book.
   // MLB/NHL count other books, so one other book plus the offer makes two.
   assert.equal(blend({...sog,other_books:0}).status,'thin_market');
@@ -263,7 +276,7 @@ console.log('PASS: cross-sport card order, comparable units, conservative NFL pr
   assert.equal(blend({...sog,final_probability:null}).status,'no_model');
   // EV refunds pushes.
   const pushed=blend({...sog,price:150,final_probability:.6,push_probability:.1,market_probability:.5});
-  const fin=1/(1+Math.exp(-(.25*Math.log((.6/.9)/(1-.6/.9)))));
+  const fin=1/(1+Math.exp(-(.10*Math.log((.6/.9)/(1-.6/.9)))));
   assert(Math.abs(pushed.final-fin)<1e-12);assert(Math.abs(pushed.ev-.9*(fin*2.5-1))<1e-12);
   // In collect: a qualifying bet carries its blend; a thin or 50% NFL estimate is withheld.
   let g=fixture();let out=collect(g,now);
@@ -273,6 +286,16 @@ console.log('PASS: cross-sport card order, comparable units, conservative NFL pr
   assert(!out.selected.some(r=>r.sport==='NFL'));assert.match(out.excluded[0].exclusion_reasons[0],/Fewer than two books/);
   g=fixture();g.NFL.rows[0].model_prob=.5;out=collect(g,now);
   assert(!out.selected.some(r=>r.sport==='NFL'));assert.match(out.excluded[0].exclusion_reasons[0],/exactly 50%/);
+  // A model below the market is withheld even at a long price, and is never a lean.
+  g=fixture();Object.assign(g.NHLBoard.candidates[0],{price:280,independent_probability:.302,final_probability:.302,market_probability:.314});
+  out=collect(g,now);
+  assert(!out.selected.some(r=>r.sport==='NHL'));assert(!out.leans.some(r=>r.sport==='NHL'));
+  assert.match(out.excluded.find(r=>r.sport==='NHL').exclusion_reasons[0],/model gives this side 30\.2%, below the market’s 31\.4%; a better price alone belongs in Market Watch/);
+  assert.match(out.coverage.find(c=>c.sport==='NHL').message,/1 withheld \(thin market, model below market, /);
+  // NHL rows explain their 10% weight; archived rows keep the weight they were decided on.
+  const nhlPick=collect(fixture(),now).selected.find(r=>r.sport==='NHL');
+  assert.match(rowHTML(readyRow(nhlPick)),/Weighted 10% model and 90% market/);
+  assert.match(rowHTML(readyRow({...nhlPick,blend:{...nhlPick.blend,weight:.25}})),/Weighted 25% model and 75% market/);
   // Between 1% and 3%: a moderate-confidence pick, ranked after high-confidence picks.
   g=fixture();Object.assign(g.MLB.rows[0],{price:-110,model_probability:.56,other_book_probability:.52});
   out=collect(g,now);

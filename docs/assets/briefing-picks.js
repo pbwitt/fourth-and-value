@@ -51,26 +51,32 @@
     return {model,market:probability(market)&&finite(books)&&books>0?market:null,
       books,push:probability(push)?push:null,breakEven:1/decimal(r.price)};
   }
-  // Market blend (docs/model-improvement-plan.md, Phase 3). Until per-market weights
-  // are fitted out of sample, the model gets 25% weight in log-odds against the
-  // exact-line no-vig consensus. A pick needs 1% expected value at its own price:
-  // 3% or more is high confidence, 1-3% moderate. The tier describes the size of the
-  // blended EV, not a chance of winning. At least two books must post that exact
-  // line, counting the offered book (a lone alternate line has no market to blend
-  // with). Expected value refunds pushes.
-  const BLEND={version:'market-blend-2',weight:.25,minEV:.01,highEV:.03,maxEV:.30,minBooks:2};
+  // Market blend (docs/model-improvement-plan.md, Phase 3), in log-odds against the
+  // exact-line no-vig consensus. Model weights by sport (Step 2c, 2026-10-14): fitted
+  // on graded lines, NHL and NFL props scored best near 0 (90% range up to about 0.2)
+  // and MLB game lines trailed the market, so they get 0.10; MLB props beat the market
+  // over six games and keep 0.25 until more data. A pick needs 1% expected value at
+  // its own price: 3% or more is high confidence, 1-3% moderate. The tier describes
+  // the size of the blended EV, not a chance of winning. At least two books must post
+  // that exact line, counting the offered book (a lone alternate line has no market to
+  // blend with). The model must give the side at least the market's chance: a better
+  // price alone is a Market Watch signal, not a pick. Expected value refunds pushes.
+  const BLEND={version:'market-blend-3',weights:{NFL:.10,NHL:.10,MLB:.25,MLB_game:.10},minEV:.01,highEV:.03,maxEV:.30,minBooks:2};
+  const GAME_MARKETS=['h2h','spreads','totals'];
+  const blendWeight=r=>r.sport==='MLB'&&GAME_MARKETS.includes(r.market)?BLEND.weights.MLB_game:BLEND.weights[r.sport]??BLEND.weights.NFL;
   const logit=p=>Math.log(p/(1-p)),sigmoid=x=>1/(1+Math.exp(-x));
   const clip=p=>Math.min(1-1e-6,Math.max(1e-6,p));
   function blend(r,modelOverride) {
-    const c=comparison(r),model=probability(modelOverride)?modelOverride:c.model;
+    const c=comparison(r),model=probability(modelOverride)?modelOverride:c.model,weight=blendWeight(r);
     if(model===null)return {status:'no_model'};
     // NFL's book_count includes the offered book; MLB/NHL count only the other books.
     const lineBooks=finite(c.books)?c.books+(r.sport==='NFL'?0:1):null;
     if(c.market===null||lineBooks===null||lineBooks<BLEND.minBooks)return {status:'thin_market',model,market:c.market,books:c.books};
-    const final=sigmoid(BLEND.weight*logit(clip(model))+(1-BLEND.weight)*logit(clip(c.market)));
+    if(model<c.market)return {status:'model_below_market',version:BLEND.version,weight,model,market:c.market,books:c.books,line_books:lineBooks};
+    const final=sigmoid(weight*logit(clip(model))+(1-weight)*logit(clip(c.market)));
     const ev=(1-(c.push??0))*(final*decimal(r.price)-1);
     return {status:ev>=BLEND.minEV?'qualifies':'below_threshold',confidence:ev>=BLEND.highEV?'high':ev>=BLEND.minEV?'moderate':null,
-      version:BLEND.version,weight:BLEND.weight,model,market:c.market,books:c.books,line_books:lineBooks,final,ev,threshold:BLEND.minEV};
+      version:BLEND.version,weight,model,market:c.market,books:c.books,line_books:lineBooks,final,ev,threshold:BLEND.minEV};
   }
   const signedPct=n=>(n>=0?'+':'')+(100*n).toFixed(1)+'%';
   const barPct=n=>(100*n).toFixed(0)+'%';
@@ -110,7 +116,7 @@
     const c=comparison(r);
     if(c.model===null||r.model_withheld)return 'Independent research surfaced this offer. A reliable model win probability and numerical edge are not established.';
     const market=c.market===null?'':`, versus ${pct(c.market)} from ${c.books===1?(r.sport==='NFL'?'one paired book':'one other book'):(r.sport==='NFL'?'the market':'other books')}`;
-    const w=finite(r.blend?.weight)?r.blend.weight:BLEND.weight;
+    const w=finite(r.blend?.weight)?r.blend.weight:blendWeight(r);
     const b=r.blend&&finite(r.blend.final)?` Weighted ${Math.round(100*w)}% model and ${Math.round(100*(1-w))}% market, that is ${pct(r.blend.final)}, or ${signedPct(r.blend.ev)} expected value at this price.${confidenceReason(r.blend)}`:'';
     return `The experimental model estimates a ${pct(c.model)} win chance${market}. The offered ${odds(r.price)} needs ${pct(c.breakEven)} to break even, excluding pushes.${b}`;
   }
@@ -322,6 +328,7 @@
           const raw=r.forecast_health.raw_probability;
           const b=r.blend=blend(r,sport==='NFL'&&probability(raw)?Math.min(r.model_prob,raw):undefined);
           if(b.status==='thin_market'){excluded.push({...r,exclusion_reasons:['Fewer than two books, counting the offered one, post this exact line, so there is no market price to blend with']});continue;}
+          if(b.status==='model_below_market'){excluded.push({...r,exclusion_reasons:[`The model gives this side ${pct(b.model)}, below the market’s ${pct(b.market)}; a better price alone belongs in Market Watch`]});continue;}
           if(b.status!=='qualifies'){
             if(b.status==='below_threshold'&&b.ev>0)belowBlend.push(r);
             excluded.push({...r,blend_shortfall:true,exclusion_reasons:[b.status==='below_threshold'?`${signedPct(b.ev)} expected value after blending with the market; ${barPct(BLEND.minEV)} required`:'No model probability']});continue;
@@ -360,7 +367,7 @@
         message:(!available?'Current model list unavailable or expired. ':'')+(count?`${count} review candidate${count===1?'':'s'}`:'No qualifying offers currently available')+
           (moderate?` (${high} high, ${moderate} moderate confidence)`:'')+
           (short?` · ${short} below the ${barPct(BLEND.minEV)} market-blend floor`:'')+
-          (held?` · ${held} withheld (thin market, 50% calibration or unreliable forecast)`:'')+(sport==='NHL'?' · unposted markets can enter on the next refresh':'')});
+          (held?` · ${held} withheld (thin market, model below market, 50% calibration or unreliable forecast)`:'')+(sport==='NHL'?' · unposted markets can enter on the next refresh':'')});
     }
     // A reviewed MLB/NHL opportunity must not disappear below the initial
     // twenty unreviewed NFL rows. Compare assessment status across sports;

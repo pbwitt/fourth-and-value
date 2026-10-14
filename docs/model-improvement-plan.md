@@ -9,7 +9,7 @@ Owner: pbwitt. Started 2026-10-05. Update this file as each phase finishes.
 | 0. Audit | Done 2026-10-05 | Findings and proposed plan below. Step 1 (housekeeping) merged and deployed 2026-10-05. |
 | 1. News and lineup data | In progress | NHL projected starting goalies (start chance and shrunk save rate from official box scores) as context only, 2026-10-05. Confirmed starters still need a permitted source. |
 | 2. Model fixes | In progress | 2026-10-06: NFL home/away multipliers refitted on 2012–2025 (passing and receiving yards ±1.4%, was ±6%); NHL v2.4 adds each player's record against our own forecasts (locked evaluation, `reports/nhl-v2.4`). MLB platoon (batter side vs pitcher hand) tested on the production MLB data and kept research only: no reliable gain on box scores (`reports/mlb-platoon`). |
-| 3. Market blend before betting | In progress | Step 2 (blend live on Top Picks at w = 0.25, 3% EV) merged 2026-10-05 in pbwitt/fourth-and-value#87. Step 2b (2026-10-06): 1% floor with high (≥ 3%) and moderate (1–3%) confidence tiers, and the two-book rule counts the offered book for every sport. Pinnacle reference not yet added. |
+| 3. Market blend before betting | In progress | Step 2 (blend live on Top Picks at w = 0.25, 3% EV) merged 2026-10-05 in pbwitt/fourth-and-value#87. Step 2b (2026-10-06): 1% floor with high (≥ 3%) and moderate (1–3%) confidence tiers, and the two-book rule counts the offered book for every sport. Step 2c (2026-10-14): weights by sport (NHL, NFL props and MLB game lines 0.10; MLB props 0.25) and the model must be at least the market. Pinnacle recorded each morning, not yet in the market; refit due 2026-10-28. |
 | 4. Backtest and calibration | In progress | 2026-10-06: matchup backtest (player vs opponent, home/away splits, platoon) across NFL, NHL and MLB, `reports/matchups/`; published as research report FV-2026-03. |
 | 5. Monitoring and site | Not started | |
 
@@ -415,6 +415,48 @@ the Oct 6 7 a.m. props, before the NHL board's own gates, found 12 outcomes clea
 bar with DraftKings and FanDuel only, 52 with BetMGM added (opening points and assists), and 46
 with BetOnline too; with BetMGM and BetOnline, 326 of 466 SOG offers had three or more books.
 Open: read each book's published rules and replace `assumed` with a source.
+
+### Step 2c (2026-10-14): model weights by sport, and the model must agree with the market
+
+**Fit.** `python scripts/fit_blend_weights.py` scores `sigmoid(w·logit(model) + (1−w)·logit(market))`
+by log loss on every graded line in the weekly recap data (one side per line, market = median
+no-vig of the other books), for w from 0 to 1, with a 90% range from resampling whole games:
+
+| Lines | Best w (90% range) | Lines where model and market differ by 10+ points |
+|---|---|---|
+| NHL, recaps of Oct 5 and Oct 12 (5,112 lines, 86 games) | 0.01 (0–0.21) | 0.00 (0–0.11); log loss model 0.729, market 0.663 |
+| NFL props, weeks 3–5 (567 lines, 45 games) | 0.00 (0–0.18) | 0.00 (0–0.33) |
+| MLB, recap of Oct 11 (275 lines, 6 games) | 1.00 (0.25–1.00), mostly hitter props | too few |
+
+NHL assists were the only NHL market with a positive fit (0.26, range 0–0.58). MLB's weekly Brier
+scores had the model behind the market on moneylines, run lines and totals.
+
+**Change (edition policy `morning-edition-5`).** `BLEND.weights`: NHL 0.10, NFL props 0.10, MLB
+h2h/spreads/totals 0.10, MLB player props 0.25. 0.10 sits near the top of the NHL and NFL ranges
+rather than at their zero point estimates, so the model still filters picks. At 0.10 more of a
+pick's edge comes from its price, so a candidate whose model chance is below the market's is now
+withheld (`model_below_market`): a better price alone is Market Watch's signal. Of the 34 blended
+card picks from Oct 5 to Oct 14, one would have been withheld by that rule (Jordan Spence assists
+Over 0.5 at +280 on Oct 12: model 30.2%, market 31.4%). Replaying the Oct 14 morning feeds keeps the
+MLB pitcher-outs pick (+4.4%) and moves the NHL points pick from +5.0% to a +0.05% lean. Editions
+through `morning-edition-4` keep 0.25 in their records and are not regraded.
+
+**Pinnacle (record only).** A one-off pull on Oct 14 (46 credits) found Pinnacle posting every
+game line and most of our props: NHL assists, points and shots on goal (70–96% of our exact lines;
+no goals), MLB strikeouts, total bases and home runs (no pitcher outs, hits or RBIs), all eight
+modeled NFL prop markets, and a few NBA props. It posts only main game lines, so it matches 100%
+of our moneylines but 25–50% of our spreads and totals. From `morning-edition-5`,
+`scripts/pinnacle_snapshot.py` records Pinnacle and US quotes each morning after the sports
+refreshes (`artifacts/pinnacle/snapshots/`). Nothing it records enters a pick. Proposed starting
+split once switched on: Pinnacle alone for game lines where it posts the exact line, 50/50 with the
+US median for props, US median otherwise.
+
+**Follow-up due 2026-10-28.** (1) Fit the Pinnacle/US split per sport and market by log loss
+on graded lines, joining the snapshots to the recap boards. (2) Refit the model weights on lines
+graded after Oct 12 (out of sample for this fit). (3) Report 7 a.m. Pinnacle coverage by market and
+the credit cost per morning, including whether ten named bookmakers billed as one region. Then
+propose the market-term change. The NBA has no model yet, so no weight applies; its Pinnacle
+coverage is recorded for Market Watch.
 
 ### Phase 1, NHL goalies: projected starters as context (2026-10-05)
 
