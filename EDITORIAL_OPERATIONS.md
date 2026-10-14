@@ -12,6 +12,11 @@ Do not publish UTC or raw ISO timestamps in prose. Stored evidence, API fields,
 HTML datetime attributes and structured metadata retain their original instants.
 The writer, rewrite and factual-audit requests share this rule through
 `scripts/display_time.py`; the audit must check conversions against the evidence.
+Since October 14, 2026 the evidence also carries `eastern_times`, mapping every
+timestamp to a ready label such as "Wed, Oct 14, 2026, 7:08 AM EDT" (made by
+`eastern_label`), and both requests are told to use those labels rather than work
+out a weekday. That day's NFL draft was rejected for calling Wednesday's 7:08 AM
+quotes "Tuesday".
 
 ## Schedule and costs
 
