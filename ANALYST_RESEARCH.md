@@ -235,7 +235,9 @@ All bets should be reviewed before deciding. Missing news alone is not a veto.
 starts at **07:35, 08:05 and 08:35**. A gate reads current main before any sport
 pull: a completed same-day morning edition skips all three feeds and paid research, then
 verifies delivery. A missing or incomplete edition calls NFL, MLB and NHL reusable
-workflows, waits for all three, then calls research. A separate short handoff
+workflows, waits for all three, then calls research. A recovery start reuses an NFL
+refresh at most 45 minutes old instead of paying for it again (its result travels as
+`reused_fresh`); NHL and MLB refresh on every start. A separate short handoff
 dispatches editorial with scheduled recovery semantics; writing does not block
 Top Picks research or its recovery starts. Explicit test editions skip the
 automatic editorial handoff.

@@ -19,9 +19,17 @@ The Pirates blog post is outside these refreshes and remains unchanged.
 
 Setup: deploy `supabase/functions/live-odds` (both files) and run `supabase/live_odds_key.sql` once. The `Live Odds key` workflow copies the key the NHL refresh uses (`NHL_ODDS_API_KEY`, else `ODDS_API_KEY`) into Supabase Vault when it reaches main; run it again by hand after rotating the key. Only the service role can read or write that copy. An `ODDS_API_KEY` Edge Function secret, if added, takes precedence. `LIVE_ODDS_RESERVE` is an optional Edge Function secret.
 
-## Odds API credit floor (all jobs)
+## Odds API credit budget (all jobs)
 
-Every job that pays for Odds API data shares one balance and one rule: no request may take the balance below 2,000 credits, and no single run may spend more than 2,000 (larger jobs need the owner's approval). The Python jobs (NHL, MLB and NBA refreshes, the NFL props, game-odds and totals fetchers, and the editorial price pull) check `scripts/odds_budget.py` before each paid request, using the balance the provider reported on the previous response; free event and sports lists report it first. A refusal stops the job the same way an odds outage does: NFL fails before publishing, so its pages keep their previous data; NHL, MLB and NBA publish a feed-error status instead of new prices; the editorial briefing withholds prices. `ODDS_CREDIT_FLOOR` and `ODDS_RUN_CAP` can tighten the limits, never loosen them. Live Odds (`LIVE_ODDS_RESERVE`, 2,000) and closing lines (`CLOSING_LINES_RESERVE`, 2,000 minimum) apply the same floor in their Edge Functions.
+Every job that pays for Odds API data shares one balance. It resets at midnight UTC on the 1st of each month (8 p.m. Eastern on the last day in daylight time; observed October 1, 2026, about 20,000 credits) and unused credits do not carry over, so no fixed amount is held back for its own sake. The rules, from October 15, 2026 (`scripts/odds_budget.py`):
+
+- **Core jobs** (the NFL props, game-odds and totals fetchers and the NHL and MLB refreshes, which the morning card is built from) may spend the balance down to zero.
+- **Optional jobs** (the NBA refresh, the Pinnacle snapshot and the editorial price pull) must leave a reserve for the core jobs until the reset: 500 credits (`CORE_DAILY`, October's core spending) for each day left, shrinking to zero at the reset. On October 15 that was about 8,100 credits; on the evening of the 31st it is under 100. Jobs without a tier are optional.
+- **No single run may spend more than 2,000** (larger jobs need the owner's approval).
+
+Each job checks before every paid request, using the balance the provider reported on the previous response; free event and sports lists report it first. A refusal stops the job the same way an odds outage does: NFL fails before publishing, so its pages keep their previous data; NHL, MLB and NBA publish a feed-error status instead of new prices; the editorial briefing withholds prices. `ODDS_CREDIT_FLOOR`, `ODDS_CORE_DAILY` and `ODDS_RUN_CAP` can tighten the limits, never loosen them. Live Odds (`LIVE_ODDS_RESERVE`, 2,000) and closing lines (`CLOSING_LINES_RESERVE`, 2,000 minimum) keep their own fixed reserves in their Edge Functions, so these on-demand jobs stop first; changing them needs a Supabase redeploy.
+
+A morning recovery start (7:35, 8:05, 8:35) reuses an NFL refresh at most 45 minutes old instead of buying the same NFL prices again (`scripts/morning_operations.py`); NFL quotes stay valid for 90 minutes at publication. NHL (30-minute quotes) and MLB refresh on every recovery start.
 
 ## Closing lines for tracked bets
 

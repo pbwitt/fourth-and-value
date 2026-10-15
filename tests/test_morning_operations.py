@@ -64,6 +64,31 @@ class MorningOperationsTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):ops.gate(root,NOW+timedelta(hours=5))
             self.assertEqual(path.read_bytes(),original)
 
+    def test_recovery_reuses_a_recent_nfl_refresh_only(self):
+        with TemporaryDirectory() as td:
+            root=Path(td);feed=root/'docs/nfl/data/latest.json'
+            self.assertTrue(ops.gate(root,NOW)['refresh_nfl'],'no NFL feed yet')
+            write_json(feed,dict(status='ready',model_checked_at=NOW.isoformat()))
+            recovery=ops.gate(root,NOW+timedelta(minutes=30))
+            self.assertEqual((recovery['refresh'],recovery['refresh_nfl']),(True,False))
+            self.assertEqual(recovery['nfl_reused_from'],NOW.isoformat())
+            self.assertTrue(ops.gate(root,NOW+timedelta(minutes=46))['refresh_nfl'],'too little of the 90 minutes left')
+            self.assertTrue(ops.gate(root,NOW+timedelta(minutes=30),replace_card=True)['refresh_nfl'])
+            self.assertTrue(ops.gate(root,NOW+timedelta(minutes=30),test_edition=True)['refresh_nfl'])
+            write_json(feed,dict(status='feed_error',model_checked_at=NOW.isoformat()))
+            self.assertTrue(ops.gate(root,NOW+timedelta(minutes=30))['refresh_nfl'],'a failed feed is never reused')
+            write_json(feed,dict(status='ready',model_checked_at=(NOW+timedelta(hours=1)).isoformat()))
+            self.assertTrue(ops.gate(root,NOW+timedelta(minutes=30))['refresh_nfl'],'a future timestamp is never reused')
+            write_json(root/'docs/briefing/morning-card.json',self.value())
+            self.assertFalse(ops.gate(root,NOW+timedelta(minutes=30))['refresh_nfl'],'a completed edition pulls nothing')
+
+    def test_start_report_names_a_reused_nfl_refresh(self):
+        with TemporaryDirectory() as td:
+            summary=Path(td)/'summary.md'
+            ops.record_start(NOW,dict(refresh=True,refresh_nfl=False,reason='missing_or_incomplete_edition',
+                nfl_reused_from=NOW.isoformat()),summary_path=summary)
+            self.assertIn('NFL: reusing the refresh from 07:05 ET',summary.read_text())
+
     def test_eastern_winter_window_and_previous_day(self):
         with TemporaryDirectory() as td:
             root=Path(td)

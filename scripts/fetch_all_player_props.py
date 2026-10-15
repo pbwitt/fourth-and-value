@@ -16,10 +16,11 @@ from pathlib import Path
 import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from odds_budget import CreditBudget, CreditFloorReached
+from odds_budget import CORE, CreditBudget, CreditFloorReached
 
-# Shared 2,000-credit floor and per-run cap (scripts/odds_budget.py).
-BUDGET = CreditBudget(label="NFL props")
+# Core refresh for the morning card: may spend the shared balance to zero; per-run cap
+# applies (scripts/odds_budget.py).
+BUDGET = CreditBudget(label="NFL props", tier=CORE)
 
 DEFAULT_MARKETS = [
     "player_anytime_td","player_1st_td","player_last_td",

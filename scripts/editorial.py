@@ -22,7 +22,7 @@ import requests
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from odds_budget import CreditBudget, CreditFloorReached, estimate_cost, requests_preflight
+from odds_budget import OPTIONAL, CreditBudget, CreditFloorReached, estimate_cost, requests_preflight
 
 ROOT=Path(__file__).resolve().parents[1]
 DOCS=ROOT/'docs'
@@ -134,16 +134,16 @@ def fetch_news(now):
 
 def refresh(now):
     previous=json.loads((PUBLIC/'latest.json').read_text()) if (PUBLIC/'latest.json').exists() else {}
-    games=[];coverage={};budget=CreditBudget(label='Editorial prices')
+    games=[];coverage={};budget=CreditBudget(label='Editorial prices',tier=OPTIONAL)
     for sport,key in CFG['sports'].items():
         secret=os.getenv(f'{sport}_ODDS_API_KEY') or os.getenv('ODDS_API_KEY')
         if not secret:coverage[sport]='No odds credential; no prices published';continue
         params={'regions':'us','markets':'totals','oddsFormat':'american'}
         try:
-            # Shared 2,000-credit floor (scripts/odds_budget.py); a refusal withholds prices.
+            # Optional job: it leaves the sports refreshes their reserve (scripts/odds_budget.py); a refusal withholds prices.
             budget.ensure(estimate_cost(f'sports/{key}/odds',params),preflight=requests_preflight(secret))
         except CreditFloorReached as error:
-            print(error);coverage[sport]='Odds credit floor reached; no prices published';continue
+            print(error);coverage[sport]='Odds credits reserved for the sports refreshes; no prices published';continue
         try:
             r=requests.get(f'https://api.the-odds-api.com/v4/sports/{key}/odds',
                 params={'apiKey':secret,**params},timeout=35)

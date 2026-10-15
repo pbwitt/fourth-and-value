@@ -86,6 +86,13 @@ class MorningCardTests(unittest.TestCase):
             self.assertIn('MLB: refresh failed or did not finish',value['research']['issues'])
             self.assertIn('Independent discovery did not complete',value['research']['issues'])
 
+    def test_reused_fresh_nfl_refresh_is_not_a_failure(self):
+        # A recovery start reuses a recent NFL refresh instead of buying it again.
+        with TemporaryDirectory() as td:
+            value=card.publish_card(empty_feeds(),empty_reviews(),NOW,root=Path(td),refresh_results={'NFL':'reused_fresh','MLB':'success','NHL':'success'})
+            self.assertNotIn('NFL: refresh failed or did not finish',value['research']['issues'])
+            self.assertEqual(value['research']['sports']['NFL']['refresh_status'],'reused_fresh')
+
     def test_every_api_timeout_publishes_failure_and_keeps_normal_budget(self):
         from test_analyst_review import feeds, CONFIG, NOW as asof
         from nhl.v2 import astra, evidence

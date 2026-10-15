@@ -22,10 +22,11 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from odds_budget import CreditBudget, CreditFloorReached, estimate_cost, urllib_preflight
+from odds_budget import CORE, CreditBudget, CreditFloorReached, estimate_cost, urllib_preflight
 
-# Shared 2,000-credit floor and per-run cap (scripts/odds_budget.py).
-BUDGET = CreditBudget(label="NFL totals and spreads")
+# Core refresh for the morning card: may spend the shared balance to zero; per-run cap
+# applies (scripts/odds_budget.py).
+BUDGET = CreditBudget(label="NFL totals and spreads", tier=CORE)
 
 
 def fetch_json(url: str, timeout: int = 30):

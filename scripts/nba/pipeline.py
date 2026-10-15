@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from market_math import implied_probability
-from odds_budget import CreditBudget, CreditFloorReached, estimate_cost
+from odds_budget import CORE, OPTIONAL, CreditBudget, CreditFloorReached, estimate_cost
 
 UTC = timezone.utc
 SPORT = 'basketball_nba'
@@ -87,7 +87,8 @@ class OddsClient:
         self.sport = sport
         self.quota_remaining = None
         self.requests = 0
-        self.budget = budget or CreditBudget(label=f'{sport} refresh')
+        # NHL and MLB share this client and feed the morning card (core); NBA has no model yet.
+        self.budget = budget or CreditBudget(label=f'{sport} refresh', tier=OPTIONAL if sport == SPORT else CORE)
 
     def get(self, suffix, **params):
         # The event list is free and reports the balance before any paid request.

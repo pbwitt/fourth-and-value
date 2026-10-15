@@ -1,8 +1,9 @@
 """Cheap recovery gate and end-to-end delivery check; never calls a paid API."""
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 import os
+from pathlib import Path
 import time
 from urllib.error import URLError
 from urllib.parse import urlencode
@@ -11,12 +12,35 @@ from urllib.request import Request, urlopen
 from morning_card import ET, ROOT, existing_today
 
 
+NFL_FEED = 'docs/nfl/data/latest.json'
+# NFL quotes stay valid for 90 minutes at publication. A recovery start reuses an NFL
+# refresh at most 45 minutes old, which leaves research at least 45 minutes, instead of
+# buying the full NFL slate again; NHL (30 minutes) and MLB still refresh every start.
+NFL_REUSE = timedelta(minutes=45)
+
+
+def nfl_refreshed_at(root):
+    """When the published NFL feed's model and prices were last refreshed, or None."""
+    try:
+        feed = json.loads((Path(root) / NFL_FEED).read_text())
+        if feed.get('status') != 'ready':
+            return None
+        stamp = datetime.fromisoformat(str(feed.get('model_checked_at') or feed.get('last_success_at')).replace('Z', '+00:00'))
+    except (OSError, ValueError, TypeError, AttributeError):
+        return None
+    return stamp if stamp.tzinfo else None
+
+
 def gate(root, now, *, test_edition=False, replace_card=False):
     if existing_today(root, now, include_test=test_edition) and not replace_card:
-        return dict(refresh=False, reason='edition_already_published')
+        return dict(refresh=False, refresh_nfl=False, reason='edition_already_published')
     if not test_edition and not 7 <= now.astimezone(ET).hour < 12:
         raise RuntimeError('No completed edition and outside the 07:00–12:00 Eastern recovery window')
-    return dict(refresh=True, reason='missing_or_incomplete_edition')
+    result = dict(refresh=True, refresh_nfl=True, reason='missing_or_incomplete_edition')
+    refreshed = nfl_refreshed_at(root)
+    if not (test_edition or replace_card) and refreshed and timedelta(0) <= now - refreshed <= NFL_REUSE:
+        result.update(refresh_nfl=False, nfl_reused_from=refreshed.isoformat())
+    return result
 
 
 def record_start(now, result, *, source='operator', summary_path=None):
@@ -32,7 +56,9 @@ def record_start(now, result, *, source='operator', summary_path=None):
                          f'- Source: {source}\n'
                          f'- Gate checked (Eastern): {local.isoformat()}\n'
                          '- Daily target start: 07:05 America/New_York\n'
-                         f'- Gate: {result["reason"]}\n')
+                         f'- Gate: {result["reason"]}\n'
+                         + (f'- NFL: reusing the refresh from {datetime.fromisoformat(result["nfl_reused_from"]).astimezone(ET):%H:%M} ET\n'
+                            if result.get('nfl_reused_from') else ''))
     return record
 
 
@@ -79,6 +105,7 @@ def main():
         if os.getenv('GITHUB_OUTPUT'):
             with open(os.environ['GITHUB_OUTPUT'],'a') as output:
                 output.write('refresh='+str(result['refresh']).lower()+'\n')
+                output.write('refresh_nfl='+str(result['refresh_nfl']).lower()+'\n')
     if args.verify_live:
         verify_live(args.verify_live,attempts=args.attempts)
 
