@@ -304,8 +304,10 @@ consider reviews must match the exact offer and be no older than three hours.
 Up to ten distinct ideas are written to `/briefing/morning-card.json` (schema 1)
 and an immutable `/briefing/cards/DATE-ID.json` archive. Each row preserves the
 original quote, model, market comparison, review and sources. Later updates never
-mutate the edition. Started games are labeled historical; previous-day editions
-are explicitly labeled previous. The separate research pool still expires rows.
+mutate the edition. Started games are labeled historical. Today's Picks and the
+home page show only the current Eastern date's edition: before it publishes (or
+if none does), they say so instead of showing the previous day's card, which
+remains in its dated archive. The separate research pool still expires rows.
 A temporary card-fetch failure retains the last dated card in an open browser.
 
 `--publish-card` skips before any paid call if this Eastern date already has a
