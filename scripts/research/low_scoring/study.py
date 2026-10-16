@@ -56,6 +56,7 @@ def compare(sub, flag):
         return out
     rf, ro = f.residual.to_numpy(float), o.residual.to_numpy(float)
     t = stats.ttest_ind(rf, ro, equal_var=False)
+    t_effect = stats.ttest_ind(f.actual.to_numpy(float), o.actual.to_numpy(float), equal_var=False)
     se = math.sqrt(rf.var(ddof=1) / len(rf) + ro.var(ddof=1) / len(ro))
     diff = rf.mean() - ro.mean()
     out.update(
@@ -67,7 +68,7 @@ def compare(sub, flag):
         residual_lo=float(rf.mean() - 1.96 * rf.std(ddof=1) / math.sqrt(len(rf))),
         residual_hi=float(rf.mean() + 1.96 * rf.std(ddof=1) / math.sqrt(len(rf))),
         excess=float(diff), excess_lo=float(diff - 1.96 * se), excess_hi=float(diff + 1.96 * se),
-        p_two=float(t.pvalue), t=float(t.statistic), **side_summary(rf))
+        p_two=float(t.pvalue), t=float(t.statistic), p_effect=float(t_effect.pvalue), **side_summary(rf))
     out['over_rate'] = None if out['under_rate'] is None else 1 - out['under_rate']
     return out
 
@@ -532,6 +533,18 @@ def thresholds(df, periods, value, universe, cuts, side):
     return out
 
 
+def overlap(df, periods, a, b, names):
+    """Post-hoc: two factors that often coincide, split into both / only one / only the other."""
+    fa, fb = a['flag'].fillna(False).astype(bool), b['flag'].fillna(False).astype(bool)
+    out = {}
+    for label, (lo, hi) in periods.items():
+        m = df.season.between(lo, hi)
+        sub = df[m]
+        out[label] = {name: {k: v for k, v in compare(sub, flag[m]).items() if k in ('n', 'under_rate', 'excess', 'p_two')}
+                      for name, flag in zip(names, (fa & fb, fa & ~fb, ~fa & fb))}
+    return out
+
+
 def sensitivity(sport, df, periods):
     if sport == 'nfl':
         outdoor = df.roof.isin(['outdoors', 'open']) & df.wind.notna()
@@ -542,6 +555,23 @@ def sensitivity(sport, df, periods):
         return dict(wind_in=thresholds(df, periods, df.wind_mph, known, [5, 8, 10, 12, 15, 20], wdir.str.startswith('In')),
                     wind_out=thresholds(df, periods, df.wind_mph, known, [5, 8, 10, 12, 15, 20], wdir.str.startswith('Out')))
     return {}
+
+
+NBA_TEAMS = set(NBA_TZ)
+LINE_RANGE = {'nba': (150, 300), 'mlb': (5, 15), 'nhl': (4, 8), 'nfl': (20, 70)}
+
+
+def clean(sport, df):
+    """Data-quality filters fixed in pre-registration amendment A2."""
+    df = df.copy()
+    lo, hi = LINE_RANGE[sport]
+    df.loc[(df.line < lo) | (df.line > hi), 'line'] = np.nan
+    if 'sbro_final' in df:
+        fin = df.sbro_final.map(lambda x: (x[0] or 0) + (x[1] or 0) if isinstance(x, list) else np.nan)
+        df = df[fin.isna() | (fin == df.actual)]
+    if sport == 'nba':
+        df = df[df.home.isin(NBA_TEAMS) & df.away.isin(NBA_TEAMS)]
+    return df[df.actual.notna() & df.line.notna()].copy()
 
 
 def load(name):
@@ -560,7 +590,7 @@ def main():
             continue
         df, digest = load(sport)
         hashes[f'{sport}.jsonl.gz'] = digest
-        df = df[df.actual.notna() & df.line.notna()].copy()
+        df = clean(sport, df)
         df['residual'] = df.actual - df.line
         df, factors = builder(df)
         rows = evaluate(sport.upper(), df, factors, periods, fresh)
@@ -576,6 +606,9 @@ def main():
             residual_sd=float(base.residual.std()), mae=float(base.residual.abs().mean()), **side_summary(base.residual),
             line_sources={str(k): int(v) for k, v in base.get('line_source', pd.Series('nflverse', index=base.index)).fillna('none').value_counts().items()},
             sensitivity=sensitivity(sport, df, periods), notes=df.attrs)
+        if sport == 'mlb':
+            meta['MLB']['sensitivity']['day_after_night_x_getaway'] = overlap(
+                df, dict(periods, fresh=fresh), factors['MLB-9'], factors['MLB-10'], ('both', 'day after night only', 'getaway only'))
     tests = {k: (v.get('full') or {}).get('p_two') for k, v in results.items()}
     for k, q in bh(tests).items():
         results[k]['q_full'] = q
@@ -586,6 +619,9 @@ def main():
 
 SPORTS = [
     ('nfl', nfl, {'discovery': (2006, 2015), 'replication': (2016, 2025)}, (2026, 2026)),
+    ('nhl', nhl, {'discovery': (2007, 2015), 'replication': (2016, 2025)}, None),
+    ('nba', nba, {'discovery': (2007, 2015), 'replication': (2016, 2025)}, None),
+    ('mlb', mlb, {'discovery': (2010, 2017), 'replication': (2018, 2025)}, (2026, 2026)),
 ]
 
 if __name__ == '__main__':

@@ -32,7 +32,7 @@ def record(period, side):
     if not period or period.get('under') is None:
         return '—'
     w, l = (period['under'], period['over']) if side == 'under' else (period['over'], period['under'])
-    return f"{w:,}–{l:,}" + (f"–{period['push']}" if period.get('push') else '')
+    return f"{w:,}–{l:,}"
 
 
 def fig_record(rows, sport, periods):
@@ -109,12 +109,17 @@ def fig_priced(results, sports):
     return '<div class="small-multiples">' + ''.join(panels) + '</div>'
 
 
+TABLE_NO = {'NFL': 2, 'NHL': 3, 'NBA': 4, 'MLB': 5}
+SHORT = {'Bettable at -110': 'Beat −110', 'Replicates, but not enough to beat the vig': 'Replicated', 'Does not replicate': 'No',
+         'Too few games': 'Too few games'}
+
+
 def table_sport(rows, sport, periods):
     d0, d1 = periods['discovery']
     r0, r1 = periods['replication']
     unit = SPORT_UNIT[sport]
-    head = ['Factor', 'Side', f'Games {r0}–{r1}', f'Scoring effect ({unit})', 'Line moved', 'Left over', f'Win rate {d0}–{d1}',
-            f'Win rate {r0}–{r1}', 'q', 'Verdict']
+    head = ['Situation', 'Side', f'Games {r0}–{str(r1)[2:]}', f'Effect ({unit})', 'Line moved', 'Left over', f'Won {d0}–{str(d1)[2:]}',
+            f'Won {r0}–{str(r1)[2:]}', 'q', 'Passed?']
     body = []
     for r in rows:
         rep, disc = r.get('replication', {}), r.get('discovery', {})
@@ -122,8 +127,8 @@ def table_sport(rows, sport, periods):
         dw = '(rating period)' if r['group'] == 'Officials' else pct(win(disc, side)[0])
         body.append([f"{r['id']} {r['name']}", side, f"{rep.get('n', 0):,}", signed(rep.get('effect')), signed(rep.get('priced')),
                      signed(rep.get('excess')), dw, pct(win(rep, side)[0]),
-                     '—' if r.get('q_full') is None else f"{r['q_full']:.2f}", r['verdict']])
-    return table(f'{sport}: every pre-registered factor. Scoring effect, line movement and the amount left over compare factor games with all other games in the {r0}–{r1} seasons; win rate is on the predicted side, pushes excluded; q is the false-discovery-rate value across all {{N_TESTS}} tests.', head, body, cls='results')
+                     '—' if r.get('q_full') is None else '<0.01' if r['q_full'] < .01 else f"{r['q_full']:.2f}", SHORT.get(r['verdict'], r['verdict'])])
+    return table(f'Table {TABLE_NO[sport]}. {sport}: every pre-registered situation. Effect, line movement and the amount left over compare these games with all other games in {r0}–{r1}; "Won" is the share of bets won on the predicted side, pushes excluded; q is the false-discovery-rate value across all {{N_TESTS}} tests. "Beat −110": replicated and won at least 52.4%; "Replicated": met the rule but not the break-even.', head, body, cls='results')
 
 
 def table(caption, headers, rows, cls=''):

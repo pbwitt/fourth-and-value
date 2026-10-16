@@ -73,7 +73,13 @@
     .chart-svg .dot{fill:var(--muted);stroke:#0d0f13;stroke-width:2}
     .chart-svg .rep{fill:var(--accent);stroke:#0d0f13;stroke-width:2}
     .chart-svg g[data-tip]:focus{outline:none}.chart-svg g[data-tip]:focus .dot,.chart-svg g[data-tip]:focus .rep{stroke:var(--ink)}
-    table.results td,table.results th{font-size:.8rem}
+    #paper table{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-variant-numeric:tabular-nums;min-width:680px}
+    #paper th,#paper td{overflow-wrap:normal;word-break:normal;hyphens:none}
+    #paper tbody th{white-space:normal;min-width:11rem}
+    #paper table.results{min-width:0}
+    table.results td,table.results th{font-size:.78rem;padding:6px 6px}
+    table.results td{white-space:nowrap}
+    @media(max-width:700px){#paper table.results{min-width:640px}}
     table.results td:last-child{white-space:nowrap}
     .tip{position:fixed;pointer-events:none;background:#1a2230;border:1px solid #314159;color:#e7eef9;font:13px/1.45 system-ui,sans-serif;padding:8px 11px;border-radius:7px;max-width:300px;opacity:0;transition:opacity .1s;z-index:50}
     .verdict-pass{color:var(--mint)}
@@ -81,7 +87,7 @@
     @media(max-width:600px){.scoreboard{grid-template-columns:1fr 1fr}.small-multiples{grid-template-columns:1fr}.dp-row{grid-template-columns:1fr;gap:0;padding:4px}.dp-label{text-align:left}.dp-axis .dp-label{display:none}}
     @media print{:root{--surface:#fff;--ink:#111;--ink2:#333;--muted:#666;--grid:#e1e0d9;--axis:#9a9a94;--accent:#2a78d6;--accent-soft:#6da7ec}
       .synopsis,.scoreboard div,figure{background:#fff;border-color:#ccc}.dp-track .rep,.dp-track .disc{box-shadow:none;background-color:#fff}.dp-track .rep{background:var(--accent)}.fail .dp-track .rep{background:var(--muted)}
-      .chart-svg .dot,.chart-svg .rep{stroke:#fff}figure{break-inside:avoid}.tip{display:none}}
+      .chart-svg .dot,.chart-svg .rep{stroke:#fff}figure{break-inside:avoid}.tip{display:none}#paper table{min-width:0}}
   </style>
 </head>
 <body>
@@ -120,6 +126,7 @@
     <li><a href="#robustness">Robustness checks</a></li>
     <li><a href="#limitations">Limitations</a></li>
     <li><a href="#conclusion">What this means for you</a></li>
+    <li><a href="#faq">Quick answers</a></li>
   </ol></nav>
   <article>
 @@BODY@@
