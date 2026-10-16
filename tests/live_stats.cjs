@@ -69,7 +69,15 @@ const espnSummary={header:{competitions:[espnComp('in')]},boxscore:{players:[
 {
   const [final,live]=run(feeds.scoreboardPlan('MLB','2026-09-29'),[mlbSched]);
   assert.match(feeds.scoreboardPlan('MLB','2026-09-29').requests[0].url,/^https:\/\/statsapi\.mlb\.com\//);
-  assert.equal(final.state,'final');assert.equal(live.detail,'Mid 7th');assert.equal(live.elapsed,null);
+  assert.equal(final.state,'final');assert.equal(live.detail,'Mid 7th');assert(Math.abs(live.elapsed-39/54)<1e-9,'MLB progress is outs recorded');
+  const at=linescore=>run(feeds.scoreboardPlan('MLB','x'),[{dates:[{games:[{...mlbSched.dates[0].games[1],linescore}]}]}])[0].elapsed;
+  assert.equal(at({currentInning:1,inningState:'Top',outs:0}),0);
+  assert(Math.abs(at({currentInning:3,inningState:'Top',outs:2})-14/54)<1e-9);
+  assert(Math.abs(at({currentInning:5,isTopInning:false,outs:1})-28/54)<1e-9,'half from isTopInning when inningState is missing');
+  assert.equal(at({currentInning:9,inningState:'End',outs:3}),1);
+  assert.equal(at({currentInning:10,inningState:'Top',outs:1}),1,'extra innings are past regulation');
+  assert.equal(at({}),null,'no inning yet: unknown');
+  assert.equal(final.elapsed,1);
   const box=run(feeds.boxPlan('MLB','2'),[{dates:[{games:[mlbSched.dates[0].games[1]]}]},mlbBox]);
   const judge=box.players.find(p=>p.name==='Aaron Judge'),cole=box.players.find(p=>p.name==='Gerrit Cole');
   assert.equal(judge.stats.total_bases,6);assert.equal(judge.stats.singles,0);assert.equal(judge.stats.pitcher_strikeouts,undefined);
@@ -78,6 +86,11 @@ const espnSummary={header:{competitions:[espnComp('in')]},boxscore:{players:[
   assert.deepEqual(['Aaron Judge','Gerrit Cole','Luke Weaver','Bench Player'].map(n=>box.players.find(p=>p.name===n).position),['RF','SP','RP',''],
     'the first pitcher listed is the starter');
   assert.equal(cole.stats.pitches,95);
+  assert.deepEqual([cole.exited.pitching,box.players.find(p=>p.name==='Luke Weaver').exited.pitching],[true,false],'a later pitcher replaced the starter');
+  assert.equal(judge.exited.batting,false);
+  const subbed=run(feeds.boxPlan('MLB','2'),[{dates:[{games:[mlbSched.dates[0].games[1]]}]},
+    {teams:{...mlbBox.teams,home:{...mlbBox.teams.home,battingOrder:[99]}}}]);
+  assert.equal(subbed.players.find(p=>p.name==='Aaron Judge').exited.batting,true,'his batting slot lists someone else');
 }
 {
   const [g]=run(feeds.scoreboardPlan('NFL','2026-09-27'),[espnBoard]);
@@ -189,8 +202,40 @@ const espnSummary={header:{competitions:[espnComp('in')]},boxscore:{players:[
   const nbaLate=run(feeds.boxPlan('NBA','9'),[{header:{competitions:[espnComp('in',{status:{period:4,displayClock:'45.3',type:{state:'in'}}})]},boxscore:{players:[]}}]);
   assert(Math.abs(nbaLate.game.elapsed-(3*720+720-45.3)/2880)<1e-9,'sub-minute NBA clock');
 
-  const mlb=run(feeds.boxPlan('MLB','2'),[{dates:[{games:[mlbSched.dates[0].games[1]]}]},mlbBox]);
-  assert.equal(L.evaluate({league:'MLB',team_home:'NYY',team_away:'BOS',player:'Aaron Judge',market_type:'batter_total_bases',side:'over',line:6.5},mlb.game,mlb).pace,null,'MLB has no game clock yet: no pace');
+  // MLB: batters and totals pace by outs recorded; starters by pitches against
+  // a usual outing; a replaced player's line is complete.
+  const sched={dates:[{games:[mlbSched.dates[0].games[1]]}]};
+  const mlbRun=home=>run(feeds.boxPlan('MLB','2'),[sched,{teams:{...mlbBox.teams,home:{...mlbBox.teams.home,...home}}}]);
+  const mlb=mlbRun({});
+  const mb=(o,box=mlb,opts)=>L.evaluate({league:'MLB',team_home:'NYY',team_away:'BOS',player:'Aaron Judge',market_type:'batter_total_bases',side:'over',line:6.5,...o},box.game,box,opts);
+  assert.deepEqual([mb().label,mb().pace],['Needs 1',8.3],'6 TB through 39 of 54 outs');
+  assert.equal(mb({player:null,market_type:'totals',side:'under',line:8.5}).pace,1.4,'MLB game totals pace');
+  const out=mlbRun({battingOrder:[99]});
+  assert.deepEqual([mb({},out).tone,mb({},out).label,mb({},out).note,mb({},out).pace],['lost','Lost · out of game','Awaiting official grade',null]);
+  assert.equal(mb({side:'under'},out).tone,'won');
+  assert.equal(mb({line:5.5},out).label,'Hit','a line already cleared keeps its live label');
+  const k=o=>mb({player:'Gerrit Cole',market_type:'pitcher_strikeouts',...o});
+  assert.deepEqual([k({line:7.5}).tone,k({line:7.5}).pace],['lost',null],'the replaced starter is out of the game');
+  assert.equal(k({side:'under',line:7.5}).tone,'won');
+  assert.equal(k({line:6.5}).label,'Hit');
+  const er=k({market_type:'pitcher_earned_runs',side:'under',line:1.5});
+  assert.deepEqual([er.tone,er.pace],['alive',null],'inherited runners can still add earned runs');
+  const cole=pitching=>mlbRun({pitchers:[11],players:{...mlbBox.teams.home.players,
+    ID11:{...mlbBox.teams.home.players.ID11,stats:{batting:{},pitching:{strikeOuts:4,outs:12,numberOfPitches:50,...pitching}}}}});
+  let pk=mb({player:'Gerrit Cole',market_type:'pitcher_strikeouts',line:6.5},cole());
+  assert.deepEqual([pk.label,pk.pace,pk.paceBudget,pk.pitches],['Needs 3',6.8,85,50],'4 K in 50 of a usual 85 pitches');
+  pk=mb({player:'Gerrit Cole',market_type:'pitcher_strikeouts',line:6.5},cole(),{pitchBudget:100});
+  assert.deepEqual([pk.pace,pk.paceBudget],[8,100],'his own usual workload when known');
+  assert.equal(mb({player:'Gerrit Cole',market_type:'pitcher_outs',side:'under',line:17.5},cole(),{pitchBudget:100}).pace,24);
+  assert.equal(mb({player:'Gerrit Cole',market_type:'pitcher_strikeouts',line:6.5},cole({numberOfPitches:10})).pace,null,'too early');
+  assert.equal(mb({player:'Gerrit Cole',market_type:'pitcher_strikeouts',line:6.5},cole({numberOfPitches:90})).pace,null,'past a usual outing');
+  assert.equal(mb({player:'Luke Weaver',market_type:'pitcher_strikeouts',line:2.5}).pace,null,'relievers have no usual outing');
+
+  const mlbBoard={rows:[{player:'Aaron Judge',market:'batter_hits',player_context:{recent:[{games:5,pitches:99}]}},
+    {player:'Gerrit Cole',market:'pitcher_outs',player_context:{recent:[{games:5,mean:16,pitches:92.4},{games:10,pitches:88}]}}]};
+  assert.equal(L.pitchBudget(mlbBoard,'gerrit  COLE'),92.4,'last five starts');
+  assert.equal(L.pitchBudget(mlbBoard,'Aaron Judge'),null,'pitcher markets only');
+  assert.equal(L.pitchBudget(mlbBoard,'Nobody'),null);assert.equal(L.pitchBudget(null,'Gerrit Cole'),null);
 
   const g=o=>L.evaluate({league:'NFL',team_home:'Buffalo Bills',team_away:'Los Angeles Chargers',player:null,...o},nfl.game,null);
   assert.equal(g({market_type:'h2h',side:'Buffalo Bills'}).label,'Leading');
@@ -223,8 +268,9 @@ const espnSummary={header:{competitions:[espnComp('in')]},boxscore:{players:[
     if(url.includes('/boxscore')){if(failMlbBox)throw Error('down');return mlbBox;}
     if(url.includes('gamePk=2'))return {dates:[{games:[mlbSched.dates[0].games[1]]}]};
     return mlbSched;};
-  const timers=[];
-  const t=L.createLiveTracker({fetchJSON,proxy,now:()=>now,onUpdate:(v,m)=>updates.push([v,m]),setTimer:(fn,ms)=>{timers.push(ms);return timers.length;},clearTimer:()=>{}});
+  const timers=[];let boardReads=0,failBoard=true;
+  const loadPitchBoard=async()=>{boardReads++;if(failBoard)throw Error('down');return {rows:[]};};
+  const t=L.createLiveTracker({fetchJSON,proxy,loadPitchBoard,now:()=>now,onUpdate:(v,m)=>updates.push([v,m]),setTimer:(fn,ms)=>{timers.push(ms);return timers.length;},clearTimer:()=>{}});
   t.pause();t.setBets(bets);assert.equal(calls.length,0,'paused tracker makes no requests');
   await t.refresh();
   let [views,meta]=updates.at(-1);
@@ -235,6 +281,13 @@ const espnSummary={header:{competitions:[espnComp('in')]},boxscore:{players:[
   assert.equal(meta.live,2);assert.equal(meta.errors,0);
   assert(!calls.some(c=>c.includes('2026020003')),'no box score fetched for games not started');
   assert.equal(calls.filter(c=>c.includes('"date"')).length,1,'one scoreboard per league and date');
+  assert.equal(boardReads,1,'a live starter prop reads the MLB board');
+
+  failBoard=false;await t.refresh();await t.refresh();
+  assert.equal(boardReads,2,'a failed board read is retried once, then kept');
+  const nhlOnly=L.createLiveTracker({fetchJSON,proxy,loadPitchBoard,now:()=>now,onUpdate:()=>{},setTimer:()=>0,clearTimer:()=>{}});
+  nhlOnly.pause();nhlOnly.setBets(bets.slice(0,2));await nhlOnly.refresh();
+  assert.equal(boardReads,2,'no MLB board without a live starter prop');
 
   failMlbBox=true;await t.refresh();[views,meta]=updates.at(-1);
   assert.equal(views.get('c').label,'Hit','a failed refresh keeps the last good view');assert.equal(meta.errors,1);

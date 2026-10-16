@@ -176,15 +176,31 @@
     return { tone: 'alive', label: spare > 0 ? `${fmt(spare)} to spare` : 'None to spare' };
   }
 
-  // Straight-line projection to the end of regulation from the share played,
-  // for overs and unders alike. Too noisy before 15% of the game; none in
-  // overtime, where regulation is already complete.
-  function projectPace(value, g, moves) {
-    if (g.state !== 'live' || g.elapsed == null || g.elapsed < 0.15 || g.elapsed >= 1) return null;
+  // Straight-line projection from the share played (0-1), for overs and
+  // unders alike. Too noisy before 15%; none from 100% (overtime, extra
+  // innings, a pitcher past his usual workload).
+  function projectPace(value, share, moves) {
+    if (share == null || share < 0.15 || share >= 1) return null;
     const step = moves ? 1 : 10;
-    return Math.round(value / g.elapsed * step) / step;
+    return Math.round(value / share * step) / step;
   }
+  const liveShare = g => g.state === 'live' ? g.elapsed : null;
   const undecided = tone => !['won', 'lost', 'push'].includes(tone);
+
+  // A starter's share of the game is his share of a usual outing, by pitches:
+  // his average over his last five starts on the site's MLB board, else the
+  // MLB model's prior for a starter's recent pitch count.
+  const PITCH_BUDGET = 85;
+  function pitchBudget(board, name) {
+    const want = squash(name);
+    if (!want) return null;
+    for (const r of board?.rows || []) {
+      if (!String(r.market || '').startsWith('pitcher_') || squash(r.player) !== want) continue;
+      const pitches = (r.player_context?.recent || []).find(w => Number(w.pitches) > 0)?.pitches;
+      if (pitches) return Number(pitches);
+    }
+    return null;
+  }
 
   function sideOf(bet, game) {
     if (teamMatches(bet.side, game.home, bet.league)) return 'home';
@@ -200,7 +216,7 @@
       const clear = Number.isInteger(line) ? line + 1 : Math.ceil(line);
       const verdict = overUnder(h + a, line, side, { final });
       return { value: h + a, line, side, progress: Math.min(1, (h + a) / (side === 'over' ? clear : Math.max(line, 0.5))),
-        pace: undecided(verdict.tone) ? projectPace(h + a, game) : null, ...verdict };
+        pace: undecided(verdict.tone) ? projectPace(h + a, liveShare(game)) : null, ...verdict };
     }
     if (kind === 'score') return {};
     const mine = sideOf(bet, game);
@@ -222,7 +238,8 @@
   }
 
   // One bet + its game (+ box when fetched) -> everything the UI draws.
-  function evaluate(bet, game, box) {
+  // opts.pitchBudget: the starter's usual pitch count, when known.
+  function evaluate(bet, game, box, opts = {}) {
     if (!game) return { status: 'nogame', label: 'Game not found on the schedule' };
     // The box score's game state is fresher, but ESPN's summary may omit the
     // clock; the scoreboard's share played fills in for the same state.
@@ -250,11 +267,24 @@
       playerPosition: player.position || null };
     if (spec.pitcher && Number.isFinite(player.stats.pitches)) view.pitches = player.stats.pitches;
     if (!['over', 'under'].includes(side) || !Number.isFinite(line)) return view;
-    const verdict = overUnder(value, line, side, { final, moves: !!spec.moves });
+    const moves = !!spec.moves, exited = !!player.exited?.[spec.pitcher ? 'pitching' : 'batting'];
+    let verdict = overUnder(value, line, side, { final, moves });
+    // A replaced player's line is complete, except a pitcher's earned runs.
+    if (exited && undecided(verdict.tone) && !spec.stats.includes('earned_runs')) {
+      const done = overUnder(value, line, side, { final: true, moves });
+      verdict = { ...done, label: `${done.label} · out of game`, note: 'Awaiting official grade' };
+    }
     const clear = Number.isInteger(line) ? line + 1 : Math.ceil(line);
     const progress = Math.max(0, Math.min(1, value / (side === 'over' ? clear : Math.max(line, 0.5))));
-    const pace = undecided(verdict.tone) ? projectPace(value, g, !!spec.moves) : null;
-    return { ...view, line, side, progress, pace, ...verdict };
+    let pace = null, paceBudget = null;
+    if (!exited && undecided(verdict.tone)) {
+      if (!spec.pitcher) pace = projectPace(value, liveShare(g), moves);
+      else if (player.position === 'SP' && g.state === 'live' && view.pitches) {
+        paceBudget = Math.round(opts.pitchBudget || PITCH_BUDGET);
+        pace = projectPace(value, view.pitches / paceBudget);
+      }
+    }
+    return { ...view, line, side, progress, pace, ...(pace != null && paceBudget ? { paceBudget } : {}), ...verdict };
   }
 
   // ---- Polling -------------------------------------------------------------
@@ -269,8 +299,11 @@
 
   // fetchJSON(url) -> parsed JSON; proxy(body) -> parsed JSON via the edge
   // function. onUpdate(views: Map<betId, view>, meta) redraws the page.
-  function createLiveTracker({ fetchJSON, proxy, onUpdate, now = () => Date.now(), setTimer = setTimeout, clearTimer = clearTimeout }) {
-    let bets = [], timer = null, running = false, paused = false, finals = new Map(), lastViews = new Map();
+  // loadPitchBoard() -> the site's MLB board, read once a starter's prop is live.
+  function createLiveTracker({ fetchJSON, proxy, onUpdate, loadPitchBoard = null, now = () => Date.now(), setTimer = setTimeout, clearTimer = clearTimeout }) {
+    let bets = [], timer = null, running = false, paused = false, finals = new Map(), lastViews = new Map(), pitchBoard = null;
+    // A failed read is retried on the next refresh; pace falls back meanwhile.
+    const readPitchBoard = () => pitchBoard ||= Promise.resolve().then(loadPitchBoard).catch(() => { pitchBoard = null; return null; });
 
     const request = r => r.proxy ? proxy(r.proxy) : fetchJSON(r.url);
     const run = plan => Promise.all(plan.requests.map(request)).then(plan.build);
@@ -293,20 +326,22 @@
         gameFor.set(bet.id, game);
         if (game && ['live', 'final'].includes(game.state) && bet.player) needBox.set(`${game.league}:${game.id}`, game);
       }
-      const boxes = new Map(await Promise.all([...needBox].map(async ([key, game]) => {
+      const pitcherLive = loadPitchBoard && candidates.some(b => b.league === 'MLB' && marketSpec('MLB', b.market_type)?.pitcher &&
+        gameFor.get(b.id)?.state === 'live');
+      const [boxes, mlbBoard] = await Promise.all([Promise.all([...needBox].map(async ([key, game]) => {
         if (finals.has(key)) return [key, finals.get(key)];
         try {
           const box = await run(feeds.boxPlan(game.league, game.id));
           if (box.game.state === 'final') finals.set(key, box);
           return [key, box];
         } catch { errors++; return [key, null]; }
-      })));
+      })).then(entries => new Map(entries)), pitcherLive ? readPitchBoard() : null]);
       for (const bet of candidates) {
         if (!gameFor.has(bet.id)) continue;
         const game = gameFor.get(bet.id), key = game && `${game.league}:${game.id}`;
         const box = key ? boxes.get(key) : null;
         if (key && needBox.has(key) && !box) { views.set(bet.id, lastViews.get(bet.id) || { status: 'error', label: 'Live stats unavailable' }); continue; }
-        views.set(bet.id, evaluate(bet, game, box));
+        views.set(bet.id, evaluate(bet, game, box, { pitchBudget: pitchBudget(mlbBoard, bet.player) }));
       }
       lastViews = views;
       const live = [...views.values()].filter(v => v.status === 'live').length;
@@ -336,7 +371,7 @@
     };
   }
 
-  const api = { norm, teamMatches, teamCode, findGame, findPlayer, marketSpec, evaluate, liveCandidates, createLiveTracker, day };
+  const api = { norm, teamMatches, teamCode, findGame, findPlayer, marketSpec, evaluate, pitchBudget, liveCandidates, createLiveTracker, day };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else global.FVLiveStats = api;
 })(typeof window === 'undefined' ? globalThis : window);
