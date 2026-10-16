@@ -7,6 +7,7 @@ or contact a provider. Every number in the paper is a @@TAG@@ filled from the re
 """
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -18,12 +19,14 @@ ROOT = HERE.parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 sys.path.insert(0, str(HERE))
 from figures import fig_priced, fig_record, pct, record, share_priced, share_sport, signed, table, table_sport, win  # noqa: E402
+from prereg import SLUG as PREREG_SLUG, page as prereg_page  # noqa: E402
 from site_notices import apply  # noqa: E402
 from text import FAQ, TEXT_TAGS  # noqa: E402
 
 DEST = ROOT / 'docs/research'
 SLUG = 'low-scoring-games-situational-factors'
 RESULTS = ROOT / 'reports/low-scoring-2026/results.json'
+PREREG = ROOT / 'reports/low-scoring-2026/PREREGISTRATION.md'
 SPORTS = ['NFL', 'NHL', 'NBA', 'MLB']
 CHROME = [p for p in ('/opt/pw-browsers/chromium-1194/chrome-linux/chrome', shutil.which('chromium'), shutil.which('google-chrome')) if p and Path(p).exists()]
 
@@ -227,13 +230,17 @@ def main():
     (DEST / f'{SLUG}.json').write_text(json.dumps(evidence, indent=1) + '\n')
     page = DEST / f'{SLUG}.html'
     page.write_text(apply(manuscript, f'research/{SLUG}.html'))
+    (DEST / f'{PREREG_SLUG}.html').write_text(apply(prereg_page(PREREG.read_text(), PUBLISHED), f'research/{PREREG_SLUG}.html'))
     social_card(tags)
     if '--pdf' in sys.argv:
         # Print from a copy whose root-relative links resolve to the local docs folder.
         with tempfile.TemporaryDirectory() as tmp:
             local = Path(tmp) / page.name
-            text = page.read_text().replace('href="/assets/', f'href="{(ROOT / "docs/assets").as_uri()}/').replace(
-                'href="./', f'href="{DEST.as_uri()}/').replace('<script src="/nav.js', '<script data-skip="/nav.js')
+            # Reading links in the PDF go to the live site; only the stylesheets load from the local copy.
+            text = re.sub(r'(<a\b[^>]*\bhref=")\./', r'\1https://fourthandvalue.com/research/', page.read_text())
+            text = text.replace('href="/assets/', f'href="{(ROOT / "docs/assets").as_uri()}/').replace(
+                'href="./', f'href="{DEST.as_uri()}/').replace('<script src="/nav.js', '<script data-skip="/nav.js').replace(
+                '<script src="/assets/chart-share.js', '<script data-skip="/assets/chart-share.js')
             local.write_text(text)
             pdf(local)
     print(f'Rendered FV-2026-04: {page.relative_to(ROOT)}')
