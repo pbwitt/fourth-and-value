@@ -49,7 +49,15 @@
       games:valid.slice(0,5),game_columns:[['date','Date'],['opp','Opp'],['toi','TOI'],['shots','SOG'],['goals','G'],['assists','A'],['points','P']],game_focus:field,
       trend:{label,note:'Recent completed appearances.',rows:valid.slice().reverse().map(g=>[g.date,g[field],null,g.opp,g.minutes])}};
   }
-  const api={person,marketKey,rowsFrom,observed,findContext,nhlContext};
+  // Game bets have no player: name the team backed, or the game total.
+  function title(bet){
+    if(bet.player)return String(bet.player);
+    const side=String(bet.side||'').trim();
+    if(side&&!/^(over|under)$/i.test(side))return side;
+    const game=live.marketSpec(String(bet.league||'').toUpperCase(),bet.market_type)?.game;
+    return game==='total'?'Game total':game==='score'?'Team total':'Game market';
+  }
+  const api={person,marketKey,rowsFrom,observed,findContext,nhlContext,title};
   if(node){module.exports=api;return;}
 
   const requests=new Map(),names=new Map();
@@ -84,7 +92,7 @@
     return url?findContext(bet,await read(url)):null;
   }
   function name(bet){
-    if(!bet.player)return 'Game market';
+    if(!bet.player)return esc(title(bet));
     const league=String(bet.league||'').toUpperCase();
     if(!['NHL','MLB','NFL','NBA'].includes(league))return esc(bet.player);
     const signature=JSON.stringify([bet.league,bet.player,bet.market_type,bet.side,bet.line,bet.game_date,bet.team_away,bet.team_home]);
@@ -99,5 +107,5 @@
     }
     return context.name(cached.row,league,cached.options);
   }
-  global.FVTrackerPlayerStats={name};
+  global.FVTrackerPlayerStats={name,title};
 })(typeof window==='undefined'?globalThis:window);

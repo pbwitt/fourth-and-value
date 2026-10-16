@@ -81,4 +81,15 @@ assert.equal(M.gradeCheck(M.buildTicket(form()),sd,games,null,Date.parse('2026-1
 const off=game({state:'off'});
 assert.equal(M.gradeCheck(M.buildTicket(form({game:off})),off,[off],null,now).ok,false);
 
+// The tracker names saved markets and books the way the entry form does, for every league's ledger names.
+for (const league of Object.keys(leagues))
+  for (const m of M.marketOptions(league)) assert.equal(M.marketLabel(league,leagues[league].markets[m.key]),m.label,`${league} ${m.key}`);
+assert.equal(M.marketLabel('MLB','pitcher_strikeouts'),'Pitcher strikeouts');
+assert.equal(M.marketLabel('NHL','sog'),'Shots on goal');
+assert.equal(M.marketLabel('NBA','player_points_rebounds_assists'),'Points + rebounds + assists');
+assert.equal(M.marketLabel('MLB','totals'),'Total runs');
+assert.equal(M.marketLabel('NHL','team_total'),'Team total','older keys still read as words');
+assert.equal(M.marketLabel('MLB',null),'');
+assert.deepEqual(['williamhill_us','betmgm','DraftKings','Local Book',null].map(M.bookLabel),['Caesars','BetMGM','DraftKings','Local Book','']);
+
 console.log('PASS: manual entry builds offer-identical tickets for every market, grades the SD/CHC total, and flags ungradeable bets.');

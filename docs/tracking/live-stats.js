@@ -173,7 +173,7 @@
     }
     if (value > line) return moves ? { tone: 'behind', label: 'Over the line' } : { tone: 'lost', label: 'Dead' };
     const spare = (Number.isInteger(line) ? line - 1 : Math.floor(line)) - value;
-    return { tone: 'alive', label: spare > 0 ? `${fmt(spare)} to spare` : 'Holding' };
+    return { tone: 'alive', label: spare > 0 ? `${fmt(spare)} to spare` : 'None to spare' };
   }
 
   function sideOf(bet, game) {

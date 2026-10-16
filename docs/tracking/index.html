@@ -724,14 +724,14 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="bet-tracking.js?v=6"></script>
-  <script src="performance.js?v=2"></script>
+  <script src="performance.js?v=3"></script>
   <script src="live-feeds.js?v=2"></script>
-  <script src="live-stats.js?v=6"></script>
+  <script src="live-stats.js?v=7"></script>
   <script src="../assets/offer-tracker.js?v=3"></script>
-  <script src="manual-bet.js?v=2"></script>
+  <script src="manual-bet.js?v=3"></script>
   <script src="edit-bet.js?v=1"></script>
   <script src="../assets/player-context.js?v=9"></script>
-  <script src="player-stats.js?v=1"></script>
+  <script src="player-stats.js?v=2"></script>
   <script>
     let betsData = [];
 
@@ -846,11 +846,11 @@
           <td>${text(bet.league)}</td>
           <td>${text(bet.team_away)} @ ${text(bet.team_home)}</td>
           <td>${FVTrackerPlayerStats.name(bet)}${teamTagHtml(bet)}</td>
-          <td>${text(bet.market_type)}</td>
-          <td>${text(bet.side)}</td>
+          <td>${text(fmtMarket(bet))}</td>
+          <td>${text(fmtSide(bet.side))}</td>
           <td>${text(bet.line)}</td>
           <td>${text(bet.odds)}</td>
-          <td>${text(bet.book)}</td>
+          <td>${text(fmtBook(bet))}</td>
           <td>$${text(bet.stake_dollars ?? 0)}</td>
           <td>${liveChipHtml(bet) || `<span class="status-badge status-${text(bet.status || 'pending')}">${text(bet.status || 'pending')}</span>`}</td>
           <td>${text(bet.actual_result)}</td>
@@ -874,13 +874,10 @@
       return n>0 ? '+'+n : String(n);
     }
 
-    function fmtMarket(market) {
-      if (!market) return '';
-      const named={h2h:'Moneyline',moneyline:'Moneyline',spreads:'Spread',spread:'Spread',totals:'Total',total:'Total'};
-      const key=String(market).toLowerCase();
-      if (named[key]) return named[key];
-      return key.replace(/^player_/,'').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
-    }
+    // The names the manual entry form uses ("Pitcher strikeouts", "Total runs", "Caesars").
+    function fmtMarket(bet) { return FVManualBet.marketLabel(bet.league,bet.market_type); }
+    function fmtBook(bet) { return FVManualBet.bookLabel(bet.book); }
+    function fmtSide(side) { const s=String(side??''); return s.charAt(0).toUpperCase()+s.slice(1); }
 
     function pickLabel(bet) {
       const side=String(bet.side||'');
@@ -890,8 +887,12 @@
         const n=Number(bet.line);
         line=!ou && n>0 ? '+'+n : String(n);
       }
-      const sideText=side ? side.charAt(0).toUpperCase()+side.slice(1) : '';
-      return [sideText,line,fmtMarket(bet.market_type)].filter(Boolean).join(' ');
+      const sideText=fmtSide(side);
+      // A game bet's title already names the team ("Moneyline") or the total ("Over 8.5").
+      const title=bet.player ? '' : FVTrackerPlayerStats.title(bet);
+      if (title && title===side) return [fmtMarket(bet),line].filter(Boolean).join(' ');
+      if (title==='Game total') return [sideText,line].filter(Boolean).join(' ');
+      return [sideText,line,fmtMarket(bet)].filter(Boolean).join(' ');
     }
 
     function gameLabel(bet) {
@@ -905,7 +906,7 @@
     // Position ("RW", "D", "SP") from today's live box score, once the game has one.
     const playerPosition=bet=>bet.player ? liveViews.get(bet.id)?.playerPosition || '' : '';
     const playerTags=bet=>[playerPosition(bet),playerTeam(bet)].filter(Boolean).join(' · ');
-    const playerLabel=bet=>[bet.player||'Game market',playerTags(bet)].filter(Boolean).join(' · ');
+    const playerLabel=bet=>[FVTrackerPlayerStats.title(bet),playerTags(bet)].filter(Boolean).join(' · ');
     const teamTagHtml=bet=>playerTags(bet)?`<span class="team-tag">${esc(playerTags(bet))}</span>`:'';
 
     function toWin(bet) {
@@ -976,7 +977,7 @@
               <div class="bet-card-player">${FVTrackerPlayerStats.name(bet)}${teamTagHtml(bet)}</div>
               <div class="bet-card-pick">${esc(pickLabel(bet))}</div>
             </div>
-            <div class="bet-card-odds"><strong>${esc(fmtOdds(bet.odds))}</strong><span>${esc(bet.book||'')}</span></div>
+            <div class="bet-card-odds"><strong>${esc(fmtOdds(bet.odds))}</strong><span>${esc(fmtBook(bet))}</span></div>
           </div>
           ${liveBandHtml(bet)}
           <div class="bet-card-foot">
@@ -1083,7 +1084,7 @@
         ctx.fillText(odds,right,y+62);
         const oddsW=Math.max(ctx.measureText(odds).width,70);
         ctx.font=`500 12px ${FONT}`; ctx.fillStyle='#999';
-        ctx.fillText(fitText(ctx,bet.book||'',110),right,y+82);
+        ctx.fillText(fitText(ctx,fmtBook(bet),110),right,y+82);
 
         // Player + pick (left column)
         ctx.textAlign='left';
@@ -1406,7 +1407,7 @@
         if (from && day<from) return false;
         if (to && day>to) return false;
         if (filters.sport && sportOf(bet)!==filters.sport) return false;
-        if (filters.market && fmtMarket(bet.market_type)!==filters.market) return false;
+        if (filters.market && fmtMarket(bet)!==filters.market) return false;
         return true;
       });
     }
@@ -1418,7 +1419,7 @@
         el.value=values.includes(keep)?keep:'';
       };
       fill('f-sport', 'All sports', [...new Set(betsData.map(sportOf).filter(Boolean))].sort());
-      fill('f-market', 'All markets', [...new Set(betsData.map(b=>fmtMarket(b.market_type)).filter(Boolean))].sort());
+      fill('f-market', 'All markets', [...new Set(betsData.map(fmtMarket).filter(Boolean))].sort());
       filters.sport=document.getElementById('f-sport').value;
       filters.market=document.getElementById('f-market').value;
       document.getElementById('f-date').value=filters.date;
@@ -1469,8 +1470,8 @@
       const head=['Date','Sport','Game','Player','Team','Market','Side','Line','Odds','Book','Stake','Status','Result','Payout','Profit/Loss'];
       const rows=list.map(b=>{
         const pl=betPL(b);
-        return [b.game_date, sportOf(b), gameLabel(b), b.player||'Game market', playerTeam(b), fmtMarket(b.market_type), b.side, b.line,
-          b.odds, b.book, b.stake_dollars!=null?Number(b.stake_dollars).toFixed(2):'', b.status||'pending', b.actual_result,
+        return [b.game_date, sportOf(b), gameLabel(b), b.player||'Game market', playerTeam(b), fmtMarket(b), fmtSide(b.side), b.line,
+          b.odds, fmtBook(b), b.stake_dollars!=null?Number(b.stake_dollars).toFixed(2):'', b.status||'pending', b.actual_result,
           b.payout!=null?Number(b.payout).toFixed(2):'', pl!=null?pl.toFixed(2):''];
       });
       const csv='\ufeff'+[head,...rows].map(r=>r.map(csvCell).join(',')).join('\r\n')+'\r\n';
