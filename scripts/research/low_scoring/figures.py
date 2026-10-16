@@ -109,6 +109,52 @@ def fig_priced(results, sports):
     return '<div class="small-multiples">' + ''.join(panels) + '</div>'
 
 
+SHARE_LABEL = 'Research · FV-2026-04'
+WORDS = 'none one two three four five six seven eight nine ten eleven twelve'.split()
+
+
+def share_attrs(**fields):
+    """data-share-* attributes read by docs/assets/chart-share.js for the figure's branded share image."""
+    return ' '.join(f'data-share-{k}="{esc(v)}"' for k, v in fields.items() if v)
+
+
+def share_sport(rows, sport, periods, games, span):
+    """Headline, takeaway and how-to-read text for one league's dot plot, from the same results as the figure."""
+    d0, d1 = periods['discovery']
+    r0, r1 = periods['replication']
+    passed = sorted((r for r in rows if r['replicates']), key=lambda r: -(win(r['replication'], r['tested_side'])[0] or 0))
+    k, bet = len(passed), sum(1 for r in passed if r['bettable'])
+    era = 'decade' if r1 - r0 >= 9 else 'period'  # MLB's blocks are eight seasons each
+    if not k:
+        takeaway = f'None of {len(rows)} situations held up in both {era}s.'
+    else:
+        items = '; '.join(f"{r['name']} → {r['tested_side']} won {pct(win(r['replication'], r['tested_side'])[0])} "
+                          f"({record(r['replication'], r['tested_side'])})" for r in passed)
+        verdict = (('and it did.' if bet else 'it fell short.') if k == 1 else
+                   f'and all {WORDS[k]} did.' if bet == k else 'none did.' if not bet else f'and {WORDS[bet]} did.')
+        takeaway = (f'Of {len(rows)} situations, {WORDS[k]} held up in both {era}s: {items} in {r0}–{r1}. '
+                    f"Beating the vig at −110 takes 52.4%{', ' if verdict.startswith('and') else '; '}{verdict}")
+    how = (f'Each row is a situation and the side it predicts. The filled dot is the share of bets won on that side in '
+           f'{r0}–{r1}, with its 95% interval; the ring is {d0}–{d1}. A situation held up only if it pointed the same way '
+           f'in both {era}s and was statistically clear in the later one (one-sided p < 0.05). Officials were rated on '
+           f'the earlier {era}, so their rows have no ring.')
+    return share_attrs(label=SHARE_LABEL, title=f'What makes {sport} games go under?', subtitle=takeaway, text=how,
+                       source=f'Data: {games:,} {sport} games, {span}, with closing totals')
+
+
+def share_priced(results, n_games):
+    wind = results['NFL-1']['full']
+    return share_attrs(
+        label=SHARE_LABEL, title='What the market already knows',
+        subtitle=(f"Most situations sit near the diagonal: big effects came with big line moves. The clearest exception is "
+                  f"NFL wind, where scoring fell {abs(wind['effect']):.1f} points and the closing total moved only "
+                  f"{abs(wind['priced']):.1f}."),
+        text=('Each dot is a situation with at least 100 games, compared with all other games across all seasons. Across: '
+              'how much it changed actual scoring. Up: how much it moved the closing total. On the diagonal the line moved '
+              'as much as scoring did, so the effect was already priced; the distance off it is what was left over.'),
+        source=f'Data: {n_games} NFL, NHL, NBA and MLB games with closing totals')
+
+
 TABLE_NO = {'NFL': 2, 'NHL': 3, 'NBA': 4, 'MLB': 5}
 SHORT = {'Bettable at -110': 'Beat −110', 'Replicates, but not enough to beat the vig': 'Replicated', 'Does not replicate': 'No',
          'Too few games': 'Too few games'}

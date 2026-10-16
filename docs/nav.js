@@ -1,4 +1,4 @@
-// docs/nav.js (v=48) — site navigation and footer social links
+// docs/nav.js (v=49) — site navigation, footer social links and chart sharing
 (function () {
   // --- Find script & compute base (works locally and deployed) ---
   const scriptEl =
@@ -16,6 +16,14 @@
     noticeScript.src = `${base}/assets/responsible-use.js?v=1`;
     noticeScript.dataset.fvResponsibleUse = 'true';
     document.head.appendChild(noticeScript);
+  }
+
+  // Every chart can be shared as a branded image carrying its explanation (assets/chart-share.js).
+  if (!document.querySelector('script[data-fv-chart-share]')) {
+    const shareScript = document.createElement('script');
+    shareScript.src = `${base}/assets/chart-share.js?v=1`;
+    shareScript.dataset.fvChartShare = 'true';
+    document.head.appendChild(shareScript);
   }
 
   // --- Styles ---

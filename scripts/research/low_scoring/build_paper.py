@@ -17,7 +17,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 sys.path.insert(0, str(HERE))
-from figures import fig_priced, fig_record, pct, record, signed, table, table_sport, win  # noqa: E402
+from figures import fig_priced, fig_record, pct, record, share_priced, share_sport, signed, table, table_sport, win  # noqa: E402
 from site_notices import apply  # noqa: E402
 from text import FAQ, TEXT_TAGS  # noqa: E402
 
@@ -38,6 +38,9 @@ def fmt_tags(res):
         rows = [v for v in f.values() if v['sport'] == sport]
         tags[f'{sport}_FIG'] = fig_record(rows, sport, m['periods'])
         tags[f'{sport}_TABLE'] = table_sport(rows, sport, m['periods'])
+        (d0, _), (_, r1) = m['periods']['discovery'], m['periods']['replication']
+        span = f"{d0}–{str(d0 + 1)[2:]} to {r1}–{str(r1 + 1)[2:]}" if sport in ('NHL', 'NBA') else f'{d0} to {r1}'
+        tags[f'{sport}_SHARE'] = share_sport(rows, sport, m['periods'], m['games'], span)
         tags[f'{sport}_GAMES'] = f"{m['games']:,}"
         tags[f'{sport}_SEASONS'] = f"{m['periods']['discovery'][0]}–{m['periods']['replication'][1]}"
         tags[f'{sport}_DISC'] = '–'.join(str(x) for x in m['periods']['discovery'])
@@ -80,6 +83,7 @@ def fmt_tags(res):
     tags['N_PASS_WORD'] = words[int(tags['N_PASS'])].capitalize()
     tags['N_BET_WORD_LOWER'] = words[int(tags['N_BET'])]
     tags['PRICED_FIG'] = fig_priced(f, [s for s in SPORTS if s in sports])
+    tags['PRICED_SHARE'] = share_priced(f, tags['N_GAMES'])
     tags.update(extra_tables(res))
     return tags
 
