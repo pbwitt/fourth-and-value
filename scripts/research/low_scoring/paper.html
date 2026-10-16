@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>What Makes Games Go Under? Weather, Rest &amp; Refs | Fourth &amp; Value</title>
+  <meta name="description" content="@@META_DESCRIPTION@@">
+  <link rel="canonical" href="https://fourthandvalue.com/research/low-scoring-games-situational-factors.html">
+  <meta property="og:title" content="What Makes Games Go Under? Weather, Fatigue, Travel and Refs vs. the Closing Total">
+  <meta property="og:description" content="@@META_DESCRIPTION@@">
+  <meta property="og:url" content="https://fourthandvalue.com/research/low-scoring-games-situational-factors.html">
+  <meta property="og:type" content="article">
+  <meta property="og:image" content="https://fourthandvalue.com/research/low-scoring-games-situational-factors-social.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="720">
+  <meta property="og:image:alt" content="Fourth &amp; Value research: what makes games go under? Situations tested against the closing total.">
+  <meta property="article:published_time" content="@@PUBLISHED@@">
+  <meta property="article:modified_time" content="@@PUBLISHED@@">
+  <meta property="article:section" content="Research">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="What Makes Games Go Under? Weather, Fatigue, Travel and Refs vs. the Closing Total">
+  <meta name="twitter:description" content="@@META_DESCRIPTION@@">
+  <meta name="twitter:image" content="https://fourthandvalue.com/research/low-scoring-games-situational-factors-social.png">
+  <script type="application/ld+json">@@JSONLD@@</script>
+  <script type="application/ld+json">@@FAQLD@@</script>
+  <link rel="icon" href="/assets/logo.svg">
+  <link rel="stylesheet" href="./nhl-forecasting.css">
+  <style>
+    :root{--surface:#101114;--ink:#f0efec;--ink2:#c3c2b7;--muted:#898781;--grid:#2c2c2a;--axis:#4a4a46;--accent:#3987e5;--accent-soft:#86b6ef;--mint:#7ce2bd}
+    .synopsis{margin:30px 0 36px;padding:22px 24px;border:1px solid #2a2f3a;border-left:3px solid var(--mint);border-radius:10px;background:#12161d}
+    .synopsis h2{font-size:1.05rem;margin:0 0 10px;letter-spacing:.02em}
+    .synopsis p,.synopsis li{font-size:1rem;line-height:1.65}
+    .synopsis ul{padding-left:22px;margin:10px 0}
+    .synopsis .bottom-line{font-weight:600;margin-bottom:0}
+    .scoreboard{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0 8px}
+    .scoreboard div{padding:12px 12px 10px;border:1px solid #2a2f3a;border-radius:8px;background:#0e1218}
+    .scoreboard b{display:block;font:600 1.7rem/1.2 system-ui,sans-serif;color:var(--ink)}
+    .scoreboard span{display:block;font:12.5px/1.4 system-ui,sans-serif;color:var(--muted)}
+    figure{margin:26px 0;padding:16px 16px 12px;background:#0d0f13;border:1px solid #23252b;border-radius:10px}
+    figcaption{font:13px/1.55 system-ui,sans-serif;color:var(--ink2);margin-top:10px}
+    .legend{display:flex;flex-wrap:wrap;gap:6px 18px;font:12.5px/1.4 system-ui,sans-serif;color:var(--ink2);margin:0 0 10px}
+    .legend i{display:inline-block;vertical-align:-1px;margin-right:6px}
+    .legend .k-rep{width:10px;height:10px;border-radius:50%;background:var(--accent)}
+    .legend .k-disc{width:10px;height:10px;border-radius:50%;border:2px solid var(--accent-soft);box-sizing:border-box}
+    .legend .k-fail{width:10px;height:10px;border-radius:50%;background:var(--muted)}
+    .legend .k-be{width:2px;height:12px;background:var(--ink2);opacity:.6}
+    .dotplot{margin:4px 0}
+    .dp-row{display:grid;grid-template-columns:minmax(0,15.5rem) 1fr;gap:12px;align-items:center;min-height:30px;border-radius:4px;padding:0 4px}
+    .dp-row:hover,.dp-row:focus-visible{background:rgba(255,255,255,.05);outline:none}
+    .dp-label{font:13px/1.3 system-ui,sans-serif;color:var(--ink2);text-align:right}
+    .dp-label em{font-style:normal;color:var(--muted)}
+    .dp-track{position:relative;height:24px;display:block}
+    .dp-track i{position:absolute;top:50%}
+    .dp-track .g{top:0;bottom:0;width:1px;background:var(--grid)}
+    .dp-track .b{top:0;bottom:0;width:2px;margin-left:-1px;background:var(--axis)}
+    .dp-track .be{top:0;bottom:0;width:1px;background:var(--ink2);opacity:.55}
+    .dp-track .ci{height:2px;margin-top:-1px;background:var(--accent-soft);border-radius:1px}
+    .fail .dp-track .ci{background:var(--axis)}
+    .dp-track .rep{width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px #0d0f13}
+    .fail .dp-track .rep{background:var(--muted)}
+    .dp-track .disc{width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;border:2px solid var(--accent-soft);box-sizing:border-box;background:#0d0f13}
+    .fail .dp-track .disc{border-color:var(--muted)}
+    .dp-axis{min-height:20px}
+    .dp-ticks{position:relative;height:18px;display:block;font:11px system-ui,sans-serif;color:var(--muted)}
+    .dp-ticks span{position:absolute;transform:translateX(-50%)}
+    .dp-ticks .be{display:none}
+    .small-multiples{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .chart-svg{width:100%;height:auto;display:block}
+    .chart-svg .tick{fill:var(--muted);font:11px system-ui,sans-serif}
+    .chart-svg .panel{fill:var(--ink);font:600 12.5px system-ui,sans-serif}
+    .chart-svg .grid{stroke:var(--grid);stroke-width:1}
+    .chart-svg .diag{stroke:var(--axis);stroke-width:1.5}
+    .chart-svg .dot{fill:var(--muted);stroke:#0d0f13;stroke-width:2}
+    .chart-svg .rep{fill:var(--accent);stroke:#0d0f13;stroke-width:2}
+    .chart-svg g[data-tip]:focus{outline:none}.chart-svg g[data-tip]:focus .dot,.chart-svg g[data-tip]:focus .rep{stroke:var(--ink)}
+    table.results td,table.results th{font-size:.8rem}
+    table.results td:last-child{white-space:nowrap}
+    .tip{position:fixed;pointer-events:none;background:#1a2230;border:1px solid #314159;color:#e7eef9;font:13px/1.45 system-ui,sans-serif;padding:8px 11px;border-radius:7px;max-width:300px;opacity:0;transition:opacity .1s;z-index:50}
+    .verdict-pass{color:var(--mint)}
+    .callout{border-left:3px solid var(--accent);padding:4px 0 4px 16px;margin:22px 0;font-style:italic}
+    @media(max-width:600px){.scoreboard{grid-template-columns:1fr 1fr}.small-multiples{grid-template-columns:1fr}.dp-row{grid-template-columns:1fr;gap:0;padding:4px}.dp-label{text-align:left}.dp-axis .dp-label{display:none}}
+    @media print{:root{--surface:#fff;--ink:#111;--ink2:#333;--muted:#666;--grid:#e1e0d9;--axis:#9a9a94;--accent:#2a78d6;--accent-soft:#6da7ec}
+      .synopsis,.scoreboard div,figure{background:#fff;border-color:#ccc}.dp-track .rep,.dp-track .disc{box-shadow:none;background-color:#fff}.dp-track .rep{background:var(--accent)}.fail .dp-track .rep{background:var(--muted)}
+      .chart-svg .dot,.chart-svg .rep{stroke:#fff}figure{break-inside:avoid}.tip{display:none}}
+  </style>
+</head>
+<body>
+<a class="skip" href="#paper">Skip to paper</a>
+<div id="nav-root"></div><script src="/nav.js?v=47"></script>
+<main class="wrap" id="paper">
+  <div class="paper-head">
+    <div class="kicker">Fourth &amp; Value Research · Technical Report FV-2026-04</div>
+    <h1 class="title">What Makes Games Go Under?<br>Weather, Fatigue, Travel and Officials Against the Closing Total</h1>
+    <p class="authors">Fourth &amp; Value Research Group</p>
+    <p class="affil">fourthandvalue.com</p>
+    <p class="date">October 16, 2026 · Version 1.0 · NFL, NHL, NBA and MLB game totals</p>
+    <p class="publication-status">Technical report; not peer reviewed. Hypotheses registered before results were computed.</p>
+  </div>
+  <div class="download-bar"><span>Paper, numerical evidence and pre-registration</span><a class="pdf-btn" href="./low-scoring-games-situational-factors.pdf" download>Download PDF</a><a href="./low-scoring-games-situational-factors.json">Evidence JSON</a><a href="@@PREREG_URL@@">Pre-registration</a></div>
+
+  <section class="synopsis" aria-labelledby="synopsis-head">
+    <h2 id="synopsis-head">The short version</h2>
+@@SYNOPSIS@@
+  </section>
+
+  <div class="abstract-block">
+    <div class="abstract-label">Abstract</div>
+    <p class="abstract-text">@@ABSTRACT@@</p>
+    <p class="keywords"><strong>Keywords:</strong> over/under; game totals; closing line; weather; wind; back-to-back; rest; travel; referees; umpires; market efficiency; pre-registration; replication.</p>
+  </div>
+  <nav class="contents" aria-label="Paper contents"><strong>Contents</strong><ol>
+    <li><a href="#question">The question: lower scoring, or lower than the line?</a></li>
+    <li><a href="#data">Data</a></li>
+    <li><a href="#method">Method and pass rules</a></li>
+    <li><a href="#nfl">NFL</a></li>
+    <li><a href="#nhl">NHL</a></li>
+    <li><a href="#nba">NBA</a></li>
+    <li><a href="#mlb">MLB</a></li>
+    <li><a href="#priced">What the market already knows</a></li>
+    <li><a href="#robustness">Robustness checks</a></li>
+    <li><a href="#limitations">Limitations</a></li>
+    <li><a href="#conclusion">What this means for you</a></li>
+  </ol></nav>
+  <article>
+@@BODY@@
+  </article>
+</main>
+<div class="tip" role="tooltip" aria-hidden="true"></div>
+<script>
+(()=>{const tip=document.querySelector('.tip');
+const show=(el,x,y)=>{tip.textContent=el.dataset.tip;tip.style.opacity=1;const r=tip.getBoundingClientRect();
+tip.style.left=Math.min(window.innerWidth-r.width-8,Math.max(8,x+12))+'px';tip.style.top=Math.max(8,y-r.height-12)+'px';};
+const hide=()=>{tip.style.opacity=0};
+document.querySelectorAll('[data-tip]').forEach(el=>{
+el.addEventListener('pointerdown',e=>show(el,e.clientX,e.clientY));el.addEventListener('mousemove',e=>show(el,e.clientX,e.clientY));el.addEventListener('mouseleave',hide);
+el.addEventListener('focus',()=>{const b=el.getBoundingClientRect();show(el,b.left+Math.min(b.width/2,240),b.top)});el.addEventListener('blur',hide);});})();
+</script>
+</body>
+</html>
