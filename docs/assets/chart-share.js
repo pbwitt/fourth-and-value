@@ -1,4 +1,4 @@
-// docs/assets/chart-share.js (v=1) — share any chart on the site as a branded image that carries its explanation.
+// docs/assets/chart-share.js (v=2) — share any chart on the site as a branded image that carries its explanation.
 // nav.js loads this on every page. The image is drawn on this device with the 2D canvas: SVG charts as images,
 // HTML charts box by box. It never uses SVG foreignObject, which Safari will not export. Nothing is uploaded.
 // Market Results charts ([data-chart]) keep their own share sheet in markets/markets.js.
@@ -126,8 +126,10 @@
   ];
 
   const CSS = `
-  .fv-share-row{display:flex;justify-content:flex-end;margin:0 0 10px;grid-column:1/-1}
-  .fv-share-btn{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:4px 12px;border:1px solid #314159;border-radius:999px;background:transparent;color:#b8c5d6;font:500 13px/1.2 ${SANS};cursor:pointer}
+  /* Pages style every svg and div in a figure (charts at width:100%); the button must not inherit that. */
+  .fv-share-row{display:flex!important;justify-content:flex-end;margin:0 0 10px!important;padding:0!important;width:auto!important;grid-column:1/-1}
+  .fv-share-btn{display:inline-flex!important;align-items:center;gap:6px;width:auto!important;height:auto!important;min-height:32px;max-width:none!important;padding:4px 12px!important;margin:0!important;border:1px solid #314159;border-radius:999px;background:transparent;color:#b8c5d6;font:500 13px/1.2 ${SANS};white-space:nowrap;cursor:pointer}
+  .fv-share-btn svg{display:block!important;flex:none!important;width:15px!important;height:15px!important;max-width:none!important;margin:0!important}
   .fv-share-btn:hover,.fv-share-btn:focus-visible{color:#e7eef9;border-color:#7ce2bd;outline:none}
   [data-fv-share=ready]{scroll-margin-top:84px}
   .fv-share-target{outline:2px solid #7ce2bd;outline-offset:4px}

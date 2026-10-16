@@ -108,6 +108,30 @@ async function openCard(page, selector) {
     const blog = await openCard(page, '#chart-2');
     assert.equal(blog.w, 2400);
     assert.ok(blog.colours > 12);
+    // The page's chart CSS (svg at width:100%) must not reach the button's icon; one copy of the script runs.
+    const btn = await page.evaluate(() => {
+      const b = document.querySelector('.fv-share-btn'), r = b.getBoundingClientRect(), i = b.querySelector('svg').getBoundingClientRect();
+      return {h: r.height, icon: i.width, scripts: document.querySelectorAll('script[src*="chart-share.js"]').length};
+    });
+    assert.ok(btn.h <= 40 && btn.icon === 15, `button ${btn.h}px, icon ${btn.icon}px`);
+    assert.equal(btn.scripts, 1);
+
+    // A browser still holding an old nav.js (Cloudflare can keep it for hours) gets the buttons from the page's own tag.
+    const stale = await browser.newPage();
+    stale.on('pageerror', e => errors.push(e.message));
+    await stale.route('**/nav.js*', r => r.fulfill({contentType: 'text/javascript', body: ''}));
+    await stale.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+    await stale.goto(base + '/blog/week-5-recap-week-6-preview-2026.html');
+    await stale.waitForFunction(() => document.querySelectorAll('.fv-share-btn').length === 3);
+    await stale.goto(base + STUDY);
+    await stale.waitForFunction(() => document.querySelectorAll('.fv-share-btn').length === 5);
+    // The study links to its pre-registration on this site, and to nothing on GitHub.
+    assert.equal(await stale.locator('a[href*="github.com"]').count(), 0);
+    const prereg = await stale.locator('.download-bar a', {hasText: 'Pre-registration'}).getAttribute('href');
+    assert.equal(prereg, './low-scoring-games-situational-factors-preregistration.html');
+    await stale.goto(new URL(prereg, base + STUDY).href);
+    assert.match(await stale.locator('h1').textContent(), /pre-registered hypotheses \(FV-2026-04\)/);
+    await stale.close();
 
     // A chart page without nav.js, and Market Results, which keeps its own share sheet.
     await page.goto(base + '/blog/mlb-playoff-strikeouts-2026.html');

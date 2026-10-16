@@ -1,7 +1,7 @@
 """Text fragments for FV-2026-04 that depend on the results: description, FAQ and links."""
 import html
 
-PREREG_URL = 'https://github.com/pbwitt/fourth-and-value/blob/main/reports/low-scoring-2026/PREREGISTRATION.md'
+PREREG_URL = './low-scoring-games-situational-factors-preregistration.html'  # published by prereg.py
 
 
 def FAQ(t):
