@@ -60,6 +60,12 @@ The interaction smoke test uses the checked-in snapshot and a clock anchored to 
 
 The NFL totals page is historical research. Its inputs and model evaluation need revalidation before current forecasts resume. Private bet tracking uses Supabase; credentials belong in environment variables, never in public site files.
 
+## Shareable charts
+
+Every chart in a `<figure>` gets a **Share chart** button (`docs/assets/chart-share.js`, loaded by `nav.js`). It draws a branded PNG on the reader's device, with nothing uploaded. The image shows the chart at desktop layout, even on a phone, with its headline, takeaway, explanation, caption, source, article and publication date (Eastern Time). The sheet offers Share, Save image, Copy image and Copy link, plus posts to X, Facebook, LinkedIn, Reddit, Bluesky and Threads that link back to the chart (`#figure-N`, tagged `utm_campaign=chart_share`). Market Results keeps its own share sheet.
+
+New pages need nothing extra when each chart sits in a `<figure>` with a caption, under a descriptive heading, has an SVG `<title>` or `alt` that states the takeaway, and follows the paragraph that introduces it. When those don't read well out of context, set `data-share-title`, `data-share-subtitle`, `data-share-text`, `data-share-notes`, `data-share-source` or `data-share-label` on the figure (the FV-2026-04 generator does). `data-share="off"` opts a figure out; JPEG and WebP photographs are never offered. A page without `nav.js` needs `<script src="/assets/chart-share.js?v=1" defer></script>`. Checks: `node tests/chart_share.cjs` and `node tests/chart_share_browser.cjs`.
+
 NHL regular-season refresh and operating notes: [NHL_README.md](NHL_README.md).
 
 MLB markets, probable pitchers and postseason setup: [MLB_README.md](MLB_README.md).

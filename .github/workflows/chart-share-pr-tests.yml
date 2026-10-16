@@ -1,0 +1,26 @@
+name: Chart Share Checks
+on:
+  pull_request:
+    paths:
+      - 'docs/assets/chart-share.js'
+      - 'docs/nav.js'
+      - 'tests/chart_share*.cjs'
+      - 'scripts/research/low_scoring/figures.py'
+      - 'scripts/research/low_scoring/build_paper.py'
+      - 'scripts/research/low_scoring/results.html'
+      - 'docs/research/low-scoring-games-situational-factors.html'
+      - '.github/workflows/chart-share-pr-tests.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node tests/chart_share.cjs
+      - run: npm install --no-save --package-lock=false playwright@1.55.1
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/chart_share_browser.cjs
