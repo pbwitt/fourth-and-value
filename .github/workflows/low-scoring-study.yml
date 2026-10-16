@@ -1,24 +1,72 @@
 name: Low-Scoring Study Data
-# Situational low-scoring study (Technical Report FV-2026-04). Downloads public game,
-# officiating, weather and closing-total histories that the study needs. No paid odds requests.
+# Situational low-scoring study (Technical Report FV-2026-04). Downloads the public game,
+# officiating, weather and closing-total histories the study needs and commits the game tables to
+# the triggering branch. Free public sources only; no paid odds request is made.
 on:
   push:
     branches: ['claude/**']
     paths:
-      - 'scripts/research/low_scoring/fetch*.py'
-      - 'scripts/research/low_scoring/probe.py'
+      - 'scripts/research/low_scoring/fetch.py'
       - '.github/workflows/low-scoring-study.yml'
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: low-scoring-study-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
-  probe:
+  fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        sport: [nfl, nhl, nba, mlb]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install requests openpyxl
-      - run: python scripts/research/low_scoring/probe.py
+      - run: pip install requests openpyxl pandas pyarrow
+      - name: Restore request cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .low-scoring-cache
+          key: low-scoring-cache-${{ matrix.sport }}-${{ github.run_id }}
+          restore-keys: low-scoring-cache-${{ matrix.sport }}-
+      - name: Build the ${{ matrix.sport }} game table
+        run: python scripts/research/low_scoring/fetch.py ${{ matrix.sport }}
+      - name: Save request cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .low-scoring-cache
+          key: low-scoring-cache-${{ matrix.sport }}-${{ github.run_id }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: low-scoring-${{ matrix.sport }}
+          path: reports/low-scoring-2026/data/
+          retention-days: 30
+  commit:
+    needs: fetch
+    if: always() && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: low-scoring-*
+          path: reports/low-scoring-2026/data/
+          merge-multiple: true
+      - name: Commit the game tables to the branch
+        run: |
+          git config user.name "Fourth & Value Research"
+          git config user.email "actions@github.com"
+          git add reports/low-scoring-2026/data/
+          git diff --cached --quiet && { echo "no changes"; exit 0; }
+          git commit -m "Low-scoring study: game tables from public sources (run ${{ github.run_id }})"
+          for i in 1 2 3 4; do git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && break; sleep $((i * 5)); done
