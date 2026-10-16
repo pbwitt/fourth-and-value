@@ -177,3 +177,20 @@ Direction: **U** predicted under, **O** predicted over, **2** two-sided.
    period counts.
 6. *Season labels.* NHL and NBA seasons are labelled by the year they start (2019 =
    2019–20, including the 2020 bubble playoffs).
+
+**A2 — October 15, 2026, 10:05 p.m. EDT, after the game tables were assembled and before any
+NHL, NBA or MLB factor outcome was computed.**
+
+1. *Periods.* Source coverage: NHL and NBA 2007–08 through 2025–26 (19 seasons), MLB 2010
+   through 2025 (16 seasons), plus the 2026 MLB season and the first 107 games of the 2026–27
+   NHL season. Discovery / replication: NHL and NBA 2007–2015 / 2016–2025 (season labels by
+   start year); MLB 2010–2017 / 2018–2025. The 2026 MLB season (the first with the
+   ball-strike challenge system) is a separate out-of-sample check, reported but not part of
+   the pass rule, like the 2026 NFL season. The 107 NHL games of 2026–27 are too few and are
+   not reported.
+2. *Data-quality filters* (applied identically to every factor): games matched to the odds
+   archive are dropped when the archive's final score disagrees with the official score
+   (NHL 12 of 19,286; NBA 19 of 19,736), since the match may be wrong; NBA All-Star and
+   exhibition games are excluded; lines outside plausible ranges are treated as missing
+   (NBA outside 150–300 points, MLB outside 5–15 runs, NHL outside 4–8 goals), which removes
+   four MLB games and no NHL or NBA league games.
