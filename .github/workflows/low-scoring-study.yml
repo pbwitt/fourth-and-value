@@ -1,0 +1,24 @@
+name: Low-Scoring Study Data
+# Situational low-scoring study (Technical Report FV-2026-04). Downloads public game,
+# officiating, weather and closing-total histories that the study needs. No paid odds requests.
+on:
+  push:
+    branches: ['claude/**']
+    paths:
+      - 'scripts/research/low_scoring/fetch*.py'
+      - 'scripts/research/low_scoring/probe.py'
+      - '.github/workflows/low-scoring-study.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - run: python scripts/research/low_scoring/probe.py
