@@ -158,6 +158,14 @@ function espnTeam(c = {}) {
   return team(t.displayName, t.abbreviation, t.shortDisplayName || t.name, c.score);
 }
 
+// Seconds left in the period: `clock`, else `displayClock` ("7:42", or "45.3"
+// in a period's last minute), else unknown.
+function espnClock(st) {
+  if (st.clock != null && st.clock !== '') return num(st.clock);
+  const m = /^(?:(\d+):)?(\d+(?:\.\d+)?)$/.exec(String(st.displayClock ?? '').trim());
+  return m ? num(m[1]) * 60 + num(m[2]) : null;
+}
+
 function espnGame(league, id, comp = {}, fallbackStatus) {
   const st = comp.status || fallbackStatus || {}, type = st.type || {};
   const state = /POSTPONED|CANCELED|SUSPENDED/.test(type.name || '') ? 'off'
@@ -165,8 +173,10 @@ function espnGame(league, id, comp = {}, fallbackStatus) {
   const [periods, secs] = PERIOD[league];
   let elapsed = state === 'final' ? 1 : null;
   if (state === 'live' && st.period) {
-    const p = num(st.period);
-    elapsed = p > periods ? 1 : Math.min(1, ((p - 1) * secs + (secs - num(st.clock))) / (periods * secs));
+    const p = num(st.period), clock = espnClock(st);
+    // A missing clock is unknown, not the end of the period.
+    if (p > periods) elapsed = 1;
+    else if (clock != null) elapsed = Math.min(1, ((p - 1) * secs + (secs - clock)) / (periods * secs));
   }
   const sides = Object.fromEntries((comp.competitors || []).map(c => [c.homeAway, c]));
   return { id: String(id), league, start: comp.date || null, state,

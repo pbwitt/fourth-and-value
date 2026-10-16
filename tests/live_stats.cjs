@@ -147,10 +147,19 @@ const espnSummary={header:{competitions:[espnComp('in')]},boxscore:{players:[
   assert.equal(L.teamCode({abbrev:'',short:'Leafs',name:'Toronto Maple Leafs'}),'Leafs');assert.equal(L.teamCode(undefined),null);
   v=L.evaluate(bet({line:3.5}),game,box);
   assert.deepEqual([v.tone,v.label,v.progress],['alive','Needs 1',0.75]);
-  assert(v.pace>3,'pace projects from the share of regulation played');
+  assert.equal(v.pace,6.6,'pace projects from the share of regulation played (3 SOG at 46%)');
   v=L.evaluate(bet({line:3}),game,box);assert.equal(v.label,'Needs 1','whole-number over needs to clear the line');
-  v=L.evaluate(bet({side:'under',line:2.5}),game,box);assert.deepEqual([v.tone,v.label],['lost','Dead']);
-  v=L.evaluate(bet({side:'under',line:4.5}),game,box);assert.deepEqual([v.tone,v.label],['alive','1 to spare']);
+  assert.equal(L.evaluate(bet(),game,box).pace,null,'a hit over has no pace');
+  v=L.evaluate(bet({side:'under',line:2.5}),game,box);assert.deepEqual([v.tone,v.label,v.pace],['lost','Dead',null]);
+  v=L.evaluate(bet({side:'under',line:4.5}),game,box);assert.deepEqual([v.tone,v.label,v.pace],['alive','1 to spare',6.6],'unders show pace too');
+  const early={...game,elapsed:0.1};assert.equal(L.evaluate(bet({line:3.5}),early,{...box,game:early}).pace,null,'too early for a pace');
+  assert.equal(L.evaluate(bet({line:3.5}),{...game,elapsed:1,detail:'OT 3:00'},{...box,game:{...game,elapsed:1}}).pace,null,'no pace in overtime');
+  const tot=o=>L.evaluate({league:'NHL',team_home:'TOR',team_away:'MTL',player:null,market_type:'totals',...o},game,null);
+  assert.deepEqual([tot({side:'under',line:5.5}).value,tot({side:'under',line:5.5}).pace],[3,6.6],'game totals show pace');
+  assert.equal(tot({side:'over',line:6.5}).pace,6.6);
+  assert.equal(tot({side:'over',line:2.5}).pace,null,'a cleared over has no pace');
+  assert.equal(L.evaluate({league:'NHL',team_home:'TOR',team_away:'MTL',market_type:'totals',side:'under',line:5.5},{...game,state:'final',elapsed:1},null).pace,null);
+  assert.equal(L.evaluate({league:'NHL',team_home:'TOR',team_away:'MTL',market_type:'h2h',side:'TOR'},game,null).pace,undefined,'no pace on sides');
   v=L.evaluate(bet({side:'under',line:3.5}),game,box);assert.equal(v.label,'None to spare');
   v=L.evaluate(bet({market_type:'player_goals',side:'Yes',line:null}),game,box);assert.deepEqual([v.line,v.tone],[0.5,'won'],'anytime props');
   v=L.evaluate(bet({player:'Nobody Here'}),game,box);assert.deepEqual([v.tone,v.label],['missing','Not in the box score yet']);
@@ -164,8 +173,24 @@ const espnSummary={header:{competitions:[espnComp('in')]},boxscore:{players:[
   // Yardage can fall, so an over is never locked before the final.
   const nfl=run(feeds.boxPlan('NFL','x'),[espnSummary]);
   const yd=o=>L.evaluate({league:'NFL',team_home:'Buffalo Bills',team_away:'Los Angeles Chargers',player:'Justin Herbert',market_type:'pass_yds',side:'over',line:220.5,...o},nfl.game,nfl);
-  assert.deepEqual([yd().tone,yd().label],['ahead','Over the line']);
-  assert.equal(yd({side:'under'}).tone,'behind');
+  assert.deepEqual([yd().tone,yd().label,yd().pace],['ahead','Over the line',339],'yardage paces to whole yards');
+  assert.deepEqual([yd({side:'under'}).tone,yd({side:'under'}).pace],['behind',339]);
+
+  // ESPN's summary may omit the clock: the scoreboard's share played fills in,
+  // and a period with no clock is unknown, not the end of the period.
+  const board=run(feeds.scoreboardPlan('NFL','x'),[espnBoard])[0];
+  const bare=s=>({...espnSummary,header:{competitions:[espnComp('in',{status:{type:{state:'in'},...s}})]}});
+  const noClock=run(feeds.boxPlan('NFL','401'),[bare({period:3})]);
+  assert.equal(noClock.game.elapsed,null);
+  assert.equal(run(feeds.boxPlan('NFL','401'),[bare({})]).game.elapsed,null);
+  const fill=L.evaluate({league:'NFL',team_home:'BUF',team_away:'LAC',player:'Justin Herbert',market_type:'pass_yds',side:'under',line:300.5},board,noClock);
+  assert.deepEqual([fill.tone,fill.pace],['alive',339],'scoreboard clock fills in for the box score');
+  assert(Math.abs(run(feeds.boxPlan('NFL','401'),[bare({period:3,displayClock:'5:00'})]).game.elapsed-(2*900+600)/3600)<1e-9,'displayClock when clock is missing');
+  const nbaLate=run(feeds.boxPlan('NBA','9'),[{header:{competitions:[espnComp('in',{status:{period:4,displayClock:'45.3',type:{state:'in'}}})]},boxscore:{players:[]}}]);
+  assert(Math.abs(nbaLate.game.elapsed-(3*720+720-45.3)/2880)<1e-9,'sub-minute NBA clock');
+
+  const mlb=run(feeds.boxPlan('MLB','2'),[{dates:[{games:[mlbSched.dates[0].games[1]]}]},mlbBox]);
+  assert.equal(L.evaluate({league:'MLB',team_home:'NYY',team_away:'BOS',player:'Aaron Judge',market_type:'batter_total_bases',side:'over',line:6.5},mlb.game,mlb).pace,null,'MLB has no game clock yet: no pace');
 
   const g=o=>L.evaluate({league:'NFL',team_home:'Buffalo Bills',team_away:'Los Angeles Chargers',player:null,...o},nfl.game,null);
   assert.equal(g({market_type:'h2h',side:'Buffalo Bills'}).label,'Leading');

@@ -176,6 +176,16 @@
     return { tone: 'alive', label: spare > 0 ? `${fmt(spare)} to spare` : 'None to spare' };
   }
 
+  // Straight-line projection to the end of regulation from the share played,
+  // for overs and unders alike. Too noisy before 15% of the game; none in
+  // overtime, where regulation is already complete.
+  function projectPace(value, g, moves) {
+    if (g.state !== 'live' || g.elapsed == null || g.elapsed < 0.15 || g.elapsed >= 1) return null;
+    const step = moves ? 1 : 10;
+    return Math.round(value / g.elapsed * step) / step;
+  }
+  const undecided = tone => !['won', 'lost', 'push'].includes(tone);
+
   function sideOf(bet, game) {
     if (teamMatches(bet.side, game.home, bet.league)) return 'home';
     if (teamMatches(bet.side, game.away, bet.league)) return 'away';
@@ -188,8 +198,9 @@
       const side = String(bet.side || '').toLowerCase(), line = Number(bet.line);
       if (!['over', 'under'].includes(side) || !Number.isFinite(line)) return { value: h + a };
       const clear = Number.isInteger(line) ? line + 1 : Math.ceil(line);
+      const verdict = overUnder(h + a, line, side, { final });
       return { value: h + a, line, side, progress: Math.min(1, (h + a) / (side === 'over' ? clear : Math.max(line, 0.5))),
-        ...overUnder(h + a, line, side, { final }) };
+        pace: undecided(verdict.tone) ? projectPace(h + a, game) : null, ...verdict };
     }
     if (kind === 'score') return {};
     const mine = sideOf(bet, game);
@@ -213,7 +224,10 @@
   // One bet + its game (+ box when fetched) -> everything the UI draws.
   function evaluate(bet, game, box) {
     if (!game) return { status: 'nogame', label: 'Game not found on the schedule' };
-    const g = box?.game && box.game.id === game.id ? box.game : game;
+    // The box score's game state is fresher, but ESPN's summary may omit the
+    // clock; the scoreboard's share played fills in for the same state.
+    const fromBox = box?.game && box.game.id === game.id;
+    const g = !fromBox ? game : box.game.elapsed == null && box.game.state === game.state ? { ...box.game, elapsed: game.elapsed } : box.game;
     const base = { status: g.state, game: g, gameKey: `${g.league}:${g.id}` };
     if (g.state === 'off') return { ...base, tone: 'off', label: g.detail || 'Postponed' };
     if (g.state === 'pre') return { ...base, tone: 'pre', label: `Starts ${timeLabel(g.start)}`.trim() };
@@ -239,10 +253,7 @@
     const verdict = overUnder(value, line, side, { final, moves: !!spec.moves });
     const clear = Number.isInteger(line) ? line + 1 : Math.ceil(line);
     const progress = Math.max(0, Math.min(1, value / (side === 'over' ? clear : Math.max(line, 0.5))));
-    let pace = null;
-    if (!final && g.elapsed != null && g.elapsed >= 0.15 && g.elapsed < 1 && side === 'over' && verdict.tone === 'alive') {
-      pace = Math.round(value / g.elapsed * (spec.moves ? 1 : 10)) / (spec.moves ? 1 : 10);
-    }
+    const pace = undecided(verdict.tone) ? projectPace(value, g, !!spec.moves) : null;
     return { ...view, line, side, progress, pace, ...verdict };
   }
 
