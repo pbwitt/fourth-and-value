@@ -1,4 +1,5 @@
 """One-off source probe for the low-scoring study: prints coverage and field names, writes nothing."""
+import io
 import json
 import requests
 
@@ -8,87 +9,82 @@ S.headers['User-Agent'] = 'Mozilla/5.0 (research; fourthandvalue.com)'
 
 def get(url, **kw):
     try:
-        r = S.get(url, timeout=40, **kw)
-        print('GET', r.status_code, url, len(r.content))
+        r = S.get(url, timeout=60, **kw)
+        print('GET', r.status_code, r.url[:200], len(r.content))
         return r
     except Exception as e:
         print('ERR', url, e)
 
 
-def keys(d, depth=0, maxd=2):
-    if isinstance(d, dict) and depth <= maxd:
-        return {k: keys(v, depth + 1, maxd) for k, v in list(d.items())[:40]}
-    if isinstance(d, list):
-        return [keys(d[0], depth + 1, maxd)] if d else []
-    return type(d).__name__
-
-
-print('== Wayback CDX: SBRO archives')
-r = get('http://web.archive.org/cdx/search/cdx', params=dict(url='sportsbookreviewsonline.com/scoresoddsarchives/*', output='json', filter='statuscode:200', collapse='urlkey', limit=2000))
-if r is not None and r.ok:
-    rows = r.json()
-    for row in rows[1:]:
-        if any(x in row[2].lower() for x in ('.xls', '.xlsx')):
-            print(row[1], row[2])
-
-for sport, lg in [('hockey', 'nhl'), ('basketball', 'nba'), ('baseball', 'mlb')]:
-    print('== ESPN scoreboard', lg)
-    for d in ['20121215', '20160115', '20190115', '20200815', '20221215', '20250115', '20250715', '20260115']:
-        r = get(f'https://site.api.espn.com/apis/site/v2/sports/{sport}/{lg}/scoreboard', params=dict(dates=d, limit=50))
-        if r is None or not r.ok:
-            continue
-        ev = r.json().get('events', [])
-        odds = [e['competitions'][0].get('odds') for e in ev]
-        with_ou = [o for o in odds if o and o[0].get('overUnder') is not None]
-        print(lg, d, 'events', len(ev), 'with overUnder', len(with_ou), (with_ou[0][0].get('provider', {}).get('name'), with_ou[0][0].get('overUnder')) if with_ou else None)
-        if ev and d in ('20250115', '20250715', '20190115'):
-            c = ev[0]['competitions'][0]
-            print(' comp keys', list(c.keys()))
-            if c.get('odds'):
-                print(' odds0', json.dumps(c['odds'][0])[:900])
-            print(' venue', c.get('venue', {}).get('fullName'), 'neutral', c.get('neutralSite'), 'weather', ev[0].get('weather'))
-            eid = ev[0]['id']
-            s = get(f'https://site.api.espn.com/apis/site/v2/sports/{sport}/{lg}/summary', params=dict(event=eid))
-            if s is not None and s.ok:
-                j = s.json()
-                print(' summary keys', list(j.keys()))
-                gi = j.get('gameInfo', {})
-                print(' gameInfo', json.dumps(gi)[:700])
-                print(' pickcenter', json.dumps(j.get('pickcenter', [])[:1])[:900])
-            o = get(f'https://sports.core.api.espn.com/v2/sports/{sport}/leagues/{lg}/events/{eid}/competitions/{eid}/odds')
-            if o is not None and o.ok:
-                print(' core odds', json.dumps(o.json())[:1500])
-
-print('== NHL API')
-for gid in ['2015020500', '2024020500']:
-    for path in ['right-rail', 'boxscore', 'landing']:
-        r = get(f'https://api-web.nhle.com/v1/gamecenter/{gid}/{path}')
-        if r is not None and r.ok:
-            j = r.json()
-            print(path, json.dumps(keys(j, maxd=1))[:900])
-            gi = j.get('gameInfo')
-            if gi:
-                print(' gameInfo', json.dumps(gi)[:600])
-r = get('https://api.nhle.com/stats/rest/en/goalie/summary', params={'isAggregate': 'false', 'isGame': 'true', 'start': 0, 'limit': 3, 'cayenneExp': 'seasonId=20152016 and gameTypeId=2'})
-if r is not None and r.ok:
-    print(json.dumps(r.json())[:1500])
-r = get('https://api-web.nhle.com/v1/schedule/2016-01-15')
-if r is not None and r.ok:
-    print(json.dumps(r.json())[:1200])
-
-print('== MLB StatsAPI')
-r = get('https://statsapi.mlb.com/api/v1/schedule', params=dict(sportId=1, date='2015-07-04'))
-if r is not None and r.ok:
-    pk = r.json()['dates'][0]['games'][0]['gamePk']
-    f = get(f'https://statsapi.mlb.com/api/v1.1/game/{pk}/feed/live', params=dict(fields='gameData,weather,datetime,dayNight,venue,name,liveData,boxscore,officials,official,fullName,officialType,linescore,teams,home,away,runs'))
-    if f is not None and f.ok:
-        print(json.dumps(f.json())[:2000])
-
-print('== NBA')
-r = get('https://stats.nba.com/stats/boxscoresummaryv2', params=dict(GameID='0021500500'), headers={'Referer': 'https://www.nba.com/', 'Origin': 'https://www.nba.com', 'x-nba-stats-origin': 'stats', 'x-nba-stats-token': 'true'})
-if r is not None and r.ok:
-    print(json.dumps(r.json())[:1500])
-for gid in ['0021500500', '0022400500']:
-    r = get(f'https://cdn.nba.com/static/json/liveData/boxscore/boxscore_{gid}.json')
+print('== CDX mlb')
+for pat in ['sportsbookreviewsonline.com/scoresoddsarchives/mlb/*', 'sportsbookreviewsonline.com/scoresoddsarchives/mlb*']:
+    r = get('http://web.archive.org/cdx/search/cdx', params=dict(url=pat, output='json', collapse='urlkey', limit=500))
     if r is not None and r.ok:
-        print(json.dumps(r.json()['game'].get('officials'))[:500])
+        for row in r.json()[1:]:
+            print(row[1], row[4], row[2])
+
+print('== SBRO samples')
+import openpyxl
+for u in ['https://sportsbookreviewsonline.com/scoresoddsarchives/nhl/nhl%20odds%202015-16.xlsx',
+          'https://sportsbookreviewsonline.com/scoresoddsarchives/nba/nba%20odds%202015-16.xlsx',
+          'https://sportsbookreviewsonline.com/scoresoddsarchives/nhl/nhl%20odds%202022-23.xlsx',
+          'https://sportsbookreviewsonline.com/scoresoddsarchives/mlb/mlb%20odds%202015.xlsx']:
+    r = get('http://web.archive.org/web/2023id_/' + u)
+    if r is None or not r.ok or r.content[:2] != b'PK':
+        print(' not an xlsx', r.content[:80] if r is not None else None)
+        continue
+    wb = openpyxl.load_workbook(io.BytesIO(r.content), read_only=True)
+    ws = wb.worksheets[0]
+    for i, row in enumerate(ws.iter_rows(values_only=True)):
+        if i < 7 or i in (500, 501):
+            print(' ', row)
+        if i > 501:
+            break
+    print(' rows', ws.max_row)
+
+print('== ESPN core odds coverage by season')
+for sport, lg, dates in [('hockey', 'nhl', ['20090115', '20120115', '20150115', '20170115', '20180115', '20200115', '20220115', '20240115']),
+                         ('basketball', 'nba', ['20090115', '20120115', '20150115', '20170115', '20180115', '20220115', '20240115']),
+                         ('baseball', 'mlb', ['20100715', '20140715', '20170715', '20180715', '20190715', '20210715', '20230715', '20250715'])]:
+    for d in dates:
+        r = get(f'https://site.api.espn.com/apis/site/v2/sports/{sport}/{lg}/scoreboard', params=dict(dates=d, limit=50))
+        if r is None or not r.ok or not r.json().get('events'):
+            continue
+        eid = r.json()['events'][0]['id']
+        o = get(f'https://sports.core.api.espn.com/v2/sports/{sport}/leagues/{lg}/events/{eid}/competitions/{eid}/odds')
+        if o is not None and o.ok:
+            items = o.json().get('items', [])
+            print(lg, d, 'providers', [(i.get('provider', {}).get('name'), i.get('overUnder')) for i in items][:6])
+            if items and d in ('20240115', '20180715', '20180115'):
+                it = items[0]
+                print('  item keys', list(it.keys()))
+                print('  total fields', {k: it.get(k) for k in ('overUnder', 'overOdds', 'underOdds')}, json.dumps({k: it.get(k) for k in ('open', 'close', 'current')})[:800])
+        f = get(f'https://sports.core.api.espn.com/v2/sports/{sport}/leagues/{lg}/events/{eid}/competitions/{eid}/officials')
+        if f is not None and f.ok:
+            print('  officials', json.dumps(f.json())[:600])
+
+print('== MLB schedule hydrate')
+for start, end in [('2010-07-01', '2010-07-02'), ('2016-07-01', '2016-07-02'), ('2021-07-01', '2021-07-02'), ('2025-07-01', '2025-07-02')]:
+    r = get('https://statsapi.mlb.com/api/v1/schedule', params=dict(sportId=1, startDate=start, endDate=end, hydrate='weather,officials,venue,linescore,game(content(summary))'))
+    if r is not None and r.ok:
+        g = r.json()['dates'][0]['games'][0]
+        print(' keys', list(g.keys()))
+        print(' weather', g.get('weather'), 'officials', json.dumps(g.get('officials'))[:300], 'dayNight', g.get('dayNight'), 'dh', g.get('doubleHeader'), g.get('gameDate'))
+    r = get('https://statsapi.mlb.com/api/v1/schedule', params=dict(sportId=1, startDate=start, endDate=end))
+    if r is not None and r.ok:
+        pk = r.json()['dates'][0]['games'][0]['gamePk']
+        f = get(f'https://statsapi.mlb.com/api/v1.1/game/{pk}/feed/live')
+        if f is not None and f.ok:
+            j = f.json()
+            print(' feed weather', j['gameData'].get('weather'), 'datetime', j['gameData'].get('datetime'), 'officials', json.dumps(j['liveData']['boxscore'].get('officials'))[:300])
+            print(' gameInfo', json.dumps(j['liveData']['boxscore'].get('info'))[:800])
+
+print('== NHL right-rail 2008')
+r = get('https://api-web.nhle.com/v1/gamecenter/2008020500/right-rail')
+if r is not None and r.ok:
+    print(json.dumps(r.json().get('gameInfo'))[:400])
+
+print('== nflverse pbp weather')
+r = get('https://github.com/nflverse/nflverse-data/releases/download/pbp/play_by_play_2015.csv.gz', stream=True)
+if r is not None:
+    print(' ok', r.ok)
