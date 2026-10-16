@@ -179,6 +179,9 @@
     .stat-value.negative { color: #ff6b6b; }
     .stat-note { color: #999; font-size: 0.8rem; margin-top: 0.35rem; line-height: 1.35; }
     .stat-note:empty { display: none; }
+    /* How the break-even under the Win Rate tile is figured, shown with it. */
+    .stats-grid:has(+ .stat-footnote:not([hidden])) { margin-bottom: 0.75rem; }
+    .stat-footnote { color: #999; font-size: 0.8rem; line-height: 1.5; margin: 0 0 2rem; max-width: 80ch; }
 
     /* Performance (docs/tracking/performance.js) */
     .perf { background:#1a1a1a; border:1px solid #2a2a2a; border-radius:8px; padding:1.5rem; margin-bottom:2rem; display:grid; gap:1.1rem; }
@@ -452,6 +455,7 @@
       .stat-label { font-size: 0.75rem; margin-bottom: 0.2rem; }
       .stat-value { font-size: 1.3rem; }
       .stat-note { font-size: 0.7rem; margin-top: 0.2rem; }
+      .stat-footnote { font-size: 0.75rem; margin-bottom: 1.25rem; }
       .add-bet-section { padding: 1.1rem; margin-bottom: 1.25rem; }
       .form-grid { grid-template-columns: repeat(2, 1fr); gap: 0.7rem; }
       .form-group label { font-size: 0.75rem; margin-bottom: 0.25rem; }
@@ -605,6 +609,7 @@
           <div class="stat-note">Returned minus settled stake</div>
         </div>
       </div>
+      <p class="stat-footnote" id="breakEvenNote" hidden>How break-even is calculated: each decided bet’s odds are converted to the win probability they imply (−110 is 52.4%, +150 is 40%), and those are averaged, each bet counting once whatever its stake. Pushes are left out. It’s a guide rather than a profit line, since which bets win matters: one −200 bet and one +200 bet average 50%, yet going 1–1 makes money only if the underdog wins. ROI is the measure of profit.</p>
 
       <!-- Performance for the bets shown (docs/tracking/performance.js) -->
       <section class="perf" id="performance" aria-label="Performance" hidden></section>
@@ -1380,6 +1385,7 @@
         ? `Break-even at your prices: ${(perf.breakEven*100).toFixed(1).replace(/\.0$/,'')}%` : '';
       document.getElementById('winRateNote').textContent=[breakEven,pushes?`${pushes} push${pushes===1?'':'es'} not counted`:'']
         .filter(Boolean).join(' · ');
+      document.getElementById('breakEvenNote').hidden=!breakEven;
     }
 
     // ---- Filters + CSV download ---------------------------------------------

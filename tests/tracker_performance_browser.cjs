@@ -44,6 +44,9 @@ const rows=[
       assert.match(text,/8 settled bets in this view, 1 pending/);
       assert.doesNotMatch(text,/Bets won|ROI on \$/,'win rate and ROI are the tiles above');
       assert.equal(await p.locator('#winRateNote').textContent(),'Break-even at your prices: 48.9%','break-even sits with the win rate');
+      const how=p.locator('#breakEvenNote');
+      assert.ok(await how.isVisible(),'how break-even is calculated shows with it');
+      assert.match(await how.textContent(),/^How break-even is calculated: .*averaged, each bet counting once whatever its stake\. Pushes are left out\./);
       // Stake, returns, P/L and ROI cover the same settled bets; the pending ticket is listed apart.
       const tile=id=>p.locator('#'+id).textContent();
       assert.deepEqual(await Promise.all(['totalStaked','pendingNote','totalReturned','profitLoss','roi','roiNote','winRate'].map(tile)),
