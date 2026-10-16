@@ -178,7 +178,7 @@ Direction: **U** predicted under, **O** predicted over, **2** two-sided.
 6. *Season labels.* NHL and NBA seasons are labelled by the year they start (2019 =
    2019–20, including the 2020 bubble playoffs).
 
-**A2 — October 15, 2026, 10:05 p.m. EDT, after the game tables were assembled and before any
+**A2 — October 15, 2026, 9:54 p.m. EDT, after the game tables were assembled and before any
 NHL, NBA or MLB factor outcome was computed.**
 
 1. *Periods.* Source coverage: NHL and NBA 2007–08 through 2025–26 (19 seasons), MLB 2010
