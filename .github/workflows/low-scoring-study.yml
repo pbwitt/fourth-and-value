@@ -7,21 +7,32 @@ on:
     branches: ['claude/**']
     paths:
       - 'scripts/research/low_scoring/fetch.py'
+      - 'scripts/research/low_scoring/fetch-sports.json'
       - '.github/workflows/low-scoring-study.yml'
   workflow_dispatch:
 permissions:
   contents: read
-concurrency:
-  group: low-scoring-study-${{ github.ref }}
-  cancel-in-progress: true
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      sports: ${{ steps.plan.outputs.sports }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: plan
+        # Sports to (re)build; the rest keep the tables already committed.
+        run: echo "sports=$(jq -c . scripts/research/low_scoring/fetch-sports.json)" >> "$GITHUB_OUTPUT"
   fetch:
+    needs: plan
     runs-on: ubuntu-latest
     timeout-minutes: 300
+    concurrency:
+      group: low-scoring-${{ matrix.sport }}-${{ github.ref }}
+      cancel-in-progress: true
     strategy:
       fail-fast: false
       matrix:
-        sport: [nfl, nhl, nba, mlb]
+        sport: ${{ fromJSON(needs.plan.outputs.sports) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

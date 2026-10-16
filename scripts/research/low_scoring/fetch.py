@@ -92,8 +92,15 @@ class Cache:
 def pmap(fn, items, workers=8, label=''):
     items = list(items)
     out, t0 = [None] * len(items), time.time()
+
+    def safe(x):
+        try:
+            return fn(x)
+        except Exception as e:  # noqa: BLE001 - one bad record must not end a multi-hour fetch
+            print('ERROR', label, repr(x)[:120], repr(e)[:200], flush=True)
+            return None
     with ThreadPoolExecutor(workers) as ex:
-        for i, v in enumerate(ex.map(fn, items)):
+        for i, v in enumerate(ex.map(safe, items)):
             out[i] = v
             if (i + 1) % 2000 == 0:
                 print(f'  {label} {i + 1}/{len(items)} {time.time() - t0:.0f}s', flush=True)
@@ -128,8 +135,11 @@ def espn_board(cache, sport, lg, day):
             return None
         evs = []
         for ev in j.get('events', []):
-            c = ev['competitions'][0]
-            side = {x['homeAway']: x for x in c['competitors']}
+            try:
+                c = ev['competitions'][0]
+                side = {x['homeAway']: x for x in c['competitors']}
+            except (KeyError, IndexError, TypeError):
+                continue
             if 'home' not in side or 'away' not in side:
                 continue
             evs.append(dict(
