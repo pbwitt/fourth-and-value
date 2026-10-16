@@ -152,7 +152,7 @@ Direction: **U** predicted under, **O** predicted over, **2** two-sided.
 
 ## Amendments
 
-**A1 — October 15, 2026, 10:05 p.m. EDT, before any outcome was computed.**
+**A1 — October 15, 2026, 9:31 p.m. EDT, before any outcome was computed.**
 
 1. *NHL scoring.* The registered text said the shootout goal is not counted. That is
    wrong for settlement: U.S. sportsbooks grade NHL totals on the official final score,
