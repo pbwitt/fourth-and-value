@@ -54,7 +54,7 @@ const rows=[
       assert.doesNotMatch(text,/luck|±|NaN|undefined/i);
       const readout=panel.locator('[data-perf=readout]');
       await panel.locator('.perf-hit').nth(3).hover();
-      assert.match(await readout.textContent(),/Oct 1 · NFL · Receiver <b>X<\/b> receptions over 1\.5 · Won \+\$6\.25/,'escaped text, not markup');
+      assert.match(await readout.textContent(),/Oct 1 · NFL · Receiver <b>X<\/b> Receptions Over 1\.5 · Won \+\$6\.25/,'escaped text, not markup');
       assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,`overflow at ${width}`);
       await p.screenshot({path:`/tmp/fv-tracker-performance-${width}.png`,fullPage:true});
       // The summary and each part share as branded images through the tracker's share sheet.

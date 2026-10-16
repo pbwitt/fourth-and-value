@@ -2,6 +2,7 @@
 // running profit and results by sport, from the bets the filters show.
 const assert=require('node:assert/strict');
 const {summarize,html,context,scaleScene,pathScene,toSVG,PRO_LOW,PRO_HIGH}=require('../docs/tracking/performance.js');
+globalThis.FVManualBet=require('../docs/tracking/manual-bet.js'); // the page loads it for market names
 const bet=(game_date,league,status,odds,payout,extra={})=>({game_date,league,status,odds,stake_dollars:5,payout,created_at:game_date+'T12:00:00Z',...extra});
 const bets=[
   bet('2026-10-02','NHL','won',-140,8.57,{player:'Skater <b>One</b>',market_type:'sog',side:'under',line:2.5}),
@@ -43,7 +44,7 @@ assert.equal(context(summarize(bets.filter(b=>b.league==='NFL'))),'NFL · Oct 1 
 const path=toSVG(pathScene(s,600));
 assert.equal((path.match(/<circle class="perf-dot (won|lost|push)"/g)||[]).length,5);
 assert.equal((path.match(/<rect class="perf-hit" tabindex="0"[^>]*\/><circle class="perf-dot/g)||[]).length,5,'hover areas precede their dots');
-assert.match(path,/data-readout="Oct 2 · NHL · Skater &lt;b&gt;One&lt;\/b&gt; sog under 2\.5 · Won \+\$3\.57/,'readouts are escaped');
+assert.match(path,/data-readout="Oct 2 · NHL · Skater &lt;b&gt;One&lt;\/b&gt; Shots on goal Under 2\.5 · Won \+\$3\.57/,'readouts are escaped');
 assert.match(path,/<polyline class="perf-line" points="/);
 const scale=toSVG(scaleScene(s,600));
 assert.match(scale,/class="perf-pro"/);assert.match(scale,/class="perf-even"/);assert.match(scale,/You −0\.7%<\/text>/);

@@ -25,6 +25,8 @@ const boxscore={teams:{
   try{
     const p=await browser.newPage({viewport:{width:390,height:900}}),errors=[];
     p.on('pageerror',error=>errors.push(error.message));
+    // The day after the Sept 30 fixture games, so they stay inside the 14-day automatic grading window.
+    await p.clock.setFixedTime(new Date('2026-10-01T12:00:00Z'));
     await p.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
     await p.route('**/nav.js*',route=>route.fulfill({contentType:'text/javascript',body:''}));
     await p.route('https://cdn.jsdelivr.net/**',route=>route.fulfill({contentType:'text/javascript',body:''}));

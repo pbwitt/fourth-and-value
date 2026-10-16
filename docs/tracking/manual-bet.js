@@ -51,6 +51,26 @@
     }).sort((a, b) => (a.group === 'Game' ? 0 : 1) - (b.group === 'Game' ? 0 : 1));
   }
 
+  // The name the entry form shows for a saved market. Saved bets hold the ledger name
+  // ("pitcher_strikeouts", NHL "sog"), not always the offer board's key.
+  function marketLabel(league, market) {
+    if (!market) return '';
+    const value = String(market), sport = String(league || '').toUpperCase();
+    const known = marketOptions(sport).find(m => offers.leagues[sport].markets[m.key] === value);
+    if (known) return known.label;
+    const game = { h2h: 'Moneyline', moneyline: 'Moneyline', spreads: 'Spread', spread: 'Spread' };
+    if (value === 'totals' || value === 'total') return TOTAL[sport] || 'Total';
+    return game[value] || LABELS[value] || pretty(value);
+  }
+
+  // Bets tracked from the boards save the odds feed's book key; hand-entered bets save the name typed.
+  const BOOKS = {
+    betmgm: 'BetMGM', betonlineag: 'BetOnline.ag', betrivers: 'BetRivers', betus: 'BetUS', bovada: 'Bovada',
+    draftkings: 'DraftKings', fanatics: 'Fanatics', fanduel: 'FanDuel', lowvig: 'LowVig.ag', mybookieag: 'MyBookie.ag',
+    williamhill_us: 'Caesars',
+  };
+  const bookLabel = book => BOOKS[String(book ?? '').trim().toLowerCase()] || String(book ?? '');
+
   // The choices for the "Pick" field once a market is chosen.
   function sideOptions(kind, game) {
     if (kind === 'moneyline' || kind === 'spread') {
@@ -117,7 +137,7 @@
     return { ok: true, text: `Grades automatically about ${SETTLE_AFTER_HOURS} hours after the game starts, once it’s final.` };
   }
 
-  const api = { marketOptions, sideOptions, buildTicket, gradeCheck, kindOf, needsLine, needsPlayer, teamCode };
+  const api = { marketOptions, marketLabel, bookLabel, sideOptions, buildTicket, gradeCheck, kindOf, needsLine, needsPlayer, teamCode };
   if (node) { module.exports = api; return; }
 
   // ---- Browser form -----------------------------------------------------------

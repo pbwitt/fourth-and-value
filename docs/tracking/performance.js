@@ -97,8 +97,11 @@
     });
     shapes.push(['poly','perf-line',pts.map((p,i)=>[x(i),y(p.total)])]);
     const band=(W-pad.l-pad.r)/Math.max(1,pts.length-1);
+    // The tracker's market names once manual-bet.js has loaded; Node tests keep the saved key.
+    const marketName=b=>global.FVManualBet?.marketLabel(b.league,b.market_type)||b.market_type;
+    const sideName=s=>s?String(s).charAt(0).toUpperCase()+String(s).slice(1):s;
     pts.forEach((p,i)=>{
-      const b=p.bet,what=[b.player,b.market_type,b.side,b.line].filter(v=>v!==null&&v!==undefined&&v!=='').join(' ');
+      const b=p.bet,what=[b.player,marketName(b),sideName(b.side),b.line].filter(v=>v!==null&&v!==undefined&&v!=='').join(' ');
       const text=`${day(b.game_date)} · ${b.league||''} · ${what} · ${b.status==='won'?'Won':b.status==='push'?'Push':'Lost'} ${money(p.profit)} · total ${money(p.total)}`;
       shapes.push(['hit','perf-hit',x(i)-band/2,pad.t,band,H-pad.t-pad.b,text],
         ['circle',`perf-dot ${b.status}`,x(i),y(p.total),pts.length>60?2.5:W<480?3.5:4.5]);
