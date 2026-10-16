@@ -56,7 +56,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: low-scoring-${{ matrix.sport }}
-          path: reports/low-scoring-2026/data/
+          path: reports/low-scoring-2026/tables/
           retention-days: 30
   commit:
     needs: fetch
@@ -71,13 +71,13 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           pattern: low-scoring-*
-          path: reports/low-scoring-2026/data/
+          path: reports/low-scoring-2026/tables/
           merge-multiple: true
       - name: Commit the game tables to the branch
         run: |
           git config user.name "Fourth & Value Research"
           git config user.email "actions@github.com"
-          git add reports/low-scoring-2026/data/
+          git add reports/low-scoring-2026/tables/
           git diff --cached --quiet && { echo "no changes"; exit 0; }
           git commit -m "Low-scoring study: game tables from public sources (run ${{ github.run_id }})"
           for i in 1 2 3 4; do git pull --rebase origin "${GITHUB_REF_NAME}" && git push origin "HEAD:${GITHUB_REF_NAME}" && break; sleep $((i * 5)); done

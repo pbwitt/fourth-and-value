@@ -1,7 +1,7 @@
 """Build the game tables for the low-scoring study (Technical Report FV-2026-04).
 
 Runs in GitHub Actions (open network): python scripts/research/low_scoring/fetch.py <nfl|nhl|nba|mlb>
-Writes reports/low-scoring-2026/data/<sport>.jsonl.gz and <sport>-coverage.json. Free public sources
+Writes reports/low-scoring-2026/tables/<sport>.jsonl.gz and <sport>-coverage.json. Free public sources
 only; no paid odds request is made.
 
 Sources
@@ -31,7 +31,7 @@ from zoneinfo import ZoneInfo
 import requests
 
 ROOT = Path(__file__).resolve().parents[3]
-OUT = ROOT / 'reports/low-scoring-2026/data'
+OUT = ROOT / 'reports/low-scoring-2026/tables'
 CACHE_DIR = ROOT / '.low-scoring-cache'
 ET = ZoneInfo('America/New_York')
 WAYBACK = 'http://web.archive.org/web/2023id_/'
@@ -228,11 +228,23 @@ def sbro_games(sport, season):
     rows = sbro_rows(sport, season)
     if not rows:
         return [], Counter()
-    head = [str(h).strip().lower() if h is not None else '' for h in rows[0]]
+    head = [re.sub(r'[^a-z0-9]', '', str(h).lower()) if h is not None else '' for h in rows[0]]
     col = {h: i for i, h in enumerate(head) if h}
     issues, games = Counter(), []
-    body = [r for r in rows[1:] if r and r[0] is not None]
-    for v, h in zip(body[0::2], body[1::2]):
+    body = [r for r in rows[1:] if r and r[0] is not None and r[col['vh']] is not None]
+    pairs, i = [], 0
+    # Rows normally alternate visitor/home, but some files list home first or drop a row: pair two
+    # consecutive rows only when they share a date and are not both visitors or both home teams.
+    while i < len(body) - 1:
+        a, b = body[i], body[i + 1]
+        fa, fb = str(a[col['vh']]).strip().upper(), str(b[col['vh']]).strip().upper()
+        if a[col['date']] != b[col['date']] or (fa == fb and fa != 'N'):
+            issues['resync'] += 1
+            i += 1
+            continue
+        pairs.append((b, a) if (fa, fb) == ('H', 'V') else (a, b))
+        i += 2
+    for v, h in pairs:
         try:
             md = int(num(v[col['date']]))
         except (TypeError, ValueError):
@@ -251,8 +263,6 @@ def sbro_games(sport, season):
         except ValueError:
             issues['bad date'] += 1
             continue
-        if str(v[col['vh']]).strip().upper() not in ('V', 'N') or str(h[col['vh']]).strip().upper() not in ('H', 'N'):
-            issues['row pairing'] += 1
         fv, fh = num(v[col['final']]), num(h[col['final']])
         if sport == 'nhl':
             total = num(h[col['closeou']]) if 'closeou' in col else None
@@ -324,6 +334,17 @@ NHL_ESPN = {'LA': 'LAK', 'NJ': 'NJD', 'SJ': 'SJS', 'TB': 'TBL', 'UTAH': 'UTA', '
 
 def key_name(s):
     return re.sub(r'[^a-z]', '', s.lower())
+
+
+def team_code(name, table):
+    """Archive team name -> code; tolerates suffixes such as 'SeattleKraken' or 'Arizonas'."""
+    k = key_name(name)
+    if k in table:
+        return table[k]
+    for key in sorted(table, key=len, reverse=True):
+        if k.startswith(key):
+            return table[key]
+    return None
 
 
 def build_nhl():
@@ -404,11 +425,11 @@ def build_nhl():
         sb, issues = sbro_games('nhl', season)
         cov[f'{season}|sbro_issues'] = dict(issues)
         for s in sb:
-            home = NHL_SBRO.get(key_name(s['home_name']))
+            home = team_code(s['home_name'], NHL_SBRO)
             if home is None:
                 cov[f'unmapped:{s["home_name"]}'] = cov.get(f'unmapped:{s["home_name"]}', 0) + 1
                 continue
-            away = NHL_SBRO.get(key_name(s['away_name']))
+            away = team_code(s['away_name'], NHL_SBRO)
             d = date.fromisoformat(s['date'])
             cands = []
             for dd in (d, d - timedelta(days=1), d + timedelta(days=1)):
@@ -426,7 +447,8 @@ def build_nhl():
                 g.update(line=s['line'], line_open=s['line_open'], line_source='sbro', sbro_final=(s['away_final'], s['home_final']))
                 matched.add(g['gid'])
     espn_cache = Cache('nhl-espn')
-    recent = sorted({g['date'] for g in games.values() if g['season'] >= 2023})
+    # ESPN's odds feed starts in 2019-20; it supplies later seasons and archive games left unmatched.
+    recent = sorted({g['date'] for g in games.values() if g['season'] >= 2023 or (g['season'] >= 2019 and g['gid'] not in matched)})
     boards = pmap(lambda d: espn_board(espn_cache, 'hockey', 'nhl', date.fromisoformat(d)), recent, 6, 'nhl boards')
     espn_cache.save()
     events = []
@@ -510,11 +532,11 @@ def build_nba():
         sb, issues = sbro_games('nba', season)
         cov[f'{season}|sbro_issues'] = dict(issues)
         for s in sb:
-            home = NBA_SBRO.get(key_name(s['home_name']))
+            home = team_code(s['home_name'], NBA_SBRO)
             if home is None:
                 cov[f'unmapped:{s["home_name"]}'] = cov.get(f'unmapped:{s["home_name"]}', 0) + 1
                 continue
-            away = NBA_SBRO.get(key_name(s['away_name']))
+            away = team_code(s['away_name'], NBA_SBRO)
             d = date.fromisoformat(s['date'])
             cands = []
             for dd in (d, d - timedelta(days=1), d + timedelta(days=1)):

@@ -1,7 +1,7 @@
 """Situational low-scoring study (Technical Report FV-2026-04): factor tests against closing totals.
 
 Run from the repository root: python3 scripts/research/low_scoring/study.py
-Reads the game tables in reports/low-scoring-2026/data/ (built by fetch.py in Actions) and writes
+Reads the game tables in reports/low-scoring-2026/tables/ (built by fetch.py in Actions) and writes
 reports/low-scoring-2026/results.json. Hypotheses, periods and pass rules are fixed in
 reports/low-scoring-2026/PREREGISTRATION.md; nothing here is tuned on outcomes.
 """
@@ -19,7 +19,7 @@ import pandas as pd
 from scipy import stats
 
 ROOT = Path(__file__).resolve().parents[3]
-DATA = Path(os.environ.get('LOW_SCORING_DATA', ROOT / 'reports/low-scoring-2026/data'))
+DATA = Path(os.environ.get('LOW_SCORING_DATA', ROOT / 'reports/low-scoring-2026/tables'))
 OUT = Path(os.environ.get('LOW_SCORING_OUT', ROOT / 'reports/low-scoring-2026/results.json'))
 BREAK_EVEN = 110 / 210          # win rate needed at -110
 MIN_GAMES = 100
