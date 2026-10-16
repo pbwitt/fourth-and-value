@@ -223,7 +223,9 @@ const server=http.createServer((req,res)=>{
     delete feeds.Card;await page.clock.fastForward(5*60e3);await page.waitForTimeout(100);
     assert.equal(await page.locator('#daily-picks-rows [data-track-pick]').count(),1,'temporary endpoint failure retains dated card');
     await page.clock.fastForward(24*3600e3);
-    assert.match(await page.locator('#picks-status').textContent(),/Previous edition/);
+    assert.match(await page.locator('#picks-status').textContent(),/Waiting for today’s morning edition/);
+    assert.match(await page.locator('#daily-picks-rows').textContent(),/Today’s card is not published yet/);
+    assert.equal(await page.locator('#daily-picks-rows [data-track-pick]').count(),0,'a previous day’s card must not stand in for today’s');
     await page.screenshot({path:'/tmp/fv-morning-edition-persisted.png',fullPage:true});
     await page.goto(base+'/props/insights.html');await page.waitForURL(base+'/nfl/');
     await page.goto(base+'/briefing/2026-09-26.html');assert.equal(await page.locator('#daily-picks').count(),0,'dated archive must never show current picks');

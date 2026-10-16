@@ -1,26 +1,51 @@
-"""Shared Odds API credit floor for every job that spends credits.
+"""Shared Odds API credit budget for every job that spends credits.
 
-The owner's rule: no job may take the shared Odds API balance below 2,000 credits,
-and no single run may spend more than 2,000 without approval. Every paid request
-goes through ``CreditBudget.ensure`` first and ``CreditBudget.observe`` after.
+The provider resets the balance at midnight UTC on the 1st of each month (observed
+October 1, 2026) and unused credits do not carry over, so nothing is held back for its
+own sake. The owner's rules:
 
-``ODDS_CREDIT_FLOOR`` and ``ODDS_RUN_CAP`` can make the limits stricter, never looser.
-The balance comes from the provider's ``x-requests-remaining`` header. Until a
-response has reported it, only a free preflight or one small request is allowed.
+- Core jobs, the NFL, NHL and MLB refreshes the morning card is built from, may spend
+  the balance down to zero.
+- Optional jobs (NBA markets, the Pinnacle snapshot, editorial prices) must leave a
+  reserve for the core refreshes until the reset: ``CORE_DAILY`` credits for each day
+  left, shrinking to zero at the reset. Unknown jobs are optional.
+- No single run may spend more than 2,000 credits without the owner's approval.
+
+Every paid request goes through ``CreditBudget.ensure`` first and ``CreditBudget.observe``
+after. ``ODDS_CREDIT_FLOOR``, ``ODDS_CORE_DAILY`` and ``ODDS_RUN_CAP`` can make the limits
+stricter, never looser. The balance comes from the provider's ``x-requests-remaining``
+header. Until a response has reported it, only a free preflight or one small request is
+allowed. The Live Odds and closing-lines Edge Functions keep their own 2,000-credit
+reserves, so they stop first.
 """
 from __future__ import annotations
 
 import os
 import re
+from datetime import datetime, timezone
 
-FLOOR = 2000
+FLOOR = 0           # core refreshes may spend to zero; the balance resets monthly
+CORE_DAILY = 500    # credits a day the core refreshes use (October 2026: ~450-550)
 RUN_CAP = 2000
+CORE, OPTIONAL = 'core', 'optional'
 UNKNOWN_BALANCE_MAX = 50   # the most one request may cost before the balance is known
 SPORTS_URL = 'https://api.the-odds-api.com/v4/sports'   # free; reports the balance
 
 
 class CreditFloorReached(RuntimeError):
     """A paid Odds API request was refused to protect the shared balance."""
+
+
+def next_reset(now):
+    """The provider's monthly reset: midnight UTC on the 1st."""
+    now = now.astimezone(timezone.utc)
+    year, month = (now.year + 1, 1) if now.month == 12 else (now.year, now.month + 1)
+    return datetime(year, month, 1, tzinfo=timezone.utc)
+
+
+def core_reserve(now, core_daily=CORE_DAILY):
+    """Credits optional jobs must leave for the core refreshes until the reset."""
+    return core_daily * (next_reset(now) - now).total_seconds() / 86400
 
 
 def _number(value):
@@ -56,12 +81,23 @@ def estimate_cost(path, params=None):
 
 
 class CreditBudget:
-    def __init__(self, floor=None, run_cap=None, label='odds'):
+    def __init__(self, floor=None, run_cap=None, label='odds', tier=OPTIONAL, clock=None):
+        if tier not in (CORE, OPTIONAL):
+            raise ValueError(f'unknown credit tier {tier!r}')
         self.floor = max(FLOOR, floor or 0, _limit('ODDS_CREDIT_FLOOR', FLOOR, max))
+        self.core_daily = _limit('ODDS_CORE_DAILY', CORE_DAILY, max)
         self.run_cap = min(RUN_CAP, run_cap or RUN_CAP, _limit('ODDS_RUN_CAP', RUN_CAP, min))
+        self.tier = tier
+        self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.remaining = None
         self.spent = 0.0
         self.label = label
+
+    def reserve(self):
+        """Credits this job must leave: the floor, plus the core reserve for optional jobs."""
+        if self.tier == CORE:
+            return self.floor
+        return max(self.floor, core_reserve(self.clock(), self.core_daily))
 
     def observe(self, headers):
         """Record the balance and cost the provider reported for a response."""
@@ -92,10 +128,15 @@ class CreditBudget:
                 raise CreditFloorReached(
                     f'{self.label}: the Odds API balance is unknown, so a {cost:.0f}-credit request was refused.')
             return
-        if self.remaining - cost < self.floor:
+        reserve = self.reserve()
+        if self.remaining - cost < reserve:
+            if self.tier == OPTIONAL and reserve > self.floor:
+                raise CreditFloorReached(
+                    f'{self.label}: {self.remaining:.0f} credits left; this request could use the '
+                    f'{reserve:.0f} credits kept for the NFL, NHL and MLB refreshes until the monthly reset.')
             raise CreditFloorReached(
                 f'{self.label}: {self.remaining:.0f} credits left; this request could take the shared '
-                f'balance below the {self.floor:.0f}-credit floor.')
+                f'balance below the {reserve:.0f}-credit floor.')
 
 
 def requests_preflight(api_key, session=None):

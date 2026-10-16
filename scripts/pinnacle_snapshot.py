@@ -6,8 +6,8 @@ events in our own feeds that start within 36 hours, so the split between Pinnacl
 the US-book median can be fitted against graded results (docs/model-improvement-plan.md,
 Step 2c). A one-market probe naming ten bookmakers records whether The Odds API bills
 them as one region. Nothing recorded here enters a model, a pick or a public page.
-Paid requests go through the shared credit floor (scripts/odds_budget.py) and the run
-stops at --max-credits. One snapshot per Eastern date; later starts skip.
+Paid requests go through the shared credit budget as an optional job (scripts/odds_budget.py),
+leaving the sports refreshes their reserve, and the run stops at --max-credits. One snapshot per Eastern date; later starts skip.
 """
 import argparse
 import json
@@ -21,7 +21,7 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common_markets import ALIAS_MAP
 from display_time import EASTERN, eastern_time
-from odds_budget import CreditBudget, CreditFloorReached, estimate_cost, requests_preflight
+from odds_budget import OPTIONAL, CreditBudget, CreditFloorReached, estimate_cost, requests_preflight
 
 API = 'https://api.the-odds-api.com/v4/sports'
 GAME = ['h2h', 'spreads', 'totals']
@@ -224,7 +224,7 @@ def main():
     key = os.environ.get('ODDS_API_KEY')
     if not key:
         sys.exit('ODDS_API_KEY is not set')
-    budget = CreditBudget(run_cap=args.max_credits, label='Pinnacle snapshot')
+    budget = CreditBudget(run_cap=args.max_credits, label='Pinnacle snapshot', tier=OPTIONAL)
     client = Client(key, budget)
     result = snapshot(client, budget, Path(args.root), now, [s.strip() for s in args.sports.split(',') if s.strip()])
     out.parent.mkdir(parents=True, exist_ok=True)

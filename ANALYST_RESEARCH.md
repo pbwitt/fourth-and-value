@@ -235,7 +235,9 @@ All bets should be reviewed before deciding. Missing news alone is not a veto.
 starts at **07:35, 08:05 and 08:35**. A gate reads current main before any sport
 pull: a completed same-day morning edition skips all three feeds and paid research, then
 verifies delivery. A missing or incomplete edition calls NFL, MLB and NHL reusable
-workflows, waits for all three, then calls research. A separate short handoff
+workflows, waits for all three, then calls research. A recovery start reuses an NFL
+refresh at most 45 minutes old instead of paying for it again (its result travels as
+`reused_fresh`); NHL and MLB refresh on every start. A separate short handoff
 dispatches editorial with scheduled recovery semantics; writing does not block
 Top Picks research or its recovery starts. Explicit test editions skip the
 automatic editorial handoff.
@@ -304,8 +306,10 @@ consider reviews must match the exact offer and be no older than three hours.
 Up to ten distinct ideas are written to `/briefing/morning-card.json` (schema 1)
 and an immutable `/briefing/cards/DATE-ID.json` archive. Each row preserves the
 original quote, model, market comparison, review and sources. Later updates never
-mutate the edition. Started games are labeled historical; previous-day editions
-are explicitly labeled previous. The separate research pool still expires rows.
+mutate the edition. Started games are labeled historical. Today's Picks and the
+home page show only the current Eastern date's edition: before it publishes (or
+if none does), they say so instead of showing the previous day's card, which
+remains in its dated archive. The separate research pool still expires rows.
 A temporary card-fetch failure retains the last dated card in an open browser.
 
 `--publish-card` skips before any paid call if this Eastern date already has a

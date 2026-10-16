@@ -29,6 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       refresh: ${{ steps.gate.outputs.refresh }}
+      refresh_nfl: ${{ steps.gate.outputs.refresh_nfl }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,7 +51,8 @@ jobs:
           python scripts/morning_operations.py "${args[@]}"
   nfl:
     needs: gate
-    if: needs.gate.outputs.refresh == 'true'
+    # A recovery start reuses an NFL refresh under 45 minutes old (scripts/morning_operations.py).
+    if: needs.gate.outputs.refresh == 'true' && needs.gate.outputs.refresh_nfl == 'true'
     uses: ./.github/workflows/nfl-weekly.yml
     with:
       editorial_refresh: true
@@ -72,7 +74,7 @@ jobs:
     with:
       test_edition: ${{ inputs.test_edition || false }}
       replace_card: ${{ inputs.replace_card || false }}
-      refresh_results: '{"NFL":"${{ needs.nfl.result }}","MLB":"${{ needs.mlb.result }}","NHL":"${{ needs.nhl.result }}"}'
+      refresh_results: '{"NFL":"${{ needs.gate.outputs.refresh == ''true'' && needs.gate.outputs.refresh_nfl == ''false'' && ''reused_fresh'' || needs.nfl.result }}","MLB":"${{ needs.mlb.result }}","NHL":"${{ needs.nhl.result }}"}'
     secrets: inherit
   # Record only: Pinnacle prices for the Step 2c refit. It runs beside research and
   # never feeds the card; a failure is a warning, not a failed edition.

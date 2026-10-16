@@ -273,6 +273,12 @@
       (r.human_decision==='select'||assessment(r.qualitative_review)?.verdict==='consider'&&!assessment(r.qualitative_review).blocking_checks.length))
       .map(r=>({...r,card_snapshot_at:edition.published_at,card_edition:edition.kind}));
   }
+  // Today's Picks and the home page show only the current Eastern day's edition.
+  // Before it publishes, the previous day's card stays in its dated archive rather
+  // than standing in for today's.
+  function currentEditionRows(edition,now=Date.now()) {
+    return edition?.decision_date===day(now)?editionRows(edition,now):[];
+  }
 
   function collect(feeds,now=Date.now()) {
     const selected=[],coverage=[],excluded=[],leans=[];
@@ -453,11 +459,11 @@
     const $=id=>document.getElementById(id);
     function render() {
       const now=Date.now(),result=collect(feeds,now);
-      const edition=feeds.Card,card=editionRows(edition,now),cardKeys=new Set(card.map(key)),pool=result.selected.filter(r=>!cardKeys.has(key(r)));
+      const edition=feeds.Card,today=edition?.decision_date===day(now),card=currentEditionRows(edition,now),cardKeys=new Set(card.map(key)),pool=result.selected.filter(r=>!cardKeys.has(key(r)));
       current=[...card,...pool];
       const openReviews=new Set(Array.from(root.querySelectorAll('.pick-research[open]')).map(el=>el.closest('tr').dataset.reviewKey));
-      const incomplete=edition?.status==='research_incomplete';
-      const emptyMessage=incomplete?'Morning research did not finish. This is not a completed no-pick day. See the research status below.':edition?.status==='no_reviewed_candidates'?'Research completed; no reviewed offers qualified for this edition.':'No published morning picks are available. The research pool is separate from the morning edition.';
+      const incomplete=today&&edition.status==='research_incomplete';
+      const emptyMessage=edition&&!today?'Today’s card is not published yet. The morning edition publishes after research finishes; the previous day’s card is not carried over.':incomplete?'Morning research did not finish. This is not a completed no-pick day. See the research status below.':edition?.status==='no_reviewed_candidates'?'Research completed; no reviewed offers qualified for this edition.':'No published morning picks are available. The research pool is separate from the morning edition.';
       document.getElementById('daily-picks-rows').innerHTML=card.map((r,i)=>rowHTML(r,i,tickets.get(key(r))?.saved)).join('')||`<tr><td colspan="6">${emptyMessage}</td></tr>`;
       const poolRows=$('research-picks-rows');if(poolRows)poolRows.innerHTML=pool.slice(0,visibleLimit).map((r,i)=>rowHTML(r,i+card.length,tickets.get(key(r))?.saved)).join('')||'<tr><td colspan="6">No additional research candidates.</td></tr>';
       const poolLabel=$('research-pool-label');if(poolLabel)poolLabel.textContent=`Research pool · ${pool.length} additional offers · not the daily card`;
@@ -466,7 +472,7 @@
       const editionAt=stamp(edition?.published_at),validEdition=Number.isFinite(editionAt)&&editionAt<=now&&edition?.schema_version===1&&['morning','test'].includes(edition.kind)&&edition.decision_date===day(editionAt)&&Array.isArray(edition.rows)&&edition.rows.length<=SHORTLIST_LIMIT;
       const tierCounts=rows=>{const h=rows.filter(r=>confidenceOf(r.blend)==='high').length,m=rows.filter(r=>confidenceOf(r.blend)==='moderate').length;return m?` (${h} high, ${m} moderate confidence)`:'';};
       const health=incomplete?' · Research incomplete: '+(edition.research?.issues||['Some assessments could not be completed']).join('; '):edition?.status==='no_reviewed_candidates'?' · Research completed; no qualifying picks':'';
-      document.getElementById('picks-status').textContent=validEdition?`${card.length} reviewed picks${tierCounts(card)} · ${edition.kind==='test'?'Test':'Morning'} edition for ${edition.decision_date} · Published ${time(edition.published_at)}${edition.decision_date!==day(now)?' · Previous edition; today’s edition is not available':''}${health}. Original prices and analysis; not continuously reassessed.`:'0 reviewed picks · Waiting for the morning edition. Data refreshes are scheduled for 7:05 a.m. Eastern, with recovery starts at 7:35, 8:05 and 8:35.';
+      document.getElementById('picks-status').textContent=validEdition&&today?`${card.length} reviewed picks${tierCounts(card)} · ${edition.kind==='test'?'Test':'Morning'} edition for ${edition.decision_date} · Published ${time(edition.published_at)}${health}. Original prices and analysis; not continuously reassessed.`:'0 reviewed picks · Waiting for today’s morning edition. Data refreshes are scheduled for 7:05 a.m. Eastern, with recovery starts at 7:35, 8:05 and 8:35; the card publishes after research finishes.';
       const exposure=$('picks-exposure');if(exposure){const games=new Set(card.map(r=>r.exposure_group||r.sport+':'+r.game_id));exposure.textContent=card.length>1&&games.size===1?'All shortlisted offers are from one game and share exposure. They are not independent signals.':'';}
       document.getElementById('picks-coverage').textContent=result.coverage.map(c=>`${c.sport}: ${c.message}`).join(' · ');
       const leanList=$('picks-leans'),leanSection=$('picks-leans-section');
@@ -501,7 +507,7 @@
       const button=event.target.closest('[data-track-pick]');if(!button)return;
       const row=current[Number(button.dataset.trackPick)];if(!row)return;
       const itemKey=key(row);
-      if(![...editionRows(feeds.Card),...collect(feeds,Date.now()).selected].some(r=>key(r)===itemKey)){render();return;}
+      if(![...currentEditionRows(feeds.Card),...collect(feeds,Date.now()).selected].some(r=>key(r)===itemKey)){render();return;}
       draft=tickets.get(itemKey)||{id:crypto.randomUUID(),row:{...row},saved:false};tickets.set(itemKey,draft);
       form.reset();$('track-save').disabled=!!draft.saved;$('track-feedback').textContent='';$('track-signin').hidden=true;
       $('track-bet-description').textContent=`${row.sport} · ${row.game} · ${betLabel(row)} · ${row.book_label||row.book}`;
@@ -546,11 +552,10 @@
   }
   // Home page: the first pick on today's published card whose game has not started,
   // else the card's first pick (shown as started), so the day's pick stays up all day.
-  // It reads the same edition through editionRows, so it can never disagree with
-  // Today's Picks; it never promotes a research-pool offer.
+  // It reads the same edition through currentEditionRows, so it can never disagree
+  // with Today's Picks; it never promotes a research-pool offer.
   function featuredPick(edition,now=Date.now()) {
-    if(edition?.decision_date!==day(now))return null;
-    const rows=editionRows(edition,now);
+    const rows=currentEditionRows(edition,now);
     return rows.find(r=>stamp(r.commence_time)>now)||rows[0]||null;
   }
   const shortTime=s=>new Date(s).toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+' ET';
@@ -579,6 +584,6 @@
       `<p class="muted"><strong>The case against:</strong> ${esc(r.qualitative_review.countercase)}</p>`+
       `<p class="meta">${started?'<strong>Game started · historical assessment.</strong> ':''}Original price and analysis from the ${esc(shortTime(r.card_snapshot_at))} edition.${started?'':' Confirm the current line before deciding.'}</p>${links}`;
   }
-  if(typeof module==='object'&&module.exports)module.exports={collect,shortlist,editionRows,ideaKey,SHORTLIST_LIMIT,CARD_CAPS,BLEND,blend,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus,featuredPick,featuredHTML};
+  if(typeof module==='object'&&module.exports)module.exports={collect,shortlist,editionRows,currentEditionRows,ideaKey,SHORTLIST_LIMIT,CARD_CAPS,BLEND,blend,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus,featuredPick,featuredHTML};
   else {global.FVPicks={featuredPick,featuredHTML};mount();}
 })(typeof window==='undefined'?globalThis:window);

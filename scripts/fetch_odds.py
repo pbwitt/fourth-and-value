@@ -16,10 +16,11 @@ import argparse, os, sys, json, urllib.parse, urllib.request
 import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from odds_budget import CreditBudget, CreditFloorReached, estimate_cost, urllib_preflight
+from odds_budget import CORE, CreditBudget, CreditFloorReached, estimate_cost, urllib_preflight
 
-# Shared 2,000-credit floor and per-run cap (scripts/odds_budget.py).
-BUDGET = CreditBudget(label="NFL game odds")
+# Core refresh for the morning card: may spend the shared balance to zero; per-run cap
+# applies (scripts/odds_budget.py).
+BUDGET = CreditBudget(label="NFL game odds", tier=CORE)
 
 def fetch_json(url: str, timeout: int = 30):
     req = urllib.request.Request(url, headers={"User-Agent": "nfl-2025/1.0"})
