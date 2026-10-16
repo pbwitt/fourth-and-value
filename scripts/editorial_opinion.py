@@ -19,7 +19,7 @@ Do not pad the article with a list of unavailable betting data. Stay on the requ
 topic; return publish=false with a brief reason if the available sources cannot
 support it. Never replace the topic with an unrelated news story.
 Use at least two fetched source domains and a dated source from the last seven days.
-Cite the factual basis of every section with the supplied source IDs. Sources must
+List the supplied source IDs behind every section in its source_ids. Sources must
 use the exact fetched IDs, URLs and dates. Two reports repeating the same remarks
 are not independent corroboration. Paraphrase; quote no source verbatim.
 Write for readers without discussing software, assignments or generation technology.
