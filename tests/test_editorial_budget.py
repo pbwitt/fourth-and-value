@@ -92,6 +92,50 @@ class BudgetTests(unittest.TestCase):
             self.assertEqual(catalog[0]['featured_until'],'2026-09-23T00:00:00+00:00')
             w.run(self.now,1)
             self.assertEqual(api.call_count,2)
+    def story(self,replies):
+        """Run one MLB story against these model replies; return the API mock, slot and docs path."""
+        root=Path(self.temp.name);docs=root/'docs';state=root/'runs'
+        (docs/'editorial').mkdir(parents=True)
+        w.ed.write_json(state/'2026-09-22.json',{'allocation':[['MLB','news-market']],'slots':{}})
+        reporting=[{'id':s,'title':'Report','url':url,'published_at':'2026-09-22','excerpt':'Private source excerpt'} for s,url in [('s1','https://mlb.com/news/a'),('s2','https://www.espn.com/mlb/b')]]
+        packet={'sport':'MLB','data_readiness':{'ready':True},'markets':[{'id':'game','event_id':'game','game':'Away @ Home','commence_time':'2026-09-23T00:00:00Z'}],'model_rows':[{'id':'model-game','event_id':'game','game':'Away @ Home','model_mean':5.2,'model_version':'v1','model_input_through':'2026-09-21'}]}
+        def article(title):return {'publish':True,'title':title,'excerpt':'A substantial original summary of the matchup and market.','sections':[{'heading':'Context','text':'Experimental '+'Analysis '*149,'source_ids':['s1','s2']} for _ in range(4)],'sources':[{k:v for k,v in r.items() if k!='excerpt'} for r in reporting],'market_ids':['game','model-game']}
+        def response(value):return {'status':'completed','usage':{'input_tokens':1000,'output_tokens':800},'output':[{'content':[{'type':'output_text','text':json.dumps(value)}]}]}
+        class FixedDate(datetime):
+            @classmethod
+            def now(cls,tz=None):return datetime(2026,9,22,12,tzinfo=timezone.utc)
+        replies=[response(article(r) if isinstance(r,str) else r) for r in replies]
+        with patch.object(w,'datetime',FixedDate),patch.object(w.ed,'DOCS',docs),patch.object(w.ed,'ROOT',root),patch.object(w,'STATE',state),patch.object(w,'evidence',return_value=packet),patch.object(w.reporting,'collect',return_value=reporting),patch.object(b,'checkpoint'),patch.object(w.ed,'render_home'),patch.object(w,'call_api',side_effect=replies) as api,patch('builtins.print'):
+            w.run(self.now,1)
+        return api,json.loads((state/'2026-09-22.json').read_text())['slots']['0-mlb'],docs
+    def test_rejected_draft_gets_one_revision_against_the_audit_findings(self):
+        findings='Section 2 says "our evidence states" the lineup is unknown; state it as of the quote time.'
+        api,slot,docs=self.story(['A first market analysis headline',{'pass':False,'reason':findings},'A revised market analysis headline',{'pass':True,'reason':'Checks hold.'}])
+        calls=[c.args[0] for c in api.call_args_list]
+        self.assertEqual([c['model'] for c in calls],['claude-sonnet-5-5','claude-opus-5-5','claude-sonnet-5-5','claude-opus-5-5'])
+        revision=json.loads(calls[2]['input'])
+        self.assertEqual(revision['audit_findings'],findings)
+        self.assertEqual(revision['rejected_draft']['title'],'A first market analysis headline')
+        self.assertIn('rejected_draft',calls[2]['instructions'])
+        self.assertEqual(calls[2]['max_output_tokens'],b.LIMITS['revise'][1])
+        # The fresh audit sees the revised draft and the same evidence.
+        self.assertEqual(json.loads(calls[3]['input'])['article']['title'],'A revised market analysis headline')
+        self.assertEqual(json.loads(calls[3]['input'])['evidence'],json.loads(calls[1]['input'])['evidence'])
+        self.assertEqual((slot['status'],slot['first_audit_reason'],slot['audit_reason']),('published',findings,'Checks hold.'))
+        self.assertIn('revision_usage',slot);self.assertIn('revision_review_usage',slot)
+        catalog=json.loads((docs/'editorial/published.json').read_text())
+        self.assertEqual(catalog[0]['title'],'A revised market analysis headline')
+        (entry,)=b.read()['entries']
+        self.assertAlmostEqual(entry['charge_usd'],2*(1000*2.5+800*10+1000*5+800*20)/1e6)
+    def test_second_rejection_stands_without_a_third_attempt(self):
+        api,slot,docs=self.story(['A first market analysis headline',{'pass':False,'reason':'First problem.'},'A revised market analysis headline',{'pass':False,'reason':'Second problem.'}])
+        self.assertEqual(api.call_count,4)
+        self.assertEqual((slot['status'],slot['first_audit_reason'],slot['reason']),('skipped','First problem.','Factual audit did not pass: Second problem.'))
+        self.assertFalse((docs/'editorial/published.json').exists())
+    def test_story_reservation_covers_a_revision(self):
+        models={'write':'claude-sonnet-5-5','revise':'claude-sonnet-5-5','audit':'claude-opus-5-5'}
+        self.assertAlmostEqual(b.maximum(models,b.STORY),b.maximum(models)+b.maximum(models,('revise','audit')),places=5)
+        self.assertLess(b.maximum(models,b.STORY),w.ed.CFG['writer']['weekly_budget_usd']/10)
     def test_writer_uses_configured_effort_and_audit_stays_low(self):
         with patch.dict(w.ed.CFG['writer'],{'reasoning_effort':'medium'}):
             self.assertEqual(w.payload('x',{},'write')['reasoning']['effort'],'medium')

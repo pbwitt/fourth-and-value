@@ -84,7 +84,34 @@ class WriterGuards(unittest.TestCase):
                 self.assertIn('url or published_at differs from the fetched reporting',text)
                 self.assertIn('fewer than two domains',text)
                 self.assertIn('market_ids entry that is not a supplied record ID',text)
+                self.assertIn('labels such as (s1), in section text',text)
                 self.assertIn('screening or review steps',text)
+    def test_writer_and_audit_share_one_attribution_rule(self):
+        # October 13-16 drafts followed "say what our available evidence supports" and
+        # failed the audit for "our evidence states..."; the prompts may not ask for it.
+        import editorial_opinion as opinion
+        for base in (w.PROMPT,opinion.PROMPT,w.OVERVIEW_PROMPT,w.TEAM_PLAYOFF_PROMPT):
+            text=w.writer_instructions(base)
+            with self.subTest(prompt=base[:40]):
+                self.assertNotIn('our available evidence',text)
+                self.assertNotIn('Refer to our snapshot',text)
+                self.assertNotIn('Cite factual reporting in each section with source IDs',text)
+                self.assertIn('never attribute a fact to our evidence',text)
+                self.assertIn('as of a stated time',text)
+        self.assertIn(w.PUBLIC_VOICE,w.AUDIT_PROMPT)
+        self.assertIn('"Our snapshot" may name the dated prices',w.AUDIT_PROMPT)
+    def test_source_labels_are_removed_from_text(self):
+        ids={'s1','s2','s10'}
+        text='The total is 44.5 (s1). Denver listed two absences [s2, s10].\n\nA new paragraph (sources: s1 and s2) ends here.'
+        self.assertEqual(w.strip_source_labels(text,ids),
+                         'The total is 44.5. Denver listed two absences.\n\nA new paragraph ends here.')
+        # Only exact source IDs: other brackets and unknown IDs stay.
+        for kept in ('He threw 7 innings (a season high).','The line moved (s3).','An under (s1 price) was posted.'):
+            self.assertEqual(w.strip_source_labels(kept,ids),kept)
+        self.article['sources']=[dict(s,id=i) for s,i in zip(self.article['sources'],['s1','s2'])]
+        for s in self.article['sections']:s.update(source_ids=['s1'],text='word '*150+'(s1)')
+        w.validate(self.article,self.response,self.packet,self.now)
+        self.assertEqual(self.article['sections'][0]['text'],'word '*149+'word')
     def test_rejections_name_the_failed_check(self):
         self.article['sections'][1]['source_ids']=[]
         with self.assertRaisesRegex(ValueError,r'Missing section citations \(section 2 of 4 lists no source\)'):

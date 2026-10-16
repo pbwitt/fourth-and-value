@@ -209,7 +209,9 @@ including the cache-write premium as a conservative allowance: Sonnet $2.50/M in
 October 12; Sol matches Sonnet and Astra is $12.50/M input (list $10) and $50/M
 output, checked September 22. The largest possible story reservation falls from
 about $0.49 (Sol write plus Astra audit) to about $0.37 (Sonnet write plus Opus audit at
-the October 12 output ceilings below). Reservations and settlement
+the October 12 output ceilings below). Since October 16 a story reserves about $0.76,
+enough for one revision and a fresh audit; it settles at the actual charge (about $0.09
+per write-and-audit round from October 12 to 16). Reservations and settlement
 use each call's own model rate. Recheck these rates before changing models or if
 pricing changes.
 
@@ -217,14 +219,33 @@ Each story allows one write (18,000 input UTF-8 bytes + framing allowance; 8,000
 output tokens) and one audit (24,000 input bytes + framing; 4,000 output tokens).
 Claude counts thinking against both ceilings; the audit's rose from 1,000 on October 12
 so its thinking cannot crowd out the verdict.
+A draft the audit rejects gets **one revision** (since October 16, 2026): the writer
+receives the rejected draft and the audit's findings (`revise`: 28,000 input bytes +
+framing; 8,000 output tokens, at the writer's effort) and returns a complete corrected
+draft, which passes the same publication checks and a fresh audit against the same
+evidence. The audit is asked to name each passage that must change. A second rejection
+stands; there is no third attempt. The run ledger records `first_audit_reason`,
+`revision_usage` and `revision_review_usage` for a revised daily story; a requested
+draft's findings stay private. From October 12 to 16, eight of nine Claude story slots
+went unpublished (five failed the audit, mostly over one fixable passage), against 34
+of 41 published from September 22 to October 11.
 Every article is public. Since October 12 the writer and the audit both carry one
 publication-voice rule (`PUBLIC_VOICE` in `editorial_writer.py`): write as a professional
 sports publication and never describe the workflow, data fields, screening, requests or
-how the piece was produced. The audit rejects drafts that do. Every writer prompt also
+how the piece was produced. The audit rejects drafts that do. Since October 16 the rule
+also says how to attribute: state each fact with its source and, for a price, the
+sportsbook and Eastern time; never attribute a fact to "our evidence", data, files or
+records; "our snapshot" may name the dated prices and model estimates every article links;
+say what had not happened as of a stated time rather than what our files lack. Until then
+the analysis prompt told the writer to "say what our available evidence supports" and
+"refer to our snapshot", and the October 13–16 audits rejected drafts that did so
+("our evidence states…", "snapshot", "tracked books"). Every writer prompt also
 ends with `ARTICLE_RULES`, which states the publication checks a draft fails on: at least
 four sections, at least one source ID in every section, each source's URL and
 publication date copied exactly from the fetched reporting, sources from at least two
-domains, and only supplied record IDs in `market_ids`. A test
+domains, and only supplied record IDs in `market_ids`. Source IDs belong only in
+`source_ids`; validation removes bracketed source IDs such as "(s1)" left in section
+text (an October 15 draft failed the audit for printing them). A test
 (`test_every_article_rule_is_stated_to_the_writer`) fails if a check is not stated.
 Rejection reasons in the public run ledger name the check without draft text (for example
 "Missing section citations (section 2 of 4 lists no source)"). For a rejected daily draft,
@@ -266,7 +287,8 @@ Tests cover freshness, escaping, citations, duplicate runs, publication/audit fl
 source handling, seven-day budget expiry, retained uncertain charges and checkpoint
 failure. Local runs need environment credentials; scripts do not load `.env`.
 Use the GitHub workflow for normal publication so reservations are durable before
-paid calls. No paid retry is automatic.
+paid calls. No paid retry is automatic. The one revision after a rejected audit is part
+of the same story and reservation; a story that fails or stops is not attempted again.
 
 ### Historical launch
 

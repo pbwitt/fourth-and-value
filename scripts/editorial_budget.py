@@ -16,8 +16,11 @@ RATES={'gpt-6-astra':(12.5/1000000,50/1000000),'gpt-6.1-sol':(2.5/1000000,10/100
        'claude-sonnet-5-5':(2.5/1000000,10/1000000),'claude-opus-5-5':(5/1000000,20/1000000)}
 INPUT_RATE,OUTPUT_RATE=RATES['gpt-6-astra']
 # Claude counts thinking against the output ceiling, so the audit needs room
-# beyond its short JSON verdict.
-LIMITS={'write':(18000,8000),'audit':(24000,4000)}
+# beyond its short JSON verdict. A revision resends the writing input plus the
+# rejected draft and the audit's findings.
+LIMITS={'write':(18000,8000),'audit':(24000,4000),'revise':(28000,8000)}
+# A story is a write and its audit, plus at most one revision and a fresh audit.
+STORY=('write','audit','revise','audit')
 ASTRA='gpt-6-astra'
 
 def bounds(payload,phase):
@@ -29,11 +32,11 @@ def bounds(payload,phase):
     # Byte count upper-bounds the byte-based tokenizer; reserve extra framing space.
     return round(((encoded+1024)*inp+output*out)*1.10,6)
 
-def maximum(models=None):
-    """Largest write+audit charge; models maps a phase to a non-default model."""
+def maximum(models=None,phases=('write','audit')):
+    """Largest charge for these phases (default write+audit); models maps a phase to a non-default model."""
     models=models or {}
-    return round(sum(((cap+1024)*RATES[models.get(phase,ASTRA)][0]+out*RATES[models.get(phase,ASTRA)][1])*1.10
-                     for phase,(cap,out) in LIMITS.items()),6)
+    return round(sum(((LIMITS[phase][0]+1024)*RATES[models.get(phase,ASTRA)][0]+LIMITS[phase][1]*RATES[models.get(phase,ASTRA)][1])*1.10
+                     for phase in phases),6)
 
 def cost(usage,model=ASTRA):
     # No cached-input discount assumed. Exact invoice may be lower.

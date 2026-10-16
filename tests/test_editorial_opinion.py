@@ -76,7 +76,8 @@ class OpinionGenerationTests(unittest.TestCase):
                  patch.object(w.ideas, 'fail') as fail, \
                  patch.object(w.reporting, 'collect', return_value=self.sources if sources else []), \
                  patch.object(w, 'call_api', return_value=response) as api, \
-                 patch.object(w, 'response_text', side_effect=[json.dumps(self.article), json.dumps({'pass': audit})]):
+                 patch.object(w, 'response_text', side_effect=[json.dumps(self.article), json.dumps({'pass': audit})]
+                              + ([] if audit else [json.dumps(self.article), json.dumps({'pass': False})])):
                 w.run(self.now, limit=1, idea_id=None if daily else row['id'], publish_own=True)
             market_data.assert_not_called()
             self.assertFalse((docs / 'editorial/articles').exists())
@@ -93,8 +94,11 @@ class OpinionGenerationTests(unittest.TestCase):
                 api.assert_not_called(); claim.assert_not_called(); save.assert_not_called(); waiting.assert_called_once()
                 self.assertFalse((root / 'budget.json').exists())
             else:
-                self.assertEqual(api.call_count, 2); save.assert_not_called(); fail.assert_called_once()
+                # One revision against the audit's findings, then the rejection stands.
+                self.assertEqual(api.call_count, 4); save.assert_not_called(); fail.assert_called_once()
                 self.assertEqual(fail.call_args.args[0]['body'], row['body'])
+                revision = json.loads(api.call_args_list[2].args[0]['input'])
+                self.assertIn('rejected_draft', revision); self.assertNotIn('current_draft', revision)
 
     def test_reader_opinion_returns_private_draft_despite_legacy_publish_flag(self):
         self.run_writer()
