@@ -152,4 +152,28 @@ Direction: **U** predicted under, **O** predicted over, **2** two-sided.
 
 ## Amendments
 
-None yet.
+**A1 — October 15, 2026, 10:05 p.m. EDT, before any outcome was computed.**
+
+1. *NHL scoring.* The registered text said the shootout goal is not counted. That is
+   wrong for settlement: U.S. sportsbooks grade NHL totals on the official final score,
+   which awards the shootout winner one goal. `actual` is the official final score.
+2. *Test statistic.* "Mean residual has the predicted sign" is made precise as the
+   **excess residual**: mean residual of factor games minus mean residual of the other
+   games in the same universe and period. Its p-value is Welch's two-sample t-test. This
+   removes era-wide drift (for example, NFL overs running slightly ahead of the line).
+   Bettability still uses the factor games' own under (or over) rate.
+3. *Universes.* Weather factors compare against other outdoor (or open-roof) games
+   where the same measurement is recorded. NFL-8 and NFL-14 compare within the regular
+   season. Officials compare against games worked by other officials rated in discovery.
+   Every other factor compares against all games in the period.
+4. *Lines by source.* NFL: nflverse `total_line` (closing). NHL and NBA through 2022–23:
+   the SportsbookReviewsOnline closing total (preserved by the Internet Archive). NHL and
+   NBA from 2023–24, and all MLB: the median of the books' final pre-game totals in
+   ESPN's odds feed, excluding live, opening and retired feeds.
+5. *Officials.* The NBA crew chief is the first-listed official in ESPN's data. NHL
+   games have two referees; the factor applies if either is rated low-scoring. Because
+   the discovery period selects the officials, discovery-period figures for NFL-12,
+   NHL-11, NBA-11 and MLB-12 are in-sample by construction and only the replication
+   period counts.
+6. *Season labels.* NHL and NBA seasons are labelled by the year they start (2019 =
+   2019–20, including the 2020 bubble playoffs).
