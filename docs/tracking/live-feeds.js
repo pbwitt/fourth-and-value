@@ -3,12 +3,14 @@
 
    game:   {id, league, start, state: pre|live|final|off, detail, elapsed,
            home:{name, abbrev, short, score}, away:{...}}
-   box:    {game, players:[{name, side: home|away, played, position, stats:{canonical: n}}]}
+   box:    {game, players:[{name, side: home|away, played, position, stats:{canonical: n}, exited?}]}
 //
-   `elapsed` is the share of regulation played (0-1), or null where a clock
-   fraction means little (MLB). `position` is a short label ("RW", "D", "SP",
-   "WR") or '' when the feed has none. Stats are live and unofficial; grading
-   still uses the official post-game pipeline.
+   `elapsed` is the share of regulation played (0-1): game clock, or outs
+   recorded in MLB; null when unknown. `position` is a short label ("RW", "D",
+   "SP", "WR") or '' when the feed has none. MLB players carry `exited:
+   {batting, pitching}`, true once replaced, when that line can no longer
+   grow. Stats are live and unofficial; grading still uses the official
+   post-game pipeline.
 
    MLB and ESPN (NFL, NBA) allow browser requests, so viewers fetch them
    directly. The NHL feed sends no CORS header and goes through the
@@ -85,6 +87,16 @@ function mlbTeam(side = {}) {
   return team(t.name, t.abbreviation, t.teamName || t.clubName, side.score);
 }
 
+// Share of regulation played, by outs recorded: 3 per half inning.
+function mlbElapsed(ls, scheduled) {
+  const n = num(ls.currentInning);
+  if (!n) return null;
+  if (n > scheduled) return 1;
+  const outs = Math.min(3, num(ls.outs));
+  const half = { Top: outs, Middle: 3, Bottom: 3 + outs, End: 6 }[ls.inningState || (ls.isTopInning ? 'Top' : 'Bottom')] ?? 0;
+  return Math.min(1, ((n - 1) * 6 + half) / (scheduled * 6));
+}
+
 function mlbGame(g) {
   const st = g.status || {}, ls = g.linescore || {};
   const coded = st.codedGameState;
@@ -99,20 +111,22 @@ function mlbGame(g) {
     else if (ls.currentInningOrdinal) detail = `${(ls.inningState || '').replace('Middle', 'Mid')} ${ls.currentInningOrdinal}`.trim();
     else detail = 'Live';
   }
+  const elapsed = state === 'final' ? 1 : state === 'live' ? mlbElapsed(ls, num(ls.scheduledInnings || g.scheduledInnings) || 9) : null;
   return { id: String(g.gamePk), league: 'MLB', start: g.gameDate || null, state, detail,
-    elapsed: state === 'final' ? 1 : null, home: mlbTeam(g.teams?.home), away: mlbTeam(g.teams?.away) };
+    elapsed, home: mlbTeam(g.teams?.home), away: mlbTeam(g.teams?.away) };
 }
 
 function mlbPlayers(box) {
   const out = [];
   for (const side of ['home', 'away']) {
-    const t = box.teams?.[side] || {}, appeared = new Set([...(t.batters || []), ...(t.pitchers || [])]);
+    const t = box.teams?.[side] || {}, pitchers = t.pitchers || [], lineup = t.battingOrder || [];
+    const appeared = new Set([...(t.batters || []), ...pitchers]);
     for (const p of Object.values(t.players || {})) {
       const id = p.person?.id, b = p.stats?.batting || {}, pi = p.stats?.pitching || {};
       const played = appeared.has(id);
       // Pitchers are listed in order of appearance, so the first one started.
       let position = p.position?.abbreviation || '';
-      if (position === 'P' && (t.pitchers || []).includes(id)) position = t.pitchers[0] === id ? 'SP' : 'RP';
+      if (position === 'P' && pitchers.includes(id)) position = pitchers[0] === id ? 'SP' : 'RP';
       const stats = {};
       if (played && (t.batters || []).includes(id)) {
         const hits = num(b.hits);
@@ -121,12 +135,17 @@ function mlbPlayers(box) {
           triples: num(b.triples), singles: hits - num(b.doubles) - num(b.triples) - num(b.homeRuns),
           batter_strikeouts: num(b.strikeOuts) });
       }
-      if (played && (t.pitchers || []).includes(id)) {
+      if (played && pitchers.includes(id)) {
         Object.assign(stats, { pitcher_strikeouts: num(pi.strikeOuts), pitcher_outs: num(pi.outs),
           hits_allowed: num(pi.hits), earned_runs: num(pi.earnedRuns), walks_allowed: num(pi.baseOnBalls),
           pitches: num(pi.numberOfPitches) });
       }
-      out.push({ name: p.person?.fullName || '', side, played, position, stats });
+      // Replaced players can't add to their line: a later pitcher has entered, or
+      // the batting slot now lists someone else. (Inherited runners can still
+      // add earned runs to a departed pitcher.)
+      const exited = { batting: played && (t.batters || []).includes(id) && lineup.length > 0 && !lineup.includes(id),
+        pitching: played && pitchers.includes(id) && pitchers[pitchers.length - 1] !== id };
+      out.push({ name: p.person?.fullName || '', side, played, position, stats, exited });
     }
   }
   return out;

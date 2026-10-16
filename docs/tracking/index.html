@@ -725,8 +725,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="bet-tracking.js?v=6"></script>
   <script src="performance.js?v=3"></script>
-  <script src="live-feeds.js?v=3"></script>
-  <script src="live-stats.js?v=8"></script>
+  <script src="live-feeds.js?v=4"></script>
+  <script src="live-stats.js?v=9"></script>
   <script src="../assets/offer-tracker.js?v=3"></script>
   <script src="manual-bet.js?v=3"></script>
   <script src="edit-bet.js?v=1"></script>
@@ -1217,6 +1217,8 @@
     const liveTracker=FVLiveStats.createLiveTracker({
       fetchJSON: liveFetchJSON,
       proxy: liveProxy,
+      // Starters' usual pitch counts, for their pace.
+      loadPitchBoard: ()=>liveFetchJSON('/mlb/data/latest.json'),
       onUpdate: (views,meta)=>{
         liveBumped=new Set();
         views.forEach((v,id)=>{
@@ -1260,7 +1262,7 @@
         return text?`<div class="live-band compact ${tone}">${esc(text)}</div>`:'';
       }
       if (!fig && v.kind!=='game') return `<div class="live-band compact ${tone}">${esc([game,v.label].filter(Boolean).join(' · '))}</div>`;
-      const sub=[fig?game:'', pitchText(v), v.pace!=null?`on pace for ${liveNum(v.pace)}`:'', v.note||(v.status==='live'?'live, unofficial':'')].filter(Boolean).join(' · ');
+      const sub=[fig?game:'', pitchText(v), v.pace!=null?`on pace for ${liveNum(v.pace)}${v.paceBudget?` over ~${v.paceBudget} pitches`:''}`:'', v.note||(v.status==='live'?'live, unofficial':'')].filter(Boolean).join(' · ');
       const bump=liveBumped.has(bet.id)?' live-bump':'';
       return `
           <div class="live-band full ${tone}${bump}">
