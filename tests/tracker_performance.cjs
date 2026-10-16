@@ -19,8 +19,8 @@ assert.equal(s.winRate,.5,'pushes are not decided bets');
 assert.equal(s.staked,25);assert.ok(Math.abs(s.pl-(3.57+6.25-5-5))<1e-9);assert.ok(Math.abs(s.roi-s.pl/25)<1e-12);
 const implied=o=>o>0?100/(o+100):-o/(-o+100);
 assert.ok(Math.abs(s.breakEven-[ -140,125,175,-120].map(implied).reduce((a,b)=>a+b)/4)<1e-12,'break-even from the prices of decided bets');
-// The tracker's break-even note: one −200 and one +200 bet average 50%, and going 1–1 makes
-// money only if the underdog wins.
+// Break-even is a guide, not a profit line: one −200 and one +200 bet average 50%, and going
+// 1–1 makes money only if the underdog wins.
 const pair=(fav,dog)=>summarize([bet('2026-10-01','NFL',fav,-200,fav==='won'?7.5:0),bet('2026-10-01','NFL',dog,200,dog==='won'?15:0)]);
 for(const [fav,dog,pl] of [['won','lost',-2.5],['lost','won',5]]){
   const t=pair(fav,dog);assert.equal(t.breakEven,.5);assert.equal(t.winRate,.5);assert.ok(Math.abs(t.pl-pl)<1e-9,`${fav} favorite: ${t.pl}`);
