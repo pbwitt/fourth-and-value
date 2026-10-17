@@ -263,7 +263,7 @@ def add_baselines(rows, history, now):
                   for g in games if all(g.get(k) is not None for k in STATS[row['market']])]
         log,columns=game_log(complete,[['date','Date'],['opp','Opp'],['minutes','MIN'],['value',SHORT_STATS[row['market']]]],
             lambda g:dict(date=g['date'],opp=g['opp'],minutes=count(g['minutes']),value=count(g['value'])))
-        row['player_context']=dict(schema_version=1,source='NBA regular-season game logs',
+        row['player_context']=dict(schema_version=1,source='ESPN regular-season box scores',
             through=complete[-1]['date'],sample_games=len(complete),sample_label='appearances',
             stat_label=row.get('market_label',row['market'].replace('player_','').replace('_',' ')),
             workload_label='Minutes / game',workload_unit='min',
@@ -275,43 +275,16 @@ def add_baselines(rows, history, now):
     return rows
 
 
-def fetch_history(season):
-    """NBA Stats game logs: native player IDs, no preseason mixed into training."""
-    result = dict(season=season, fetched_at=iso(datetime.now(UTC)), players=[], teams=[])
-    for kind, destination in [('P', 'players'), ('T', 'teams')]:
-        try:
-            response = requests.get('https://stats.nba.com/stats/leaguegamelog', timeout=35,
-                headers={'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.nba.com/'},
-                params=dict(Counter=0, Direction='DESC', LeagueID='00', PlayerOrTeam=kind,
-                            Season=season, SeasonType='Regular Season', Sorter='DATE'))
-            if not response.ok:
-                raise FeedError(f'NBA Stats returned HTTP {response.status_code}')
-            sets = response.json()['resultSets']
-            result[destination] = [dict(zip(sets[0]['headers'], values)) for values in sets[0]['rowSet']]
-        except (requests.RequestException, KeyError, ValueError, IndexError) as error:
-            raise FeedError(f'NBA Stats unavailable ({type(error).__name__})') from None
-    result['positions'] = fetch_positions(season)
-    return result
-
-
-def fetch_positions(season):
-    """Listed positions (G, F, C, G-F ...) from the NBA player index; display only.
-
-    Best effort: an error returns no positions and never blocks the game logs.
-    """
-    try:
-        response = requests.get('https://stats.nba.com/stats/playerindex', timeout=35,
-            headers={'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.nba.com/'},
-            params=dict(LeagueID='00', Season=season, Historical=0, Active='', AllStar='', College='', Country='',
-                        DraftPick='', DraftRound='', DraftYear='', Height='', TeamID=0, Weight=''))
-        if not response.ok:
-            return []
-        table = response.json()['resultSets'][0]
-        rows = [dict(zip(table['headers'], values)) for values in table['rowSet']]
-        return [dict(id=r['PERSON_ID'], name=f"{r.get('PLAYER_FIRST_NAME') or ''} {r.get('PLAYER_LAST_NAME') or ''}".strip(),
-                     position=r['POSITION']) for r in rows if r.get('PERSON_ID') and r.get('POSITION')]
-    except (requests.RequestException, KeyError, ValueError, IndexError, TypeError):
-        return []
+def espn_history():
+    """Committed ESPN regular-season history; listed positions from each player's latest game."""
+    from nba.espn_history import load_all
+    history = load_all(season_types=('regular',))
+    latest = {}
+    for game in sorted(history['players'], key=lambda g: g['GAME_DATE']):
+        if game.get('POSITION'):
+            latest[game['PLAYER_ID']] = dict(id=game['PLAYER_ID'], name=game['PLAYER_NAME'], position=game['POSITION'])
+    history['positions'] = list(latest.values())
+    return history
 
 
 def refresh(client, now, history, previous=None):
@@ -340,7 +313,8 @@ def refresh(client, now, history, previous=None):
     rows = add_baselines(compare(rows), history, now)
     return dict(sport=SPORT, checked_at=iso(now), last_success_at=iso(now),
                 status='ready' if rows else 'waiting_for_markets', events=events, rows=rows,
-                history_players=len(history.get('players', [])),
+                history_players=len({g['PLAYER_ID'] for g in history.get('players', [])}),
+                history_seasons=history.get('seasons', []),
                 history_updated_at=history.get('fetched_at'),
                 model_status='Historical baselines; NBA predictions are not validated',
                 requests=client.requests, quota_remaining=client.quota_remaining,
@@ -350,30 +324,14 @@ def refresh(client, now, history, previous=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--offline', action='store_true', help='Build from saved public snapshot; do not call APIs')
-    parser.add_argument('--history-season', help='Fetch NBA Stats regular-season game logs, e.g. 2025-26')
     args = parser.parse_args()
     load_dotenv(ROOT / '.env')
     public = ROOT / 'docs/nba/data/latest.json'
-    history_dir = ROOT / 'data/nba/history'
     now = datetime.now(UTC)
     state = read_json(public, dict(status='not_checked', checked_at=None, last_success_at=None,
                                   events=[], rows=[], history_players=0))
-    if args.history_season:
-        try:
-            fetched = fetch_history(args.history_season)
-            # A failed position lookup keeps the last saved list rather than blanking it.
-            fetched['positions'] = fetched['positions'] or read_json(history_dir / f'{args.history_season}.json', {}).get('positions', [])
-            save_json(history_dir / f'{args.history_season}.json', fetched)
-        except FeedError as error:
-            print(str(error), file=sys.stderr)
-            return 1
-    history = dict(players=[], teams=[], positions=[])
-    for path in sorted(history_dir.glob('*.json')):
-        data = read_json(path, {})
-        history['players'].extend(data.get('players', []))
-        history['teams'].extend(data.get('teams', []))
-        history['positions'].extend(data.get('positions', []))
-        history['fetched_at'] = data.get('fetched_at')
+    # Refreshed separately by scripts/nba/espn_history.py --recent; no network here.
+    history = espn_history()
     exit_code = 0
     if not args.offline:
         try:
