@@ -202,6 +202,7 @@
         { href: `${base}/nba/props/`, label: 'Player Props' },
         { href: `${base}/nba/totals/`, label: 'Game Lines' },
         { href: `${base}/nba/top.html`, label: 'Market Watch' },
+        { href: `${base}/markets/?sport=nba`, label: 'Market Analytics' },
         { href: `${base}/nba/methods.html`, label: 'NBA Methods' },
       ]
     },

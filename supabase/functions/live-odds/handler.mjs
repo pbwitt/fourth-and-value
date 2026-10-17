@@ -2,28 +2,39 @@
 // run it with stubbed fetches; index.ts only wires it to Deno.serve.
 //
 // One press of Run now on the private Live Odds page (docs/live/) is at most one
-// paid Odds API request, for one NHL game. Only editor accounts
+// paid Odds API request, for one NHL or NBA game. Only editor accounts
 // (app_metadata.fv_editor) may spend it, and the key never leaves the server: an
 // ODDS_API_KEY Edge Function secret if set, otherwise the copy the "Live Odds key"
 // workflow keeps in Supabase Vault (supabase/live_odds_key.sql), read with the
 // service role.
 //
-// POST {}             -> NHL games from 6 hours ago to 24 hours ahead (free endpoint)
-// POST {event:'<id>'} -> that game's prices from US books: moneyline, puck line,
-//                        total and four player props. The Odds API charges one
-//                        credit per market returned, so 7 at most.
-// POST {event:'<id>', live:true} -> also the anytime goal scorer and alternate
-//                        shots and points lines books post during games: 10 at most.
+// POST {sport}        -> that league's games from 6 hours ago to 24 hours ahead
+//                        (free endpoint), with the sport echoed back. sport is
+//                        'NHL' (the default) or 'NBA'.
+// POST {sport, event:'<id>'} -> that game's prices from US books: moneyline, puck
+//                        line or spread, total and four player props. The Odds API
+//                        charges one credit per market returned, so 7 at most.
+// POST {sport, event:'<id>', live:true} -> also the milestone lines books post
+//                        during games: NHL anytime goal scorer and alternate shots
+//                        and points (10 at most); NBA alternate points, rebounds,
+//                        assists and threes (11 at most).
 //
 // Guards: a game's prices are reused for 60 seconds, so repeat presses cost
 // nothing; paid requests stop while the credits left are below the reserve kept
 // for the scheduled refreshes (LIVE_ODDS_RESERVE, default 2000).
 
 const ORIGINS = new Set(['https://fourthandvalue.com', 'https://www.fourthandvalue.com']);
-const ODDS = 'https://api.the-odds-api.com/v4/sports/icehockey_nhl';
-export const MARKETS = ['h2h', 'spreads', 'totals',
-  'player_shots_on_goal', 'player_goals', 'player_assists', 'player_points'];
-export const LIVE_MARKETS = ['player_goal_scorer_anytime', 'player_shots_on_goal_alternate', 'player_points_alternate'];
+const ODDS = 'https://api.the-odds-api.com/v4/sports/';
+export const SPORTS = {
+  NHL: { key: 'icehockey_nhl',
+    markets: ['h2h', 'spreads', 'totals', 'player_shots_on_goal', 'player_goals', 'player_assists', 'player_points'],
+    live: ['player_goal_scorer_anytime', 'player_shots_on_goal_alternate', 'player_points_alternate'] },
+  NBA: { key: 'basketball_nba',
+    markets: ['h2h', 'spreads', 'totals', 'player_points', 'player_rebounds', 'player_assists', 'player_threes'],
+    live: ['player_points_alternate', 'player_rebounds_alternate', 'player_assists_alternate', 'player_threes_alternate'] },
+};
+export const MARKETS = SPORTS.NHL.markets;
+export const LIVE_MARKETS = SPORTS.NHL.live;
 const TTL = { odds: 60e3, events: 300e3, error: 10e3 };
 const EVENT_ID = /^[0-9a-f]{32}$/;
 const MAX_BYTES = 3e6;
@@ -85,12 +96,12 @@ export function createHandler({ fetchImpl = fetch, now = () => Date.now(), env =
     return vaultKey;
   }
 
-  async function upstream(path, params) {
+  async function upstream(sport, path, params) {
     const key = await oddsKey();
     if (!key) throw new Failure(503, 'Live odds have no Odds API key yet. Run the Live Odds key workflow, or add ODDS_API_KEY to the Edge Function secrets.');
     let res;
     try {
-      res = await fetchImpl(`${ODDS}/${path}?${new URLSearchParams({ ...params, apiKey: key })}`,
+      res = await fetchImpl(`${ODDS}${SPORTS[sport].key}/${path}?${new URLSearchParams({ ...params, apiKey: key })}`,
         { headers: { Accept: 'application/json' } });
     } catch {
       // Never echo the request URL: it carries the key.
@@ -113,34 +124,36 @@ export function createHandler({ fetchImpl = fetch, now = () => Date.now(), env =
     return { body, cost: last != null && last !== '' && Number.isFinite(Number(last)) ? Number(last) : null };
   }
 
-  async function games() {
-    const { value } = cached('events', TTL.events, async () => {
+  async function games(sport) {
+    const { value } = cached(`events:${sport}`, TTL.events, async () => {
       const t = now();
-      const { body } = await upstream('events', { dateFormat: 'iso',
+      const { body } = await upstream(sport, 'events', { dateFormat: 'iso',
         commenceTimeFrom: iso(t - 6 * 3600e3), commenceTimeTo: iso(t + 24 * 3600e3) });
       if (!Array.isArray(body)) throw new Failure(502, 'The odds service listed games in an unexpected format.');
       return body.filter(e => EVENT_ID.test(String(e?.id)))
         .map(e => ({ id: e.id, commence_time: e.commence_time, home_team: e.home_team, away_team: e.away_team }));
     });
-    return { games: await value, remaining };
+    // The echo lets the page tell this function from one deployed before NBA, which lists NHL for any sport.
+    return { sport, games: await value, remaining };
   }
 
-  async function prices(event, live) {
-    const key = `odds:${event}:${live ? 'live' : 'pre'}`, hit = cache.get(key);
+  async function prices(sport, event, live) {
+    const key = `odds:${sport}:${event}:${live ? 'live' : 'pre'}`, hit = cache.get(key);
     if (!(hit && hit.expires > now()) && remaining != null && remaining < reserve()) {
       throw new Failure(429, `Live odds are paused: ${remaining} credits left, below the ${reserve()} kept for the scheduled refreshes.`);
     }
     const { value, reused } = cached(key, TTL.odds, async () => {
       const fetched = now();
-      const ask = list => upstream(`events/${event}/odds`,
+      const { markets, live: milestones } = SPORTS[sport];
+      const ask = list => upstream(sport, `events/${event}/odds`,
         { regions: 'us', markets: list.join(','), oddsFormat: 'american', dateFormat: 'iso' });
       let response;
       try {
-        response = await ask(live ? [...MARKETS, ...LIVE_MARKETS] : MARKETS);
+        response = await ask(live ? [...markets, ...milestones] : markets);
       } catch (error) {
         // A refused milestone market must not cost the standard prices.
         if (!live || error.upstream !== 422) throw error;
-        response = await ask(MARKETS);
+        response = await ask(markets);
       }
       const { body, cost } = response;
       if (!body || typeof body !== 'object' || body.id !== event) {
@@ -172,12 +185,15 @@ export function createHandler({ fetchImpl = fetch, now = () => Date.now(), env =
     if (!input || typeof input !== 'object' || Array.isArray(input)) return reply(400, { error: 'Invalid request' });
     if (input.event != null && !EVENT_ID.test(String(input.event))) return reply(400, { error: 'Invalid game' });
     if (input.live != null && typeof input.live !== 'boolean') return reply(400, { error: 'Invalid request' });
+    // Pages from before the sport choice send none: they meant NHL.
+    const sport = input.sport ?? 'NHL';
+    if (!Object.hasOwn(SPORTS, sport)) return reply(400, { error: 'Unsupported sport' });
 
     try {
       const allowed = await editor(authorization);
       if (allowed === null) return reply(401, { error: 'Sign in again.' });
       if (!allowed) return reply(403, { error: 'Live odds are limited to editor accounts.' });
-      return reply(200, input.event == null ? await games() : await prices(String(input.event), input.live === true));
+      return reply(200, input.event == null ? await games(sport) : await prices(sport, String(input.event), input.live === true));
     } catch (error) {
       if (error instanceof Failure) return reply(error.status, { error: error.message, remaining });
       return reply(502, { error: 'Live odds are unavailable right now.', remaining });

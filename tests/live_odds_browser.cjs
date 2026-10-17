@@ -1,10 +1,11 @@
 // Live Odds page in a real browser with a stubbed Supabase client: editor gate,
-// game list, Run now, scoreline, flags, Bet Tracker tickets, filters, safe rendering, errors, mobile layout.
+// NHL and NBA game list, Run now, scoreline, flags, Bet Tracker tickets, filters, safe rendering, errors, mobile layout.
 const {chromium}=require(process.env.FV_PLAYWRIGHT||'playwright');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
 const root=path.join(__dirname,'../docs');
 
-const HOME='Buffalo Sabres',AWAY='Chicago Blackhawks',ID='a'.repeat(32),LATER='c'.repeat(32);
+const HOME='Buffalo Sabres',AWAY='Chicago Blackhawks',ID='a'.repeat(32),LATER='c'.repeat(32),NBA_ID='e'.repeat(32);
+const NH='Detroit Pistons',NA='Boston Celtics';
 const stub=`
 const iso=s=>new Date(Date.now()-s*1000).toISOString();
 const book=(key,title,age,markets)=>({key,title,last_update:iso(age),markets:Object.entries(markets).map(([k,outs])=>({key:k,last_update:iso(age),
@@ -22,9 +23,18 @@ window.supabaseClient={
     if(name==='live-stats')return {data:{games:[{id:2026020022,startTimeUTC:'2026-10-03T23:00:00Z',gameState:'LIVE',gameScheduleState:'OK',
       periodDescriptor:{number:2,periodType:'REG'},clock:{timeRemaining:'00:00',secondsRemaining:0,inIntermission:window.detail==='2nd Int'},
       awayTeam:{abbrev:'CHI',name:{default:'Blackhawks'},score:1},homeTeam:{abbrev:'BUF',name:{default:'Sabres'},score:2}}]},error:null};
-    if(window.fail)return {data:null,error:{message:'Edge Function returned a non-2xx status code',context:{json:async()=>({error:window.fail})}}};
-    if(!body.event)return {data:{games:[{id:'${LATER}',commence_time:new Date(Date.now()+3*3600e3).toISOString(),home_team:'Boston Bruins',away_team:'New York Rangers'},
+    if(window.fail||window.failSport&&window.failSport===body.sport&&!body.event)return {data:null,error:{message:'Edge Function returned a non-2xx status code',context:{json:async()=>({error:window.fail||'down'})}}};
+    if(!body.event&&body.sport==='NBA'&&!window.oldFunction)return {data:{sport:'NBA',games:[{id:'${NBA_ID}',commence_time:new Date(Date.now()-70*60e3).toISOString(),home_team:'${NH}',away_team:'${NA}'}],remaining:17190},error:null};
+    // A function deployed before NBA ignores the sport, lists NHL and names no sport.
+    if(!body.event)return {data:{...(window.oldFunction?{}:{sport:'NHL'}),games:[{id:'${LATER}',commence_time:new Date(Date.now()+3*3600e3).toISOString(),home_team:'Boston Bruins',away_team:'New York Rangers'},
       {id:'${ID}',commence_time:new Date(Date.now()-40*60e3).toISOString(),home_team:'${HOME}',away_team:'${AWAY}'}],remaining:17185},error:null};
+    if(body.sport==='NBA'){
+      const pts=(o,u)=>({player_points:[['Over',o,24.5,'Cade Cunningham'],['Under',u,24.5,'Cade Cunningham']],spreads:[['${NH}',-110,-4.5],['${NA}',-110,4.5]]});
+      return {data:{event:{id:body.event,sport_key:'basketball_nba',commence_time:new Date(Date.now()-70*60e3).toISOString(),home_team:'${NH}',away_team:'${NA}',
+        bookmakers:[book('fanduel','FanDuel',20,pts(-110,-110)),book('betmgm','BetMGM',20,pts(-110,-110)),book('williamhill_us','Caesars',20,pts(-110,-110)),
+          book('draftkings','DraftKings',15,{...pts(110,-140),player_points_alternate:[['Over',260,29.5,'Cade Cunningham']]})]},
+        fetched_at:new Date().toISOString(),cost:11,reused:false,remaining:17179},error:null};
+    }
     return {data:{event:{id:body.event,commence_time:new Date(Date.now()-40*60e3).toISOString(),home_team:'${HOME}',away_team:'${AWAY}',
       bookmakers:[even('fanduel','FanDuel'),even('betmgm','BetMGM'),even('williamhill_us','Caesars'),
         book('draftkings','DraftKings',15,{...sog(110,-140,'Tage Thompson'),totals:[['Over',-110,6.5],['Under',-110,6.5]],...scorer(200)})]},
@@ -45,11 +55,22 @@ window.saved=[];window.saveTrackedBet=async t=>{window.saved.push(t);return {ok:
     catch{return route.fulfill({status:404,body:'Not found'});}
   });
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  // ESPN's NBA scoreboard allows browser requests, so the page asks it directly.
+  let espnDetail='Halftime';const espnCalls=[];
+  await page.route('https://site.api.espn.com/**',route=>{
+    espnCalls.push(route.request().url());
+    const start=new Date(Date.now()-70*60e3).toISOString();
+    route.fulfill({contentType:'application/json',headers:{'access-control-allow-origin':'*'},body:JSON.stringify({events:[{id:'401',date:start,competitions:[{date:start,
+      status:{period:2,clock:0,type:{name:'STATUS_IN_PROGRESS',state:'in',shortDetail:espnDetail}},competitors:[
+        {homeAway:'home',score:'55',team:{id:'8',displayName:NH,abbreviation:'DET',shortDisplayName:'Pistons'}},
+        {homeAway:'away',score:'50',team:{id:'2',displayName:NA,abbreviation:'BOS',shortDisplayName:'Celtics'}}]}]}]})});
+  });
 
-  // Editor: games load, the game in progress is preselected.
+  // Editor: both leagues' games load, grouped; the most recent game in progress is preselected.
   await page.goto('https://fourthandvalue.com/live/');
-  await page.waitForFunction(()=>document.getElementById('message').textContent.includes('2 NHL games'));
-  assert.ok((await page.locator('#message').textContent()).includes('17,185 Odds API credits left'));
+  await page.waitForFunction(()=>document.getElementById('message').textContent.includes('2 NHL games and 1 NBA game'));
+  assert.ok((await page.locator('#message').textContent()).includes('17,185 Odds API credits left'),'the lower balance reported');
+  assert.deepEqual(await page.locator('#game optgroup').evaluateAll(gs=>gs.map(g=>[g.label,g.children.length])),[['NHL',2],['NBA',1]]);
   assert.equal(await page.locator('#game').inputValue(),ID,'the game in progress is the default');
   assert.equal(await page.locator('#result').isVisible(),false);
 
@@ -58,7 +79,7 @@ window.saved=[];window.saveTrackedBet=async t=>{window.saved.push(t);return {ok:
   await page.waitForFunction(()=>!document.getElementById('result').hidden);
   assert.match(await page.locator('#message').textContent(),/This run cost 7 credits\. 17,178 Odds API credits left\./);
   const calls=await page.evaluate(()=>window.calls);
-  assert.deepEqual(calls.filter(c=>c[0]==='live-odds').map(c=>c[1]),[{},{event:ID,live:true}],'a game in progress also asks for milestones');
+  assert.deepEqual(calls.filter(c=>c[0]==='live-odds').map(c=>c[1]),[{sport:'NHL'},{sport:'NBA'},{sport:'NHL',event:ID,live:true}],'a game in progress also asks for milestones');
   assert.deepEqual(calls.find(c=>c[0]==='live-stats')[1],{league:'NHL',date:await page.evaluate(()=>FVLiveOdds.easternDate(new Date(Date.now()-40*60e3)))});
   const scoreline=await page.locator('#scoreline').textContent();
   assert.ok(scoreline.includes('CHI 1 – 2 BUF')&&scoreline.includes('2nd Int'),scoreline);
@@ -127,6 +148,38 @@ window.saved=[];window.saveTrackedBet=async t=>{window.saved.push(t);return {ok:
   await page.locator('#run').click();await page.waitForFunction(()=>document.getElementById('message').textContent.includes('paused'));
   assert.equal(await page.locator('#run').isDisabled(),false,'the button comes back after an error');
 
+  // NBA: its own markets, the ESPN scoreboard from the browser, its own pause rule and tickets.
+  await page.evaluate(()=>{window.fail=null;});
+  const statsCalls=(await page.evaluate(()=>window.calls)).filter(c=>c[0]==='live-stats').length;
+  await page.locator('#game').selectOption(NBA_ID);
+  await page.locator('#run').click();
+  await page.waitForFunction(()=>!document.getElementById('result').hidden&&document.getElementById('scoreline').textContent.includes('BOS'));
+  assert.match(await page.locator('#message').textContent(),/This run cost 11 credits/);
+  const nbaCalls=await page.evaluate(()=>window.calls);
+  assert.deepEqual(nbaCalls.filter(c=>c[0]==='live-odds').at(-1)[1],{sport:'NBA',event:NBA_ID,live:true});
+  assert.equal(nbaCalls.filter(c=>c[0]==='live-stats').length,statsCalls,'no relay call for NBA');
+  const espnDate=(await page.evaluate(()=>FVLiveOdds.easternDate(new Date(Date.now()-70*60e3)))).replaceAll('-','');
+  assert.equal(espnCalls.at(-1),`https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${espnDate}`);
+  const nbaScore=await page.locator('#scoreline').textContent();
+  assert.ok(nbaScore.includes('BOS 50 – 55 DET')&&nbaScore.includes('Halftime'),nbaScore);
+  assert.equal(await page.locator('#play-notice').isVisible(),false,'halftime: no live-play warning');
+  const nbaFlags=await page.locator('#flags li').allTextContents();
+  assert.ok(nbaFlags[0].includes('Cade Cunningham · Points · Over 24.5')&&nbaFlags[0].includes('+110 at DraftKings'),nbaFlags[0]);
+  assert.deepEqual(await page.locator('#market option').allTextContents(),['All markets','Points','Spread','Points (alternate)']);
+  assert.ok((await page.locator('#lines').textContent()).includes('Over 29.5 (30+)'));
+  await page.locator('#flags button.track').first().click();await dialog.waitFor({state:'visible'});
+  await page.locator('#fv-track-stake').fill('20');await page.locator('#fv-track-confirm').check();await page.locator('#fv-track-save').click();
+  await page.waitForFunction(()=>window.saved.length===3);
+  const nbaTicket=(await page.evaluate(()=>window.saved))[2];
+  assert.deepEqual([nbaTicket.league,nbaTicket.market_type,nbaTicket.side,nbaTicket.line,nbaTicket.player,nbaTicket.book,nbaTicket.model_prob],
+    ['NBA','player_points','over',24.5,'Cade Cunningham','draftkings',null]);
+  await page.locator('#fv-track-close').click();
+  espnDetail='7:42 - 3rd';
+  await page.locator('#run').click();await page.waitForFunction(()=>!document.getElementById('play-notice').hidden);
+  assert.match(await page.locator('#play-notice').textContent(),/nearly every possession.*between quarters or at halftime/);
+  espnDetail='End of 3rd';
+  await page.locator('#run').click();await page.waitForFunction(()=>document.getElementById('play-notice').hidden);
+
   // Changing the game clears the old prices.
   await page.locator('#game').selectOption(LATER);
   assert.equal(await page.locator('#result').isVisible(),false);
@@ -151,6 +204,17 @@ window.saved=[];window.saveTrackedBet=async t=>{window.saved.push(t);return {ok:
   // Signing out hides the desk.
   await page.locator('#signout').click();await page.waitForFunction(()=>!document.getElementById('login').hidden);
   assert.equal(await page.locator('#desk').isVisible(),false);
+  // One league's list failing still leaves the other's games.
+  await page.evaluate(()=>{window.mode='editor';window.failSport='NBA';window.authChanged();});
+  await page.waitForFunction(()=>document.getElementById('message').textContent.includes('could not be loaded'));
+  assert.equal(await page.locator('#message').textContent(),'2 NHL games from earlier today through tomorrow. NBA games could not be loaded; try again in a moment. 17,185 Odds API credits left.');
+  assert.deepEqual(await page.locator('#game optgroup').evaluateAll(gs=>gs.map(g=>g.label)),['NHL']);
+  // Before the live-odds function is redeployed, its NHL list is never shown as NBA.
+  await page.locator('#signout').click();await page.waitForFunction(()=>!document.getElementById('login').hidden);
+  await page.evaluate(()=>{window.mode='editor';window.failSport=null;window.oldFunction=true;window.authChanged();});
+  await page.waitForFunction(()=>document.getElementById('message').textContent.includes('redeploy'));
+  assert.equal(await page.locator('#message').textContent(),'2 NHL games from earlier today through tomorrow. NBA games need the updated live-odds function; redeploy it in Supabase. 17,185 Odds API credits left.');
+  assert.deepEqual(await page.locator('#game optgroup').evaluateAll(gs=>gs.map(g=>[g.label,g.children.length])),[['NHL',2]]);
   assert.deepEqual(errors,[]);
   await browser.close();
   console.log('Live Odds page passed: editor gate, game list, Run now, flags, tracking, filters, escaping, errors and phone layout.');

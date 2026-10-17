@@ -12,6 +12,9 @@ statistics. Weeks 1-2 predate the immutable archive and are read from their
 one-off audit folders. NHL rows are rebuilt from the committed refresh archive
 (artifacts/nhl/runs): each game's quotes come from the last snapshot saved before
 puck drop, graded with the official NHL statistics pages archived alongside them.
+NBA rows come the same way from artifacts/nba/runs, graded with ESPN's final box
+scores through the weekly recap's resolver (scripts/nba_weekly_results.py), whose
+raw responses are kept in artifacts/nba/results.
 """
 import argparse
 from collections import defaultdict
@@ -33,6 +36,7 @@ from nfl_weekly_review import STATS, TEAM_NAMES, grade_props  # noqa: E402
 PAGES = ROOT / 'docs/markets'
 OUT = PAGES / 'data'
 NHL_ARCHIVE = ROOT / 'artifacts/nhl'
+NBA_ARCHIVE = ROOT / 'artifacts/nba'
 
 # Display order is the order readers scan the board: game lines, then by unit.
 NFL_MARKETS = [
@@ -60,17 +64,58 @@ NFL_MARKETS = [
          buckets=[[None, 20, 'Under 20'], [20, 40, '20–39.5'], [40, 60, '40–59.5'], [60, None, '60+']]),
 ]
 
+# A moneyline is won, not covered, and has no line to beat.
+MONEYLINE_TERMS = dict(a='favorite win', b='underdog win', rate='Favorite win rate', beat='won', missed='lost', vs=None)
+
 NHL_MARKETS = [
     dict(key='totals', label='Game total', group='Game lines', kind='ou', unit='goals', bin=1),
     dict(key='spreads', label='Puck line', group='Game lines', kind='side', unit='goals', bin=1,
          terms=dict(vs='the puck line')),
-    dict(key='h2h', label='Moneyline', group='Game lines', kind='side', unit='goals', bin=1,
-         terms=dict(a='favorite win', b='underdog win', rate='Favorite win rate', beat='won', missed='lost', vs=None)),
+    dict(key='h2h', label='Moneyline', group='Game lines', kind='side', unit='goals', bin=1, terms=MONEYLINE_TERMS),
     dict(key='player_shots_on_goal', label='Shots on goal', group='Skaters', kind='ou', unit='shots', bin=1),
     dict(key='player_points', label='Points', group='Skaters', kind='ou', unit='points', bin=1),
     dict(key='player_goals', label='Goals', group='Skaters', kind='ou', unit='goals', bin=1),
     dict(key='player_assists', label='Assists', group='Skaters', kind='ou', unit='assists', bin=1),
 ]
+
+NBA_MARKETS = [
+    dict(key='totals', label='Game total', group='Game lines', kind='ou', unit='points', bin=4,
+         buckets=[[None, 215, 'Under 215'], [215, 225, '215–224.5'], [225, 235, '225–234.5'], [235, None, '235+']]),
+    dict(key='spreads', label='Spread', group='Game lines', kind='side', unit='points', bin=3,
+         buckets=[[None, 3, 'Under 3'], [3, 6, '3–5.5'], [6, 10, '6–9.5'], [10, None, '10+']]),
+    dict(key='h2h', label='Moneyline', group='Game lines', kind='side', unit='points', bin=3, terms=MONEYLINE_TERMS),
+    dict(key='player_points', label='Points', group='Scoring', kind='ou', unit='points', bin=2,
+         buckets=[[None, 10, 'Under 10'], [10, 15, '10–14.5'], [15, 20, '15–19.5'], [20, 25, '20–24.5'], [25, None, '25+']]),
+    dict(key='player_threes', label='Threes made', group='Scoring', kind='ou', unit='threes', bin=1),
+    dict(key='player_rebounds', label='Rebounds', group='Rebounds and assists', kind='ou', unit='rebounds', bin=1,
+         buckets=[[None, 4, 'Under 4'], [4, 6, '4–5.5'], [6, 8, '6–7.5'], [8, 10, '8–9.5'], [10, None, '10+']]),
+    dict(key='player_assists', label='Assists', group='Rebounds and assists', kind='ou', unit='assists', bin=1,
+         buckets=[[None, 3, 'Under 3'], [3, 5, '3–4.5'], [5, 7, '5–6.5'], [7, None, '7+']]),
+    dict(key='player_points_rebounds_assists', label='Points + rebounds + assists', group='Combos', kind='ou',
+         unit='points + rebounds + assists', bin=3,
+         buckets=[[None, 20, 'Under 20'], [20, 25, '20–24.5'], [25, 30, '25–29.5'], [30, 35, '30–34.5'], [35, None, '35+']]),
+    dict(key='player_points_rebounds', label='Points + rebounds', group='Combos', kind='ou', unit='points + rebounds', bin=2,
+         buckets=[[None, 15, 'Under 15'], [15, 20, '15–19.5'], [20, 25, '20–24.5'], [25, 30, '25–29.5'], [30, None, '30+']]),
+    dict(key='player_points_assists', label='Points + assists', group='Combos', kind='ou', unit='points + assists', bin=2,
+         buckets=[[None, 15, 'Under 15'], [15, 20, '15–19.5'], [20, 25, '20–24.5'], [25, 30, '25–29.5'], [30, None, '30+']]),
+    dict(key='player_rebounds_assists', label='Rebounds + assists', group='Combos', kind='ou', unit='rebounds + assists', bin=1,
+         buckets=[[None, 6, 'Under 6'], [6, 8, '6–7.5'], [8, 10, '8–9.5'], [10, 12, '10–11.5'], [12, None, '12+']]),
+    dict(key='player_blocks', label='Blocks', group='Defense and turnovers', kind='ou', unit='blocks', bin=1),
+    dict(key='player_steals', label='Steals', group='Defense and turnovers', kind='ou', unit='steals', bin=1),
+    dict(key='player_turnovers', label='Turnovers', group='Defense and turnovers', kind='ou', unit='turnovers', bin=1),
+]
+
+# Odds feed team names (folded) -> the NBA's three-letter codes, for compact game labels.
+NBA_CODES = {
+    'atlantahawks': 'ATL', 'bostonceltics': 'BOS', 'brooklynnets': 'BKN', 'charlottehornets': 'CHA',
+    'chicagobulls': 'CHI', 'clevelandcavaliers': 'CLE', 'dallasmavericks': 'DAL', 'denvernuggets': 'DEN',
+    'detroitpistons': 'DET', 'goldenstatewarriors': 'GSW', 'houstonrockets': 'HOU', 'indianapacers': 'IND',
+    'losangelesclippers': 'LAC', 'laclippers': 'LAC', 'losangeleslakers': 'LAL', 'lalakers': 'LAL',
+    'memphisgrizzlies': 'MEM', 'miamiheat': 'MIA', 'milwaukeebucks': 'MIL', 'minnesotatimberwolves': 'MIN',
+    'neworleanspelicans': 'NOP', 'newyorkknicks': 'NYK', 'oklahomacitythunder': 'OKC', 'orlandomagic': 'ORL',
+    'philadelphia76ers': 'PHI', 'phoenixsuns': 'PHX', 'portlandtrailblazers': 'POR', 'sacramentokings': 'SAC',
+    'sanantoniospurs': 'SAS', 'torontoraptors': 'TOR', 'utahjazz': 'UTA', 'washingtonwizards': 'WAS',
+}
 
 ABBR = {'LAR': 'LA', 'WSH': 'WAS', 'JAC': 'JAX', 'ARZ': 'ARI', 'LVR': 'LV', 'OAK': 'LV', 'SD': 'LAC', 'STL': 'LA'}
 
@@ -270,22 +315,25 @@ def nhl_results(runs, season, archive=NHL_ARCHIVE):
     return {g['game_id']: g for g in games}, {(p['game_id'], p['player_id']): p for p in players}
 
 
-def nhl_pregame_quotes(runs):
-    """game id -> (captured_at, quotes) from the last snapshot saved before that game's puck drop."""
+def pregame_quotes(snapshots, game_key):
+    """game id -> (captured_at, quotes) from the last snapshot saved before that game started."""
     chosen = {}
-    for run in runs:
-        snap = run['snapshot']
+    for snap in snapshots:
         at = pd.Timestamp(snap['checked_at'])
         by_game = defaultdict(list)
         for q in snap.get('rows', []):
-            if not q.get('nhl_game_id') or q.get('price') is None or pd.Timestamp(q['commence_time']) <= at:
+            if not q.get(game_key) or q.get('price') is None or pd.Timestamp(q['commence_time']) <= at:
                 continue
             if q.get('quoted_at') and pd.Timestamp(q['quoted_at']) >= pd.Timestamp(q['commence_time']):
                 continue
-            by_game[q['nhl_game_id']].append(q)
+            by_game[q[game_key]].append(q)
         for gid, quotes in by_game.items():
             chosen[gid] = (at, quotes)
     return chosen
+
+
+def nhl_pregame_quotes(runs):
+    return pregame_quotes([run['snapshot'] for run in runs], 'nhl_game_id')
 
 
 def fold(name):
@@ -294,17 +342,47 @@ def fold(name):
     return ' '.join(''.join(c if c.isalnum() else ' ' for c in plain.lower()).split())
 
 
-def nhl_pairs(quotes, side_a, side_b, line_b=lambda line: line):
-    """Book-level quotes -> one row per book and line with both prices, as pair_sides() does for NFL."""
-    d = pd.DataFrame(quotes, columns=['market', 'player_id', 'player', 'book', 'side', 'line', 'price'])
-    d['player_id'] = d.player_id.fillna(0).astype(int)
-    keys = ['market', 'player_id', 'book', 'point']
+def pair_quotes(d, identity, side_a, side_b, line_b=lambda line: line):
+    """Book-level quotes -> one row per book and line with both prices, as pair_sides() does for NFL.
+
+    ``identity`` names the column that tells players apart (empty or 0 for game lines)."""
+    keys = ['market', identity, 'book', 'point']
     a = d[d.side.eq(side_a)].assign(point=d.line).rename(columns={'price': 'over_price'})
     b = d[d.side.eq(side_b)].assign(point=d.line.map(line_b)).rename(columns={'price': 'under_price'})
     both = a.merge(b[keys + ['under_price']], on=keys, how='inner').drop_duplicates(keys, keep='last')
     both = both.rename(columns={'book': 'bookmaker'})
     both['p_over'] = [no_vig(x, y) for x, y in zip(both.over_price, both.under_price)]
     return both
+
+
+def nhl_pairs(quotes, side_a, side_b, line_b=lambda line: line):
+    """NHL skaters are told apart by their NHL player id."""
+    d = pd.DataFrame(quotes, columns=['market', 'player_id', 'player', 'book', 'side', 'line', 'price'])
+    d['player_id'] = d.player_id.fillna(0).astype(int)
+    return pair_quotes(d, 'player_id', side_a, side_b, line_b)
+
+
+def side_rows(quotes, home, away, home_label, away_label, margin, game_name, t):
+    """Spread and moneyline rows for one game, expressed from the favorite's side: line = goals or points
+    laid (0 on the moneyline), actual = its final margin. ``margin`` is home score minus away score."""
+    rows = []
+    for market in ('spreads', 'h2h'):
+        sides = [q for q in quotes if q['market'] == market and q['side'] in (home, away)]
+        if not sides:
+            continue
+        flip = (lambda line: -line) if market == 'spreads' else (lambda line: line)
+        paired = nhl_pairs([dict(q, line=q['line'] if market == 'spreads' else 0.0) for q in sides], home, away, flip)
+        line = main_line(paired)
+        if not line or (market == 'spreads' and line['line'] == 0):
+            continue
+        home_fav = line['line'] < 0 if market == 'spreads' else line['p_over'] >= 0.5
+        fav = home_label if home_fav else away_label
+        side = (dict(p_over=line['p_over'], dec_over=line['dec_over'], dec_under=line['dec_under']) if home_fav else
+                dict(p_over=1 - line['p_over'], dec_over=line['dec_under'], dec_under=line['dec_over']))
+        laid = abs(line['line'])
+        rows.append(dict(market=market, t=t, label=f'{fav} -{laid:g}' if market == 'spreads' else fav, game=game_name,
+                         actual=float(margin if home_fav else -margin), line=laid, books=line['books'], **side))
+    return rows
 
 
 def nhl_game_rows(gid, quotes, game, players, label, t):
@@ -342,41 +420,18 @@ def nhl_game_rows(gid, quotes, game, players, label, t):
             line = main_line(group)
             if line:
                 rows.append(dict(market=market, t=t, label=who, game=game_name, actual=float(actual), **line))
-    margin = game['home_score'] - game['away_score']
-    for market in ('spreads', 'h2h'):
-        sides = [q for q in quotes if q['market'] == market and q['side'] in (home, away)]
-        if not sides:
-            continue
-        flip = (lambda line: -line) if market == 'spreads' else (lambda line: line)
-        paired = nhl_pairs([dict(q, line=q['line'] if market == 'spreads' else 0.0) for q in sides], home, away, flip)
-        line = main_line(paired)
-        if not line or (market == 'spreads' and line['line'] == 0):
-            continue
-        # Express both from the favorite's side: line = goals laid (0 on the moneyline), actual = its final margin.
-        home_fav = line['line'] < 0 if market == 'spreads' else line['p_over'] >= 0.5
-        fav = label[game['home_id'] if home_fav else game['away_id']]
-        side = (dict(p_over=line['p_over'], dec_over=line['dec_over'], dec_under=line['dec_under']) if home_fav else
-                dict(p_over=1 - line['p_over'], dec_over=line['dec_under'], dec_under=line['dec_over']))
-        laid = abs(line['line'])
-        rows.append(dict(market=market, t=t, label=f'{fav} -{laid:g}' if market == 'spreads' else fav, game=game_name,
-                         actual=float(margin if home_fav else -margin), line=laid, books=line['books'], **side))
-    return rows
+    return rows + side_rows(quotes, home, away, label[game['home_id']], label[game['away_id']],
+                            game['home_score'] - game['away_score'], game_name, t)
 
 
-def build_nhl(season, runs_root=NHL_ARCHIVE / 'runs', archive=NHL_ARCHIVE):
-    runs = nhl_runs(runs_root)
-    games, players = nhl_results(runs, int(f'{season}{season + 1}'), archive) if runs else ({}, {})
-    quotes = nhl_pregame_quotes(runs)
-    label = {g[f'{s}_id']: g[f'{s}_team'] for g in games.values() for s in ('home', 'away')}
-    label.update({p['team_id']: p['team_abbrev'] for p in players.values() if p.get('team_abbrev')})
+def weekly(games, start_word):
+    """Games as (start, captured_at, rows) in start order -> rows numbered by Eastern Monday-to-Sunday
+    week from the first game, the weeks, a sentence on how early prices were captured, and the last day."""
     rows, leads, by_week, opener = [], [], defaultdict(list), None
-    for gid in sorted(set(games) & set(quotes), key=lambda g: (quotes[g][1][0]['commence_time'], g)):
-        at, game_quotes = quotes[gid]
-        start = pd.Timestamp(game_quotes[0]['commence_time'])
+    for start, at, game_rows in games:
         day = start.tz_convert('America/New_York').date()
         opener = opener or day - timedelta(days=day.weekday())
         week = (day - opener).days // 7 + 1
-        game_rows = nhl_game_rows(gid, game_quotes, games[gid], players, label, int(start.timestamp()))
         if not game_rows:
             continue
         lead = (start - at).total_seconds() / 3600
@@ -388,20 +443,150 @@ def build_nhl(season, runs_root=NHL_ARCHIVE / 'runs', archive=NHL_ARCHIVE):
         monday = opener + timedelta(days=7 * (week - 1))
         hours = sorted(lead for _, lead in played)
         periods.append(dict(key=week, label=f'Week of {monday:%b} {monday.day}', short=f'{monday:%b} {monday.day}',
-                            games=len(played), captured=f'median {np.median(hours):.1f} hours before puck drop '
+                            games=len(played), captured=f'median {np.median(hours):.1f} hours before {start_word} '
                                                         f'(range {hours[0]:.1f} to {hours[-1]:.1f})'))
-    lead = (f' For the games graded so far that was a median of {np.median(leads):.1f} hours before puck drop '
+    lead = (f' For the games graded so far that was a median of {np.median(leads):.1f} hours before {start_word} '
             f'(range {min(leads):.1f} to {max(leads):.1f}).') if leads else ''
     last = max((day for played in by_week.values() for day, _ in played), default=None)
+    return rows, periods, lead, last
+
+
+SEASON_WINDOWS = [dict(key='season', label='Season'), dict(key='d30', label='Last 30 days', days=30),
+                  dict(key='d7', label='Last 7 days', days=7)]
+
+
+def build_nhl(season, runs_root=NHL_ARCHIVE / 'runs', archive=NHL_ARCHIVE):
+    runs = nhl_runs(runs_root)
+    games, players = nhl_results(runs, int(f'{season}{season + 1}'), archive) if runs else ({}, {})
+    quotes = nhl_pregame_quotes(runs)
+    label = {g[f'{s}_id']: g[f'{s}_team'] for g in games.values() for s in ('home', 'away')}
+    label.update({p['team_id']: p['team_abbrev'] for p in players.values() if p.get('team_abbrev')})
+    graded = []
+    for gid in sorted(set(games) & set(quotes), key=lambda g: (quotes[g][1][0]['commence_time'], g)):
+        at, game_quotes = quotes[gid]
+        start = pd.Timestamp(game_quotes[0]['commence_time'])
+        graded.append((start, at, nhl_game_rows(gid, game_quotes, games[gid], players, label, int(start.timestamp()))))
+    rows, periods, lead, last = weekly(graded, 'puck drop')
     payload = package('nhl', season, NHL_MARKETS, rows, periods,
-                      windows=[dict(key='season', label='Season'), dict(key='d30', label='Last 30 days', days=30),
-                               dict(key='d7', label='Last 7 days', days=7)],
+                      windows=SEASON_WINDOWS,
                       notes=dict(source='Last pregame snapshot of our sportsbook feed; results from NHL official statistics.',
                                  timing=NHL_TIMING.format(lead=lead),
                                  board_axis='Share of lines that went over (puck line and moneyline: share the favorite '
                                             'covered or won)',
                                  board_axis_short='Share over (game lines: favorite covered or won)',
                                  empty='NHL results are not graded yet. They will appear here once grading starts.'))
+    if last:
+        payload['through'] = f'{last:%b} {last.day}'
+    return payload
+
+
+NBA_TIMING = ('Prices come from the last snapshot we saved before each game, normally our late-afternoon refresh on '
+              'game days (5 PM ET in daylight time, 4 PM in standard time).{lead} Lines often move before tipoff, '
+              'especially after injury reports and starting lineups, so this compares results with that snapshot, '
+              'not the closing line.')
+
+
+def nba_runs(root=NBA_ARCHIVE / 'runs'):
+    """Archived NBA refreshes (scripts/recap_archive.py) in capture order; a snapshot saved twice is read once."""
+    runs = {}
+    for path in sorted(Path(root).glob('*.json.gz')):
+        with gzip.open(path, 'rt') as f:
+            run = json.load(f)
+        if run.get('checked_at'):
+            runs.setdefault(run['checked_at'], run)
+    return sorted(runs.values(), key=lambda r: pd.Timestamp(r['checked_at']))
+
+
+def nba_pregame_quotes(runs):
+    return pregame_quotes(runs, 'event_id')
+
+
+def nba_results(quotes, root=ROOT, fetch=None, offline=False):
+    """ESPN finals and box scores for these games, through the weekly recap's resolver.
+
+    Saved responses in artifacts/nba/results come first; the free feed is asked only for days with a game
+    that is not final with a box score there. A feed failure keeps what is saved. Returns
+    (games, players, event id -> resolved row)."""
+    import requests
+    from nba_weekly_results import fetch_json, fetch_results
+    probes = [dict(event_id=gid, commence_time=qs[0]['commence_time'], home_team=qs[0]['home_team'],
+                   away_team=qs[0]['away_team']) for gid, (_, qs) in quotes.items()]
+    if not probes:
+        return {}, {}, {}
+    day = lambda r: pd.Timestamp(r['commence_time']).tz_convert('America/New_York').date()
+    span = lambda rows: (min(map(day, rows)), max(map(day, rows)))
+    games, players, resolved = fetch_results(*span(probes), probes, root, offline=True)
+    settled = lambda r: games.get(r.get('nba_game_id'), {}).get('boxscore_status') == 'available'
+    missing = [probe for probe, r in zip(probes, resolved) if not settled(r)]
+    if missing and not offline:
+        try:
+            more_games, more_players, more = fetch_results(*span(missing), missing, root, fetch=fetch or fetch_json)
+        except (requests.RequestException, ValueError) as error:
+            print(f'NBA results feed unavailable ({type(error).__name__}); graded saved results only', file=sys.stderr)
+        else:
+            games.update(more_games)
+            players.update(more_players)
+            fresh = {r['event_id']: r for r in more}
+            resolved = [fresh.get(r['event_id'], r) for r in resolved]
+    return games, players, {r['event_id']: r for r in resolved}
+
+
+def nba_code(team):
+    return NBA_CODES.get(''.join(c for c in fold(team) if c.isalnum()), team)
+
+
+def nba_game_rows(quotes, game, players, t):
+    """Main-line rows for one final game: player props, total, spread and moneyline."""
+    from nba_weekly_results import get_actual
+    home, away = quotes[0]['home_team'], quotes[0]['away_team']
+    game_name = f'{nba_code(away)} @ {nba_code(home)}'
+    keys = {m['key'] for m in NBA_MARKETS} - {'spreads', 'h2h'}
+    ou = [q for q in quotes if q['market'] in keys and q['side'] in ('Over', 'Under') and q.get('line') is not None]
+    rows = []
+    if ou:
+        # The feed has no player ids; names are told apart without case, accents or punctuation.
+        d = pd.DataFrame(ou, columns=['market', 'player', 'book', 'side', 'line', 'price'])
+        d['who'] = d.player.fillna('').map(fold)
+        for (market, _), group in pair_quotes(d, 'who', 'Over', 'Under').groupby(['market', 'who'], sort=True):
+            line = main_line(group)
+            if not line:
+                continue
+            if market == 'totals':
+                actual, label = game['home_score'] + game['away_score'], game_name
+            else:
+                label = group.player.iloc[0]
+                actual, _ = get_actual(dict(market=market, player=label, home_team=game['home_team'],
+                                            away_team=game['away_team'], nba_game_id=game['id'], resolution_status='resolved'),
+                                       {game['id']: game}, players)
+                if actual is None:  # Did not play, an ambiguous name or a missing stat: void, not a zero.
+                    continue
+            rows.append(dict(market=market, t=t, label=label, game=game_name, actual=float(actual), **line))
+    return rows + side_rows(quotes, home, away, nba_code(home), nba_code(away),
+                            game['home_score'] - game['away_score'], game_name, t)
+
+
+def build_nba(season, runs_root=NBA_ARCHIVE / 'runs', root=ROOT, fetch=None, offline=False, now=None):
+    now = pd.Timestamp(now) if now is not None else pd.Timestamp.now(tz='UTC')
+    first, after = (pd.Timestamp(f'{year}-10-01', tz='America/New_York') for year in (season, season + 1))
+    quotes = {gid: v for gid, v in nba_pregame_quotes(nba_runs(runs_root)).items()
+              if first <= pd.Timestamp(v[1][0]['commence_time']) < after and pd.Timestamp(v[1][0]['commence_time']) <= now}
+    games, players, resolved = nba_results(quotes, root, fetch, offline)
+    graded = []
+    for gid in sorted(quotes, key=lambda g: (quotes[g][1][0]['commence_time'], g)):
+        game = games.get(resolved.get(gid, {}).get('nba_game_id'))
+        if not game or not game.get('final'):
+            continue
+        at, game_quotes = quotes[gid]
+        start = pd.Timestamp(game_quotes[0]['commence_time'])
+        graded.append((start, at, nba_game_rows(game_quotes, game, players, int(start.timestamp()))))
+    rows, periods, lead, last = weekly(graded, 'tipoff')
+    payload = package('nba', season, NBA_MARKETS, rows, periods, windows=SEASON_WINDOWS,
+                      notes=dict(source='Last pregame snapshot of our sportsbook feed; results from ESPN box scores.',
+                                 timing=NBA_TIMING.format(lead=lead),
+                                 board_axis='Share of lines that went over (spread and moneyline: share the favorite '
+                                            'covered or won)',
+                                 board_axis_short='Share over (game lines: favorite covered or won)',
+                                 empty='NBA results are not graded yet. They will appear here once the first games are final.'))
     if last:
         payload['through'] = f'{last:%b} {last.day}'
     return payload
@@ -518,12 +703,15 @@ def main():
     parser.add_argument('--season', type=int, default=2026)
     parser.add_argument('--stats', default=None, help='nflverse weekly player stats parquet')
     parser.add_argument('--schedule', default=None, help='nflverse games/schedule CSV')
-    parser.add_argument('--sport', choices=['nfl', 'nhl', 'all'], default='all',
+    parser.add_argument('--sport', choices=['nfl', 'nhl', 'nba', 'all'], default='all',
                         help='Each sport workflow rebuilds only its own page')
+    parser.add_argument('--offline', action='store_true',
+                        help='NBA: grade from saved ESPN responses only (artifacts/nba/results)')
     args = parser.parse_args()
     stats = args.stats or ROOT / f'data/weekly_player_stats_{args.season}.parquet'
     schedule = args.schedule or ROOT / f'data/schedule_{args.season}.csv'
-    builders = dict(nfl=lambda: build_nfl(args.season, stats, schedule), nhl=lambda: build_nhl(args.season))
+    builders = dict(nfl=lambda: build_nfl(args.season, stats, schedule), nhl=lambda: build_nhl(args.season),
+                    nba=lambda: build_nba(args.season, offline=args.offline))
     for sport in (builders if args.sport == 'all' else [args.sport]):
         payload = builders[sport]()
         write(payload)

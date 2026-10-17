@@ -158,6 +158,50 @@ assert.equal(O.signed(-115),'−115');assert.equal(O.signed(120),'+120');assert.
   assert.equal(T.ticketData(O.ticket(game,pts.lines[0].best),240,5,NOW).market_type,'points');
 }
 
+// ---- NBA: its own markets, labels, tighter live timing and tickets ----------------------
+{
+  const NH='Detroit Pistons',NA='Boston Celtics';
+  const nba=(bookmakers,commence='2026-10-03T23:10:00Z')=>({id:'d'.repeat(32),sport_key:'basketball_nba',commence_time:commence,home_team:NH,away_team:NA,bookmakers});
+  const pts=(over,under,line=24.5,player='Cade Cunningham')=>({player_points:[['Over',over,line,player],['Under',under,line,player]]});
+  assert.deepEqual([O.sportOf(nba([])),O.sportOf(event([])),O.sportOf({})],['NBA','NHL','NHL'],'the response names its league; none means NHL');
+  // Each league keeps only its own markets.
+  const rows=O.quotes(nba([book('draftkings','DraftKings',10,{...pts(-110,-110),spreads:[[NH,-110,-4.5],[NA,-110,4.5]],
+    player_shots_on_goal:[['Over',-110,2.5,'Cade Cunningham']],player_threes:[['Over',120,2.5,'Cade Cunningham'],['Under',-150,2.5,'Cade Cunningham']]})]));
+  assert.deepEqual(rows.map(r=>[r.sport,r.market,r.market_label,r.side,r.line]),[
+    ['NBA','player_points','Points','Over',24.5],['NBA','player_points','Points','Under',24.5],
+    ['NBA','spreads','Spread',NH,-4.5],['NBA','spreads','Spread',NA,4.5],
+    ['NBA','player_threes','Threes made','Over',2.5],['NBA','player_threes','Threes made','Under',2.5]]);
+  assert.deepEqual(O.quotes(event([book('draftkings','DraftKings',10,{player_rebounds:[['Over',-110,8.5,'Tage Thompson'],['Under',-110,8.5,'Tage Thompson']]})])),[],'no NBA markets on an NHL game');
+  // During play NBA references must be within one minute (NHL: two), and a quote three minutes behind is stale (NHL: five).
+  const books=age=>[book('fanduel','FanDuel',10,pts(-110,-110)),book('betmgm','BetMGM',10,pts(-110,-110)),
+    book('williamhill_us','Caesars',10+age,pts(-110,-110)),book('draftkings','DraftKings',10,pts(110,-140))];
+  const over=(b)=>line(b,'player_points|Cade Cunningham|24.5|Over');
+  assert.equal(over(O.board(nba(books(90)),NOW)).best.other_books,2,'NBA: 90 seconds apart is too far');
+  assert.equal(over(O.board(nba(books(45)),NOW)).flagged,true,'NBA: 45 seconds apart is close enough');
+  assert.equal(line(O.board(event(books(90).map(b=>({...b,markets:b.markets.map(m=>({...m,key:'player_shots_on_goal'}))}))),NOW),
+    'player_shots_on_goal|Cade Cunningham|24.5|Over').best.other_books,3,'NHL keeps its two-minute window');
+  const lag=O.board(nba(books(200)),NOW);
+  assert.equal(over(lag).quotes.find(q=>q.book==='williamhill_us').stale,true,'NBA: 200 seconds behind is stale');
+  const pre=O.board(nba(books(200),'2026-10-04T00:10:00Z'),NOW);
+  assert.deepEqual([pre.sport,pre.mode,over(pre).best.other_books],['NBA','pre',3],'before tipoff the fifteen-minute window applies');
+  // Alternate milestones keep exact lines and are saved as the base market.
+  const alt=O.board(nba([book('fanduel','FanDuel',10,{player_points_alternate:[['Over',150,24.5,'Cade Cunningham'],['Over',260,29.5,'Cade Cunningham']]})]),NOW);
+  const rung=line(alt,'player_points_alternate|Cade Cunningham|29.5|Over');
+  assert.deepEqual([rung.market_label,rung.label,rung.push_possible],['Points (alternate)','Over 29.5 (30+)',false]);
+  const T=require('../docs/assets/offer-tracker.js');
+  const game={id:'d'.repeat(32),commence_time:'2026-10-03T23:10:00Z',home_team:NH,away_team:NA,sport:'NBA'};
+  assert.deepEqual((({league,market_type,side,line,player,model_prob})=>({league,market_type,side,line,player,model_prob}))(T.ticketData(O.ticket(game,rung.best),260,5,NOW)),
+    {league:'NBA',market_type:'player_points',side:'over',line:29.5,player:'Cade Cunningham',model_prob:null},'"30+ points" = points over 29.5');
+  const spread=O.board(nba([book('fanduel','FanDuel',10,{spreads:[[NH,-110,-4.5],[NA,-110,4.5]]})]),NOW);
+  const s=T.ticketData(O.ticket({...game,sport:undefined},line(spread,'spreads||-4.5|'+NA).best),-110,10,NOW);
+  assert.deepEqual([s.league,s.market_type,s.side,s.line],['NBA','spreads',NA,4.5],'the quote carries its league');
+  const L=require('../docs/tracking/live-stats.js');
+  assert.deepEqual(L.marketSpec('NBA','player_threes').stats,['threes'],'NBA tickets grade from the box score');
+  // ESPN's NBA scoreboard names: "LA Clippers" / "Clippers" match the odds feed's "Los Angeles Clippers".
+  const games=[{id:'7',home:{name:'LA Clippers',short:'Clippers'},away:{name:'Portland Trail Blazers',short:'Trail Blazers'}}];
+  assert.equal(O.findGame(games,{home_team:'Los Angeles Clippers',away_team:'Portland Trail Blazers'}).id,'7');
+}
+
 // ---- Bet Tracker tickets: the shared dialog's ledger fields ----------------------------
 {
   const T=require('../docs/assets/offer-tracker.js');
@@ -301,6 +345,31 @@ assert.equal(O.signed(-115),'−115');assert.equal(O.signed(120),'+120');assert.
     assert.equal(new URL(refused.calls[1]).searchParams.get('markets'),MARKETS.join(','));
     const other=setup({odds:async()=>new Response('{}',{status:500})});
     assert.equal((await other.req({event:ID,live:true})).status,502);assert.equal(other.calls.length,1,'only a refused market retries');
+  }
+  {
+    // NBA: its own sport path and markets, its own caches; anything else is refused before any request.
+    const {req,calls}=setup();
+    const {SPORTS}=await import('../supabase/functions/live-odds/handler.mjs');
+    for(const sport of ['MLB',5,'__proto__',''])assert.equal((await req({sport})).status,400,`sport ${String(sport)}`);
+    assert.equal(calls.length,0);
+    const listed=await (await req({sport:'NBA'})).json();
+    assert.equal(listed.sport,'NBA','the list names its league, so the page can tell an outdated function');
+    assert.equal(new URL(calls[0]).pathname,'/v4/sports/basketball_nba/events');
+    assert.equal((await (await req({})).json()).sport,'NHL');
+    assert.equal(new URL(calls[1]).pathname,'/v4/sports/icehockey_nhl/events','no sport is NHL, with its own game list');
+    await req({sport:'NBA'});await req({sport:'NHL'});assert.equal(calls.length,2,'each league list cached');
+    const pre=await (await req({sport:'NBA',event:ID})).json();
+    const u=new URL(calls[2]);
+    assert.equal(u.pathname,`/v4/sports/basketball_nba/events/${ID}/odds`);
+    assert.equal(u.searchParams.get('markets'),'h2h,spreads,totals,player_points,player_rebounds,player_assists,player_threes');
+    assert.deepEqual(SPORTS.NBA.markets,u.searchParams.get('markets').split(','));
+    assert.equal(pre.reused,false);
+    await req({sport:'NBA',event:ID,live:true});
+    assert.equal(new URL(calls[3]).searchParams.get('markets'),[...SPORTS.NBA.markets,
+      'player_points_alternate','player_rebounds_alternate','player_assists_alternate','player_threes_alternate'].join(','));
+    assert.equal(SPORTS.NBA.markets.length+SPORTS.NBA.live.length,11,'at most 11 credits a live NBA press');
+    await req({event:ID});assert.equal(new URL(calls[4]).pathname,`/v4/sports/icehockey_nhl/events/${ID}/odds`,'prices are cached per league');
+    assert.equal((await req({sport:'NBA',event:ID})).status,200);assert.equal(calls.length,5,'then reused for free');
   }
   {
     // Paid calls stop below the reserve; saved prices are still served.

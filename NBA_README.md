@@ -9,6 +9,8 @@ NBA is a separate pipeline; it does not change NFL/NHL predictions or run paid c
 - `/nba/totals/`: totals, spreads and moneylines
 - `/nba/top.html`: **Market Watch**, using independent same-line book comparisons; not model best bets
 - `/nba/methods.html`: assumptions, availability and model limitations
+- `/markets/?sport=nba`: **Market Analytics**, every tracked prop and game line graded against the books' own no-vig prices (no model)
+- `/live/` (editors only): **Live Odds** for one NBA or NHL game, before or during play
 
 The official 2026–27 season starts October 20. See https://www.nba.com/news/2026-27-nba-regular-season-schedule . We do not synthesize unavailable props or insert demonstration bets on the public pages.
 
@@ -31,7 +33,7 @@ Source documentation: https://the-odds-api.com/liveapi/guides/v4/ and https://th
 
 `.github/workflows/nba-daily.yml` runs at 15:00 and 21:00 UTC and supports manual dispatch. It uses `NBA_ODDS_API_KEY`, falling back to the repository `ODDS_API_KEY` secret. The NBA-specific secret was configured from the verified local credential after the shared workflow credential returned HTTP 401 during launch testing. Stats calls are free and optional on manual runs; failure does not invent baselines or prevent odds publishing. No OpenAI secret is used.
 
-The workflow tests pricing behavior, restores cached regular-season history, attempts prior/current-season game logs, refreshes odds, saves 90-day artifacts, commits only `docs/nba/`, and pushes with rebase/retry. It explicitly requests a GitHub Pages rebuild after publishing because a bot-token commit does not trigger one. A failed odds fetch publishes an error state and fails the job, preserving the last success time and saved evidence. Check Actions for runner-specific feed access problems.
+The workflow tests pricing and grading behavior, restores cached regular-season history, attempts prior/current-season game logs, refreshes odds, grades Market Analytics, saves 90-day artifacts, commits `docs/nba/`, `docs/markets/` and `artifacts/nba/`, and pushes with rebase/retry. It explicitly requests a GitHub Pages rebuild after publishing because a bot-token commit does not trigger one. A failed odds fetch publishes an error state and fails the job, preserving the last success time and saved evidence. Check Actions for runner-specific feed access problems.
 
 ## Artifacts and correctness
 
@@ -56,11 +58,17 @@ Before activating NBA model picks:
 4. Use chronological evaluation with only inputs available before tipoff, separate preseason and postseason, and evaluate calibration against archived contemporaneous odds, including pushes.
 5. Publish model and data versions, coverage, last input dates and unsupported-player reasons. Add injury adjustments only once availability inputs are verified.
 
-No NBA bet grading, injury automation, paid summaries or model best-bet claims are silently enabled by this launch.
+No NBA injury automation, paid summaries or model best-bet claims are enabled. NBA picks stay out of Top Picks until a validated model exists.
+
+## Market Analytics, Bet Tracker and Live Odds
+
+- **Market Analytics** (`scripts/build_market_results.py --sport nba`, run by `nba-daily.yml` even when the odds refresh fails): each game's quotes come from the last snapshot in `artifacts/nba/runs/` saved before tipoff; results come from ESPN final box scores through the weekly recap's resolver (`scripts/nba_weekly_results.py`). Raw ESPN responses are kept in `artifacts/nba/results/` and reused, so the free feed is asked only for days with a game not yet final there; a feed failure grades saved results only. A player who did not play, or whose name does not match exactly one box-score player, is void and left out. Snapshots are taken at 11 AM and 5 PM ET (10 AM and 4 PM in standard time), so the page compares results with prices a few hours before tipoff, not closing lines. `--offline` grades from saved responses only.
+- **Bet Tracker** settles NBA bets from ESPN box scores (`scripts/grade_bets.cjs`, every 30 minutes, once a game is final and started 4+ hours ago). Overtime counts. A player listed as not playing is a push (refund), as books void those props, and a player with no readable stats stays pending rather than being graded on zeros. Closing-line value uses `basketball_nba` (`supabase/functions/closing-lines`).
+- **Live Odds** (`/live/`, editor accounts): moneyline, spread, total, points, rebounds, assists and threes before tipoff (at most 7 credits); during play also alternate points, rebounds, assists and threes (at most 11). NBA comparisons use quotes within one minute of each other during play, and the NBA scoreboard comes from ESPN in the browser. See `REFRESH_SCHEDULE.md`.
 
 ## Verification
 
-`tests/test_nba.py` checks cross-line/event isolation, opposite spread signs, duplicates, leave-one-book-out comparisons, chronology/DNP/push behavior, empty slates, failures and stale prices. `tests/nba_browser.cjs` checks navigation/layout, filters, best prices, stale data and failure suppression using an in-memory fixture (never shipped).
+`tests/test_nba_market_results.py` checks pregame snapshot choice, ESPN settlement, voids and saved-result reuse. `tests/test_nba.py` checks cross-line/event isolation, opposite spread signs, duplicates, leave-one-book-out comparisons, chronology/DNP/push behavior, empty slates, failures and stale prices. `tests/nba_browser.cjs` checks navigation/layout, filters, best prices, stale data and failure suppression using an in-memory fixture (never shipped).
 
 ```sh
 NODE_PATH=/path/to/node_modules node tests/nba_browser.cjs
