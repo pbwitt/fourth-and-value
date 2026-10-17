@@ -16,7 +16,8 @@ KEYS = ['minutes', 'points', 'fieldGoalsMade-fieldGoalsAttempted',
 
 
 def competitor(side, tid, name, abbr, score):
-    return dict(homeAway=side, score=str(score), linescores=[{}] * 4,
+    quarters = [score // 4] * 3 + [score - 3 * (score // 4)]
+    return dict(homeAway=side, score=str(score), linescores=[dict(period=i + 1, value=float(v)) for i, v in enumerate(quarters)],
                 team=dict(id=tid, displayName=name, abbreviation=abbr))
 
 
@@ -50,6 +51,7 @@ class EspnHistory(unittest.TestCase):
         self.assertEqual((home['MATCHUP'], home['PTS'], home['OPP_PTS'], home['FGA'], home['TOV'], home['WL']),
                          ('BOS vs. NY', 110, 100, 85, 14, 'W'))
         self.assertNotIn('FTA', home, 'a stat ESPN did not report stays absent')
+        self.assertEqual(home['PERIOD_PTS'], [27, 27, 27, 29])
         one, two, three, four = players
         self.assertTrue(four['DNP'])
         self.assertEqual(four['DNP_REASON'], 'INACTIVE')

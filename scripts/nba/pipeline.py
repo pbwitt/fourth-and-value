@@ -287,7 +287,7 @@ def espn_history():
     return history
 
 
-def refresh(client, now, history, previous=None):
+def refresh(client, now, history, previous=None, model_history=None):
     events = client.get('events', dateFormat='iso')
     if not isinstance(events, list):
         raise FeedError('Events response has an unexpected format')
@@ -311,7 +311,16 @@ def refresh(client, now, history, previous=None):
             raise FeedError('Prop odds response has an unexpected format')
         rows.extend(flatten(data, now))
     rows = add_baselines(compare(rows), history, now)
-    return dict(sport=SPORT, checked_at=iso(now), last_success_at=iso(now),
+    model = {}
+    if model_history is not None and rows:
+        try:
+            from nba.inference import add_model
+            model = add_model(rows, model_history, now)
+        except Exception as error:  # odds still publish; the forecast layer is shadow-only
+            model = dict(model_error=f'NBA v1 forecasts unavailable ({type(error).__name__})')
+            for row in rows:
+                row.update(model_probability=None, model_push_probability=None, model_ev_pct=None)
+    state = dict(sport=SPORT, checked_at=iso(now), last_success_at=iso(now),
                 status='ready' if rows else 'waiting_for_markets', events=events, rows=rows,
                 history_players=len({g['PLAYER_ID'] for g in history.get('players', [])}),
                 history_seasons=history.get('seasons', []),
@@ -319,6 +328,8 @@ def refresh(client, now, history, previous=None):
                 model_status='Historical baselines; NBA predictions are not validated',
                 requests=client.requests, quota_remaining=client.quota_remaining,
                 props_events_skipped=max(0, len(props_events)-16))
+    state.update(model)  # v1 metadata replaces the baseline-only status when forecasts ran
+    return state
 
 
 def main():
@@ -332,11 +343,14 @@ def main():
                                   events=[], rows=[], history_players=0))
     # Refreshed separately by scripts/nba/espn_history.py --recent; no network here.
     history = espn_history()
+    from nba.espn_history import load_all
+    # The v1 model's team and player states use every game type; baselines stay regular season.
+    model_history = load_all(season_types=None)
     exit_code = 0
     if not args.offline:
         try:
             client = OddsClient(os.getenv('ODDS_API_KEY'))
-            state = refresh(client, now, history, state)
+            state = refresh(client, now, history, state, model_history)
             # Request-start time is not the time the completed forecast became available.
             state['captured_at'] = iso(datetime.now(UTC))
             archive = ROOT / 'data/nba/snapshots' / f"{now.strftime('%Y%m%dT%H%M%SZ')}.json"

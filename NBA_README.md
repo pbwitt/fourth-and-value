@@ -46,6 +46,20 @@ The workflow tests pricing and grading behavior, adds the last four Eastern date
 
 De-vig needs both outcomes from the same book/event/player/market/line. Spread pairing normalizes the away handicap to the home sign. Conflicting duplicate quotes are withheld. Consensus uses one vote per paired book; Market Watch excludes the evaluated book and requires three other paired books. Positive consensus price gaps are research signals, not calibrated expected profit. Quotes older than 24 hours and started games are hidden. The browser repeats that gate and refreshes open boards every five minutes.
 
+## NBA v1 model (shadow mode)
+
+`scripts/nba/model.py`, `train.py` and `inference.py`; parameters in `artifacts/nba/model/nba-v1.json`; model card and
+evaluation in `reports/nba-v1/`. The daily refresh only runs inference (a few seconds; ESPN rosters and injury report,
+free). It never retrains. Rows gain `model_probability`, `model_push_probability`, `model_mean`, `model_minutes`,
+`model_ev_pct` (feed only, not displayed) and `model_unsupported_reason`. The feed gains `model_version`,
+`model_predicted_at` and `model_coverage`, but never `model_checked_at`, so editorial and Top Picks keep skipping NBA.
+Retrain (about 20 minutes, no network) after the history changes materially:
+
+```sh
+make nba_train PY=.venv/bin/python        # selection + 2025-26 test + production refit
+.venv/bin/python scripts/nba/train.py --skip-selection   # keep hyperparameters
+```
+
 ## Prediction readiness
 
 The initial launch includes live market infrastructure and an optional historical reference layer. **It does not claim to have a validated NBA player or game prediction model.** History comes from ESPN because NBA Stats refuses GitHub runners. Check `artifacts/nba/history/manifest.json` (games per season type, unreadable finals) before reporting statistics as loaded.
