@@ -140,6 +140,14 @@ def read_stats(keys, values, mapping):
     return {k: v for k, v in out.items() if v is not None}
 
 
+def period_points(competitor):
+    lines = sorted(competitor.get('linescores') or [], key=lambda x: x.get('period', 0))
+    values = [count(x.get('value')) for x in lines]
+    if not values or None in values or [x.get('period') for x in lines] != list(range(1, len(lines) + 1)):
+        return None
+    return values
+
+
 def matchup(own, other, home):
     return f"{own} vs. {other}" if home else f"{own} @ {other}"
 
@@ -177,6 +185,10 @@ def parse_game(event, summary):
         row = dict(base, PTS=record[f'{side.upper()}_PTS'], OPP_PTS=record[f'{other.upper()}_PTS'],
                    **read_stats([s.get('name') for s in stats], [s.get('displayValue') for s in stats], TEAM_KEYS))
         row['WL'] = 'W' if row['PTS'] > row['OPP_PTS'] else 'L'
+        quarters = period_points(sides[side])
+        if quarters and sum(quarters) == row['PTS'] and len(quarters) >= 4:
+            # Points per period; regulation is the first four. Withheld unless they sum to the final.
+            row['PERIOD_PTS'] = quarters
         teams.append(row)
     seen = set()
     for roster in summary.get('boxscore', {}).get('players', []):

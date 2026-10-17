@@ -72,28 +72,31 @@ that apply.
    **Check on opening night:** Odds API player names against ESPN `displayName`
    (accents are normalized; nicknames such as "Nic"/"Nicolas" are not), and the first
    `--recent` run creating `2026-27.json.gz` on a runner.
-3. **Availability:** ESPN's NBA injuries endpoint and the NBA's official injury report.
-   Wire NBA into `docs/assets/injury-context.js` (its source allowlist has CBS
+3. **Availability (partly done):** v1 inference reads ESPN's NBA injuries endpoint
+   (`/injuries`) and current rosters (`/teams/<id>/roster`); Out players are withheld and
+   other statuses are displayed. Still to do: the NBA's official injury report, and wire NBA into `docs/assets/injury-context.js` (its source allowlist has CBS
    `/mlb/injuries/` and `/nhl/injuries/` only) once the source is verified.
 
-## Phase 2: NBA model v1 (shadow mode)
+## Phase 2: NBA model v1 (shadow mode) — shipped
 
-Follow the NHL v2 pattern (`NHL_README.md`, `reports/nhl-rebuild/MODEL_CARD.md`):
-lagged inputs only, training separate from daily inference, versioned artifacts, a
-dated evaluation report (e.g. `reports/nba-v1/`).
+`nba-v1.0` (`reports/nba-v1/MODEL_CARD.md`, `EVALUATION.md`). Game model: pace × points per
+possession from lagged team states, ridge to regulation scores, a bivariate normal score
+matrix with empirical overtime. Player model: minutes × shrunk per-minute rates, pace and
+opponent adjusted, blended with recent averages; gamma-Poisson counts; combos simulated
+jointly; per-market calibration slopes fit on 2024–25. Test on 2025–26: moneyline log loss
+0.603 vs. 0.688 (home-rate baseline); every player market beats the production baseline at
+last-10 pseudo-lines. States exclude playoff and play-in games (they would bias opening-night
+totals about 5 points low). Players listed Out on ESPN's injury report are withheld.
 
-- **Game model:** possessions (pace) × points per possession from lagged offensive and
-  defensive efficiency, with home court, rest, back-to-backs and travel; one joint
-  score distribution prices moneyline, spread and total, with push mass on whole lines.
-- **Player model:** projected minutes (recency, role, starter status, rest, blowout risk
-  from the spread) × per-minute rates for points, rebounds, assists, threes, blocks,
-  steals and turnovers, with overdispersion; combos (PRA, P+R, P+A, R+A) simulated
-  jointly, never as independent marginals.
-- **Evaluation:** chronological; train on earlier seasons, test on 2025–26; count log
-  loss, Brier and calibration against simple baselines. Price-based claims wait for
-  graded regular-season odds (`artifacts/nba/runs/` starts with the opener).
-- **Publish as experimental** on `/nba/props/` and `/nba/totals/` with model and data
-  versions, coverage and unsupported-player reasons; grade prospectively.
+Still open:
+- Grade v1 prospectively: join `artifacts/nba/runs/` snapshots (model fields included) to
+  ESPN finals for log loss and CLV against the market, by market and by weeks into the season.
+- The points tails remain overconfident after calibration; revisit with a role or usage
+  feature once 2026–27 data accumulates.
+- Teammate-absence adjustments to minutes and usage need verified injury inputs;
+  `docs/assets/injury-context.js` still lacks an NBA source.
+- Early-season disagreement with the market (offseason roster moves) is large; consider
+  blending toward the market or a preseason roster prior before Phase 3.
 
 ## Phase 3: Top Picks and research (after graded evidence)
 
