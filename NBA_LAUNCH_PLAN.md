@@ -49,26 +49,29 @@ that apply.
   `scripts/research/daily_process.html`, `ANALYST_RESEARCH.md` and the generated
   `docs/research/daily-process.html` in the same change.
 
-## Phase 1: data foundation (next)
+## Phase 1: data foundation
 
-1. **ESPN history backfill** (new script, e.g. `scripts/nba/espn_history.py`):
-   - Walk the scoreboard by Eastern date for 2023–24, 2024–25 and 2025–26. Keep regular
-     season (`season.type == 2`) and postseason (3) separately; drop preseason (1).
-   - For each final game, fetch the summary once and parse player rows with
-     `nba_weekly_results._players` (or shared code) plus team totals.
-   - Pace requests politely (about 3,700 games) and cache raw responses locally
-     (gitignored). Commit only compact parsed data, e.g. one gzip JSON per season in
-     `artifacts/nba/history/` with a manifest (source URLs, fetched_at, row counts,
-     sha256), the way `artifacts/nhl/` keeps its training sources.
-2. **Switch `scripts/nba/pipeline.py` history to ESPN.** `add_baselines` and
-   `player_context.nba_defense` read NBA Stats column names; emit the same fields
-   from ESPN so they keep working: player rows `PLAYER_ID` (ESPN athlete id),
-   `PLAYER_NAME`, `GAME_ID`, `GAME_DATE`, `MATCHUP`, `TEAM_NAME`, `MIN`, `PTS`, `REB`,
-   `AST`, `FG3M`, `BLK`, `STL`, `TOV`; team rows `GAME_ID`, `GAME_DATE`, `TEAM_NAME`,
-   `TEAM_ABBREVIATION` plus the totals `nba_defense` uses. Positions come from
-   `athlete.position.abbreviation`. `nba-daily.yml` then adds yesterday's finals
-   incrementally (reuse `artifacts/nba/results/`). This restores player baselines and
-   context panels on `/nba/props/`; today `history_players` is 0.
+1. **Done: ESPN history backfill** (`scripts/nba/espn_history.py`). `artifacts/nba/history/`
+   holds one gzip JSON per season (2023–24, 2024–25, 2025–26) and `manifest.json`
+   (sha256, games by season type, gaps). Each season has exactly 1,230 regular-season
+   games; `SEASON_TYPE` separates regular, cup_final (ESPN files it as regular season;
+   the NBA excludes it from season totals), play_in and playoffs. All-Star games and
+   preseason are dropped. Inactive and DNP players keep a row with `DNP` true and no
+   stats. Rows use NBA Stats column names with ESPN IDs, plus FGA/FTA/OREB/3PA,
+   starter, position and plus-minus for the model. Raw responses are cached in
+   `data/nba/espn/` (gitignored); a full rebuild took about 4,800 free requests.
+   Known source gaps: four 2026 playoff summaries return 404 from ESPN; 12 of 7,916
+   team games have player points that sum 1–2 short of the final score (ESPN box
+   score error; the team score is from the final); seven Chicago 2025–26 games list
+   7–17 fewer player minutes than 240.
+2. **Done: pipeline reads ESPN history.** `pipeline.espn_history()` loads regular-season
+   rows and derives positions from each player's latest game; NBA Stats code is gone.
+   `nba-daily.yml` runs `espn_history.py --recent 4`, which adds new finals to the
+   committed season file (unchanged data is not rewritten). Verified offline on real
+   players: 30-game baselines, positions and the opponent panel populate.
+   **Check on opening night:** Odds API player names against ESPN `displayName`
+   (accents are normalized; nicknames such as "Nic"/"Nicolas" are not), and the first
+   `--recent` run creating `2026-27.json.gz` on a runner.
 3. **Availability:** ESPN's NBA injuries endpoint and the NBA's official injury report.
    Wire NBA into `docs/assets/injury-context.js` (its source allowlist has CBS
    `/mlb/injuries/` and `/nhl/injuries/` only) once the source is verified.
