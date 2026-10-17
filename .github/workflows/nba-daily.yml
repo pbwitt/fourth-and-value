@@ -39,8 +39,8 @@ jobs:
           path: data/nba/history
           key: nba-history-v1-${{ github.run_id }}
           restore-keys: nba-history-v1-
-      - name: Verify NBA math and publishing guards
-        run: python -m unittest discover -s tests -p 'test_nba.py'
+      - name: Verify NBA math, grading and publishing guards
+        run: python -m unittest discover -s tests -p 'test_nba*.py'
       - name: Update historical game logs
         if: github.event_name == 'schedule' || inputs.refresh_history
         # Markets still publish if NBA Stats blocks a runner; no invented data.
@@ -59,6 +59,13 @@ jobs:
         env:
           ODDS_API_KEY: ${{ secrets.NBA_ODDS_API_KEY || secrets.ODDS_API_KEY }}
         run: python scripts/nba/pipeline.py
+      - name: Grade NBA market results
+        id: market_results
+        if: always() && (steps.refresh.outcome == 'success' || steps.refresh.outcome == 'failure')
+        continue-on-error: true
+        # Rebuilt from the committed run archive: last pregame snapshot per game vs. ESPN final box
+        # scores (free). Saved results in artifacts/nba/results are reused; an odds outage does not stop it.
+        run: python scripts/build_market_results.py --sport nba
       - name: Archive odds and model inputs for later review
         if: always()
         uses: actions/upload-artifact@v4
@@ -81,7 +88,7 @@ jobs:
         run: |
           git config user.name 'GitHub Actions Bot'
           git config user.email 'actions@github.com'
-          git add docs/nba/
+          git add docs/nba/ docs/markets/
           if [ -d artifacts/nba ]; then git add artifacts/nba/; fi
           if git diff --cached --quiet; then exit 0; fi
           git commit -m 'NBA: refresh market snapshot and pages'
@@ -104,3 +111,8 @@ jobs:
       - name: Report upstream odds failures
         if: steps.refresh.outcome == 'failure'
         run: exit 1
+      - name: Report market results failures after publishing
+        if: steps.market_results.outcome == 'failure'
+        run: |
+          echo '::error::NBA market results were not rebuilt; the page keeps its previous data.'
+          exit 1

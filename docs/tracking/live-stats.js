@@ -240,6 +240,10 @@
     const player = findPlayer(bet.player, box.players);
     if (!player) return { ...base, kind: 'player', unit: spec.label, tone: 'missing',
       label: final ? 'No stats found for this player' : 'Not in the box score yet' };
+    // An appearance with no stat we can read is a feed we do not understand, never a row of zeros.
+    if (player.played !== false && !Object.keys(player.stats || {}).length) {
+      return { ...base, kind: 'player', unit: spec.label, tone: 'missing', label: 'No readable stats for this player' };
+    }
 
     const value = spec.stats.reduce((sum, key) => sum + (player.stats[key] ?? 0), 0);
     let side = String(bet.side || '').toLowerCase(), line = bet.line == null || bet.line === '' ? null : Number(bet.line);
@@ -250,6 +254,11 @@
       playerPosition: player.position || null };
     if (spec.pitcher && Number.isFinite(player.stats.pitches)) view.pitches = player.stats.pitches;
     if (!['over', 'under'].includes(side) || !Number.isFinite(line)) return view;
+    // Books void a player prop when the player does not play. A final box that lists
+    // him without an appearance (ESPN "DNP", an MLB bench player) is a refund, not a zero.
+    if (final && player.played === false) {
+      return { ...view, value: null, line, side, tone: 'push', label: 'Did not play · void', note: 'Final · awaiting official grade' };
+    }
     const verdict = overUnder(value, line, side, { final, moves: !!spec.moves });
     const clear = Number.isInteger(line) ? line + 1 : Math.ceil(line);
     const progress = Math.max(0, Math.min(1, value / (side === 'over' ? clear : Math.max(line, 0.5))));

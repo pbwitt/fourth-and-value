@@ -1,8 +1,9 @@
-/* Private Live Odds page. An editor picks one NHL game and presses Run now: one
-   call to the live-odds Edge Function (at most 7 Odds API credits before puck drop,
-   10 once play starts, when it also asks for the milestones books post in-game;
-   presses within 60 seconds reuse the same prices for free) plus the free NHL scoreboard through
-   live-stats. The comparison itself lives in docs/live/live-odds.js. Track buttons
+/* Private Live Odds page. An editor picks one NHL or NBA game and presses Run now: one
+   call to the live-odds Edge Function (at most 7 Odds API credits before the game,
+   10 for NHL or 11 for NBA once play starts, when it also asks for the milestones
+   books post in-game; presses within 60 seconds reuse the same prices for free) plus
+   the free league scoreboard: NHL through live-stats, NBA straight from ESPN. The game
+   list asks each league's free events list. The comparison itself lives in docs/live/live-odds.js. Track buttons
    open Bet Tracker's shared dialog (docs/assets/offer-tracker.js) for the exact
    book, line and price shown; its pregame-only buttons are not used here.
    Authentication and the Edge Function protect the credits; hiding this page does not. */
@@ -14,6 +15,12 @@
  const age=ms=>ms==null||!Number.isFinite(ms)?'—':ms<90e3?`${Math.max(0,Math.round(ms/1000))}s`:`${Math.round(ms/60e3)} min`;
  const pct=n=>n==null?'—':`${n>0?'+':n<0?'−':''}${Math.abs(n).toFixed(1)}%`;
  const credits=n=>n==null?'':`${Number(n).toLocaleString()} Odds API credits left.`;
+ const SPORTS=Object.keys(O.SPORTS);
+ // What a game in progress looks like, and when its prices are least likely to be mid-update.
+ const PLAY={
+  NHL:{pause:/\bInt\b/,text:'Play is live. Books suspend and reprice at every whistle, so some quotes may be from before the last goal or penalty. Readings taken during an intermission are the most reliable.'},
+  NBA:{pause:/^(Halftime|End of)/i,text:'Play is live. Books suspend and reprice after nearly every possession, so some quotes may be from before the last basket. Readings taken between quarters or at halftime are the most reliable.'},
+ };
  let games=[],last=null,busy=false,ticket=0;
 
  async function invoke(name,body){
@@ -26,6 +33,12 @@
   return data;
  }
 
+ async function fetchJSON(url){
+  const res=await fetch(url);
+  if(!res.ok)throw new Error(`HTTP ${res.status}`);
+  return res.json();
+ }
+
  function gameLabel(g,now=Date.now()){
   const t=Date.parse(g.commence_time);
   const when=new Date(t).toLocaleString('en-US',{timeZone:'America/New_York',timeZoneName:'short',weekday:'short',hour:'numeric',minute:'2-digit'});
@@ -34,22 +47,36 @@
 
  async function loadGames(){
   say('Loading games…');
-  const data=await invoke('live-odds',{});
-  const now=Date.now();
-  games=(data.games||[]).slice().sort((a,b)=>Date.parse(a.commence_time)-Date.parse(b.commence_time));
-  $('game').innerHTML=games.map(g=>`<option value="${esc(g.id)}">${esc(gameLabel(g,now))}</option>`).join('');
+  // Listing games is free; one league failing still leaves the other's games. A function
+  // deployed before NBA ignores the sport and lists NHL games without naming one.
+  const lists=await Promise.allSettled(SPORTS.map(sport=>invoke('live-odds',{sport})));
+  if(lists.every(r=>r.status==='rejected'))throw lists[0].reason;
+  const outdated=SPORTS.filter((s,i)=>lists[i].status==='fulfilled'&&(lists[i].value?.sport??'NHL')!==s);
+  lists.forEach((r,i)=>{if(outdated.includes(SPORTS[i]))lists[i]={status:'rejected'};});
+  const now=Date.now(),failed=SPORTS.filter((s,i)=>lists[i].status==='rejected'&&!outdated.includes(s));
+  const left=lists.map(r=>r.value?.remaining).filter(n=>n!=null);
+  games=lists.flatMap((r,i)=>(r.value?.games||[]).map(g=>({...g,sport:SPORTS[i]})))
+   .sort((a,b)=>Date.parse(a.commence_time)-Date.parse(b.commence_time));
+  $('game').innerHTML=SPORTS.map(sport=>{
+   const list=games.filter(g=>g.sport===sport);
+   return list.length?`<optgroup label="${sport}">${list.map(g=>`<option value="${esc(g.id)}">${esc(gameLabel(g,now))}</option>`).join('')}</optgroup>`:'';
+  }).join('');
   // Default to a game in progress, else the next one to start.
   const live=games.filter(g=>Date.parse(g.commence_time)<=now&&now-Date.parse(g.commence_time)<4*3600e3).pop();
   const pick=live||games.find(g=>Date.parse(g.commence_time)>now)||games[0];
   if(pick)$('game').value=pick.id;
   $('run').disabled=!games.length;
-  say(games.length?`${games.length} NHL game${games.length===1?'':'s'} from earlier today through tomorrow. ${credits(data.remaining)}`
-   :'No NHL games are listed from earlier today through tomorrow.');
+  const counts=SPORTS.map(s=>[s,games.filter(g=>g.sport===s).length]).filter(([,n])=>n).map(([s,n])=>`${n} ${s} game${n===1?'':'s'}`);
+  const missing=(failed.length?` ${failed.join(' and ')} games could not be loaded; try again in a moment.`:'')
+   +(outdated.length?` ${outdated.join(' and ')} games need the updated live-odds function; redeploy it in Supabase.`:'');
+  say(games.length?`${counts.join(' and ')} from earlier today through tomorrow.${missing} ${credits(left.length?Math.min(...left):null)}`.trim()
+   :`No ${SPORTS.join(' or ')} games are listed from earlier today through tomorrow.${missing}`);
  }
 
  async function scoreboard(g){
-  const plan=feeds.scoreboardPlan('NHL',O.easternDate(g.commence_time));
-  return O.findGame(plan.build(await Promise.all(plan.requests.map(r=>invoke('live-stats',r.proxy)))),g);
+  const plan=feeds.scoreboardPlan(g.sport,O.easternDate(g.commence_time));
+  const parts=await Promise.all(plan.requests.map(r=>r.proxy?invoke('live-stats',r.proxy):fetchJSON(r.url)));
+  return O.findGame(plan.build(parts),g);
  }
 
  async function run(){
@@ -58,11 +85,11 @@
   busy=true;$('run').disabled=true;say('Fetching prices…');
   try{
    const live=Date.parse(g.commence_time)<=Date.now();
-   const [odds,score]=await Promise.all([invoke('live-odds',{event:g.id,live}),scoreboard(g).catch(()=>null)]);
+   const [odds,score]=await Promise.all([invoke('live-odds',{sport:g.sport,event:g.id,live}),scoreboard(g).catch(()=>null)]);
    // A different game chosen while this one loaded: keep the new selection clean.
    if($('game').value!==g.id){say('Game changed. Press Run now for the selected game.');return;}
    const fetched=Date.parse(odds.fetched_at);
-   last={game:g,odds,score,fetched,board:O.board(odds.event,fetched)};
+   last={game:g,odds,score,fetched,board:O.board(odds.event,fetched,g.sport)};
    render();
    say(odds.reused?`Showing prices fetched at ${clock(fetched)}. Reused, so no credits were spent; new prices are available 60 seconds after that fetch.`
     :`Prices fetched at ${clock(fetched)}. ${odds.cost==null?'The cost was not reported.':`This run cost ${odds.cost} credit${odds.cost===1?'':'s'}.`} ${credits(odds.remaining)}`);
@@ -109,7 +136,9 @@
   $('asof').textContent=b.books.length
    ?`${b.lines.length} lines from ${b.books.length} book${b.books.length===1?'':'s'} (${b.books.join(', ')}). Newest quote ${clock(Date.parse(b.newest))}, ${age(last.fetched-Date.parse(b.newest))} before the fetch.`
    :'No book is offering prices on this game right now. Books may have closed its markets.';
-  $('play-notice').hidden=!(score?.state==='live'&&!/\bInt\b/.test(score.detail||''));
+  const play=PLAY[game.sport];
+  $('play-notice').textContent=play.text;
+  $('play-notice').hidden=!(score?.state==='live'&&!play.pause.test(score.detail||''));
   const name=l=>esc(l.player?`${l.player} · ${l.market_label}`:l.market_label)+' · '+esc(l.label);
   const edges=b.lines.filter(l=>l.flagged).map(l=>`<li><strong>${name(l)}</strong>`
    +` — ${esc(O.signed(l.best.price))} at ${esc(l.best.book_label)}. Other books’ fair price ${esc(O.signed(O.american(l.best.other_probability)))}`
@@ -122,9 +151,9 @@
   $('flags').innerHTML=edges.length||gaps.length?[...edges,...gaps].join('')
    :`<li class="none">${b.books.length<O.MIN_OTHER_BOOKS+1?'Fewer than four books are pricing this game, so there is nothing to compare yet.'
     :'No book beats the others by 2% or more right now.'}</li>`;
-  const markets=[...new Set(b.lines.map(l=>l.market))];
+  const labels=new Map(b.lines.map(l=>[l.market,l.market_label])),markets=[...labels.keys()];
   const chosen=$('market').value;
-  $('market').innerHTML='<option value="">All markets</option>'+markets.map(m=>`<option value="${esc(m)}">${esc(O.MARKETS[m])}</option>`).join('');
+  $('market').innerHTML='<option value="">All markets</option>'+markets.map(m=>`<option value="${esc(m)}">${esc(labels.get(m))}</option>`).join('');
   $('market').value=markets.includes(chosen)?chosen:'';
   table();
  }

@@ -192,6 +192,31 @@ const espnSummary={header:{competitions:[espnComp('in')]},boxscore:{players:[
   const mlb=run(feeds.boxPlan('MLB','2'),[{dates:[{games:[mlbSched.dates[0].games[1]]}]},mlbBox]);
   assert.equal(L.evaluate({league:'MLB',team_home:'NYY',team_away:'BOS',player:'Aaron Judge',market_type:'batter_total_bases',side:'over',line:6.5},mlb.game,mlb).pace,null,'MLB has no game clock yet: no pace');
 
+  // A player listed without an appearance is void at the final, never a zero:
+  // books refund props on players who do not play.
+  const nbaComp=state=>({date:'2026-10-21T23:30Z',status:{period:4,clock:0,type:{name:state==='post'?'STATUS_FINAL':'STATUS_IN_PROGRESS',state,shortDetail:state==='post'?'Final':'0:00 - 4th'}},
+    competitors:[{homeAway:'home',score:'112',team:{id:'5',displayName:'Detroit Pistons',abbreviation:'DET',shortDisplayName:'Pistons'}},
+                 {homeAway:'away',score:'108',team:{id:'2',displayName:'Boston Celtics',abbreviation:'BOS',shortDisplayName:'Celtics'}}]});
+  const nbaBox=state=>run(feeds.boxPlan('NBA','401'),[{header:{competitions:[nbaComp(state)]},boxscore:{players:[{team:{id:'5'},statistics:[{name:'',
+    keys:['minutes','points','rebounds','assists','threePointFieldGoalsMade-threePointFieldGoalsAttempted'],athletes:[
+      {athlete:{displayName:'Cade Cunningham',position:{abbreviation:'G'}},stats:['36','31','6','9','3-8']},
+      {athlete:{displayName:'Bench Guard',position:{abbreviation:'G'}},didNotPlay:true,reason:"DNP-COACH'S DECISION",stats:[]}]}]}]}}]);
+  const nba=(o,state='post')=>{const b=nbaBox(state);return L.evaluate({league:'NBA',team_home:'Detroit Pistons',team_away:'Boston Celtics',
+    player:'Bench Guard',market_type:'player_points',side:'Under',line:8.5,...o},b.game,b);};
+  assert.deepEqual([nba().tone,nba().label,nba().value],['push','Did not play · void',null],'DNP under is void, not a win');
+  assert.deepEqual([nba({side:'Over'}).tone,nba({market_type:'player_points_rebounds_assists',side:'Over',line:12.5}).tone],['push','push'],'DNP over and combos are void');
+  assert.deepEqual([nba({},'in').tone,nba({},'in').value],['alive',0],'during play a bench player has simply not scored yet');
+  assert.deepEqual([nba({player:'Cade Cunningham',side:'Over',line:29.5}).tone,nba({player:'Cade Cunningham',market_type:'player_threes',side:'Over',line:2.5}).value],['won',3]);
+  // A box score whose stat columns we cannot read leaves the bet pending, never graded on zeros.
+  const odd=run(feeds.boxPlan('NBA','401'),[{header:{competitions:[nbaComp('post')]},boxscore:{players:[{team:{id:'5'},statistics:[{name:'starters',
+    keys:['points','rebounds'],athletes:[{athlete:{displayName:'Cade Cunningham'},stats:['31','6']}]}]}]}}]);
+  const unread=L.evaluate({league:'NBA',team_home:'DET',team_away:'BOS',player:'Cade Cunningham',market_type:'player_points',side:'Under',line:29.5},odd.game,odd);
+  assert.deepEqual([unread.tone,unread.label,unread.value],['missing','No readable stats for this player',undefined]);
+  const nflFinal={...nfl,game:{...nfl.game,state:'final'}};
+  assert.equal(L.evaluate({league:'NFL',team_home:'BUF',team_away:'LAC',player:'Scratched Back',market_type:'rush_yds',side:'under',line:20.5},nflFinal.game,nflFinal).tone,'push','NFL DNP is void');
+  const mlbFinal={...mlb,game:{...mlb.game,state:'final'}};
+  assert.equal(L.evaluate({league:'MLB',team_home:'NYY',team_away:'BOS',player:'Bench Player',market_type:'batter_hits',side:'under',line:0.5},mlbFinal.game,mlbFinal).tone,'push','MLB bench player is void');
+
   const g=o=>L.evaluate({league:'NFL',team_home:'Buffalo Bills',team_away:'Los Angeles Chargers',player:null,...o},nfl.game,null);
   assert.equal(g({market_type:'h2h',side:'Buffalo Bills'}).label,'Leading');
   assert.equal(g({market_type:'h2h',side:'Los Angeles Chargers'}).label,'Trailing');

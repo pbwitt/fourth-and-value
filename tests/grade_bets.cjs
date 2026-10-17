@@ -36,6 +36,20 @@ const bet=o=>({id:'x',league:'NHL',game_date:'2026-09-29',team_home:'Toronto Map
   [r]=await gradeAll({bets:[bet({player:null,market_type:'h2h',side:'TOR',line:null})],...source(),now:later});assert.equal('player_team' in r.update,false);
 
   [r]=await gradeAll({bets:[bet({line:3})],...source(),now:later});assert.equal(r.update.status,'push');assert.equal(r.update.payout,25);
+
+  // A player the final box lists as not playing (ESPN "DNP") is refunded, not graded on zero.
+  {
+    const comp={date:start,status:{type:{name:'STATUS_FINAL',state:'post',shortDetail:'Final'}},competitors:[
+      {homeAway:'home',score:'112',team:{id:'5',displayName:'Detroit Pistons',abbreviation:'DET',shortDisplayName:'Pistons'}},
+      {homeAway:'away',score:'108',team:{id:'2',displayName:'Boston Celtics',abbreviation:'BOS',shortDisplayName:'Celtics'}}]};
+    const espn={proxy:async()=>{throw Error('NBA needs no relay');},fetchJSON:async url=>/scoreboard/.test(url)
+      ?{events:[{id:'401',date:start,competitions:[comp]}]}
+      :{header:{competitions:[comp]},boxscore:{players:[{team:{id:'5'},statistics:[{name:'',keys:['points'],athletes:[
+        {athlete:{displayName:'Bench Guard'},didNotPlay:true,stats:[]}]}]}]}}};
+    [r]=await gradeAll({bets:[bet({league:'NBA',team_home:'Detroit Pistons',team_away:'Boston Celtics',player:'Bench Guard',
+      market_type:'player_points',side:'Under',line:8.5})],...espn,now:later});
+    assert.deepEqual([r.update.status,r.update.payout,r.update.actual_result],['push',25,null],'NBA DNP under is a refund');
+  }
   [r]=await gradeAll({bets:[bet({side:'under'})],...source(),now:later});assert.equal(r.update.status,'lost');assert.equal(r.update.payout,0);
   [r]=await gradeAll({bets:[bet({market_type:'player_points',side:'Over',line:1.5,odds:120})],...source(),now:later});
   assert.deepEqual([r.update.status,r.update.payout],['won',55]);

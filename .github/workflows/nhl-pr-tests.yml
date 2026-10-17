@@ -7,6 +7,8 @@ on:
       - 'scripts/build_market_results.py'
       - 'docs/markets/**'
       - 'tests/test_nhl*.py'
+      - 'tests/test_nba*.py'
+      - 'scripts/nba_weekly_results.py'
       - 'tests/nhl_browser.cjs'
       - 'tests/nhl_tracker*.cjs'
       - 'tests/offer_tracker.cjs'
@@ -38,7 +40,7 @@ jobs:
           cache-dependency-path: requirements-nhl.txt
       - run: pip install -r requirements-nhl.txt
       - run: python -m unittest discover -s tests -p 'test_nhl*.py'
-      - run: python -m unittest discover -s tests -p 'test_nba.py'
+      - run: python -m unittest discover -s tests -p 'test_nba*.py'
       - run: python scripts/nhl/refresh.py --offline
       - run: python scripts/nhl/analyst.py
       - run: python scripts/site_notices.py --scope nhl
