@@ -4,9 +4,9 @@ The provider resets the balance at midnight UTC on the 1st of each month (observ
 October 1, 2026) and unused credits do not carry over, so nothing is held back for its
 own sake. The owner's rules:
 
-- Core jobs, the NFL, NHL and MLB refreshes the morning card is built from, may spend
-  the balance down to zero.
-- Optional jobs (NBA markets, the Pinnacle snapshot, editorial prices) must leave a
+- Core jobs, the NFL, NHL and MLB refreshes the morning card is built from and, from
+  October 17, 2026, the NBA refresh, may spend the balance down to zero.
+- Optional jobs (the Pinnacle snapshot, editorial prices) must leave a
   reserve for the core refreshes until the reset: ``CORE_DAILY`` credits for each day
   left, shrinking to zero at the reset. Unknown jobs are optional.
 - No single run may spend more than 2,000 credits without the owner's approval.
@@ -25,7 +25,9 @@ import re
 from datetime import datetime, timezone
 
 FLOOR = 0           # core refreshes may spend to zero; the balance resets monthly
-CORE_DAILY = 500    # credits a day the core refreshes use (October 2026: ~450-550)
+# Credits a day the core refreshes use: NFL, NHL and MLB ~450-550 in October 2026, plus
+# about 350 for NBA on a full slate (up to 16 games x 11 prop markets, twice a day).
+CORE_DAILY = 850
 RUN_CAP = 2000
 CORE, OPTIONAL = 'core', 'optional'
 UNKNOWN_BALANCE_MAX = 50   # the most one request may cost before the balance is known
@@ -133,7 +135,7 @@ class CreditBudget:
             if self.tier == OPTIONAL and reserve > self.floor:
                 raise CreditFloorReached(
                     f'{self.label}: {self.remaining:.0f} credits left; this request could use the '
-                    f'{reserve:.0f} credits kept for the NFL, NHL and MLB refreshes until the monthly reset.')
+                    f'{reserve:.0f} credits kept for the NFL, NHL, MLB and NBA refreshes until the monthly reset.')
             raise CreditFloorReached(
                 f'{self.label}: {self.remaining:.0f} credits left; this request could take the shared '
                 f'balance below the {reserve:.0f}-credit floor.')
