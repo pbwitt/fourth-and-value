@@ -287,8 +287,9 @@ or `event` (the game). Rows without a link carry neither field. Links are stored
 sent, including any `{state}` placeholder for state-specific sites
 (`scripts/odds_links.py`). The NFL link rides on the shortlist feed
 (`docs/props/top-picks.json`) only, not the full props page. The email fills the
-state in per reader: `config/morning_email.json` `states` lists the owner's, home
-first (`md`, then `dc`), and a state-specific link also offers the other states.
+state in per reader: `config/morning_email.json` `states` gives the owner's by the
+card's Eastern date (`dc` then `md` on weekdays, `md` then `dc` on weekends; a plain
+list also works), and a state-specific link also offers the other state.
 Without a link, or without a state for a state-specific one, the button opens the
 book's site from `books`. The run log reports how far the buttons go ("Book buttons:
 bet slip 2, game page 1"); which books send slip links is checked against real
