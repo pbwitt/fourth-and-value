@@ -195,7 +195,7 @@
     .perf-share:hover, .perf-share:focus-visible { background:rgba(79,195,247,.12); }
     .perf-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
     .perf-card { margin:0; background:#141414; border:1px solid #2a2a2a; border-radius:8px; padding:1rem; min-width:0; display:grid; grid-template-columns:minmax(0,1fr); gap:.6rem; align-content:start; }
-    .perf-card:has(.perf-sports) { overflow-x:auto; }
+    .perf-card:has(.perf-table) { overflow-x:auto; }
     .perf-cap { display:flex; align-items:center; justify-content:space-between; gap:.5rem; color:#fff; font-weight:600; font-size:.95rem; }
     .perf-svg svg { display:block; width:100%; height:auto; overflow:visible; }
     .perf-svg text { fill:#999; font:12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-variant-numeric:tabular-nums; }
@@ -212,13 +212,15 @@
     .perf-key i { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:.4rem; vertical-align:-1px; }
     .perf-key .won { background:#66BB6A; } .perf-key .lost { background:#ff6b6b; } .perf-key .push { background:#999; }
     .perf-readout { min-height:1.4em; font-size:.85rem; color:#ddd; margin:0; }
-    .perf-sports { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
-    .perf-sports th, .perf-sports td { background:none; padding:.55rem .5rem .55rem 0; border-bottom:1px solid #2a2a2a; text-align:left; font-size:.9rem; }
-    .perf-sports thead th { color:#999; font-size:.75rem; font-weight:600; text-transform:uppercase; letter-spacing:.06em; }
-    .perf-sports tbody tr:last-child th, .perf-sports tbody tr:last-child td { border-bottom:0; }
-    .perf-sports .r { text-align:right; padding-left:.75rem; }
-    .perf-sports td.positive { color:#66BB6A; } .perf-sports td.negative { color:#ff6b6b; }
-    .perf-sports small { color:#999; }
+    .perf-table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+    .perf-table th, .perf-table td { background:none; padding:.55rem .5rem .55rem 0; border-bottom:1px solid #2a2a2a; text-align:left; font-size:.9rem; }
+    .perf-table thead th { color:#999; font-size:.75rem; font-weight:600; text-transform:uppercase; letter-spacing:.06em; }
+    .perf-table tbody tr:last-child th, .perf-table tbody tr:last-child td { border-bottom:0; }
+    .perf-table .r { text-align:right; padding-left:.75rem; }
+    .perf-table td.positive { color:#66BB6A; } .perf-table td.negative { color:#ff6b6b; }
+    .perf-table small { color:#999; }
+    /* The odds table's notes may wrap so four columns fit a phone without sideways scrolling. */
+    .perf-table.perf-odds small { display:block; white-space:normal; font-weight:400; font-size:.78rem; }
     .perf-barcell { width:30%; padding-left:1rem !important; }
     .perf-bar { position:relative; height:8px; min-width:60px; }
     .perf-bar::before { content:""; position:absolute; left:50%; top:-3px; bottom:-3px; border-left:1px solid #555; }
@@ -228,9 +230,9 @@
     @media (max-width: 700px) {
       .perf { padding:1rem; }
       .perf-grid { grid-template-columns:1fr; }
-      .perf-sports th, .perf-sports td { padding-right:.35rem; font-size:.85rem; }
-      .perf-sports .r { padding-left:.4rem; }
-      .perf-sports small { display:block; white-space:nowrap; }
+      .perf-table th, .perf-table td { padding-right:.35rem; font-size:.85rem; }
+      .perf-table .r { padding-left:.4rem; }
+      .perf-table small { display:block; white-space:nowrap; }
       .perf-barcell { width:20%; padding-left:.5rem !important; }
       .perf-bar { min-width:36px; }
     }
@@ -572,6 +574,7 @@
           <label class="f-custom" hidden>To <input type="date" id="f-to"></label>
           <label>Sport <select id="f-sport"><option value="">All sports</option></select></label>
           <label>Market <select id="f-market"><option value="">All markets</option></select></label>
+          <label>Odds <select id="f-odds"><option value="">All odds</option></select></label>
           <div class="filter-actions">
             <button type="button" class="filter-btn" id="f-reset">Reset</button>
             <button type="button" class="filter-btn primary" id="f-download">Download CSV</button>
@@ -735,7 +738,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="bet-tracking.js?v=6"></script>
-  <script src="performance.js?v=3"></script>
+  <script src="performance.js?v=4"></script>
   <script src="live-feeds.js?v=3"></script>
   <script src="live-stats.js?v=9"></script>
   <script src="../assets/offer-tracker.js?v=3"></script>
@@ -1396,8 +1399,13 @@
 
     // ---- Filters + CSV download ---------------------------------------------
     const FILTER_KEY='fv-bet-filters';
-    const filters={date:'all',from:'',to:'',sport:'',market:''};
+    const filters={date:'all',from:'',to:'',sport:'',market:'',odds:''};
     try { Object.assign(filters, JSON.parse(localStorage.getItem(FILTER_KEY)||'{}')); } catch (e) { /* private mode */ }
+    // Price ranges from performance.js, so the filter and the By odds table always agree.
+    const oddsRanges=window.FVPerformance?.ODDS_RANGES||[];
+    if (!oddsRanges.some(r=>r.key===filters.odds)) filters.odds='';
+    document.getElementById('f-odds').insertAdjacentHTML('beforeend',
+      oddsRanges.map(r=>`<option value="${esc(r.key)}">${esc(r.label)}</option>`).join(''));
 
     const isoDay=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     function dateBounds() {
@@ -1420,6 +1428,7 @@
         if (to && day>to) return false;
         if (filters.sport && sportOf(bet)!==filters.sport) return false;
         if (filters.market && fmtMarket(bet)!==filters.market) return false;
+        if (filters.odds && window.FVPerformance.oddsRange(bet.odds)!==filters.odds) return false;
         return true;
       });
     }
@@ -1434,6 +1443,7 @@
       fill('f-market', 'All markets', [...new Set(betsData.map(fmtMarket).filter(Boolean))].sort());
       filters.sport=document.getElementById('f-sport').value;
       filters.market=document.getElementById('f-market').value;
+      document.getElementById('f-odds').value=filters.odds;
       document.getElementById('f-date').value=filters.date;
       document.getElementById('f-from').value=filters.from;
       document.getElementById('f-to').value=filters.to;
@@ -1443,7 +1453,7 @@
     function syncFilterUi() {
       document.querySelectorAll('.f-custom').forEach(el=>{ el.hidden=filters.date!=='custom'; });
       const n=visibleBets().length;
-      const narrowed=filters.date!=='all'||filters.sport||filters.market;
+      const narrowed=filters.date!=='all'||filters.sport||filters.market||filters.odds;
       document.getElementById('f-count').textContent=narrowed
         ? `Showing ${n} of ${betsData.length} bets. Stats below reflect these filters.`
         : `${betsData.length} bet${betsData.length===1?'':'s'}`;
@@ -1462,8 +1472,9 @@
     document.getElementById('f-to').addEventListener('change', e=>{ filters.to=e.target.value; applyFilters(); });
     document.getElementById('f-sport').addEventListener('change', e=>{ filters.sport=e.target.value; applyFilters(); });
     document.getElementById('f-market').addEventListener('change', e=>{ filters.market=e.target.value; applyFilters(); });
+    document.getElementById('f-odds').addEventListener('change', e=>{ filters.odds=e.target.value; applyFilters(); });
     document.getElementById('f-reset').addEventListener('click', ()=>{
-      Object.assign(filters, {date:'all',from:'',to:'',sport:'',market:''});
+      Object.assign(filters, {date:'all',from:'',to:'',sport:'',market:'',odds:''});
       refreshFilterOptions(); applyFilters();
     });
 
