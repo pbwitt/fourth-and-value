@@ -211,9 +211,9 @@ def predict_ridge(model, X):
     return model['beta'][0] + Z @ np.array(model['beta'][1:])
 
 
-def fit_game(rows, overtime):
+def fit_game(rows, overtime, features=GAME_FEATURES):
     rows = [r for r in rows if r['home_reg'] is not None and r['away_reg'] is not None]
-    X = design(rows, GAME_FEATURES)
+    X = design(rows, features)
     home = fit_ridge(X, np.array([r['home_reg'] for r in rows], float))
     away = fit_ridge(X, np.array([r['away_reg'] for r in rows], float))
     resid = np.column_stack([np.array([r['home_reg'] for r in rows]) - predict_ridge(home, X),
@@ -225,11 +225,14 @@ def fit_game(rows, overtime):
             pairs[pair] += 1
     total = sum(pairs.values())
     ot = [[h, a, n / total] for (h, a), n in sorted(pairs.items())]
-    return dict(home=home, away=away, cov=cov.tolist(), overtime=ot, train_games=len(rows))
+    out = dict(home=home, away=away, cov=cov.tolist(), overtime=ot, train_games=len(rows))
+    if tuple(features) != GAME_FEATURES:
+        out['features'] = list(features)  # ablations only; production uses GAME_FEATURES
+    return out
 
 
 def game_means(params, features):
-    x = [[features[k] for k in GAME_FEATURES]]
+    x = [[features[k] for k in params.get('features', GAME_FEATURES)]]
     return float(predict_ridge(params['home'], x)[0]), float(predict_ridge(params['away'], x)[0])
 
 
