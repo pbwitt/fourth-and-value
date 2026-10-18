@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Fourth &amp; Value — NBA Forecasting and Market Pricing</title>
+  <meta name="description" content="We test NBA v1 game and player-prop forecasts on the 2025–26 season against simple baselines and DraftKings lines. Players improved; the market stayed ahead.">
+  <link rel="canonical" href="https://fourthandvalue.com/research/nba-forecasting-and-market-pricing.html">
+  <meta property="og:title" content="NBA Forecasting and Market Pricing: What v1 Can and Cannot Do">
+  <meta property="og:description" content="Minutes-times-rate player forecasts beat simple baselines. Against DraftKings lines the game model lost, and matchup, venue and back-to-back splits added nothing.">
+  <meta property="og:url" content="https://fourthandvalue.com/research/nba-forecasting-and-market-pricing.html">
+  <meta property="og:type" content="article">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta property="og:image" content="https://fourthandvalue.com/assets/social-card.png">
+  <meta property="og:image:alt" content="Fourth &amp; Value">
+  <meta name="twitter:image" content="https://fourthandvalue.com/assets/social-card.png">
+  <meta property="article:published_time" content="2026-10-18">
+  <meta property="article:section" content="NBA Research">
+  <link rel="icon" href="/assets/logo.svg">
+  <link rel="stylesheet" href="./nhl-forecasting.css">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "Article", "headline": "NBA Forecasting and Market Pricing", "description": "We test NBA v1 game and player-prop forecasts on the 2025–26 season against simple baselines and DraftKings lines. Players improved; the market stayed ahead.", "datePublished": "2026-10-18", "dateModified": "2026-10-18", "author": {"@type": "Organization", "name": "Fourth & Value"}, "publisher": {"@type": "Organization", "name": "Fourth & Value"}, "url": "https://fourthandvalue.com/research/nba-forecasting-and-market-pricing.html", "image": "https://fourthandvalue.com/assets/social-card.png"}</script>
+</head>
+<body>
+<a class="skip" href="#paper">Skip to paper</a>
+<div id="nav-root"></div><script src="/nav.js?v=47"></script>
+<main class="wrap" id="paper">
+  <div class="paper-head">
+    <div class="kicker">Fourth &amp; Value Research · Technical Report FV-2026-05</div>
+    <h1 class="title">NBA Forecasting and Market Pricing:<br>A Chronological Evaluation of Pace-Efficiency Scores and Minutes-Based Player Distributions</h1>
+    <p class="authors">Fourth &amp; Value Research Group</p>
+    <p class="affil">fourthandvalue.com</p>
+    <p class="date">October 18, 2026 · Version 1.0 · Model nba-v1.0</p>
+    <p class="publication-status">Technical report; not peer reviewed.</p>
+  </div>
+  <div class="download-bar"><span>Paper, numerical evidence, and reproducible implementation</span><a class="pdf-btn" href="./nba-forecasting-and-market-pricing.pdf" download>Download PDF</a><a href="./nba-forecasting-and-market-pricing.json">Evidence JSON</a></div>
+  <div class="abstract-block">
+    <div class="abstract-label">Abstract</div>
+    <p class="abstract-text">We evaluate Fourth &amp; Value’s first NBA forecasting system, nba-v1.0, on three seasons of public ESPN box scores (2023–24 through 2025–26; 3,958 games, 3,690 of them regular season, and 104,866 player rows). Hyperparameters are chosen on 2024–25 and the 2025–26 season is scored once. Game scores come from exponentially weighted pace and efficiency ratings, two ridge regressions and a bivariate-normal score matrix with empirical overtime, so moneyline, spread and total probabilities share one distribution. Player counts multiply projected minutes by per-minute rates and use a gamma–Poisson minutes mixture with a Gaussian copula for combined markets. On 2025–26 the moneyline log loss is 0.6025 against 0.6876 for a home-win-rate baseline. Rest and back-to-back terms add nothing measurable beyond pace and efficiency (joint log-score difference +0.0009 nats, interval [−0.0059, 0.0089]). Player forecasts beat a per-game average with no minutes model in every market, by 0.079 nats per appearance for points. Against 979 DraftKings lines that ESPN embedded in its game summaries, the model was worse than the no-vig price in all three game markets (moneyline +0.0367 nats, interval [0.0232, 0.0511]). Fitted on the first half of the season, the optimal blend put 5% weight on the model for moneylines and none for spreads and totals. Player-versus-opponent history, personal home/away splits, back-to-back splits and per-player bias corrections all failed to improve held-out player forecasts, repeating the result of FV-2026-03. No historical player-prop prices were available, so the player model has not been compared with a sportsbook. The system runs in shadow mode: forecasts are published, but NBA prices are not eligible for Top Picks.</p>
+    <p class="keywords"><strong>Keywords:</strong> NBA; probabilistic forecasting; pace and efficiency; minutes projection; gamma–Poisson; Gaussian copula; chronological validation; market efficiency; player props.</p>
+  </div>
+  <nav class="contents" aria-label="Paper contents"><strong>Contents</strong><ol>
+    <li><a href="#introduction">Introduction: what the findings mean</a></li>
+    <li><a href="#data">Data and information sets</a></li>
+    <li><a href="#team">Team scoring and coherent settlement</a></li>
+    <li><a href="#players">Player minutes and count distributions</a></li>
+    <li><a href="#pricing">Markets, pushes and price evaluation</a></li>
+    <li><a href="#design">Evaluation design and statistical estimands</a></li>
+    <li><a href="#results">Forecast results and ablations</a></li>
+    <li><a href="#market-results">Comparison with DraftKings prices</a></li>
+    <li><a href="#matchups">Matchups, venue, back-to-backs and player bias</a></li>
+    <li><a href="#operation">Shadow-mode operation</a></li>
+    <li><a href="#limitations">Threats to validity and remaining research</a></li>
+    <li><a href="#conclusion">Conclusion for readers and analysts</a></li>
+  </ol></nav>
+  <article>
+    <h2 id="introduction">Introduction: What the Findings Mean</h2>
+    <p>Our NHL paper (FV-2026-02) separated two questions, and they apply to basketball too. How likely is an outcome, for example a player scoring more than 22.5 points? And does the sportsbook’s price pay enough for that chance? A better answer to the first question does not produce a profitable answer to the second. NBA prices are among the most heavily bet in North America, they move on injury news within minutes, and they include the book’s margin.</p>
+    <p>We built nba-v1.0 to answer the first question honestly and to measure how far it gets on the second. It forecasts the final score of every game and the points, rebounds, assists, threes, blocks, steals and turnovers of every listed player. It learns from earlier games only, fixes its settings on one season and is graded once on a later one. The results, in plain terms:</p>
+    <ul>
+      <li><strong>The game model knows basketball but not the news.</strong> Team pace and scoring efficiency explain winners well: its moneyline forecasts are far better than always backing the home team. DraftKings’ prices are better still, by a clear margin, in moneylines, spreads and totals. The model does not know who is injured or resting tonight, and the market does.</li>
+      <li><strong>Minutes come first for players.</strong> Forecasting how long a player will play, and then how much he produces per minute, beats averaging his recent box scores in every statistic. The gain is largest for points.</li>
+      <li><strong>Old splits do not help.</strong> As in hockey, football and baseball (FV-2026-03), a player’s record against tonight’s opponent, at home or away, or on the second night of a back-to-back did not improve the forecast once his form and minutes were known.</li>
+      <li><strong>No edge is claimed.</strong> We have no archive of historical player-prop prices, so the player model has not been tested against a book. Simple betting rules on the game model lost money at DraftKings’ prices in 2025–26.</li>
+    </ul>
+    <p>For readers, this means the NBA board shows forecasts as reference numbers. It does not show recommendations, and NBA prices do not enter Today’s Picks. The sections below set out the method, every comparison we ran, and what remains unproven.</p>
+
+    <h2 id="data">Data and Information Sets</h2>
+    <h3>2.1 Sources and coverage</h3>
+    <p>All training data come from ESPN’s public scoreboard and game-summary endpoints, which also serve our live pages <a href="#ref-espn">[2]</a>. A backfill script converts each final box score into team and player rows with stable ESPN identifiers and archives them as one compressed file per season <a href="#ref-implementation">[1]</a>. The NBA Stats API was abandoned because it refuses requests from GitHub’s hosted runners, where the daily job runs. ESPN files the in-season tournament final as a regular-season game with a separate competition type; we label it <code>cup_final</code>. Players listed as inactive or who did not play keep a row with a reason code and no statistics. Four 2025–26 playoff summaries were unavailable and are missing; no regular-season game is missing.</p>
+    @@DATA@@
+    <p>Team and player states are built only from regular-season and cup-final games. Playoff and play-in games are stored but excluded, for the reason given in Section 7.2. Unless stated otherwise, the test set is the 1,230 regular-season games of 2025–26.</p>
+    <h3>2.2 Information available at forecast time</h3>
+    <p>For a game on date <i>d</i>, every feature uses only games completed on earlier dates; same-day results never enter. Team and player states are updated after each date, so the held-out season is forecast sequentially with frozen regression coefficients and up-to-date ratings. ESPN does not publish revision times for box scores, so this is a <em>reconstructed</em> information set: it rules out using a game to predict itself, but it cannot certify that every historical number matches what was visible on the morning of the game.</p>
+    <p>The historical study does not know who was injured, resting or starting. Every player forecast is conditional on the player appearing, and the evaluation scores only players who did. Live inference partly closes this gap: it reads ESPN’s current rosters and injury report and withholds forecasts for players listed Out. Team forecasts make no injury adjustment, in history or live. That omission matters most in the market comparison of Section 8.</p>
+    <h3>2.3 Market data</h3>
+    <p>ESPN game summaries for 2025–26 carry a DraftKings moneyline, home spread and total with American prices for 979 of the 1,230 regular-season games <a href="#ref-espn">[2]</a>. Each game has one quote and its time is not stated; because summaries were captured after the game, it is most likely the last line before tip-off. Earlier seasons have no such field, and we hold no historical player-prop prices. The market comparison is therefore limited to one book, one season, three game markets and one quote per game.</p>
+
+    <h2 id="team">Team Scoring and Coherent Settlement</h2>
+    <h3>3.1 Pace and efficiency ratings</h3>
+    <p>Each team’s state is an exponentially weighted sum over its earlier games, indexed by games played. With half-life <i>h</i> games, prior strength <i>k</i> games and league mean <i>L</i>, a rated quantity is:</p>
+    <div class="eq-block">w<sub>j</sub> = 2<sup>−(n−j)/h</sup>, &nbsp; x̃ = (Σ<sub>j</sub> w<sub>j</sub>x<sub>j</sub> + k L) / (Σ<sub>j</sub> w<sub>j</sub> + k). <span class="eq-num">(1)</span></div>
+    <p>Possessions are estimated from the box score as FGA − OREB + TOV + 0.44·FTA and scaled to 48 minutes, so overtime does not inflate pace. Offensive and defensive efficiency are points scored and allowed per possession. At each new season the weights are multiplied by a carry factor <i>c</i>, which shrinks last season’s ratings toward the league before any new game is played. Selection on 2024–25 chose <i>h</i> = 10 games, <i>c</i> = 0.5 and <i>k</i> = 3 (Table 2). For home team <i>H</i> and away team <i>A</i>, the unadjusted expected scores are:</p>
+    <div class="eq-block">pace = pace<sub>H</sub> pace<sub>A</sub> / pace<sub>L</sub>,<br>naive<sub>H</sub> = pace · off<sub>H</sub> def<sub>A</sub> / ppp<sub>L</sub>, &nbsp; naive<sub>A</sub> = pace · off<sub>A</sub> def<sub>H</sub> / ppp<sub>L</sub>. <span class="eq-num">(2)</span></div>
+    <h3>3.2 Regression to regulation points</h3>
+    <p>Two ridge regressions map the two naive scores, back-to-back indicators, days of rest (capped at four) and a neutral-site flag to each team’s regulation points. Targets exclude overtime so that overtime can be modeled separately. Features are standardized on the training rows. The fitted coefficients appear in Table 5. The home intercept and the naive-score slopes near one say that the ratings carry most of the information; the back-to-back terms say a team on the second night scores about 1.4 fewer points and allows about 0.9–1.3 more.</p>
+    <h3>3.3 One score matrix for every market</h3>
+    <p>Regulation scores (<i>H</i>, <i>A</i>) are bivariate normal with the regression means and the residual covariance Σ, discretized to integers from 40 to 200. The fitted residual standard deviations are about 11.2 points per team, with correlation 0.21: fast, loose games raise both scores. Mass on the diagonal is a regulation tie. Each tie is passed through an empirical distribution of five-minute overtime scores from training games, up to four overtimes, with any remainder split by one point. The result is a single matrix <i>P</i>(<i>h</i>, <i>a</i>) of final scores. Every game market reads from it:</p>
+    <div class="eq-block">Pr(home wins) = Σ<sub>h&gt;a</sub> P(h,a), &nbsp; Pr(home covers ℓ) = Σ<sub>h−a+ℓ&gt;0</sub> P(h,a),<br>Pr(over L) = Σ<sub>h+a&gt;L</sub> P(h,a), &nbsp; push mass = Σ<sub>h−a+ℓ=0</sub> P or Σ<sub>h+a=L</sub> P. <span class="eq-num">(3)</span></div>
+    <p>So the moneyline, every alternative spread and every alternative total are consistent with one another, and whole-number lines get an explicit push probability. Coherence is not realism. The normal model puts 2.48% of games in a regulation tie, while 4.39% of 2025–26 games went to overtime. End-of-game fouling and the incentive to tie rather than lose make close finishes more common than a smooth distribution suggests. The understated overtime mass slightly underprices overs and close spreads, and a later version should inflate the diagonal.</p>
+
+    <h2 id="players">Player Minutes and Count Distributions</h2>
+    <h3>4.1 Minutes</h3>
+    <p>Projected minutes <i>T̂</i> come from a ridge regression on the player’s recent minutes (short and long weighted averages and his last game), his share of starts, the log of his games played, whether he recently changed teams, a long-layoff flag (more than ten days), a back-to-back flag and a blowout-risk term: the game model’s expected absolute margin scaled by his usual minutes. Uncertainty around <i>T̂</i> is a normal distribution truncated to [0.5, 48], with a standard deviation that depends on the projection: about 7 minutes for bench players and about 5 for 36-minute starters (Table 10). The positive back-to-back coefficient (+0.75 minutes) is a selection effect: rested stars do not appear in the data, and the teammates who do play absorb their minutes.</p>
+    <h3>4.2 Per-minute rates, opponents and the recent-average blend</h3>
+    <p>For each statistic <i>s</i>, a per-minute rate <i>r̂</i><sub>s</sub> is an exponentially weighted total divided by weighted minutes, with half-life 20 appearances and 100 minutes of a league prior for the player’s position group. It is scaled by the expected game pace relative to his team’s own pace, and multiplied by the opponent’s allowed rate relative to the league, raised to an opponent weight <i>ω</i>; selection chose <i>ω</i> = 1, full adjustment (Table 3). A training-fitted linear blend then combines the structural mean <i>T̂ r̂</i><sub>s</sub> with the player’s last-10 and last-30 per-game averages:</p>
+    <div class="eq-block">μ<sub>s</sub> = β<sub>0</sub> + β<sub>1</sub> T̂ r̂<sub>s</sub> (pace/pace<sub>own</sub>) (opp<sub>s</sub>/lg<sub>s</sub>)<sup>ω</sup> + β<sub>2</sub> ȳ<sub>s,10</sub> + β<sub>3</sub> ȳ<sub>s,30</sub>. <span class="eq-num">(4)</span></div>
+    <p>The structural term carries most of the weight (β<sub>1</sub> between 0.83 and 1.03 across statistics); the recent averages correct the structural mean slightly. The blended mean divided by <i>T̂</i> becomes the final per-minute rate.</p>
+    <h3>4.3 Counts, dispersion and combined markets</h3>
+    <p>Given minutes <i>T</i> drawn from the minutes distribution, a count is negative binomial with mean <i>T r</i><sub>s</sub> and gamma shape κ<sub>s</sub>, so Var(<i>Y</i> | <i>T</i>) = μ + μ²/κ<sub>s</sub> <a href="#ref-nbinom">[3]</a>. The shapes are fitted by maximizing the likelihood of the whole predictive mixture over minutes, which keeps the minutes uncertainty from being counted twice. Points need strong extra dispersion (κ = 5.4); turnovers are effectively Poisson (κ ≈ 1,982).</p>
+    <p>Points + rebounds + assists and the other combined markets need a joint distribution. A simulation draws one minutes value per player, then correlated gamma multipliers through a Gaussian copula whose correlation matrix is estimated from training residuals, then Poisson counts. Every statistic in a draw shares the same minutes. Finally, each market’s probability passes through a logit slope fitted on 2024–25 pseudo-lines:</p>
+    <div class="eq-block">p′ = σ(b<sub>m</sub> · logit p). <span class="eq-num">(5)</span></div>
+    <p>A slope <i>b</i> below one pulls probabilities toward 50%. The fitted slopes are 0.78 for points and 0.75–0.83 for the three combined markets containing points, which says the raw tails were too confident. The other markets have slopes of 1.00–1.08.</p>
+
+    <h2 id="pricing">Markets, Pushes and Price Evaluation</h2>
+    <p>For a two-way market with American prices converted to implied probabilities <i>q</i><sub>1</sub>, <i>q</i><sub>2</sub>, the no-vig market probability is <i>q</i><sub>1</sub>/(<i>q</i><sub>1</sub>+<i>q</i><sub>2</sub>). On a whole-number line this is the probability of winning given no push. The model’s comparable probability is its win mass divided by one minus its push mass. With win, push and loss probabilities <i>w</i>, <i>u</i>, <i>l</i>, a one-unit bet at decimal odds <i>d</i> is worth:</p>
+    <div class="eq-block">EV(d) = w(d − 1) − l = wd − (1 − u), &nbsp; d<sub>fair</sub> = (1 − u)/w. <span class="eq-num">(6)</span></div>
+    <p>The live board computes this value for every quote but does not display it, because the model has not been graded against prices (Section 10). In this paper, pushes are excluded when comparing the model with the market, and refunded in the policy simulation.</p>
+
+    <h2 id="design">Evaluation Design and Statistical Estimands</h2>
+    <h3>6.1 Chronological protocol</h3>
+    <p>The protocol is fixed in the training script <a href="#ref-implementation">[1]</a>. Selection fits on 2023–24 from December 1, when team ratings have settled, and scores candidates on 2024–25. The test fits the selected configuration on both earlier seasons and scores 2025–26 once. The production artifact is then refit on all three seasons. The grids searched were team half-life {10, 20, 40}, carry {0.25, 0.5} and prior games {3, 8}; player rate half-life {20, 50}, prior minutes {100, 300} and opponent weight {0, 0.5, 1}. The game model’s feature set was fixed in advance, not searched. The calibration slopes and blend coefficients were fitted on the selection data only.</p>
+    @@TEAM_SELECTION@@
+    @@PLAYER_SELECTION@@
+    <p>Differences inside each grid are small: the twelve team configurations span 0.024 nats per game, and the best player configuration beats the runner-up by less than 0.001 nats summed over seven statistics. The selected settings are reasonable choices, not sharply identified ones.</p>
+    <h3>6.2 Scores and uncertainty</h3>
+    <p>Score distributions are graded by negative log likelihood (NLL) of the observed final score or count; binary events by log loss and Brier score, which are proper scoring rules <a href="#ref-scoring">[4]</a>. All comparisons are paired on identical games or appearances. Intervals are 95% percentile intervals from 500 bootstrap replicates that resample whole games, keeping every player and market from one game together. They do not reflect the choice of specification, serial correlation between games of the same team, or simultaneous coverage across the many comparisons below.</p>
+    <p>Player comparisons use the 23,979 test appearances whose player had at least 20 earlier appearances, so that the history-based baselines are defined. Because no historical prop lines exist, binary player results use a <em>pseudo-line</em>: the floor of the player’s last-10 average plus one half. Pseudo-lines resemble real prop lines in that they sit near recent form, but they are not book prices. Combined-market results use a seeded sample of 3,000 appearances because each requires simulation.</p>
+
+    <h2 id="results">Forecast Results and Ablations</h2>
+    <h3>7.1 Game forecasts</h3>
+    @@GAME_RESULTS@@
+    <p>The moneyline improvement over the home-win-rate baseline is large and precise: −0.0851 nats per game, interval [−0.1066, −0.0650]. The rest and back-to-back terms do not help on the test season. A model with only the two naive scores and the neutral flag has a slightly <em>better</em> joint log score (difference +0.0009 nats, interval [−0.0059, 0.0089]) and moneyline log loss. The rest effects in Table 5 are real in training, but rest is also correlated with schedule density that pace ratings already absorb, and the gain does not survive out of sample. We report this rather than drop the terms after seeing the test season; v1 keeps its preselected feature set.</p>
+    <p>The regression adjustment barely changes totals: RMSE 18.97 against 19.01 for the unadjusted pace × efficiency product. Total errors are roughly 19 points per game whichever way the mean is built; most of a total’s uncertainty is not predictable from team ratings.</p>
+    @@GAME_COEF@@
+    @@ML_CALIBRATION@@
+    <h3>7.2 Early-season totals and playoff contamination</h3>
+    <p>Games in the first three weeks finished 2.81 points above the model’s expected total, against +0.96 over the whole season. The carry factor pulls ratings toward the league mean after the summer, while league scoring has drifted upward from season to season. A first version also built team states from playoff games. Playoff games are 12–17 points lower scoring and come at the end of the season, so they dragged opening-night ratings down. With playoff games in the states, early-season bias was +4.43 points; removing them gave +2.81. The low-scoring study (FV-2026-04) found that the closing market already prices playoff scoring <a href="#ref-fv04">[6]</a>; this result is the modeling counterpart. Playoff basketball is a different scoring environment and should not inform regular-season ratings without an explicit adjustment.</p>
+    <h3>7.3 Player count forecasts</h3>
+    @@PLAYER_COUNTS@@
+    <p>Each column removes or replaces one part of v1. <em>Recency 30</em> is the player’s last-30 per-game average with v1’s dispersion. <em>Direct per-game</em> smooths per-game counts with the same half-life and fits its own negative-binomial shape, but has no minutes model. <em>Minutes × rate, Poisson</em> keeps the minutes mixture but drops the extra dispersion. <em>Structural</em> is v1 without the recent-average blend.</p>
+    @@PLAYER_PAIRED@@
+    <p>Three findings. First, separating minutes from per-minute production beats the direct per-game model in every statistic, by 0.079 nats per appearance for points and 0.012 for threes; every interval excludes zero. This repeats the NHL result, where time on ice gave the largest player gain. Second, extra dispersion matters for points and little else: the Poisson version is 0.155 nats worse for points but within 0.002 for the other statistics. Points come in bunches of two and three, so a scorer’s total varies far more than a Poisson count would. Third, the recent-average blend gives a small, consistent gain for points, assists and threes, about 0.003–0.005 nats, and none for rebounds.</p>
+    @@DISTRIBUTION@@
+    <p>Zero rates match closely except for points: 9.16% of appearances ended scoreless against 2.65% predicted. Most scoreless games come from brief garbage-time or injury-shortened appearances, which the minutes distribution understates. These are rarely the players with posted props. The nominal 80% central intervals cover 83–95% of outcomes; integer intervals on low counts are necessarily conservative, so high coverage for blocks or steals is not evidence of a poorly sized distribution.</p>
+    @@MINUTES@@
+    <p>The minutes regression improves on a five-game average by about 0.1 minutes of absolute error. That is a small gain because most minute changes are driven by events the model cannot see, such as foul trouble, blowouts, injuries and rotation decisions. Minutes error is the largest single source of player-forecast uncertainty.</p>
+    <h3>7.4 Over/under probabilities at pseudo-lines</h3>
+    @@PSEUDO@@
+    <p>Against the same pseudo-lines, the calibrated model beats an empirical baseline, the share of the player’s last 30 games (within a year) over the line with a one-game Laplace correction, in all eleven markets. For points the margin is 0.6741 against 0.6957. The calibration slopes were fitted on 2024–25 and applied unchanged to 2025–26. Here the model is graded on lines that follow recent form; a book’s line also knows the opponent, the injury report and the betting flow.</p>
+    @@COMBOS@@
+    <p>Joint simulation beats independent marginals for points + rebounds + assists (−0.0033 nats, interval [−0.0050, −0.0016]), points + rebounds and rebounds + assists. The difference is not resolved for points + assists. Shared minutes make a player’s statistics rise and fall together. The joint model nonetheless overstates combined variance (73.3 predicted against 60.6 observed for P+R+A), and the calibration slope of 0.83 partly absorbs this. The slopes were fitted to the joint simulation, which favors it in this comparison. Within one player, the joint model is the coherent choice; no dependence across different players is modeled, so same-game parlays are unsupported.</p>
+
+    <h2 id="market-results">Comparison with DraftKings Prices</h2>
+    <h3>8.1 Model against market</h3>
+    <p>For each of the 979 games with a DraftKings line, we compare the test-season model with the no-vig market probability on the same binary event. Games that pushed are excluded from spread and total comparisons.</p>
+    @@MARKET@@
+    <p>The market is better in all three markets, by 0.024–0.037 nats per game, and every interval excludes zero. On spreads and totals the market’s log loss is close to that of a coin flip (0.693). The model’s is worse than a coin flip: it disagrees with the line by about 9 percentage points on average, and those disagreements carry no information. In its most confident spread bin (forecast 0.73) the home side covered 31% of the time; in its least confident (0.27) it covered 51%. That is the pattern of a model missing information that the line already contains, chiefly who is playing.</p>
+    <p>The blend test asks whether the model adds anything to the market. A logit blend weight was fitted on the first half of the season and scored on the second. It put 5% weight on the model for moneylines and none for spreads and totals. On the second half the moneyline blend scored 0.50103 against the market’s 0.50006, so even that 5% did not help. There is no evidence that v1 contains information the closing line lacks.</p>
+    <h3>8.2 An exploratory betting rule</h3>
+    @@POLICY@@
+    <p>Betting one unit on every side whose model probability exceeded the vigged break-even by a threshold lost money in every market and at every threshold. These rules were defined after the price data were seen, so they are illustrations, not a pre-registered test. The losses are what Section 8.1 predicts: disagreement with a sharp line, without new information, buys the vig and adverse selection. Totals lost least, and their intervals include break-even at the two lower thresholds. Moneyline rules lost most, since disagreements tend to favor underdogs at long prices.</p>
+
+    <h2 id="matchups">Matchups, Venue, Back-to-Backs and Player Bias</h2>
+    <p>FV-2026-03 asked whether a player’s history against one opponent, or his own home/away split, predicts his next game in the NFL, NHL and MLB <a href="#ref-fv03">[5]</a>. We applied the same method to NBA points, rebounds, assists and threes, and added back-to-back splits. For a player with earlier actual total <i>A</i> and forecast total <i>E</i> within a split, the adjusted forecast multiplies v1’s mean by a shrunk ratio:</p>
+    <div class="eq-block">r<sub>split</sub> = (A<sub>split</sub> + k · r<sub>all</sub>) / (E<sub>split</sub> + k), &nbsp; r<sub>all</sub> = (A + k) / (E + k). <span class="eq-num">(7)</span></div>
+    <p>The overall ratio <i>r</i><sub>all</sub> is a per-player bias correction; split ratios shrink toward it. The base forecast is v1 fitted on 2023–24. The shrinkage <i>k</i> is chosen from {1, 3, 10, 30, 100, 300, ∞} on 2024–25, where ∞ means no adjustment, and the result is scored on 2025–26. Only earlier dates enter <i>A</i> and <i>E</i>.</p>
+    @@MATCHUPS@@
+    <p>Selection set <i>k</i> = ∞, no adjustment, for every statistic and split except opponent history for rebounds and threes, where it chose the weakest finite setting. Neither changed the test score measurably. To check that infinite shrinkage was not hiding a real effect, the right-hand column scores the best finite <i>k</i> anyway: every split made test forecasts slightly worse or no better. Players who had beaten their forecast against an opponent, at home, or on back-to-backs did not keep doing so.</p>
+    <p>Two results differ from the earlier study. First, the per-player bias correction that helped hockey and became nhl-v2.4 does not help here. The recent-average blend in (4) already moves each player’s forecast toward his own recent results. Second, there is no league-wide back-to-back error left to correct: in 2025–26, players on back-to-backs reached 100.1% of their forecast points and rested players 99.1%. The team model includes back-to-back terms and the minutes model includes a back-to-back flag, and FV-2026-04 found that closing totals already reflect back-to-backs <a href="#ref-fv04">[6]</a>.</p>
+
+    <h2 id="operation">Shadow-Mode Operation</h2>
+    <p>Since October 17, 2026, the daily NBA job refreshes ESPN history, fits nothing, loads the frozen production artifact and adds v1 probabilities to every priced quote. Game forecasts carry the score-matrix probabilities and push masses; player forecasts use ESPN’s current roster and injury report. Players listed Out are withheld, as are players who cannot be matched unambiguously to a current roster and players with too few NBA appearances. Each withheld quote records its reason. The cards show the v1 line next to the market price; expected value is computed but not displayed.</p>
+    <p>Shadow mode is deliberate. The feed never marks NBA forecasts as model-checked, so the editorial writer and Today’s Picks skip NBA. The <a href="/research/daily-process.html">current daily process</a> describes the eligible sports. Grading v1 against the 2026–27 prices it actually sees, with the timestamps and injury information of each quote, is the evidence needed before NBA becomes eligible. This paper’s results set the bar: the game model would have to show that it adds information to the closing line, which it did not do in 2025–26.</p>
+
+    <h2 id="limitations">Threats to Validity and Remaining Research</h2>
+    <p><strong>Availability and lineups.</strong> The historical study knows nothing about injuries, rest or starting lineups, and team forecasts ignore them even live. That is the most likely reason the market wins, and adding availability is the most important next step. A player-level team model, built by adding up projected minutes and per-minute contributions of the players expected to play, would let injury news move team forecasts.</p>
+    <p><strong>Market data.</strong> One book, one season, one quote per game of unstated time, and no player props. The model–market differences are precise for this sample, but they cannot speak to opening lines, other books, or props, where markets are thinner and more often stale. The live system now archives every quote it prices, which will support a dated comparison for 2026–27.</p>
+    <p><strong>Participation.</strong> Player results are conditional on appearing. A prop is usually voided if the player does not play, but a player who leaves early through injury or ejection stays in the evaluation. The minutes distribution only partly captures that risk.</p>
+    <p><strong>Distributional shape.</strong> The normal score model underprices overtime; the joint player simulation overstates combined variance, and calibration slopes correct both only partly. Pseudo-lines measure calibration near recent form, not at the lines books post.</p>
+    <p><strong>Statistical precision and multiplicity.</strong> Hundreds of comparisons appear in this report. Intervals are per comparison and conditional on the selected specification; small differences near zero, such as the rest-term ablation or individual matchup splits, should be read as “no measurable effect,” not as estimated harms. Three seasons of ESPN data are a short history; seasons before 2023–24 would strengthen selection and the test.</p>
+    <p><strong>Next evidence required.</strong> Prospective, timestamped grading of v1 against the quotes it sees in 2026–27; injury-aware team forecasts tested on held-out games; a fix for overtime mass; and, if obtainable, a historical player-prop archive. No recommendation threshold should be enabled because the system is running.</p>
+
+    <h2 id="conclusion">Conclusion for Readers and Analysts</h2>
+    <p>nba-v1.0 is a sound basketball model with a clear blind spot. It turns team pace and efficiency into a coherent distribution of final scores, and it forecasts player statistics better than recent averages by projecting minutes first. These are useful reference numbers for the board.</p>
+    <p>It does not beat DraftKings. The market knew more than the model about every kind of game line in 2025–26, and simple rules that bet the model’s disagreements lost money. The most likely reason is that the market knows who is playing tonight and the model’s team forecasts do not. Head-to-head history, home/away splits and back-to-back splits do not close the gap.</p>
+    <p>Use the NBA forecasts to see where a price sits against a transparent baseline, not as a signal to bet. NBA prices will become eligible for picks only after the model has been graded against real 2026–27 prices and shows that it adds something the market lacks.</p>
+
+    <h2 class="appendix" id="reproduction">Reproducibility and Artifact Lineage</h2>
+    <p>This report describes model <code>nba-v1.0</code>, whose implementation was merged at commit <a href="https://github.com/pbwitt/fourth-and-value/commit/@@MODEL_COMMIT@@"><code>@@MODEL_COMMIT_SHORT@@</code></a>. The study script <code>scripts/research/nba/study.py</code> writes <code>reports/nba-paper/evidence.json</code>, and every table here is generated from that file. The study adds one change to the model code: <code>fit_game</code> accepts a feature subset for the ablation in Table 4, and production output is unchanged. The downloadable evidence JSON contains all diagnostics and the SHA-256 hashes of the three season archives, the production model and the v1 evaluation.</p>
+    <p>The environment pins Python 3.11, NumPy 1.26.4 and SciPy 1.17.1. The season archives under <code>artifacts/nba/history/</code> are committed. The market section needs the cached ESPN summaries, which are not committed; the backfill command restores them from ESPN without cost. From a checkout:</p>
+    <pre><code>python3.11 -m venv .venv
+.venv/bin/pip install -r requirements-nhl.txt
+.venv/bin/python scripts/nba/espn_history.py --season 2025-26
+.venv/bin/python scripts/nba/train.py
+.venv/bin/python scripts/research/nba/study.py
+python3 scripts/research/build_nba_paper.py
+node scripts/research/render_nba_paper.cjs</code></pre>
+    <p>The study runs on a laptop CPU in about an hour, most of it spent on combined-market simulation and matchup histories. Random seeds are fixed. ESPN can revise historical box scores, so a fresh download is a new data vintage; the hashes in the evidence JSON identify the one used here.</p>
+    <h2 class="references-title" id="references">References and Research Materials</h2>
+    <div class="refs"><ol>
+      <li id="ref-implementation">Fourth &amp; Value Research Group (2026). <a href="https://github.com/pbwitt/fourth-and-value/tree/@@MODEL_COMMIT@@/scripts/nba">NBA v1 implementation</a>, <a href="https://github.com/pbwitt/fourth-and-value/blob/@@MODEL_COMMIT@@/reports/nba-v1/MODEL_CARD.md">model card</a> and <a href="https://github.com/pbwitt/fourth-and-value/blob/@@MODEL_COMMIT@@/reports/nba-v1/EVALUATION.md">evaluation</a>.</li>
+      <li id="ref-espn">ESPN. NBA scoreboard and game-summary endpoints (site.api.espn.com). Public, undocumented JSON; retrieved October 2026. Box scores and the DraftKings lines in the summary <code>pickcenter</code> field.</li>
+      <li id="ref-nbinom">SciPy developers. <a href="https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.nbinom.html">Negative-binomial distribution reference</a>. Accessed October 18, 2026; computation pinned to SciPy 1.17.1.</li>
+      <li id="ref-scoring">Gneiting, T., and Raftery, A. E. (2007). <a href="https://sites.stat.washington.edu/raftery/Research/PDF/Gneiting2007jasa.pdf">Strictly Proper Scoring Rules, Prediction, and Estimation</a>. <em>Journal of the American Statistical Association</em>, 102(477), 359–378. DOI: 10.1198/016214506000001437.</li>
+      <li id="ref-fv03">Fourth &amp; Value Research Group (2026). <a href="./player-matchups-and-home-field.html">Player Matchups and Home Field</a>. Technical Report FV-2026-03.</li>
+      <li id="ref-fv04">Fourth &amp; Value Research Group (2026). <a href="./low-scoring-games-situational-factors.html">What Makes Games Go Under?</a> Technical Report FV-2026-04.</li>
+      <li id="ref-fv02">Fourth &amp; Value Research Group (2026). <a href="./nhl-forecasting-and-market-pricing.html">NHL Forecasting and Market Pricing</a>. Technical Report FV-2026-02.</li>
+    </ol></div>
+    <p class="note">Research status: shadow-mode forecasts for NBA game lines and seven player statistics with four combined markets. No betting advantage over the market is established, and no player-prop price comparison has been made. This report is an internal technical publication, not external peer review.</p>
+  </article>
+  <div class="paper-links"><a class="back" href="./">← Research</a> · <a class="back" href="/nba/">NBA board →</a></div>
+</main>
+</body>
+</html>
