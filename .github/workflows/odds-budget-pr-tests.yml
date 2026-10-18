@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'scripts/odds_budget.py'
+      - 'scripts/odds_links.py'
+      - 'scripts/build_props_site.py'
       - 'scripts/nba/pipeline.py'
       - 'scripts/nhl/refresh.py'
       - 'scripts/mlb/refresh.py'
@@ -12,6 +14,7 @@ on:
       - 'scripts/editorial.py'
       - 'supabase/functions/closing-lines/**'
       - 'tests/test_odds_budget.py'
+      - 'tests/test_odds_links.py'
       - 'tests/closing_lines.cjs'
       - '.github/workflows/odds-budget-pr-tests.yml'
 permissions:
@@ -29,6 +32,7 @@ jobs:
           cache-dependency-path: requirements-nhl.txt
       - run: pip install -r requirements-nhl.txt
       - run: python -m unittest tests/test_odds_budget.py
+      - run: python -m unittest tests/test_odds_links.py
       - name: Every Odds API caller still compiles with the shared floor
         run: python -m py_compile scripts/fetch_all_player_props.py scripts/fetch_odds.py scripts/nfl_fetch_totals_spreads.py scripts/editorial.py scripts/mlb/refresh.py scripts/nhl/refresh.py
       - uses: actions/setup-node@v4

@@ -277,8 +277,37 @@ link in the footer and the `List-Unsubscribe` header.
 "I placed this" opens Today's Picks with Track bet filled in for that pick of the same
 edition (`?edition=&pick=&stake=`, handled once by `briefing-picks.js`). A link from
 another edition opens nothing. The email never places a bet and changes nothing.
-Book links open each book's site or app, not a bet slip; slip links depend on the
-odds provider and are not wired in yet.
+
+Book buttons use the book's own links (October 18, 2026). Every odds request in the
+NHL, MLB and NBA refreshes (`nba/pipeline.py` `OddsClient`) and the NFL props fetch
+asks for `includeLinks=true`; links do not change a request's credit cost. Each
+offer row keeps the most specific link the book sent, as `bet_link` with
+`bet_link_level`: `bet` (the outcome; it should add the bet to the slip), `market`
+or `event` (the game). Rows without a link carry neither field. Links are stored as
+sent, including any `{state}` placeholder for state-specific sites
+(`scripts/odds_links.py`). The NFL link rides on the shortlist feed
+(`docs/props/top-picks.json`) only, not the full props page. The email fills the
+state in per reader: `config/morning_email.json` `states` lists the owner's, home
+first (`md`, then `dc`), and a state-specific link also offers the other states.
+Without a link, or without a state for a state-specific one, the button opens the
+book's site from `books`. The run log reports how far the buttons go ("Book buttons:
+bet slip 2, game page 1"); which books send slip links is checked against real
+mornings, not assumed.
+
+**More readers (planned, not built).** The email has one reader today. To open it to
+subscribers:
+
+- Move each reader's states (and preferred books) from `config/morning_email.json`
+  to columns on `public.email_subscriptions`; `picks(card, config, states)` already
+  takes states per reader.
+- Show only books licensed in the reader's state. A dated, sourced map of legal
+  books by state would supply this and could also be a public page.
+- Send per reader with an idempotency key per edition and reader. Resend's batch
+  endpoint takes up to 100 messages, and its free tier has daily and monthly caps.
+- Add double opt-in sign-up and a verified sending domain (SPF, DKIM, DMARC).
+  Commercial email also needs the sender's postal address in the footer and one-click
+  `List-Unsubscribe-Post`, which needs a POST endpoint such as an Edge Function. Add
+  age and jurisdiction terms, and disclose any affiliate links.
 
 It sends once per edition: the Resend idempotency key is `morning-card-<edition_id>`,
 so recovery starts that re-verify a finished card send nothing. The only recipient is

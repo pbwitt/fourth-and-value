@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from market_math import implied_probability
 from odds_budget import CORE, CreditBudget, CreditFloorReached, estimate_cost
+from odds_links import link_fields
 
 UTC = timezone.utc
 SPORT = 'basketball_nba'
@@ -91,18 +92,24 @@ class OddsClient:
         # NBA, NHL and MLB refreshes all share this client, and all are core jobs.
         self.budget = budget or CreditBudget(label=f'{sport} refresh', tier=CORE)
 
-    def get(self, suffix, **params):
+    def get(self, suffix, _links=True, **params):
         # The event list is free and reports the balance before any paid request.
         try:
             self.budget.ensure(estimate_cost(f'sports/{self.sport}/{suffix}', params))
         except CreditFloorReached as error:
             raise CreditFloorError(str(error)) from None
+        # Odds responses also carry each book's links to the bet and the game
+        # (scripts/odds_links.py); links do not change a request's cost.
+        links = _links and suffix.endswith('odds')
         try:
             response = requests.get(f'https://api.the-odds-api.com/v4/sports/{self.sport}/{suffix}',
-                                    params=dict(params, apiKey=self.key), timeout=25)
+                                    params=dict(params, apiKey=self.key, **({'includeLinks': 'true'} if links else {})), timeout=25)
             self.requests += 1
             self.budget.observe(response.headers)
             self.quota_remaining = response.headers.get('x-requests-remaining')
+            # Links are optional: if the provider ever refuses them, ask once without.
+            if links and response.status_code in (400, 422):
+                return OddsClient.get(self, suffix, _links=False, **params)  # not a subclass's archiving get
             if not response.ok:
                 raise FeedError(f'Odds provider returned HTTP {response.status_code}')
             return response.json()
@@ -148,7 +155,7 @@ def flatten(event, now, sport=SPORT, markets=MARKETS, prop_markets=PROP_MARKETS)
                     book=book['key'], book_label=book['title'], market=key,
                     market_label=markets[key], player=player, side=side, line=point,
                     price=float(outcome['price']), book_probability=probability,
-                    quoted_at=iso(updated)))
+                    quoted_at=iso(updated), **link_fields(book, market, outcome)))
     return rows
 
 

@@ -19,7 +19,7 @@ LABELS = {'rush_yds':'Rushing yards', 'recv_yds':'Receiving yards', 'pass_yds':'
           'pass_interceptions':'Interceptions thrown', 'interceptions':'Interceptions thrown', 'anytime_td':'Anytime touchdown'}
 
 
-def prepare_records(path):
+def prepare_records(path, links=False):
     d = pd.read_csv(path, low_memory=False)
     d = add_market_comparisons(d)
     for col in ['model_prob', 'mu', 'push_prob']:
@@ -39,6 +39,10 @@ def prepare_records(path):
             'mu','model_prob','push_prob','mkt_prob','prob_devig','consensus_prob','consensus_line','book_count',
             'edge_bps','ev_per_100','model_status','last_update','commence_time','kick_et','home_team','away_team','projection_diagnostics',
             'player_position']
+    # The book's link to the bet or game (scripts/odds_links.py), for the shortlist feed
+    # and the morning email; the full board leaves it out to stay small.
+    if links:
+        cols += ['bet_link', 'bet_link_level']
     for c in cols:
         if c not in d:
             d[c] = None
@@ -56,7 +60,7 @@ def static_card(r):
 
 
 def build_page(args, top_only=False):
-    records = prepare_records(args.merged_csv)
+    records = prepare_records(args.merged_csv, links=top_only)
     now = datetime.now(timezone.utc)
     future = [r for r in records if r['commence_time'] and pd.to_datetime(r['commence_time'], utc=True) > now]
     # Do not label a build time as the time the sportsbook price was checked.

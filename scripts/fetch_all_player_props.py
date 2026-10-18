@@ -17,6 +17,7 @@ import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from odds_budget import CORE, CreditBudget, CreditFloorReached
+from odds_links import link_fields
 
 # Core refresh for the morning card: may spend the shared balance to zero; per-run cap
 # applies (scripts/odds_budget.py).
@@ -122,9 +123,12 @@ def fetch_event_props(api_key: str, sport_key: str, event_id: str,
         markets_param = ",".join(mchunk)
         url = (
             f"https://api.the-odds-api.com/v4/sports/{sport_key}/events/{event_id}/odds"
-            f"?regions={regions}&oddsFormat=american&markets={markets_param}&apiKey={api_key}"
+            f"?regions={regions}&oddsFormat=american&markets={markets_param}&includeLinks=true&apiKey={api_key}"
         )
         data = req_json(url)
+        if isinstance(data, dict) and data.get("__422__"):
+            # Links are optional: a refusal must never cost the props, so ask once without.
+            data = req_json(url.replace("&includeLinks=true", ""))
         if isinstance(data, dict) and data.get("__422__"):
             print(f"[warn] event {event_id} {mchunk} → 422 {data.get('body')}", file=sys.stderr)
             continue
@@ -154,6 +158,8 @@ def fetch_event_props(api_key: str, sport_key: str, event_id: str,
                         "name": side,                 # Over/Under/Yes/No
                         "price": oc.get("price"), "point": oc.get("point"),
                         "last_update": m.get("last_update") or bk.get("last_update"),
+                        # The book's own link to this bet or game (scripts/odds_links.py).
+                        **link_fields(bk, m, oc),
                     })
         if sleep > 0:
             time.sleep(sleep)
@@ -213,7 +219,7 @@ def main():
     fieldnames = [
         "game_id","commence_time","home_team","away_team","game",
         "bookmaker","bookmaker_title","market","market_std",
-        "player","name","price","point","last_update"
+        "player","name","price","point","last_update","bet_link","bet_link_level"
     ]
     with open(out_path, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)
