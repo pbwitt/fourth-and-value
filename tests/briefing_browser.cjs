@@ -212,6 +212,20 @@ const server=http.createServer((req,res)=>{
     feeds.Reviews={schema_version:1,sports:{MLB:{decision_date:'2026-09-27',candidates:[reviewed],sources:[]}}};
     const card={schema_version:1,kind:'test',decision_date:'2026-09-27',published_at:new Date(now).toISOString(),rows:shortlist(collect(feeds,now).selected,now)};
     feeds={Card:card};await page.reload();await page.waitForSelector('#daily-picks-rows [data-track-pick]');
+    // The owner email's "I placed this" link opens Track bet for that pick of the same
+    // edition with the suggested stake, once; a link from another edition opens nothing.
+    card.edition_id='edition-a';
+    await page.goto(base+'/briefing/?edition=edition-a&pick=0&stake=3.5#daily-picks');
+    await page.waitForSelector('#pick-tracker[open]');
+    assert.equal(await page.locator('#track-stake').inputValue(),'3.50');
+    assert.match(await page.locator('#track-bet-description').textContent(),/^MLB · /);
+    assert.equal(await page.evaluate(()=>location.search+location.hash),'#daily-picks','the link opens the form once');
+    await page.locator('#track-cancel').click();
+    for(const link of ['?edition=edition-b&pick=0&stake=3.5','?edition=edition-a&pick=7&stake=3.5']) {
+      await page.goto(base+'/briefing/'+link+'#daily-picks');
+      await page.waitForFunction(()=>!location.search&&document.querySelector('#daily-picks-rows [data-track-pick]'));
+      assert.equal(await page.locator('#pick-tracker[open]').count(),0,`${link} opens nothing`);
+    }
     await page.clock.fastForward(6*3600e3);
     assert.match(await page.locator('#picks-status').textContent(),/Test edition for 2026-09-27/);
     assert.match(await page.locator('#daily-picks-rows').textContent(),/Game started · historical assessment/);

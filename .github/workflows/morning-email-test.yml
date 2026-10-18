@@ -1,0 +1,29 @@
+name: Morning Card Email Test
+
+# Sends the card currently on main to the owner, labeled as a test, to prove the Resend
+# settings. Read-only: no research, no odds credits, no commit. The daily email itself is
+# sent by Morning Candidate Research after the edition is verified live.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  send:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests==2.32.5
+      - name: Send the current card, labeled as a test
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EDITORIAL_NOTIFY_FROM: ${{ secrets.EDITORIAL_NOTIFY_FROM }}
+          EDITORIAL_NOTIFY_EMAIL: ${{ secrets.EDITORIAL_NOTIFY_EMAIL }}
+        run: python scripts/morning_email.py --test

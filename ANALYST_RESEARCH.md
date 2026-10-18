@@ -255,6 +255,34 @@ and source validation. Editorial targets 08:30 ET and closes automatic writing
 at noon; hourly maintenance and approved-post publication continue. NBA
 integration into the coordinated sports refresh remains future work.
 
+### Owner morning email
+
+After `Verify this exact edition is live` passes, `scripts/morning_email.py` emails
+the owner today's finished morning edition (`published` or `no_reviewed_candidates`;
+an incomplete edition waits for the recovery start that finishes it). Each pick shows:
+
+- the exact card quote and its Eastern quote time, and the game's start time
+- the worst price at which it still clears the 1% blend floor, from the card's own
+  blend fields
+- a suggested stake from `config/morning_email.json`: risk at most $5 and try to win
+  at most about $5, in $0.50 steps, at least $1
+- review status and up to three open checks
+- a link to the book's site and an "I placed this" link
+
+"I placed this" opens Today's Picks with Track bet filled in for that pick of the same
+edition (`?edition=&pick=&stake=`, handled once by `briefing-picks.js`). A link from
+another edition opens nothing. The email never places a bet and changes nothing.
+Book links open each book's site or app, not a bet slip; slip links depend on the
+odds provider and are not wired in yet.
+
+It sends once per edition: the Resend idempotency key is `morning-card-<edition_id>`,
+so recovery starts that re-verify a finished card get a 409 and send nothing. It
+needs the GitHub Actions secrets `RESEND_API_KEY` and `EDITORIAL_NOTIFY_FROM`, the
+same ones editorial notices use; `EDITORIAL_NOTIFY_EMAIL` is the recipient and is
+already set. Without them the step says so and sends nothing, and it never fails the
+research run. `Morning Card Email Test` (manual) sends the card currently on main,
+labeled as a test, and fails if a setting is missing.
+
 ### Model-history freshness
 
 NHL live inference retrieves current-season final team and skater reports on every

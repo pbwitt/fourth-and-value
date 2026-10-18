@@ -547,7 +547,19 @@
         feeds=next;checked=new Date().toISOString();render();
       } finally {loading=false;}
     }
-    await load();setInterval(render,30000);setInterval(load,300000);
+    // The owner email's "I placed this" link (scripts/morning_email.py) opens Track bet for
+    // that pick of the same edition with the suggested stake filled in, once. A link from
+    // another edition opens nothing; the card below is today's.
+    function openFromLink() {
+      const params=new URLSearchParams(location.search),edition=params.get('edition');
+      if(!edition)return;
+      history.replaceState(null,'',location.pathname+location.hash);
+      const pick=Number(params.get('pick')),stake=Number(params.get('stake'));
+      if(feeds.Card?.edition_id!==edition||!Number.isInteger(pick)||!currentEditionRows(feeds.Card)[pick])return;
+      root.querySelector(`#daily-picks-rows [data-track-pick="${pick}"]`)?.click();
+      if(dialog.open&&Number.isFinite(stake)&&stake>0)$('track-stake').value=stake.toFixed(2);
+    }
+    await load();openFromLink();setInterval(render,30000);setInterval(load,300000);
     document.addEventListener('visibilitychange',()=>{if(!document.hidden)load();});
   }
   // Home page: the first pick on today's published card whose game has not started,

@@ -110,6 +110,17 @@ jobs:
         env:
           EXPECTED_EDITION: ${{ steps.research.outputs.edition_id }}
         run: python scripts/morning_operations.py --verify-live "$EXPECTED_EDITION"
+      # Once per edition (Resend idempotency key); recovery starts re-verify and skip it.
+      # Without the Resend settings it reports that and sends nothing.
+      - name: Email the owner today's card
+        if: steps.research.outputs.edition_id != ''
+        continue-on-error: true
+        env:
+          EXPECTED_EDITION: ${{ steps.research.outputs.edition_id }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EDITORIAL_NOTIFY_FROM: ${{ secrets.EDITORIAL_NOTIFY_FROM }}
+          EDITORIAL_NOTIFY_EMAIL: ${{ secrets.EDITORIAL_NOTIFY_EMAIL }}
+        run: python scripts/morning_email.py --edition "$EXPECTED_EDITION"
       - name: Fail incomplete or unverified research runs
         if: always() && !cancelled()
         env:
