@@ -11,10 +11,10 @@ const server=http.createServer((req,res)=>{
 const bet=(id,game_date,league,status,odds,payout,extra={})=>({id,game_date,league,status,odds,stake_dollars:5,payout,team_away:'Away',team_home:'Home',
   market_type:'sog',side:'under',line:2.5,player:'Sample Player',book:'draftkings',created_at:game_date+'T12:00:00Z',timestamp:game_date+'T12:00:00Z',...extra});
 const rows=[
-  bet('1','2026-09-29','NHL','lost',-138,0),bet('2','2026-09-29','NHL','won',-140,8.57),bet('3','2026-09-30','MLB','lost',105,0),
-  bet('4','2026-10-01','NFL','won',125,11.25,{market_type:'receptions',side:'over',line:1.5,player:'Receiver <b>X</b>'}),
+  bet('1','2026-09-29','NHL','lost',-138,0),bet('2','2026-09-29','NHL','won',-140,8.57,{clv_ev:-0.02}),bet('3','2026-09-30','MLB','lost',105,0),
+  bet('4','2026-10-01','NFL','won',125,11.25,{market_type:'receptions',side:'over',line:1.5,player:'Receiver <b>X</b>',clv_ev:0.05}),
   bet('5','2026-10-01','NFL','won',148,12.4),bet('6','2026-10-02','NHL','won',-105,9.76),bet('7','2026-10-03','MLB','won',-116,9.31),
-  bet('8','2026-10-04','NFL','lost',175,0),bet('9','2026-10-04','NFL','pending',155,null)];
+  bet('8','2026-10-04','NFL','lost',175,0,{clv_ev:'0.01'}),bet('9','2026-10-04','NFL','pending',155,null)];
 
 (async()=>{
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -58,6 +58,11 @@ const rows=[
       assert.equal(await panel.locator('[data-perf=path] .perf-dot').count(),8);
       assert.match(await panel.locator('[data-perf=scale]').textContent(),/You \+28\.2%/);
       assert.deepEqual((await panel.locator('.perf-sports tbody th').allTextContents()),['NFL','NHL','MLB']);
+      // By odds: favorites to long shots, each against the win rate its prices need and the close.
+      assert.deepEqual((await panel.locator('.perf-odds tbody tr').allInnerTexts()).map(t=>t.replace(/\s+/g,' ').trim()),
+        ['−101 to −149 4 settled 75% needs 55.3% +$7.64 +38.2% ROI 0% of 1','Even to +199 4 settled, 1 pending 50% needs 42.5% +$3.65 +18.3% ROI 100% of 2']);
+      assert.match(text,/fewer than 30 settled bets/);
+      assert.equal(await p.evaluate(()=>{const c=document.querySelector('.perf-card:has(.perf-odds)');return c.scrollWidth>c.clientWidth+1;}),false,`odds table scrolls sideways at ${width}`);
       assert.doesNotMatch(text,/luck|±|NaN|undefined/i);
       const readout=panel.locator('[data-perf=readout]');
       await panel.locator('.perf-hit').nth(3).hover();
@@ -66,8 +71,8 @@ const rows=[
       await p.screenshot({path:`/tmp/fv-tracker-performance-${width}.png`,fullPage:true});
       // The summary and each part share as branded images through the tracker's share sheet.
       const heights=await panel.locator('.perf-share').evaluateAll(buttons=>buttons.map(b=>b.getBoundingClientRect().height));
-      assert.equal(heights.length,4);assert.ok(heights.every(h=>h>=32),`tap targets ${heights}`);
-      for(const [kind,file] of [['summary','summary'],['roi','roi'],['path','running-profit'],['sports','by-sport']]){
+      assert.equal(heights.length,5);assert.ok(heights.every(h=>h>=32),`tap targets ${heights}`);
+      for(const [kind,file] of [['summary','summary'],['roi','roi'],['path','running-profit'],['sports','by-sport'],['odds','by-odds']]){
         await panel.locator(`[data-perf-share=${kind}]`).click();
         await p.waitForFunction(()=>{const i=document.getElementById('shareImage');
           return document.getElementById('shareSheet').classList.contains('open')&&i.src.startsWith('blob:')&&i.complete&&i.naturalWidth>0;});
@@ -78,6 +83,7 @@ const rows=[
         assert.equal(image.name,`fourth-and-value-performance-${file}-2026-10-04.png`);
         assert.doesNotMatch(image.alt,/undefined|NaN|null/);assert.ok(image.alt.length>20);
         if(kind==='summary')assert.equal(image.alt,'Bet Tracker performance, Sep 29 – Oct 4 · 8 settled bets: 62.5% won, ROI +28.2%, profit +$11.29.');
+        if(kind==='odds')assert.equal(image.alt,'Results by odds: −101 to −149 75% won (needs 55.3%), +$7.64, beat the close 0%; Even to +199 50% won (needs 42.5%), +$3.65, beat the close 100%.');
         if(width===390){
           const png=await p.evaluate(async()=>{const bytes=new Uint8Array(await (await fetch(document.getElementById('shareImage').src)).arrayBuffer());
             let s='';for(const b of bytes)s+=String.fromCharCode(b);return btoa(s);});
@@ -97,9 +103,21 @@ const rows=[
       await p.locator('#f-sport').selectOption('NFL');
       await p.waitForFunction(()=>/3 settled bets in this view/.test(document.getElementById('performance').textContent));
       assert.equal(await panel.locator('.perf-sports tbody tr').count(),1);
+      // The odds filter narrows the tiles, panel, bet list and count; Reset clears it.
+      await p.locator('#f-reset').click();
+      assert.deepEqual(await p.locator('#f-odds option').allTextContents(),['All odds','−150 or shorter','−101 to −149','Even to +199','+200 or longer']);
+      await p.locator('#f-odds').selectOption({label:'−101 to −149'});
+      await p.waitForFunction(()=>/4 settled bets in this view\./.test(document.getElementById('performance').textContent));
+      assert.equal(await p.locator('#f-count').textContent(),'Showing 4 of 9 bets. Stats below reflect these filters.');
+      assert.deepEqual(await Promise.all(['totalBets','winRate','winRateNote'].map(tile)),['4','75.0%','Break-even at your prices: 55.3%']);
+      assert.equal(await panel.locator('.perf-odds tbody tr').count(),1);
+      assert.equal(await p.locator('.bet-card').count(),4);
+      await p.locator('#f-reset').click();
+      await p.waitForFunction(()=>/8 settled bets in this view/.test(document.getElementById('performance').textContent));
+      assert.equal(await p.locator('#f-odds').inputValue(),'');
       assert.deepEqual(errors,[]);
       await p.close();
     }
-    console.log('PASS: tracker performance panel renders from the shown bets without repeating the tiles, shares four branded images, follows filters, escapes text and fits phone and desktop widths.');
+    console.log('PASS: tracker performance panel renders from the shown bets without repeating the tiles, shares five branded images, follows the date, sport and odds filters, escapes text and fits phone and desktop widths.');
   }finally{await browser.close();server.close();}
 })().catch(error=>{console.error(error);server.close();process.exitCode=1;});

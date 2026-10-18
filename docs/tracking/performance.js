@@ -1,7 +1,7 @@
 /* Bet Tracker performance: ROI against winning bettors, the running profit bet by bet and
-   results by sport, built from the bets the filters show. The summary and each part can be
-   shared as a branded image drawn on this device, like the tracker's bet slips; nothing is
-   uploaded. Display only: nothing here changes a bet. */
+   results by sport and by odds range, built from the bets the filters show. The summary and
+   each part can be shared as a branded image drawn on this device, like the tracker's bet
+   slips; nothing is uploaded. Display only: nothing here changes a bet. */
 (function(global){
   'use strict';
   const SETTLED=['won','lost','push'];
@@ -16,6 +16,23 @@
   const rate=v=>finite(v)?(v*100).toFixed(1).replace(/\.0$/,'')+'%':'—';
   const implied=o=>o>0?100/(o+100):-o/(-o+100);
   const day=d=>/^\d{4}-\d{2}-\d{2}$/.test(d||'')?new Date(d+'T12:00:00Z').toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'}):'';
+  // A missing value is not a number here, though Number(null) is 0.
+  const given=v=>v!==null&&v!==undefined&&v!==''&&finite(Number(v))?Number(v):null;
+
+  // American price ranges for the tracker's odds filter and the By odds table. Even money
+  // (−100) counts with plus money; a price missing or between −100 and +100 has no range.
+  const ODDS_RANGES=[
+    {key:'fav',label:'−150 or shorter',test:o=>o<=-150},
+    {key:'short',label:'−101 to −149',test:o=>o>-150&&o<-100},
+    {key:'even',label:'Even to +199',test:o=>o===-100||(o>=100&&o<200)},
+    {key:'long',label:'+200 or longer',test:o=>o>=200},
+  ];
+  const oddsRange=odds=>{const o=given(odds);return o===null?null:ODDS_RANGES.find(r=>r.test(o))?.key||null;};
+  // Under this many settled bets a range's profit can swing widely (the page note says so).
+  const SMALL_SAMPLE=30;
+  // Beat the close: the price taken beat the fair closing price, or, when the line moved, the
+  // close moved past the number taken (supabase/closing_line_value.sql). Null: no closing data.
+  const beatClose=b=>{const ev=given(b.clv_ev);return ev!==null?ev>0:typeof b.beat_line==='boolean'?b.beat_line:null;};
 
   // Order placed: game date, then when the bet was logged.
   const placed=(a,b)=>String(a.game_date||'').localeCompare(String(b.game_date||''))
@@ -27,11 +44,14 @@
     const decided=settled.filter(b=>b.status!=='push'),won=decided.filter(b=>b.status==='won').length;
     const staked=settled.reduce((a,b)=>a+num(b.stake_dollars),0),pl=settled.reduce((a,b)=>a+profit(b),0);
     const priced=decided.filter(b=>Math.abs(num(b.odds)??0)>=100);
+    // Closing prices are captured before the game, so pending bets count here too.
+    const closed=bets.filter(b=>b.status!=='void').map(beatClose).filter(v=>v!==null);
     return {settled:settled.length,won,lost:decided.length-won,push:settled.length-decided.length,
       pending:bets.filter(b=>!SETTLED.includes(b.status)&&b.status!=='void').length,staked,pl,
       roi:staked>0?pl/staked:null,winRate:decided.length?won/decided.length:null,
       // The win rate at which these prices break even; plus-money bets lower it.
-      breakEven:priced.length?priced.reduce((a,b)=>a+implied(num(b.odds)),0)/priced.length:null};
+      breakEven:priced.length?priced.reduce((a,b)=>a+implied(num(b.odds)),0)/priced.length:null,
+      closed:closed.length,beatClose:closed.length?closed.filter(Boolean).length/closed.length:null};
   }
 
   function summarize(bets){
@@ -42,7 +62,10 @@
     const sports=[...new Set(list.map(b=>b.league||'Other'))]
       .map(sport=>({sport,...tally(list.filter(b=>(b.league||'Other')===sport))}))
       .filter(t=>t.settled||t.pending).sort((a,b)=>b.pl-a.pl||a.sport.localeCompare(b.sport));
-    return {...tally(list),path,sports};
+    // Shortest prices first, so the table reads from favorites to long shots.
+    const odds=ODDS_RANGES.map(r=>({range:r.key,label:r.label,...tally(list.filter(b=>oddsRange(b.odds)===r.key))}))
+      .filter(t=>t.settled||t.pending);
+    return {...tally(list),path,sports,odds};
   }
 
   // What a share image covers: the sport when the filters show one, the dates, the count.
@@ -131,6 +154,8 @@
   const C={bg:'#0f0f0f',card:'#1a1a1a',edge:'#2a2a2a',accent:'#4FC3F7',ink:'#fff',muted:'#999',green:'#66BB6A',red:'#ff6b6b'};
   const IMG={W:600,PAD:28,SCALE:2,CHART:400,GAP:12};
   const tone=v=>v>0?C.green:v<0?C.red:C.ink;
+  const needs=t=>finite(t.breakEven)?`needs ${rate(t.breakEven)}`:'';
+  const rangeCount=t=>[t.settled?`${t.settled}\u00a0settled`:'',t.pending?`${t.pending}\u00a0pending`:''].filter(Boolean).join(', ');
   // The page's chart styles (index.html .perf-*), for drawing the same shapes on a canvas.
   const PAINT={
     '':{text:C.muted,font:'400 12px'},'perf-lab':{text:C.ink,font:'600 12px'},'perf-end':{text:C.ink,font:'600 12px'},
@@ -143,6 +168,7 @@
     roi:{title:'ROI against winning bettors',file:'roi'},
     path:{title:'Running profit, bet by bet',file:'running-profit'},
     sports:{title:'Results by sport',file:'by-sport'},
+    odds:{title:'Results by odds',file:'by-odds'},
   };
 
   // Rounded rectangles drawn by hand for older Safari.
@@ -259,6 +285,28 @@
       });
     }};
   }
+  // Each range with its settled count, the win rate against what its prices need, and the close.
+  function oddsBody(s){
+    const rows=s.odds,rowH=50,head=26;
+    return {h:head+rows.length*rowH,draw(ctx,x,y,cw){
+      const col={won:cw*.52,profit:cw*.76,close:cw};
+      ctx.font=`700 11px ${FONT}`;ctx.fillStyle=C.muted;
+      ctx.textAlign='left';ctx.fillText('ODDS',x,y+14);
+      ctx.textAlign='right';ctx.fillText('WON',x+col.won,y+14);ctx.fillText('PROFIT',x+col.profit,y+14);ctx.fillText('BEAT CLOSE',x+col.close,y+14);
+      rows.forEach((t,i)=>{
+        const ry=y+head+i*rowH,base=ry+24,sub=ry+41;
+        ctx.fillStyle=C.edge;ctx.fillRect(x,ry,cw,1);
+        ctx.textAlign='left';ctx.font=`700 15px ${FONT}`;ctx.fillStyle=C.ink;ctx.fillText(t.label,x,base);
+        ctx.font=`500 12px ${FONT}`;ctx.fillStyle=C.muted;ctx.fillText(rangeCount(t),x,sub);
+        ctx.textAlign='right';ctx.font=`500 15px ${FONT}`;ctx.fillStyle=C.ink;ctx.fillText(rate(t.winRate),x+col.won,base);
+        ctx.font=`500 12px ${FONT}`;ctx.fillStyle=C.muted;ctx.fillText(needs(t),x+col.won,sub);
+        ctx.font=`700 15px ${FONT}`;ctx.fillStyle=t.settled?tone(t.pl):C.muted;ctx.fillText(t.settled?money(t.pl):'—',x+col.profit,base);
+        ctx.font=`500 12px ${FONT}`;ctx.fillStyle=C.muted;ctx.fillText(t.settled?`${pct(t.roi)} ROI`:'',x+col.profit,sub);
+        ctx.font=`500 15px ${FONT}`;ctx.fillStyle=C.ink;ctx.fillText(rate(t.beatClose),x+col.close,base);
+        ctx.font=`500 12px ${FONT}`;ctx.fillStyle=C.muted;ctx.fillText(t.closed?`of ${t.closed}`:'',x+col.close,sub);
+      });
+    }};
+  }
 
   function shareImage(el,kind){
     const s=state.get(el),spec=SHARES[kind];
@@ -270,6 +318,7 @@
     if(all||kind==='roi')parts.push(card(all?SHARES.roi.title:'',roiBody(s,inner,measure,!all)));
     if(all||kind==='path')parts.push(card(all?SHARES.path.title:'',pathBody(s,inner)));
     if(all||kind==='sports')parts.push(card(all?SHARES.sports.title:'',sportsBody(s)));
+    if((all&&s.odds.length)||kind==='odds')parts.push(card(all?SHARES.odds.title:'',oddsBody(s)));
     const top=128,foot=56,H=top+parts.reduce((a,p)=>a+p.h+GAP,0)-GAP+foot;
 
     const canvas=document.createElement('canvas');
@@ -291,7 +340,8 @@
     const alt={summary:`Bet Tracker performance, ${context(s)}: ${rate(s.winRate)} won, ROI ${pct(s.roi)}, profit ${money(s.pl)}.`,
       roi:`ROI ${pct(s.roi)}, against break-even and winning bettors at about +2% to +5%.`,
       path:`Running profit after ${s.settled} settled bets, now ${money(s.pl)}.`,
-      sports:`Results by sport: ${s.sports.map(t=>`${t.sport} ${rate(t.winRate)} won, ${t.settled?money(t.pl):'no settled bets'}`).join('; ')}.`}[kind];
+      sports:`Results by sport: ${s.sports.map(t=>`${t.sport} ${rate(t.winRate)} won, ${t.settled?money(t.pl):'no settled bets'}`).join('; ')}.`,
+      odds:`Results by odds: ${s.odds.map(t=>`${t.label} ${t.settled?`${rate(t.winRate)} won (${needs(t)}), ${money(t.pl)}`:'no settled bets'}${t.closed?`, beat the close ${rate(t.beatClose)}`:''}`).join('; ')}.`}[kind];
     return {canvas,alt,name:`fourth-and-value-performance-${spec.file}${/^\d{4}-\d{2}-\d{2}$/.test(last||'')?'-'+last:''}.png`};
   }
 
@@ -304,6 +354,14 @@
         +`<td class="r ${t.pl>0?'positive':t.pl<0?'negative':''}">${t.settled?money(t.pl):'—'}</td><td class="r">${pct(t.roi)}</td>`
         +`<td class="perf-barcell"><div class="perf-bar" aria-hidden="true">${t.settled?bar:''}</div></td></tr>`;
     }).join('');
+  }
+
+  function oddsHTML(s){
+    // On phones a range label wraps after its second word ("−150 or / shorter"), never between every word.
+    return s.odds.map(t=>`<tr><th scope="row">${esc(t.label.replace(' ','\u00a0'))} <small>${esc(rangeCount(t))}</small></th>`
+      +`<td>${rate(t.winRate)}${needs(t)?` <small>${needs(t)}</small>`:''}</td>`
+      +`<td class="r ${t.pl>0?'positive':t.pl<0?'negative':''}">${t.settled?`${money(t.pl)} <small>${pct(t.roi)} ROI</small>`:'—'}</td>`
+      +`<td class="r">${rate(t.beatClose)}${t.closed?` <small>of ${t.closed}</small>`:''}</td></tr>`).join('');
   }
 
   const state=new WeakMap();
@@ -329,7 +387,7 @@
 
   // Win rate and ROI are the tiles above; the panel adds what they cannot show.
   function html(s){
-    if(s.settled<2)return `<h3>Performance</h3><p class="perf-note">ROI against winning bettors, your running profit and results by sport appear once two bets in this view have settled.</p>`;
+    if(s.settled<2)return `<h3>Performance</h3><p class="perf-note">ROI against winning bettors, your running profit and results by sport and odds appear once two bets in this view have settled.</p>`;
     return `<div class="perf-head"><div><h3>Performance</h3><p class="perf-note">${s.settled} settled bet${s.settled===1?'':'s'} in this view${s.pending?`, ${s.pending} pending`:''}.</p></div>`
         +shareButton('summary','Share an image of this performance')+`</div>`
       +`<div class="perf-grid">`
@@ -342,7 +400,10 @@
           +`<p class="perf-readout" data-perf="readout" aria-live="polite"></p></figure>`
       +`</div>`
       +`<div class="perf-card"><div class="perf-cap">By sport${shareButton('sports','Share results by sport')}</div>`
-        +`<table class="perf-sports" aria-label="Results by sport"><thead><tr><th scope="col">Sport</th><th scope="col">Won</th><th scope="col" class="r">Profit</th><th scope="col" class="r">ROI</th><th scope="col"><span class="sr-only">Profit bar</span></th></tr></thead><tbody>${sportsHTML(s)}</tbody></table></div>`;
+        +`<table class="perf-table perf-sports" aria-label="Results by sport"><thead><tr><th scope="col">Sport</th><th scope="col">Won</th><th scope="col" class="r">Profit</th><th scope="col" class="r">ROI</th><th scope="col"><span class="sr-only">Profit bar</span></th></tr></thead><tbody>${sportsHTML(s)}</tbody></table></div>`
+      +(s.odds.length?`<div class="perf-card"><div class="perf-cap">By odds${shareButton('odds','Share results by odds')}</div>`
+        +`<table class="perf-table perf-odds" aria-label="Results by odds"><thead><tr><th scope="col">Odds</th><th scope="col">Won</th><th scope="col" class="r">Profit</th><th scope="col" class="r">Beat close</th></tr></thead><tbody>${oddsHTML(s)}</tbody></table>`
+        +`<p class="perf-note">Won is the share of decided bets, against the win rate the prices need to break even. Beat close is the share of bets with a closing price where your price beat the fair close, or the line closed past your number. With fewer than ${SMALL_SAMPLE} settled bets, a range’s profit can swing widely; beating the close is the steadier sign.</p></div>`:'');
   }
 
   function render(el,bets){
@@ -362,7 +423,7 @@
     return s;
   }
 
-  const api={summarize,render,html,context,scaleScene,pathScene,toSVG,shareImage,PRO_LOW,PRO_HIGH};
+  const api={summarize,render,html,context,scaleScene,pathScene,toSVG,shareImage,oddsRange,ODDS_RANGES,PRO_LOW,PRO_HIGH};
   global.FVPerformance=api;
   if(typeof module!=='undefined'&&module.exports)module.exports=api;
 })(typeof window!=='undefined'?window:globalThis);
