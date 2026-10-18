@@ -2,12 +2,19 @@ name: NBA Daily Update
 
 on:
   schedule:
-    # 11 AM and 5 PM Eastern during daylight time; hourly DST shift in winter.
-    - cron: '0 15,21 * * *'
+    # 11 a.m. and 5 p.m. Eastern; the morning picks edition also refreshes NBA at 7:05 a.m.
+    - cron: '0 11,17 * * *'
+      timezone: America/New_York
   workflow_dispatch:
     inputs:
       refresh_history:
         description: 'Add recent ESPN box scores to NBA history (free)'
+        type: boolean
+        default: true
+  # The morning picks edition refreshes NBA before research (player props are pick-eligible).
+  workflow_call:
+    inputs:
+      refresh_history:
         type: boolean
         default: true
 
@@ -53,6 +60,12 @@ jobs:
         # Rebuilt from the committed run archive: last pregame snapshot per game vs. ESPN final box
         # scores (free). Saved results in artifacts/nba/results are reused; an odds outage does not stop it.
         run: python scripts/build_market_results.py --sport nba
+      - name: Grade shadow-tracked NBA game lines
+        if: always() && (steps.refresh.outcome == 'success' || steps.refresh.outcome == 'failure')
+        continue-on-error: true
+        # Game lines the picks rule would have taken (never picked; FV-2026-05), graded from the run
+        # archive and ESPN finals into artifacts/nba/shadow/game-lines.json.
+        run: python scripts/nba/shadow_grade.py
       - name: Archive odds and model inputs for later review
         if: always()
         uses: actions/upload-artifact@v4

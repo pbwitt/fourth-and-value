@@ -47,12 +47,15 @@
     $('result-count').textContent=`${selected.length} matching offers`;
     $('results').innerHTML=selected.slice(0,limit).map(r=>{
       const baseline=r.baseline_mean!==null&&r.baseline_mean!==undefined?`<p class="meta">Historical hit rate: ${pct(r.baseline_probability)} · Smoothed; excludes pushes. ${esc(r.baseline_status??r.model_status)}</p>`:'';
-      // NBA v1 runs in shadow mode: shown for research, labeled experimental, never ranked as a pick.
+      // Props are eligible for picks (after the market blend and review); game lines are shadow-tracked
+      // because the game model trailed DraftKings in FV-2026-05. Both show EV at this price, labeled.
       const push=Number.isFinite(r.model_push_probability)&&r.model_push_probability>=0.0005?` · push ${pct(r.model_push_probability)}`:'';
-      // model_ev_pct stays in the feed for grading; ungraded EV is not shown to readers.
+      const ev=Number.isFinite(r.model_ev_pct)?` · ${r.model_ev_pct>=0?'+':''}${r.model_ev_pct.toFixed(1)}% expected value at this price`:'';
+      const track=r.model_track==='shadow'?'Game lines are shadow-tracked: the game model trailed sportsbook lines in testing, so this is not a pick.'
+        :r.is_model_pick?'Positive before the market blend; Today’s Picks applies the blend and review.':esc(r.model_pick_reason||'Not a model pick');
       const projection=Number.isFinite(r.model_mean)?` · projection ${r.model_mean.toFixed(1)}${Number.isFinite(r.model_minutes)?` in ${r.model_minutes.toFixed(0)} min`:''}`:'';
       const injury=r.injury_status?` · ESPN injury report: ${esc(r.injury_status.status)}`:'';
-      const model=Number.isFinite(r.model_probability)?`<p class="meta"><strong>NBA v1 (experimental):</strong> ${pct(r.model_probability)} to win${push}${projection}${injury}. Shadow mode; not yet graded against prices.</p>`
+      const model=Number.isFinite(r.model_probability)?`<p class="meta"><strong>NBA v1 (experimental):</strong> ${pct(r.model_probability)} to win${push}${projection}${ev}${injury}. ${track}</p>`
         :r.model_unsupported_reason?`<p class="meta">NBA v1: no forecast (${esc(r.model_unsupported_reason)}).</p>`:'';
       const watch=page==='watch'?`<p>Other-book fair probability: ${pct(r.other_book_probability)} (${r.other_books} books). Price gap: ${(100*(r.other_book_probability-r.book_probability)).toFixed(1)} percentage points.</p>`:'';
       return `<article class="panel prop-card"><p class="meta">${esc(r.game)} · ${esc(time(r.commence_time))}</p>${started(r)?'<p class="meta"><strong>Game started · historical quote</strong></p>':''}<h2>${r.player?(window.FVPlayerContext?.name?.(r,'NBA')??esc(r.player)):esc(r.market_label)}</h2><p class="betline">${esc(r.side)} ${r.line===null?'':esc(r.line)} · ${esc(r.market_label)}</p><p><strong>${esc(r.book_label)} ${esc(odds(r.price))}</strong></p><dl><dt>Book probability</dt><dd>${pct(r.book_probability)}</dd><dt>Paired fair probability</dt><dd>${pct(r.fair_probability)}</dd><dt>Same-line consensus</dt><dd>${pct(r.consensus_probability)}</dd><dt>Paired books</dt><dd>${r.paired_books}</dd></dl>${watch}${model}${baseline}<p class="meta">Quote: ${esc(time(r.quoted_at))}</p></article>`;
