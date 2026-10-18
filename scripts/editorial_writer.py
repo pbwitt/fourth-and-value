@@ -285,6 +285,7 @@ def evidence(sport, now):
             except (ValueError,TypeError,KeyError):continue
             identity=(row.get('event_id'),row.get('market'),row.get('player'))
             if not valid or row.get('model_mean') is None or identity in seen:continue
+            if row.get('model_track')=='shadow':continue  # NBA game lines: shadow-tracked, not given to writers (FV-2026-05)
             seen.add(identity)
             references.append(dict(id='reference-'+str(len(references)),**{k:row.get(k) for k in ['event_id','commence_time','game','player','market','market_label','side','model_mean','model_mean_label','model_inputs','model_status','model_input_through','model_version']},note='Saved projection only; no current price or EV. Interpret the supplied validation status, not a betting recommendation.'))
     methods=''

@@ -161,6 +161,12 @@ class ResearchTests(unittest.TestCase):
                            evidence.reporting_priority(row,story('Giants week in review')))
         self.assertEqual(evidence.reporting_priority(row,story('Expert picks odds best bets')),-1)
 
+    def test_nba_guidance_travels_only_with_nba_boards(self):
+        mlb=board('MLB'); nba=dict(mlb,sport='NBA',candidates=[dict(r,sport='NBA') for r in mlb['candidates']])
+        self.assertNotIn('NBA (player props only)',analyst.review_payload(mlb,[source(mlb)],NOW,CONFIG)['instructions'])
+        self.assertIn('NBA (player props only)',analyst.review_payload(nba,[source(nba)],NOW,CONFIG)['instructions'])
+        self.assertIn('NBA',CONFIG['sports'])
+
     def test_compacted_injury_rows_preserve_subject_and_teammates(self):
         b=board('NFL'); s=source(b)
         trace=json.loads((ROOT/'reports/nfl-model-diagnostics/2026-09-27-murray.json').read_text())['model_diagnostics']
@@ -203,7 +209,7 @@ class ResearchTests(unittest.TestCase):
         self.assertEqual(p['model'],'claude-opus-5-5'); self.assertNotIn('tools',p)
         self.assertIn('NOT current market consensus',p['instructions'])
         self.assertIn('historical game outcomes',p['instructions'])
-        self.assertEqual(analyst.PROMPT_VERSION,'sports-research-8')
+        self.assertEqual(analyst.PROMPT_VERSION,'sports-research-9')
         self.assertLess(astra.bounds(p,CONFIG),1)
         self.assertIsNone(json.loads(p['input'])['candidates'][0].get('independent_probability'))
 

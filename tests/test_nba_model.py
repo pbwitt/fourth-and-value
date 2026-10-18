@@ -1,6 +1,7 @@
 """NBA v1: coherent score matrix, no same-day leakage, joint combos, shadow-mode inference."""
 from datetime import date, datetime, timedelta, timezone
 import json
+import math
 from pathlib import Path
 import sys
 import unittest
@@ -10,6 +11,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from nba import model as M  # noqa: E402
 from nba import inference  # noqa: E402
+from nba import shadow_grade  # noqa: E402
 
 PARAMS = json.loads((Path(__file__).resolve().parents[1] / 'artifacts/nba/model/nba-v1.json').read_text())
 TEAMS = {'1': ('Atlanta Hawks', 'ATL'), '2': ('Boston Celtics', 'BOS'), '3': ('LA Clippers', 'LAC'), '4': ('Denver Nuggets', 'DEN')}
@@ -123,8 +125,50 @@ class Inference(unittest.TestCase):
         self.assertEqual(injured['model_unsupported_reason'], 'Listed out on the ESPN injury report')
         self.assertEqual(elsewhere['model_unsupported_reason'], 'Player not on either current roster')
         self.assertIsNone(unknown['model_probability'])
-        self.assertNotIn('model_checked_at', meta, 'shadow mode never makes NBA editorial/Top Picks eligible')
+        self.assertEqual(meta['model_checked_at'], meta['model_predicted_at'])
         self.assertEqual(meta['model_coverage']['forecast'], 4)
+        # Game lines are shadow-tracked and never model picks; props can be, with positive EV.
+        for row in (total, h2h):
+            self.assertEqual((row['model_track'], row['is_model_pick']), ('shadow', False))
+        for row in (pts, pra):
+            self.assertEqual(row['model_track'], 'picks')
+            self.assertEqual(row['is_model_pick'], row['model_ev_pct'] > 0, row)
+        self.assertFalse(injured['is_model_pick'])
+        self.assertEqual(meta['model_picks'], sum(bool(r['is_model_pick']) for r in rows))
+
+    def test_prop_picks_need_the_injury_report_and_a_clear_status(self):
+        row = dict(model_probability=.55, model_ev_pct=4.0, injury_status=None)
+        self.assertIsNone(inference.pick_reason(row, {}))
+        self.assertRegex(inference.pick_reason(row, None), 'injury report unavailable')
+        self.assertRegex(inference.pick_reason(dict(row, injury_status=dict(status='Day-To-Day')), {}), 'day-to-day')
+        self.assertIsNone(inference.pick_reason(dict(row, injury_status=dict(status='Probable')), {}))
+        self.assertRegex(inference.pick_reason(dict(row, model_ev_pct=-1.0), {}), 'No positive expected value')
+
+
+class ShadowGrade(unittest.TestCase):
+    def row(self, **kw):
+        return dict(dict(market='totals', side='Over', line=220.5, price=110, home_team='H', model_probability=.6,
+                         model_push_probability=0.0, other_book_probability=.5, other_books=5), **kw)
+
+    def test_blend_matches_the_picks_rule(self):
+        final, ev = shadow_grade.blend(self.row())
+        expected = 1 / (1 + math.exp(-(.1 * math.log(.6 / .4))))
+        self.assertAlmostEqual(final, expected)
+        self.assertAlmostEqual(ev, expected * 2.1 - 1)
+        self.assertIsNone(shadow_grade.blend(self.row(model_probability=.45)), 'model below market')
+        self.assertIsNone(shadow_grade.blend(self.row(other_books=0)), 'one book is not a market')
+        self.assertIsNone(shadow_grade.blend(self.row(price=-200)), 'below the 1% floor')
+
+    def test_one_line_per_market_and_settlement(self):
+        rows = [self.row(), self.row(line=219.5, price=120), self.row(market='spreads', side='H', line=-3.5)]
+        picked = shadow_grade.candidates(rows)
+        self.assertEqual(sorted((r['market'], r['line']) for r, _ in picked), [('spreads', -3.5), ('totals', 219.5)])
+        game = dict(home_score=112, away_score=108)
+        self.assertEqual(shadow_grade.outcome(self.row(), game), 'loss')
+        self.assertEqual(shadow_grade.outcome(self.row(line=220), game), 'push')
+        self.assertEqual(shadow_grade.outcome(self.row(market='spreads', side='H', line=-3.5), game), 'win')
+        self.assertEqual(shadow_grade.outcome(self.row(market='spreads', side='A', line=4), game), 'push')
+        self.assertEqual(shadow_grade.outcome(self.row(market='h2h', side='A', line=None), game), 'loss')
 
 
 if __name__ == '__main__':

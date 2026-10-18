@@ -248,7 +248,7 @@ console.log('PASS: cross-sport card order, comparable units, conservative NFL pr
 {
   const {blend,BLEND}=require('../docs/assets/briefing-picks.js');
   const lg=p=>Math.log(p/(1-p)),mix=(w,m,c)=>1/(1+Math.exp(-(w*lg(m)+(1-w)*lg(c))));
-  assert.deepEqual([BLEND.weights,BLEND.minEV,BLEND.highEV,BLEND.minBooks],[{NFL:.10,NHL:.10,MLB:.25,MLB_game:.10},.01,.03,2]);
+  assert.deepEqual([BLEND.weights,BLEND.minEV,BLEND.highEV,BLEND.minBooks],[{NFL:.10,NHL:.10,NBA:.10,MLB:.25,MLB_game:.10},.01,.03,2]);
   // The brief's example: an SOG Under at -140, model 71%, market 52%. At 25% it blended to
   // about 57%; at NHL's 10% it is about 54%. Either way below the 58.3% break-even.
   const sog={sport:'NHL',price:-140,final_probability:.71,push_probability:0,market_probability:.52,other_books:4};
@@ -377,3 +377,29 @@ console.log('PASS: immutable edition, review-at-publication validity, future/inv
   assert.match(featuredHTML(null,now),/not published yet/);
 }
 console.log('PASS: featured pick follows the published card, keeps the day’s pick once games start and says why when empty.');
+
+// NBA (2026-10-18): player props enter like MLB rows at the 10% prop weight; game lines are
+// shadow-tracked and never selected, even when flagged; a stale model check hides NBA.
+{
+  const {blend}=require('../docs/assets/briefing-picks.js');
+  const t=now,base={game:'Away @ Home',home_team:'Home',away_team:'Away',commence_time:iso(t+3600e3),book:'a',book_label:'Book A',quoted_at:iso(t-60e3)};
+  const prop={...base,event_id:'nba1',player:'Example guard',market:'player_points',market_label:'Points',side:'Over',line:22.5,price:110,
+    is_model_pick:true,model_track:'picks',model_probability:.6,model_push_probability:0,other_book_probability:.52,other_books:2,model_mean:24.1,model_ev_pct:26};
+  const game={...base,event_id:'nba1',player:'',market:'totals',market_label:'Total',side:'Over',line:224.5,price:110,
+    is_model_pick:true,model_track:'shadow',model_probability:.6,model_push_probability:0,other_book_probability:.52,other_books:6,model_mean:228,model_ev_pct:26};
+  const nba=(rows,extra={})=>({NBA:{status:'ready',last_success_at:iso(t),model_checked_at:iso(t),model_version:'nba-v1.0',rows,...extra}});
+  let r=collect(nba([prop,game]),now);
+  assert.deepEqual(r.selected.map(x=>[x.sport,x.market]),[['NBA','player_points']]);
+  const row=r.selected[0];
+  assert.equal(row.blend.weight,.10);assert(Math.abs(row.blend.final-blend(row).final)<1e-12);
+  assert.equal(comparison(row).model,.6);assert.equal(comparison(row).market,.52);
+  assert.match(r.coverage.find(c=>c.sport==='NBA').message,/game lines are shadow-tracked/);
+  assert.equal(collect(nba([{...prop,is_model_pick:false}]),now).selected.length,0);
+  assert.equal(collect(nba([prop],{model_checked_at:iso(t-91*60e3)}),now).selected.length,0);
+  assert.equal(collect(nba([prop],{model_checked_at:undefined}),now).selected.length,0,'shadow-era feeds stay ineligible');
+  assert.equal(collect(nba([prop],{model_error:'failed'}),now).selected.length,0);
+  const ticket=ticketData(row,110,10);
+  assert.deepEqual([ticket.league,ticket.market_type,ticket.team_home,ticket.model_prob],['NBA','player_points','Home',.6]);
+  assert.match(rowHTML(row),/Projected points: 24\.1/);
+  console.log('PASS: NBA props enter through the blend; NBA game lines stay shadow-only.');
+}

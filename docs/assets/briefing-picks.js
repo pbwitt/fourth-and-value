@@ -29,7 +29,7 @@
   const completeReview=q=>q&&['research_support','concern','needs_information'].includes(q.status)&&
     typeof q.countercase==='string'&&Array.isArray(q.open_checks)&&q.open_checks.every(x=>typeof x==='string')&&
     Array.isArray(q.evidence)&&q.evidence.every(e=>e&&['source_id','direction','interpretation','represented_in'].every(k=>typeof e[k]==='string'));
-  const safeSourceURL=url=>{try{const u=new URL(url);return u.protocol==='https:'&&!u.username&&!u.password&&["espn.com","cbssports.com","actionnetwork.com","covers.com","vsin.com","nhl.com","nfl.com","mlb.com","azcardinals.com","atlantafalcons.com","baltimoreravens.com","buffalobills.com","panthers.com","chicagobears.com","bengals.com","clevelandbrowns.com","dallascowboys.com","denverbroncos.com","detroitlions.com","packers.com","houstontexans.com","colts.com","jaguars.com","chiefs.com","raiders.com","chargers.com","therams.com","miamidolphins.com","vikings.com","patriots.com","neworleanssaints.com","giants.com","newyorkjets.com","philadelphiaeagles.com","steelers.com","49ers.com","seahawks.com","buccaneers.com","tennesseetitans.com","commanders.com"].some(h=>u.hostname===h||u.hostname.endsWith('.'+h));}catch{return false;}};
+  const safeSourceURL=url=>{try{const u=new URL(url);return u.protocol==='https:'&&!u.username&&!u.password&&["espn.com","cbssports.com","actionnetwork.com","covers.com","vsin.com","nhl.com","nfl.com","mlb.com","nba.com","azcardinals.com","atlantafalcons.com","baltimoreravens.com","buffalobills.com","panthers.com","chicagobears.com","bengals.com","clevelandbrowns.com","dallascowboys.com","denverbroncos.com","detroitlions.com","packers.com","houstontexans.com","colts.com","jaguars.com","chiefs.com","raiders.com","chargers.com","therams.com","miamidolphins.com","vikings.com","patriots.com","neworleanssaints.com","giants.com","newyorkjets.com","philadelphiaeagles.com","steelers.com","49ers.com","seahawks.com","buccaneers.com","tennesseetitans.com","commanders.com"].some(h=>u.hostname===h||u.hostname.endsWith('.'+h));}catch{return false;}};
   const hasReview=r=>completeReview(r.qualitative_review)&&(r.sport==='NHL'?
     r.qualitative_review.offer_id===r.offer_id&&r.qualitative_review.forecast_id===r.forecast_id:
     !!r.reviewed_candidate);
@@ -39,14 +39,16 @@
   const pct=n=>probability(n)?(100*n).toFixed(1)+'%':'Unavailable';
   const number=n=>finite(n)?n.toFixed(1):'Unavailable';
   const oldNFLReview=r=>r.sport==='NFL'&&hasReview(r)&&r.qualitative_review.prompt_version==='mlb-nfl-context-1';
+  // The NBA feed uses MLB's field names (model_probability, model_push_probability, other_book_*).
+  const mlbFields=r=>r.sport==='MLB'||r.sport==='NBA';
   // All comparison percentages use the same outcome and exclude refunded pushes.
   // Keep missing push mass unknown; never substitute a book probability.
   function comparison(r) {
-    const push=r.sport==='NFL'?r.push_prob:r.sport==='MLB'?r.model_push_probability:r.push_probability;
-    const win=r.sport==='NFL'?null:r.sport==='MLB'?r.model_probability:r.final_probability;
+    const push=r.sport==='NFL'?r.push_prob:mlbFields(r)?r.model_push_probability:r.push_probability;
+    const win=r.sport==='NFL'?null:mlbFields(r)?r.model_probability:r.final_probability;
     const model=r.sport==='NFL'?(probability(r.model_prob)?r.model_prob:null):
       probability(win)&&probability(push)&&push<1&&win+push<=1?win/(1-push):null;
-    const market=r.sport==='NFL'?r.consensus_prob:r.sport==='MLB'?r.other_book_probability:r.market_probability;
+    const market=r.sport==='NFL'?r.consensus_prob:mlbFields(r)?r.other_book_probability:r.market_probability;
     const books=r.sport==='NFL'?r.book_count:r.other_books;
     return {model,market:probability(market)&&finite(books)&&books>0?market:null,
       books,push:probability(push)?push:null,breakEven:1/decimal(r.price)};
@@ -61,8 +63,12 @@
   // that exact line, counting the offered book (a lone alternate line has no market to
   // blend with). The model must give the side at least the market's chance: a better
   // price alone is a Market Watch signal, not a pick. Expected value refunds pushes.
-  const BLEND={version:'market-blend-3',weights:{NFL:.10,NHL:.10,MLB:.25,MLB_game:.10},minEV:.01,highEV:.03,maxEV:.30,minBooks:2};
+  // NBA props (2026-10-18) start at the NFL/NHL prop weight; there are no graded NBA prop
+  // prices yet. NBA game lines never reach the blend: FV-2026-05 found DraftKings beat the
+  // game model, so they are shadow-tracked by scripts/nba/shadow_grade.py instead.
+  const BLEND={version:'market-blend-3',weights:{NFL:.10,NHL:.10,NBA:.10,MLB:.25,MLB_game:.10},minEV:.01,highEV:.03,maxEV:.30,minBooks:2};
   const GAME_MARKETS=['h2h','spreads','totals'];
+  const SPORTS=['NFL','MLB','NBA','NHL'];
   const blendWeight=r=>r.sport==='MLB'&&GAME_MARKETS.includes(r.market)?BLEND.weights.MLB_game:BLEND.weights[r.sport]??BLEND.weights.NFL;
   const logit=p=>Math.log(p/(1-p)),sigmoid=x=>1/(1+Math.exp(-x));
   const clip=p=>Math.min(1-1e-6,Math.max(1e-6,p));
@@ -97,10 +103,10 @@
   function modelHTML(r) {
     const c=comparison(r);
     if(r.model_withheld||c.model===null)return `<strong>Not established</strong><span class="estimate-detail">${r.model_withheld?'Forecast withheld: '+esc(r.model_withheld):'Independent research candidate; no eligible probability model'}</span><span class="meta">Prospective research only</span>`;
-    const mean=r.sport==='NFL'?r.mu:r.sport==='MLB'?r.model_mean:r.projected_mean;
+    const mean=r.sport==='NFL'?r.mu:mlbFields(r)?r.model_mean:r.projected_mean;
     let projection='';
     if(finite(mean)&&r.market!=='h2h') {
-      const label=r.sport==='MLB'?r.model_mean_label||'Projected '+r.market_label.toLowerCase():'Projected '+r.market_label.toLowerCase();
+      const label=mlbFields(r)&&r.model_mean_label?r.model_mean_label:'Projected '+r.market_label.toLowerCase();
       projection=`<span class="estimate-detail">${esc(label)}: ${esc(number(mean))}</span>`;
     }
     const basis=r.sport==='NFL'?'Historical outcome calibration':r.sport==='NHL'&&r.final_probability!==r.independent_probability?'Final model estimate':'Independent model';
@@ -149,11 +155,11 @@
     const teams=r.game.split(' @ '),home=r.home_team||teams[1],away=r.away_team||teams[0];
     if(!home||!away||!r.book)throw Error('This bet is missing its teams or sportsbook. Open Bet Tracker to enter it manually.');
     // The existing ledger's model_prob is conditional on non-push settlement.
-    // NFL already provides that quantity; MLB/NHL provide an unconditional win.
+    // NFL already provides that quantity; MLB/NBA/NHL provide an unconditional win.
     let probability=r.sport==='NFL'?r.model_prob:null;
     if(r.sport!=='NFL') {
-      const win=r.sport==='MLB'?r.model_probability:r.final_probability;
-      const push=r.sport==='MLB'?r.model_push_probability:r.push_probability;
+      const win=mlbFields(r)?r.model_probability:r.final_probability;
+      const push=mlbFields(r)?r.model_push_probability:r.push_probability;
       if(finite(win)&&finite(push)&&push>=0&&push<1&&win>=0&&win+push<=1)probability=win/(1-push);
     }
     if(r.model_withheld||!finite(probability)||probability<0||probability>1)probability=null;
@@ -282,7 +288,7 @@
 
   function collect(feeds,now=Date.now()) {
     const selected=[],coverage=[],excluded=[],leans=[];
-    for(const sport of ['NFL','MLB','NHL']) {
+    for(const sport of SPORTS) {
       const data=feeds[sport],board=feeds.NHLBoard;
       let available=false,candidates=[];
       if(sport==='NFL') {
@@ -298,6 +304,13 @@
           finite(r.model_probability)&&r.model_probability>0&&r.model_probability<1&&finite(r.model_ev_pct)&&r.model_ev_pct>0)
           .map(r=>({...r,game_id:r.mlb_game_id||r.event_id,forecast_at:data.model_checked_at,model_version:data.model_version,score:r.model_ev_pct,review:'Qualitative review needed',
             url:'/mlb/picks.html?'+new URLSearchParams({game:r.event_id,market:r.market,q:r.player||''})}));
+      } else if(sport==='NBA') {
+        // Player props only: the feed never flags a game line as a model pick (model_track 'shadow').
+        available=data?.status==='ready'&&!data.model_error&&recent(data.last_success_at,now,12*HOUR)&&recent(data.model_checked_at,now,90*MINUTE);
+        if(available)candidates=rows(data).filter(r=>today(r,now)&&r.is_model_pick===true&&r.model_track==='picks'&&!GAME_MARKETS.includes(r.market)&&
+          recent(r.quoted_at,now,90*MINUTE)&&finite(r.model_probability)&&r.model_probability>0&&r.model_probability<1&&finite(r.model_ev_pct)&&r.model_ev_pct>0)
+          .map(r=>({...r,game_id:r.event_id,forecast_at:data.model_checked_at,model_version:data.model_version,score:r.model_ev_pct,review:'Qualitative review needed',
+            url:'/nba/props/?'+new URLSearchParams({game:r.event_id,market:r.market,q:r.player||''})}));
       } else {
         available=['ready','waiting_for_markets'].includes(data?.status)&&!data.model_error&&recent(data.last_success_at,now,30*MINUTE)&&
           board?.schema_version===1&&['ready','no_candidates'].includes(board.status)&&
@@ -313,7 +326,8 @@
       const discovered=feeds.Discovery;
       if(discovered?.schema_version===1&&discovered.decision_date===day(now)&&recent(discovered.generated_at,now,12*HOUR)) {
         const expiry=(sport==='NHL'?30:90)*MINUTE;
-        candidates.push(...records(discovered.candidates).filter(r=>r.sport===sport&&today(r,now)&&recent(r.quoted_at,now,expiry)));
+        candidates.push(...records(discovered.candidates).filter(r=>r.sport===sport&&today(r,now)&&recent(r.quoted_at,now,expiry)&&
+          !(sport==='NBA'&&GAME_MARKETS.includes(r.market))));
       }
       candidates=candidates.filter(r=>priced(r)&&r.game_id&&(r.line===null||finite(r.line))).map(r=>({...r,sport}));
       const discoveryByOutcome=new Map(candidates.filter(r=>r.discovery_origin==='independent_research').map(r=>[outcomeKey(r),r.discovery]));
@@ -373,7 +387,8 @@
         message:(!available?'Current model list unavailable or expired. ':'')+(count?`${count} review candidate${count===1?'':'s'}`:'No qualifying offers currently available')+
           (moderate?` (${high} high, ${moderate} moderate confidence)`:'')+
           (short?` · ${short} below the ${barPct(BLEND.minEV)} market-blend floor`:'')+
-          (held?` · ${held} withheld (thin market, model below market, 50% calibration or unreliable forecast)`:'')+(sport==='NHL'?' · unposted markets can enter on the next refresh':'')});
+          (held?` · ${held} withheld (thin market, model below market, 50% calibration or unreliable forecast)`:'')+(sport==='NHL'?' · unposted markets can enter on the next refresh':'')+
+          (sport==='NBA'?' · player props only; game lines are shadow-tracked':'')});
     }
     // A reviewed MLB/NHL opportunity must not disappear below the initial
     // twenty unreviewed NFL rows. Compare assessment status across sports;
@@ -414,7 +429,7 @@
     // Cover the leading reviewed candidate in each sport, then fill up to three
     // paragraphs in existing model order. No new score or cross-sport ranking.
     const featured=[];
-    for(const sport of ['NFL','MLB','NHL']) {
+    for(const sport of SPORTS) {
       const row=reviewed.find(r=>r.sport===sport);if(row)featured.push(row);
     }
     for(const row of reviewed)if(featured.length<3&&!featured.includes(row))featured.push(row);
@@ -453,7 +468,7 @@
 
   async function mount() {
     const root=document.getElementById('daily-picks');if(!root)return;
-    const urls={NFL:'/props/top-picks.json',MLB:'/mlb/data/latest.json',NHL:'/nhl/data/latest.json',NHLBoard:'/nhl/data/candidates.json',NFLContext:'/props/model-context.json',Discovery:'/briefing/discovery.json',Reviews:'/briefing/reviews.json',Card:'/briefing/morning-card.json'};
+    const urls={NFL:'/props/top-picks.json',MLB:'/mlb/data/latest.json',NBA:'/nba/data/latest.json',NHL:'/nhl/data/latest.json',NHLBoard:'/nhl/data/candidates.json',NFLContext:'/props/model-context.json',Discovery:'/briefing/discovery.json',Reviews:'/briefing/reviews.json',Card:'/briefing/morning-card.json'};
     let feeds={},checked=null,loading=false,current=[],visibleLimit=20,draft=null,trackingReady=null,saving=false;
     const tickets=new Map(),dialog=document.getElementById('pick-tracker'),form=document.getElementById('track-bet-form');
     const $=id=>document.getElementById(id);
@@ -484,7 +499,7 @@
       const budgetStatus=document.getElementById('picks-budget-status');
       if(budgetStatus)budgetStatus.textContent='Research runs in the morning within a fixed daily allowance; additional candidates are not automatically reassessed later.';
       const research=document.getElementById('picks-research-status');
-      if(research){const d=feeds.Discovery;const extra=d?.decision_date===day(now)?` · Independent discovery: ${d.status.replaceAll('_',' ')}; ${d.submitted_games?.length||0}/${d.slate_games||0} games submitted (not exhaustive research)`:'';research.textContent=['NFL','MLB','NHL'].map(s=>researchStatus(s,feeds.Reviews,result.selected,now)).join(' · ')+extra;}
+      if(research){const d=feeds.Discovery;const extra=d?.decision_date===day(now)?` · Independent discovery: ${d.status.replaceAll('_',' ')}; ${d.submitted_games?.length||0}/${d.slate_games||0} games submitted (not exhaustive research)`:'';research.textContent=SPORTS.map(s=>researchStatus(s,feeds.Reviews,result.selected,now)).join(' · ')+extra;}
       if(draft&&dialog.open&&!saving&&!draft.saved&&!collect(feeds,now).selected.some(r=>key(r)===key(draft.row))) {
         $('track-quote').textContent=`Saved quote: ${odds(draft.row.price)} at ${time(draft.row.quoted_at)}. This offer has expired or changed. Enter the price of the bet you actually placed.`;
       }
@@ -596,6 +611,6 @@
       `<p class="muted"><strong>The case against:</strong> ${esc(r.qualitative_review.countercase)}</p>`+
       `<p class="meta">${started?'<strong>Game started · historical assessment.</strong> ':''}Original price and analysis from the ${esc(shortTime(r.card_snapshot_at))} edition.${started?'':' Confirm the current line before deciding.'}</p>${links}`;
   }
-  if(typeof module==='object'&&module.exports)module.exports={collect,shortlist,editionRows,currentEditionRows,ideaKey,SHORTLIST_LIMIT,CARD_CAPS,BLEND,blend,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus,featuredPick,featuredHTML};
+  if(typeof module==='object'&&module.exports)module.exports={SPORTS,collect,shortlist,editionRows,currentEditionRows,ideaKey,SHORTLIST_LIMIT,CARD_CAPS,BLEND,blend,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus,featuredPick,featuredHTML};
   else {global.FVPicks={featuredPick,featuredHTML};mount();}
 })(typeof window==='undefined'?globalThis:window);

@@ -39,7 +39,7 @@ can resolve them. Unresolved questions remain unresolved. Our separate pipeline 
 available book lines and verify sources.
 '''
 SCHEMA = astra.obj({'directions': dict(type='array', maxItems=24, items=astra.obj({
-    'game_id': astra.string(100), 'sport': astra.string(values=['NFL','MLB','NHL']),
+    'game_id': astra.string(100), 'sport': astra.string(values=['NFL','MLB','NBA','NHL']),
     'market': astra.string(80), 'player': dict(type='string', minLength=0, maxLength=100),
     'side': astra.string(100), 'hypothesis': astra.string(500),
     'question': astra.string(300),
@@ -52,7 +52,7 @@ SCHEMA = astra.obj({'directions': dict(type='array', maxItems=24, items=astra.ob
 
 def catalog(feeds, now):
     result = []
-    for sport in ('NFL','MLB','NHL'):
+    for sport in ('NFL','MLB','NBA','NHL'):
         feed = feeds.get(sport) or {}
         generated = feed.get('generated_at') if sport == 'NFL' else feed.get('model_checked_at') or feed.get('generated_at')
         raw = list(feed.get('rows', [])) if feed.get('status') in ('ready','waiting_for_markets') else []
@@ -75,6 +75,8 @@ def catalog(feeds, now):
                 if r.get('line') is None and r['market'] != 'h2h': continue
                 if r.get('line') is not None and type(r['line']) not in (float,int): continue
             except (KeyError, TypeError, ValueError): continue
+            # NBA game lines are shadow-tracked only (FV-2026-05); discovery researches NBA props.
+            if sport=='NBA' and r['market'] in ('h2h','spreads','totals'): continue
             if sport=='NFL' and r['market'] in ('h2h','spreads','totals'):
                 model=feeds.get('NFLGameModels') or {}
                 try:
@@ -159,7 +161,7 @@ def resolve(directions, offers, generated_at):
                 model_prob=None, model_probability=None, final_probability=None,
                 independent_probability=None, model_ev_pct=None, estimated_ev=None,
                 score=0, review='Independent research · awaiting assessment',
-                url={'NFL':'/nfl/','MLB':'/mlb/picks.html','NHL':'/nhl/picks.html'}[r['sport']],
+                url={'NFL':'/nfl/','MLB':'/mlb/picks.html','NBA':'/nba/props/','NHL':'/nhl/picks.html'}[r['sport']],
                 forecast_at=d.get('discovered_at',generated_at))
             rows.append(r)
     return rows

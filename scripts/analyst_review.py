@@ -26,7 +26,7 @@ ARCHIVE = ROOT/'artifacts/analyst'
 PUBLIC = ROOT/'docs/briefing/reviews.json'
 CONFIG = ROOT/'config/analyst_review.json'
 ET = ZoneInfo('America/New_York')
-PROMPT_VERSION = 'sports-research-8'
+PROMPT_VERSION = 'sports-research-9'
 SCHEMA = deepcopy(astra.SCHEMA)
 DETAILS = SCHEMA['properties']['reviews']['items']['properties']['evidence']['items']['properties']
 DETAILS['kind']['enum'] = ['goalie', 'deployment', 'injury', 'tactical', 'pitcher', 'weather', 'other']
@@ -81,10 +81,18 @@ and required break-even. Keep uncertainty specific. Do not treat multiple transf
 the same price/model as independent confirming signals.
 '''
 
+# Sent only with NBA boards, so the other sports' requests keep their byte budget.
+NBA_INSTRUCTIONS = '''
+NBA (player props only): probabilities come from projected minutes times per-minute rates. Players
+listed Out are already removed, but teammate absences, minutes limits, rotation changes and
+offseason roster moves are NOT modeled. Check the injury report for the player and his teammates,
+expected role and minutes, back-to-back rest and blowout risk. A role change weakens the model case.
+'''
+
 
 def load_feeds():
     feeds = {}
-    for sport, relative in [('NFL', 'docs/props/top-picks.json'), ('MLB', 'docs/mlb/data/latest.json'),
+    for sport, relative in [('NFL', 'docs/props/top-picks.json'), ('MLB', 'docs/mlb/data/latest.json'), ('NBA', 'docs/nba/data/latest.json'),
                            ('NFLContext', 'docs/props/model-context.json'), ('NFLGames','docs/nfl/data/quotes.json'), ('NFLGameModels','docs/nfl/data/latest.json'),
                            ('NHL','docs/nhl/data/latest.json'), ('NHLBoard','docs/nhl/data/candidates.json'),
                            ('Reviews','docs/briefing/reviews.json'), ('Discovery','docs/briefing/discovery.json')]:
@@ -150,7 +158,7 @@ def review_payload(board, sources, asof, config):
     equally, then retain one source per candidate before any second sources.
     No candidate, price, distribution assumption or numerical input is removed.
     """
-    request = astra.payload(board, sources, asof, config, instructions=INSTRUCTIONS, schema=SCHEMA,
+    request = astra.payload(board, sources, asof, config, instructions=INSTRUCTIONS+(NBA_INSTRUCTIONS if board.get('sport')=='NBA' else ''), schema=SCHEMA,
         prompt_version=PROMPT_VERSION, extra_fields=('sport', 'probability_basis', 'market_reference',
             'model_limitations', 'home_pitcher', 'away_pitcher', 'model_diagnostics',
             'discovery_origin', 'discovery', 'source_game_forecast', 'original_forecast', 'model_withheld', 'forecast_health', 'screening_ev', 'blend', 'exposure_group'))

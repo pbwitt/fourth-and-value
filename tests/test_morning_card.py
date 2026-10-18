@@ -17,11 +17,11 @@ NOW=datetime(2026,9,27,12,tzinfo=timezone.utc)
 
 
 def empty_feeds(now=NOW):
-    return {s:dict(status='waiting_for_markets',rows=[],last_success_at=iso(now),generated_at=iso(now)) for s in ('NFL','MLB','NHL')}
+    return {s:dict(status='waiting_for_markets',rows=[],last_success_at=iso(now),generated_at=iso(now)) for s in ('NFL','MLB','NBA','NHL')}
 
 
 def empty_reviews():
-    return dict(discovery_status='not_requested',sports={s:dict(review_status='no_candidates',candidates=[],candidate_count=0,reviewed_count=0) for s in ('NFL','MLB','NHL')})
+    return dict(discovery_status='not_requested',sports={s:dict(review_status='no_candidates',candidates=[],candidate_count=0,reviewed_count=0) for s in ('NFL','MLB','NBA','NHL')})
 
 
 class MorningCardTests(unittest.TestCase):
@@ -99,7 +99,7 @@ class MorningCardTests(unittest.TestCase):
         config=deepcopy(CONFIG);config['discovery_enabled']=False
         with TemporaryDirectory() as td:
             root=Path(td);archive=root/'archive';public=root/'reviews.json'
-            original=feeds();original['NHL']=empty_feeds(asof)['NHL'];frozen={}
+            original=feeds();original['NHL']=empty_feeds(asof)['NHL'];original['NBA']=empty_feeds(asof)['NBA'];frozen={}
             with patch.dict('os.environ',{review.model_api.key_name(review.astra.MODEL):'synthetic-not-a-key'}),patch.object(astra,'checkpoint'),patch.object(astra,'call_api',side_effect=TimeoutError) as call,patch.object(evidence,'collect',return_value=([],{'status':'no_usable_reporting'})):
                 result=review.prepare(original,asof,config,run_review=True,archive=archive,public=public,clock=lambda:asof,publication_feeds=frozen)
             self.assertGreater(call.call_count,0)
@@ -124,7 +124,7 @@ class MorningCardTests(unittest.TestCase):
             content['text']=json.dumps(body)
             return result
         with TemporaryDirectory() as td:
-            root=Path(td);original=feeds();original['NHL']=empty_feeds(asof)['NHL'];frozen={}
+            root=Path(td);original=feeds();original['NHL']=empty_feeds(asof)['NHL'];original['NBA']=empty_feeds(asof)['NBA'];frozen={}
             with patch.dict('os.environ',{review.model_api.key_name(review.astra.MODEL):'synthetic-not-a-key'}),patch.object(astra,'checkpoint'),patch.object(astra,'call_api',side_effect=completed),patch.object(evidence,'collect',return_value=([],{'status':'no_usable_reporting'})):
                 result=review.prepare(original,asof,config,run_review=True,archive=root/'archive',public=root/'reviews.json',clock=lambda:asof,publication_feeds=frozen)
             value=card.publish_card(frozen,result,asof,root=root)
@@ -223,8 +223,10 @@ class MorningCardTests(unittest.TestCase):
         workflow=card.ROOT/'.github/workflows'
         morning=(workflow/'morning-picks.yml').read_text()
         self.assertIn("cron: '5,35 7,8 * * *'",morning)
-        self.assertIn('needs: [gate, nfl, mlb, nhl]',morning)
-        self.assertEqual(morning.count("if: needs.gate.outputs.refresh == 'true'"),3)
+        self.assertIn('needs: [gate, nfl, mlb, nhl, nba]',morning)
+        self.assertEqual(morning.count("if: needs.gate.outputs.refresh == 'true'"),4)
+        self.assertIn('needs.nba.result',morning)
+        self.assertIn('workflow_call:',(workflow/'nba-daily.yml').read_text())
         self.assertIn("needs.gate.result == 'success'",morning)
         self.assertIn('needs.mlb.result',morning)
         # The 4:30 PM refresh is started by the Supabase timer through Afternoon Market Refresh;

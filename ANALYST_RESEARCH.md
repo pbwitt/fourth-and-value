@@ -233,11 +233,12 @@ All bets should be reviewed before deciding. Missing news alone is not a veto.
 
 `Morning Picks Edition` is scheduled for **07:05 America/New_York**, with recovery
 starts at **07:35, 08:05 and 08:35**. A gate reads current main before any sport
-pull: a completed same-day morning edition skips all three feeds and paid research, then
-verifies delivery. A missing or incomplete edition calls NFL, MLB and NHL reusable
-workflows, waits for all three, then calls research. A recovery start reuses an NFL
+pull: a completed same-day morning edition skips all four feeds and paid research, then
+verifies delivery. A missing or incomplete edition calls NFL, MLB, NBA and NHL reusable
+workflows, waits for all four, then calls research. A recovery start reuses an NFL
 refresh at most 45 minutes old instead of paying for it again (its result travels as
-`reused_fresh`); NHL and MLB refresh on every start. A separate short handoff
+`reused_fresh`); NHL, MLB and NBA refresh on every start. NBA also refreshes on its own
+at 11:00 and 17:00 ET; props posted after the morning reach the board and research pool. A separate short handoff
 dispatches editorial with scheduled recovery semantics; writing does not block
 Top Picks research or its recovery starts. Explicit test editions skip the
 automatic editorial handoff.
@@ -253,7 +254,7 @@ eligibility, not the manual full-refresh path. Automatic articles require
 post-7:05 model checks within 90 minutes and remain subject to per-story data
 and source validation. Editorial targets 08:30 ET and closes automatic writing
 at noon; hourly maintenance and approved-post publication continue. NBA
-integration into the coordinated sports refresh remains future work.
+joined the coordinated refresh on 2026-10-18 (policy `morning-edition-6`).
 
 ### Owner morning email
 
@@ -360,11 +361,17 @@ week to be represented, and uses weeks strictly earlier than the forecast week.
 Thursday results in the current week do not enter that week's Sunday forecasts;
 that is a weekly model boundary, not an 8 a.m. release assumption. This check is
 week presence, not proof that every scheduled game or player row has arrived.
-NBA has no active independent forecast; saved regular-season game logs are
-historical references with their own update and last-game dates. An NBA odds
-refresh does not establish fresh player history, and failed stats retrieval may
-leave older saved history. The October 10 audit found no NBA player-history rows
-in the published snapshot.
+NBA v1 (since 2026-10-18 in Top Picks for player props only): `scripts/nba/inference.py`
+forecasts every quote from the committed ESPN history, current ESPN rosters and the ESPN
+injury report, and sets `model_checked_at` when it ran. A prop row is `is_model_pick` when
+its model EV is positive, the injury report loaded and the player is not listed Out,
+questionable, doubtful or day-to-day, one offer per player and market. Game-line rows carry
+`model_track='shadow'` and are never picks, discovery candidates or writer inputs, because
+FV-2026-05 found DraftKings' 2025-26 lines beat the game model; `scripts/nba/shadow_grade.py`
+applies the picks blend rule to them and grades the result into
+`artifacts/nba/shadow/game-lines.json` after each NBA refresh. The NBA review prompt adds
+basketball checks (teammate absences, minutes, rest) only for NBA boards. NBA prop blend
+weight is 0.10 until graded NBA prop prices allow a fit.
 
 Normal research runs 07:00–12:00 ET, after the feeds complete. Publication has no
 promised minute. The whole **$2.75 daily** allowance is available to this morning

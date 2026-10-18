@@ -1,8 +1,11 @@
 """Daily NBA v1 forecasts for saved quotes: no training, only committed history and parameters.
 
-Shadow mode: rows gain model_* fields and the feed gains model_version/model_predicted_at,
-but never model_checked_at, so editorial and Top Picks keep NBA ineligible until graded
-2026-27 evidence supports it. Each unsupported row states why.
+Player props are eligible for picks; game lines are shadow-tracked only. Technical report
+FV-2026-05 found DraftKings' game lines beat the v1 game model in 2025-26 (it ignores who is
+playing), while the player model beat simple baselines; no prop prices existed to test it.
+So prop rows can carry is_model_pick, game-line rows never do (model_track='shadow'), and
+scripts/nba/shadow_grade.py grades the game lines the blend rule would have picked. The feed
+gains model_checked_at only when forecasts ran. Each unsupported row states why.
 """
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -16,7 +19,10 @@ from nba import model as M
 ROOT = Path(__file__).resolve().parents[2]
 MODEL_PATH = ROOT / 'artifacts/nba/model/nba-v1.json'
 API = 'https://site.api.espn.com/apis/site/v2/sports/basketball/nba'
-STATUS = 'Experimental NBA v1 forecast (shadow mode); not yet graded against prices'
+STATUS = 'Experimental NBA v1 forecast; player props eligible for picks, game lines shadow-tracked'
+GAME_MARKETS = ('h2h', 'spreads', 'totals')
+# Day-to-day, questionable or doubtful players keep a forecast but are not model picks.
+PICKABLE_INJURY = ('active', 'probable')
 SIMULATIONS = 20000
 
 
@@ -124,13 +130,14 @@ def add_model(rows, history, now, params=None, fetch=fetch_json):
     for row in rows:
         row['baseline_status'] = row.get('baseline_status') or row.get('model_status')
         row.update(model_version=params['version'], model_status=STATUS, model_input_through=through,
-                   model_unsupported_reason=None)
+                   model_unsupported_reason=None, is_model_pick=False,
+                   model_track='shadow' if row['market'] in GAME_MARKETS else 'picks')
         home, away, f, scored = games[row['event_id']]
         if not scored:
             unsupported(row, 'Team not found in the NBA history')
             continue
         matrix, mean_home, mean_away = scored
-        if row['market'] in ('h2h', 'spreads', 'totals'):
+        if row['market'] in GAME_MARKETS:
             side_home = row['side'] == 'Over' if row['market'] == 'totals' else row['side'] == row['home_team']
             win, push = M.game_market(matrix, row['market'], side_home, row['line'] or 0)
             mean = mean_home + mean_away if row['market'] == 'totals' else (mean_home - mean_away) * (1 if side_home else -1)
@@ -182,15 +189,42 @@ def add_model(rows, history, now, params=None, fetch=fetch_json):
         row.update(model_probability=win, model_push_probability=push, model_mean=round(mean, 2),
                    model_minutes=round(minutes, 1), espn_player_id=pid,
                    model_ev_pct=round(ev_pct(win, push, row['price']), 2))
+        reason = pick_reason(row, injury)
+        row['is_model_pick'] = reason is None
+        if reason:
+            row['model_pick_reason'] = reason
+    # One offer per player, market and game, so opposite sides and alternate lines never both qualify.
+    best = set()
+    for row in sorted(rows, key=lambda r: -(r.get('model_ev_pct') or -1e9)):
+        if row.get('is_model_pick'):
+            key = (row['event_id'], row['player'], row['market'])
+            if key in best:
+                row.update(is_model_pick=False, model_pick_reason='Another offer is selected for this player and market')
+            best.add(key)
     reasons = defaultdict(int)
     for row in rows:
         if row.get('model_unsupported_reason'):
             reasons[row['model_unsupported_reason']] += 1
+    predicted_at = now.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
     return dict(model_version=params['version'], model_status=STATUS, model_trained_at=params['trained_at'],
-                model_input_through=through, model_predicted_at=now.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z'),
+                model_checked_at=predicted_at, model_picks=sum(bool(r.get('is_model_pick')) for r in rows),
+                model_input_through=through, model_predicted_at=predicted_at,
                 model_coverage=dict(rows=len(rows), forecast=sum(r.get('model_probability') is not None for r in rows),
                                     unsupported=dict(reasons)),
                 model_roster_failures=roster_failed, model_injuries_available=injury is not None)
+
+
+def pick_reason(row, injury):
+    """Why a forecast prop is not a model pick, or None. The market blend is applied downstream."""
+    if injury is None:
+        return 'ESPN injury report unavailable, so an Out player cannot be excluded'
+    status = (row.get('injury_status') or {}).get('status', 'active').lower()
+    if status not in PICKABLE_INJURY:
+        return f'Listed {status} on the ESPN injury report'
+    p = row.get('model_probability')
+    if p is None or not 0 < p < 1 or (row.get('model_ev_pct') or 0) <= 0:
+        return 'No positive expected value at this price'
+    return None
 
 
 _NAMES = {}

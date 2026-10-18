@@ -170,7 +170,7 @@ class EditorialScheduleTests(unittest.TestCase):
         self.assertIn('needs: [gate, nfl, mlb, nhl]',morning)
         self.assertIn('uses: ./.github/workflows/analyst-daily.yml',morning)
         handoff=morning.split('\n  editorial:\n',1)[1]
-        self.assertIn('needs: [gate, nfl, mlb, nhl]',handoff)
+        self.assertIn('needs: [gate, nfl, mlb, nhl, nba]',handoff)
         self.assertIn('!inputs.test_edition',handoff)
         self.assertIn('scheduled_recovery=true -f refresh_briefing=false',handoff)
         self.assertIn('GH_REPO: ${{ github.repository }}',handoff)

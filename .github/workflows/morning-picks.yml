@@ -67,14 +67,19 @@ jobs:
     if: needs.gate.outputs.refresh == 'true'
     uses: ./.github/workflows/nhl-daily.yml
     secrets: inherit
+  nba:
+    needs: gate
+    if: needs.gate.outputs.refresh == 'true'
+    uses: ./.github/workflows/nba-daily.yml
+    secrets: inherit
   research:
-    needs: [gate, nfl, mlb, nhl]
+    needs: [gate, nfl, mlb, nhl, nba]
     if: always() && !cancelled() && needs.gate.result == 'success'
     uses: ./.github/workflows/analyst-daily.yml
     with:
       test_edition: ${{ inputs.test_edition || false }}
       replace_card: ${{ inputs.replace_card || false }}
-      refresh_results: '{"NFL":"${{ needs.gate.outputs.refresh == ''true'' && needs.gate.outputs.refresh_nfl == ''false'' && ''reused_fresh'' || needs.nfl.result }}","MLB":"${{ needs.mlb.result }}","NHL":"${{ needs.nhl.result }}"}'
+      refresh_results: '{"NFL":"${{ needs.gate.outputs.refresh == ''true'' && needs.gate.outputs.refresh_nfl == ''false'' && ''reused_fresh'' || needs.nfl.result }}","MLB":"${{ needs.mlb.result }}","NHL":"${{ needs.nhl.result }}","NBA":"${{ needs.nba.result }}"}'
     secrets: inherit
   # Record only: Pinnacle prices for the Step 2c refit. It runs beside research and
   # never feeds the card; a failure is a warning, not a failed edition.
@@ -84,7 +89,7 @@ jobs:
     uses: ./.github/workflows/pinnacle-snapshot.yml
     secrets: inherit
   editorial:
-    needs: [gate, nfl, mlb, nhl]
+    needs: [gate, nfl, mlb, nhl, nba]
     if: always() && !cancelled() && needs.gate.result == 'success' && needs.gate.outputs.refresh == 'true' && !inputs.test_edition
     runs-on: ubuntu-latest
     permissions:
@@ -98,7 +103,7 @@ jobs:
         run: gh workflow run editorial-daily.yml --ref main -f scheduled_recovery=true -f refresh_briefing=false
 
   recaps:
-    needs: [gate, nfl, mlb, nhl, research]
+    needs: [gate, nfl, mlb, nhl, nba, research]
     if: always() && !cancelled() && needs.gate.result == 'success' && !inputs.test_edition
     uses: ./.github/workflows/sport-weekly-recaps.yml
     secrets: inherit

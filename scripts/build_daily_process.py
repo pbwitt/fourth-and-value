@@ -9,11 +9,12 @@ import re
 ROOT=Path(__file__).resolve().parents[1]
 WORKFLOWS={
  'sport-weekly-recaps.yml':('Weekly sport recaps','MLB Monday, NHL Tuesday and NBA Thursday, after the morning pipeline. Each covers the seven completed Eastern dates before its publication day. Daily 10 a.m., noon and 6 p.m. catch-up checks skip successful reports and retry missing evidence. NFL Wednesday recaps are part of its own refresh. No paid model or odds calls in this recap job.'),
- 'morning-picks.yml':('Morning research edition','Gate on a completed edition; otherwise refresh NFL, MLB and NHL, wait for all three, research and verify the published card. Later starts recover missing/incomplete work.'),
+ 'morning-picks.yml':('Morning research edition','Gate on a completed edition; otherwise refresh NFL, MLB, NBA and NHL, wait for all four, research and verify the published card. Later starts recover missing/incomplete work.'),
  'editorial-daily.yml':('Editorial articles and maintenance','Primary article run starts after the morning sports refreshes; target two articles by 8:30 a.m. Recovery needs fresh morning models. Hourly checks handle approved posts, freshness and eligible morning catch-up; they are not hourly article production.'),
  'nfl-weekly.yml':('NFL data and models','Refresh statistics, player estimates, scoring projections and available prices; publish before research and editorial writing. Explicit manual editorial requests can also refresh NFL.'),
  'mlb-daily.yml':('MLB data and models','Refresh history/training cache, prices, lineups and forecasts, and save a compact pregame snapshot for weekly recaps. Morning refresh is coordinated by Morning Picks Edition.'),
  'afternoon-refresh.yml':('Afternoon market refresh','Refresh NHL and MLB prices, lineups and forecasts before evening games. Each sport refreshes once per afternoon: a backup start skips a sport already refreshed after 4 p.m., and no automatic start runs after midnight. Market pages only; no paid research.'),
+ 'nba-daily.yml':('NBA data and models','Add recent ESPN box scores, refresh prices and run NBA v1 inference with current rosters and the ESPN injury report. Player props can enter Top Picks; game lines are shadow-tracked and graded from the run archive (artifacts/nba/shadow/game-lines.json), never picked. Later refreshes capture props posted after the morning.'),
  'nhl-daily.yml':('NHL data and models','Refresh regular-season statistics and prices, run inference, publish all qualifying candidates. After a validated refresh, regrade NHL Market Analytics from saved pregame snapshots and grade archived cross-market checks (descriptive research only; not an input to picks). Oct 4–10, 2026: also price anytime-scorer and alternate shots/points lines for games within 24 hours and grade them as a research test that never feeds picks. Later refresh can capture newly posted props.'),
  'editorial-watchdog.yml':('Article recovery monitor','Checks missing article delivery during the morning writing window, with an extra check after the 8:30 a.m. target; no paid writing without fresh model inputs.'),
  'analyst-daily.yml':('Top Picks discovery and review','Runs once after the morning feeds finish, or as an explicit operator test. No automatic intraday research.')}
@@ -49,7 +50,7 @@ def render():
         if source.count('timezone: America/New_York')!=len(crons):
             raise ValueError('Schedule timezone changed: review public timing')
         schedule='<br>'.join(escape(times(c)) for c in crons)
-        if name in ('nhl-daily.yml','mlb-daily.yml','nfl-weekly.yml'):
+        if name in ('nhl-daily.yml','mlb-daily.yml','nfl-weekly.yml','nba-daily.yml'):
             schedule='daily: 7:05 a.m. via morning workflow; recovery at 7:35, 8:05, 8:35<br>'+schedule
         if name in ('nhl-daily.yml','mlb-daily.yml'):
             schedule+='daily: 4:30 p.m. via afternoon market refresh'
@@ -62,7 +63,7 @@ def render():
     paths += [ROOT/p for p in ['config/analyst_review.json','config/nhl_analyst.json',
         'scripts/editorial_schedule.py','scripts/editorial_writer.py','scripts/editorial_diagnostics.py','scripts/analyst_review.py','scripts/research_discovery.py','scripts/research_verify.py',
         'scripts/display_time.py','scripts/research_budget.py','scripts/morning_card.py','scripts/morning_operations.py','supabase/morning_scheduler.sql',
-        'supabase/afternoon_scheduler.sql','scripts/afternoon_gate.py','scripts/mlb/predict.py','scripts/nhl/v2/candidates.py','docs/assets/briefing-picks.js']]
+        'supabase/afternoon_scheduler.sql','scripts/afternoon_gate.py','scripts/mlb/predict.py','scripts/nba/inference.py','scripts/nhl/v2/candidates.py','docs/assets/briefing-picks.js']]
     fingerprint=hashlib.sha256(b''.join(p.read_bytes() for p in paths)).hexdigest()[:20]
     values=dict(POLICY=config['policy_version'],SCHEDULE=''.join(rows),NHL_EV=f"{nhl['minimum_ev']*100:g}",
         MORNING_BUDGET=f"{config['daily_budget_usd']-config['later_reserve_usd']:.2f}",LATER_RESERVE=f"{config['later_reserve_usd']:.2f}",NHL_QUOTE=str(nhl['quote_max_minutes']),NHL_MODEL=str(nhl['model_max_hours']),BUDGET=f"{config['daily_budget_usd']:.2f}",FINGERPRINT=fingerprint)
