@@ -115,6 +115,15 @@ class MorningEmailTests(unittest.TestCase):
         self.assertIn('href="https://sports.dc.betmgm.com/en/sports/events/456?options=789"', mail['html'])
         self.assertNotIn('{state}', mail['text'] + mail['html'])
         self.assertNotIn('Betting from', email.message(card(rows=[row(bet_link=slip, bet_link_level='bet')]), CONFIG, UNSUBSCRIBE)['html'])
+        # Weekdays default to DC and offer MD; the card's Eastern date decides.
+        monday = email.message(card(rows=[r], decision_date='2026-10-19'), CONFIG, UNSUBSCRIBE)
+        self.assertIn('Open bet at BetMGM: https://sports.dc.betmgm.com/en/sports/events/456?options=789', monday['text'])
+        self.assertIn('MD link: https://sports.md.betmgm.com/en/sports/events/456?options=789', monday['text'])
+        self.assertIn('Betting from MD?', monday['html'])
+        self.assertEqual(email.reader_states(CONFIG['states'], '2026-10-23'), ['dc', 'md'], 'Friday')
+        self.assertEqual(email.reader_states(CONFIG['states'], '2026-10-24'), ['md', 'dc'], 'Saturday')
+        self.assertEqual(email.reader_states(['md'], '2026-10-19'), ['md'], 'a plain list works for any day')
+        self.assertEqual(email.reader_states(None, '2026-10-19'), [])
         # A reader without a state gets the book's site, never a broken template link.
         link = email.picks(card(rows=[r]), CONFIG, states=[])[0]['link']
         self.assertEqual((link['url'], link['label'], link['alternates']), ('https://sports.betmgm.com/', 'Open BetMGM', []))

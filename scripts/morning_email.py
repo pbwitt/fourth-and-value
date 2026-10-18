@@ -131,10 +131,20 @@ def book_link(row, config, states):
     return dict(url=site, level='site' if site else None, label=f'Open {book}', alternates=[])
 
 
+def reader_states(setting, decision_date):
+    """A reader's states for this card, the one they bet from first: a plain list, or
+    {'weekdays': [...], 'weekends': [...]} chosen by the card's Eastern date."""
+    if isinstance(setting, dict):
+        weekend = date.fromisoformat(decision_date).weekday() >= 5
+        setting = setting.get('weekends' if weekend else 'weekdays')
+    return [s for s in setting or [] if isinstance(s, str)]
+
+
 def picks(card, config, states=None):
     """What each email entry shows, in card order, for a reader who bets in `states`.
-    Today there is one reader and config['states'] holds theirs (first is home)."""
-    states = config.get('states', []) if states is None else states
+    Today there is one reader and config['states'] holds theirs (DC on weekdays, MD
+    on weekends)."""
+    states = reader_states(config.get('states'), card['decision_date']) if states is None else states
     games = {}
     for row in card.get('rows') or []:
         group = row.get('exposure_group') or f"{row.get('sport')}:{row.get('game_id')}"
