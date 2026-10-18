@@ -15,6 +15,8 @@ on:
       - 'tests/test_player_context.py'
       - 'tests/player_context*.cjs'
       - 'docs/assets/briefing-picks.js'
+      - 'docs/email/**'
+      - 'tests/email_unsubscribe_browser.cjs'
       - 'docs/assets/injury-context.js'
       - 'docs/assets/briefing-tracker.css'
       - 'docs/tracking/bet-tracking.js'
@@ -76,6 +78,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node tests/editorial_rewrite_browser.cjs
       - run: node tests/briefing_browser.cjs
+      - run: node tests/email_unsubscribe_browser.cjs
       - run: FV_BUNDLED_BROWSER=1 node tests/player_context_browser.cjs
       - run: node tests/research_browser.cjs
       - name: Test private reader permissions in isolated PostgreSQL

@@ -7,6 +7,7 @@ on:
       - 'config/**'
       - 'supabase/morning_scheduler.sql'
       - 'supabase/afternoon_scheduler.sql'
+      - 'supabase/email_subscriptions.sql'
       - 'docs/assets/briefing-picks.js'
       - 'docs/research/daily-process.html'
       - '.github/workflows/**'
@@ -37,3 +38,4 @@ jobs:
           npm install --prefix /tmp/fv-morning-db @electric-sql/pglite@0.5.8
           FV_PGLITE=/tmp/fv-morning-db/node_modules/@electric-sql/pglite node tests/morning_scheduler.cjs
           FV_PGLITE=/tmp/fv-morning-db/node_modules/@electric-sql/pglite node tests/afternoon_scheduler.cjs
+          FV_PGLITE=/tmp/fv-morning-db/node_modules/@electric-sql/pglite node tests/email_subscriptions.cjs

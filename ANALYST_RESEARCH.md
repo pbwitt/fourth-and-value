@@ -255,6 +255,50 @@ and source validation. Editorial targets 08:30 ET and closes automatic writing
 at noon; hourly maintenance and approved-post publication continue. NBA
 integration into the coordinated sports refresh remains future work.
 
+### Owner morning email
+
+After `Verify this exact edition is live` passes, `scripts/morning_email.py` emails
+the owner today's finished morning edition (`published` or `no_reviewed_candidates`;
+an incomplete edition waits for the recovery start that finishes it). Each pick shows:
+
+- the exact card quote and its Eastern quote time, and the game's start time
+- the worst price at which it still clears the 1% blend floor, from the card's own
+  blend fields
+- a suggested stake from `config/morning_email.json`: risk at most $5 and try to win
+  at most about $5, in $0.50 steps, at least $1
+- review status and up to three open checks
+- a link to the book's site and an "I placed this" link
+
+The layout is the site's brand in table-based HTML with inline styles (the FV
+monogram and wordmark are text, so they show with images off), with a plain-text
+version, an inbox preview line, the U.S. gambling support line and an unsubscribe
+link in the footer and the `List-Unsubscribe` header.
+
+"I placed this" opens Today's Picks with Track bet filled in for that pick of the same
+edition (`?edition=&pick=&stake=`, handled once by `briefing-picks.js`). A link from
+another edition opens nothing. The email never places a bet and changes nothing.
+Book links open each book's site or app, not a bet slip; slip links depend on the
+odds provider and are not wired in yet.
+
+It sends once per edition: the Resend idempotency key is `morning-card-<edition_id>`,
+so recovery starts that re-verify a finished card send nothing. The only recipient is
+`EDITORIAL_NOTIFY_EMAIL`. Every send first reads that address's row in
+`public.email_subscriptions` (`supabase/email_subscriptions.sql`) with the service
+role, creating it subscribed on first use. Unsubscribed, or a row that cannot be
+read, sends nothing. The footer link carries the row's random token to
+`/email/unsubscribe.html`, which shows the current state and unsubscribes or
+resubscribes on a click (opening the link changes nothing). It calls
+`email_subscription_get` and `email_subscription_set` with the public anon key; the
+table itself is closed to the public roles and neither function returns the address.
+
+Setup: apply `supabase/email_subscriptions.sql` once (SQL Editor as postgres, or as a
+migration), and add the GitHub Actions secrets `RESEND_API_KEY` and
+`EDITORIAL_NOTIFY_FROM`, the same ones editorial notices use. `SUPABASE_URL`, the
+service-role key and `EDITORIAL_NOTIFY_EMAIL` are already set. Without them the step
+says so and sends nothing, and it never fails the research run. `Morning Card Email
+Test` (manual) sends the card currently on main, labeled as a test, and fails if a
+setting is missing or the owner unsubscribed.
+
 ### Model-history freshness
 
 NHL live inference retrieves current-season final team and skater reports on every
