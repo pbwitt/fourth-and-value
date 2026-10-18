@@ -21,6 +21,7 @@ from urllib.parse import urlencode
 import requests
 
 from display_time import EASTERN
+from odds_links import for_state, is_state_specific
 
 ROOT = Path(__file__).resolve().parents[1]
 CARD = ROOT / 'docs/briefing/morning-card.json'
@@ -115,8 +116,25 @@ def review_label(row):
     return str(row.get('review') or '').replace(' · human review needed', '').replace(' · analyst review needed', '')
 
 
-def picks(card, config):
-    """What each email entry shows, in card order."""
+def book_link(row, config, states):
+    """The book button for a reader who bets in `states` (the first is home): the book's
+    own link to the bet or the game when the feed has one (scripts/odds_links.py), else
+    the book's site. A state-specific link also offers the reader's other states."""
+    book = row.get('book_label') or row.get('book')
+    raw, level = row.get('bet_link'), row.get('bet_link_level')
+    url = for_state(raw, states[0] if states else None)
+    if url:
+        others = [(s.upper(), for_state(raw, s)) for s in states[1:]] if is_state_specific(raw) else []
+        return dict(url=url, level=level, label=f"Open {'bet' if level == 'bet' else 'game'} at {book}",
+                    alternates=[(s, u) for s, u in others if u])
+    site = config['books'].get(row.get('book'))
+    return dict(url=site, level='site' if site else None, label=f'Open {book}', alternates=[])
+
+
+def picks(card, config, states=None):
+    """What each email entry shows, in card order, for a reader who bets in `states`.
+    Today there is one reader and config['states'] holds theirs (first is home)."""
+    states = config.get('states', []) if states is None else states
     games = {}
     for row in card.get('rows') or []:
         group = row.get('exposure_group') or f"{row.get('sport')}:{row.get('game_id')}"
@@ -131,7 +149,7 @@ def picks(card, config):
         out.append(dict(
             index=index, sport=row.get('sport'), game=row.get('game'), starts=clock(row['commence_time']),
             start_at=row['commence_time'], title=bet_title(row), price=american(price),
-            book=row.get('book_label') or row.get('book'), book_url=config['books'].get(row.get('book')),
+            book=row.get('book_label') or row.get('book'), link=book_link(row, config, states),
             lowest=lowest_price(row), stake=amount, to_win=win, level=level, confidence=CONFIDENCE.get(level),
             review=review_label(row), quoted=clock(row['quoted_at']),
             checks=[c for c in checks if isinstance(c, str)][:config['open_checks_shown']],
@@ -185,8 +203,9 @@ def text_body(card, entries, config, unsubscribe, test=False):
         if e['shared_game']:
             lines.append('   Shares a game with another pick; they are not independent.')
         lines += [f'   Before you bet: {c}' for c in e['checks']]
-        if e['book_url']:
-            lines.append(f"   Open {e['book']}: {e['book_url']}")
+        if e['link']['url']:
+            lines.append(f"   {e['link']['label']}: {e['link']['url']}")
+        lines += [f'   {state} link: {url}' for state, url in e['link']['alternates']]
         lines += [f"   I placed this: {e['track_url']}", '']
     lines += notes(card)
     lines += ['', f"Full card and research: {config['site']}/briefing/#daily-picks",
@@ -206,9 +225,10 @@ def p(text, style=''):
 def button(url, label, primary):
     colors = (f'background:{GREEN};color:{INK};border:1px solid {GREEN};' if primary
               else f'background:#ffffff;color:{INK};border:1px solid {INK};')
-    return (f'<td style="padding:12px 8px 0 0"><a href="{escape(url)}" style="{colors}display:inline-block;'
+    # Inline blocks, not table cells, so a long label moves to its own line on a phone.
+    return (f'<a href="{escape(url)}" style="{colors}display:inline-block;margin:0 8px 8px 0;'
             f'padding:11px 14px;border-radius:8px;font:700 14px/1 {FONT};white-space:nowrap;text-decoration:none">'
-            f'{escape(label)}</a></td>')
+            f'{escape(label)}</a>')
 
 
 def stat(label, value, detail):
@@ -245,10 +265,15 @@ def pick_html(e, total):
         + ((p('Before you bet', f'padding-top:12px;font:700 14px/1.5 {FONT};color:{TEXT}')
             + f'<ul style="margin:4px 0 0;padding-left:20px;font:400 14px/1.5 {FONT};color:#3a4252">{checks}</ul>')
            if checks else '')
-        + '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>'
-        + (button(e['book_url'], f'Open {e["book"]}', True) if e['book_url'] else '')
-        + button(e['track_url'], 'I placed this', not e['book_url'])
-        + '</tr></table></td></tr></table></td></tr>')
+        + '<div style="padding-top:12px">'
+        + (button(e['link']['url'], e['link']['label'], True) if e['link']['url'] else '')
+        + button(e['track_url'], 'I placed this', not e['link']['url'])
+        + '</div>'
+        + (p('Betting from ' + ' or '.join(escape(s) for s, _ in e['link']['alternates']) + '? '
+             + ' · '.join(f'<a href="{escape(u)}" style="color:#0b6fa4">Open the {escape(s)} link</a>'
+                          for s, u in e['link']['alternates']), f'font:400 13px/1.5 {FONT};color:{MUTED}')
+           if e['link']['alternates'] else '')
+        + '</td></tr></table></td></tr>')
 
 
 def html_body(card, entries, config, unsubscribe, test=False):
@@ -310,6 +335,16 @@ def html_body(card, entries, config, unsubscribe, test=False):
             f'<a href="{e_(unsubscribe)}" style="{link}">Unsubscribe</a>', 'padding-top:10px')
         + p(f'Fourth &amp; Value · <a href="{e_(site)}" style="{link}">fourthandvalue.com</a>', 'padding-top:10px;color:#9aa4b2')
         + '</td></tr></table></td></tr></table></body></html>')
+
+
+def link_summary(entries):
+    """For the run log, never the recipient: how far each pick's book button goes."""
+    names = dict(bet='bet slip', market='market page', event='game page', site="book's site", none='no link')
+    counts = {}
+    for e in entries:
+        level = e['link']['level'] or 'none'
+        counts[level] = counts.get(level, 0) + 1
+    return 'Book buttons: ' + (', '.join(f'{names[k]} {n}' for k, n in counts.items()) if counts else 'no picks')
 
 
 def unsubscribe_url(config, token):
@@ -392,6 +427,7 @@ def run(now, *, card_path=CARD, config_path=CONFIG, expected=None, test=False, p
     if row.get('subscribed') is not True:
         return 'unsubscribed'
     mail = message(card, config, unsubscribe_url(config, row['token']), test)
+    print(link_summary(picks(card, config)))
     key = (f"morning-card-test-{card.get('edition_id')}-{now:%Y%m%d%H%M}" if test
            else f"morning-card-{card['edition_id']}")
     return send(mail, key, env, post)

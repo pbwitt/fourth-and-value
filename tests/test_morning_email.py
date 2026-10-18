@@ -98,6 +98,29 @@ class MorningEmailTests(unittest.TestCase):
         self.assertIn('1 pick · first start 6:10 PM EDT · $1.50 total stake', mail['html'], 'inbox preview line')
         self.assertEqual(email.unsubscribe_url(CONFIG, TOKEN), UNSUBSCRIBE)
 
+    def test_book_button_opens_the_bet_when_the_book_sent_a_link(self):
+        slip, game = 'https://sportsbook.draftkings.com/event/123?outcomes=0QA1', 'https://sportsbook.draftkings.com/event/123'
+        mail = email.message(card(rows=[row(bet_link=slip, bet_link_level='bet')]), CONFIG, UNSUBSCRIBE)
+        self.assertIn(f'Open bet at DraftKings: {slip}', mail['text'])
+        self.assertIn(f'href="{slip}"', mail['html'])
+        mail = email.message(card(rows=[row(bet_link=game, bet_link_level='event')]), CONFIG, UNSUBSCRIBE)
+        self.assertIn(f'Open game at DraftKings: {game}', mail['text'])
+        # State-specific books: the reader's home state (MD) first, their other states offered.
+        mgm = 'https://sports.{state}.betmgm.com/en/sports/events/456?options=789'
+        r = row(book='betmgm', book_label='BetMGM', bet_link=mgm, bet_link_level='bet')
+        mail = email.message(card(rows=[r]), CONFIG, UNSUBSCRIBE)
+        self.assertIn('Open bet at BetMGM: https://sports.md.betmgm.com/en/sports/events/456?options=789', mail['text'])
+        self.assertIn('DC link: https://sports.dc.betmgm.com/en/sports/events/456?options=789', mail['text'])
+        self.assertIn('Betting from DC?', mail['html'])
+        self.assertIn('href="https://sports.dc.betmgm.com/en/sports/events/456?options=789"', mail['html'])
+        self.assertNotIn('{state}', mail['text'] + mail['html'])
+        self.assertNotIn('Betting from', email.message(card(rows=[row(bet_link=slip, bet_link_level='bet')]), CONFIG, UNSUBSCRIBE)['html'])
+        # A reader without a state gets the book's site, never a broken template link.
+        link = email.picks(card(rows=[r]), CONFIG, states=[])[0]['link']
+        self.assertEqual((link['url'], link['label'], link['alternates']), ('https://sports.betmgm.com/', 'Open BetMGM', []))
+        entries = email.picks(card(rows=[row(bet_link=slip, bet_link_level='bet'), r, row(book='betus', book_label='BetUS')]), CONFIG)
+        self.assertEqual(email.link_summary(entries), 'Book buttons: bet slip 2, no link 1')
+
     def test_shared_game_empty_cards_and_test_sends_say_so(self):
         mail = email.message(card(rows=[row(), row(player='Valeri Nichushkin')]), CONFIG, UNSUBSCRIBE)
         self.assertEqual(mail['text'].count('Shares a game with another pick'), 2)
