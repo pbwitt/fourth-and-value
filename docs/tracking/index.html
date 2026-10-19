@@ -737,7 +737,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="bet-tracking.js?v=6"></script>
+  <script src="bet-tracking.js?v=7"></script>
   <script src="performance.js?v=4"></script>
   <script src="live-feeds.js?v=3"></script>
   <script src="live-stats.js?v=9"></script>
@@ -752,12 +752,21 @@
     window.addEventListener('DOMContentLoaded', async () => {
       // Handles the redirect back from the magic-link email too - Supabase
       // reads the token out of the URL automatically on load.
+      const linkError = new URLSearchParams(window.location.hash.slice(1)).get('error_code');
       const user = await getCurrentUser();
       if (user) {
         showTracker(user);
       } else {
         document.getElementById('signInScreen').style.display = 'flex';
+        if (linkError) {
+          const statusEl = document.getElementById('signInStatus');
+          statusEl.textContent = linkError === 'otp_expired'
+            ? 'That sign-in link was already used or has expired. Each link works once, on the device where you open it. Request a new link and open it on this device.'
+            : 'That sign-in link didn’t work. Please request a new one.';
+          statusEl.className = 'status-msg error';
+        }
       }
+      if (linkError) history.replaceState(null, '', window.location.pathname + window.location.search);
 
       supabaseClient.auth.onAuthStateChange((_event, session) => {
         if (session?.user) {
@@ -792,7 +801,7 @@
       btn.textContent = 'Send sign-in link';
 
       if (ok) {
-        statusEl.textContent = 'Check your email for a sign-in link.';
+        statusEl.textContent = 'Check your email for a sign-in link. Open it on this device: opening it on another phone or computer signs in that device instead.';
         statusEl.className = 'status-msg ok';
       } else {
         statusEl.textContent = signInErrorMessage(error);

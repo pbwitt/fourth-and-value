@@ -26,9 +26,13 @@ async function getCurrentUser() {
 }
 
 async function signInWithEmail(email) {
+  // Drop the hash: after a failed link it still holds #error=..., and Supabase
+  // appends the new tokens after it, so the next good link would be read as an
+  // error and the session discarded.
+  const { origin, pathname, search } = window.location;
   const { error } = await supabaseClient.auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: window.location.href },
+    options: { emailRedirectTo: origin + pathname + search },
   });
   return { ok: !error, error };
 }
