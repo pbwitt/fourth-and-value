@@ -24,9 +24,30 @@ and review prompts share the presentation rule in `scripts/display_time.py`.
 3. Directions must match real current offers by exact game, player, market and
    side; the actual offer supplies its line, book, price and timestamp. Models
    can supply contrary evidence at the subsequent review stage.
+   `docs/briefing/discovery.json` keeps every matched offer, at every line and book.
 4. `docs/assets/briefing-picks.js` owns the quantitative screen in the browser and
    Node adapter. Union both discovery routes. Prefer the best book for an
    identical outcome, line and settlement. No four-candidate or one-game quota.
+   Since October 19, 2026 (`researchLeads`), a discovery lead is one bet: its
+   market's main line, the line the most books post (the larger of the books
+   among matched offers and the feed's own count: NFL `book_count`, MLB/NHL
+   `other_books` + 1; ties go to the price nearest even), and at least two books
+   must post it, the blend's two-book rule. Lone alternate lines are dropped, as
+   are `settlement_verified: false` quotes when a verified book posts that line.
+   Leads on both sides of one game/player/market cancel and neither enters the
+   pool or review queue (two outlets' opposite spread picks, for example). Coverage
+   reports "research market withheld (leads on both sides)" and "research lead
+   withheld (no line two books post)". Before this, every matching line and both
+   sides entered, and discovery's review priority let alternate rungs crowd out
+   model candidates (October 13: 21 of 67 NHL discovery rows reviewed, 0 of 86
+   model; October 18: 20 of 20 NFL discovery rows, 4 of 15 model). A research
+   lead opposing a model candidate is resolved by the next rule.
+   Then each sport's pool keeps one offer per market (`leadKey`: game, player,
+   market): never both sides, never several lines or settlement terms of one bet.
+   The highest-ranked offer stays; coverage reports the rest as "withheld as
+   another side or line of a listed market". Leans skip markets already listed.
+   Replaying October 2-19 with the same feeds, every card is unchanged; the pool
+   shrinks (October 19: 13 to 6 rows; October 13: 115 to 57).
 5. Source collection, targeted retrieval and review batches rotate across sports.
    Independent discovery ideas are researched early so a large model pool cannot
    consume the allowance before those ideas are assessed. Within each priority
@@ -55,11 +76,13 @@ and review prompts share the presentation rule in `scripts/display_time.py`.
    manageable five to ten when supported, with no required minimum. Only exact
    current consider assessments no older than three hours, or explicit analyst
    selections, qualify. Explicit analyst selections take priority. Wait/pass/unreviewed and changed-price reviews never fill
-   empty slots. Consolidate alternate thresholds for the same subject/market/side
-   and equivalent MLB 0.5-hit/0.5-total-base outcomes, preserving original forecasts.
+   empty slots. Consolidate alternate thresholds for the same subject/market, never
+   both sides (`ideaKey` has no side), and equivalent MLB 0.5-hit/0.5-total-base
+   outcomes, preserving original forecasts.
    The research pool remains separate in a collapsed section, initially showing
-   20 additional offers with a Show all control. It retains every eligible offer,
-   including additional consider decisions beyond the card limit, for audit.
+   20 additional offers with a Show all control. It retains one eligible offer per
+   market, including additional consider decisions beyond the card limit, for audit,
+   and never the opposite side of a card pick.
    There is no per-game or per-sport quota. Shared game exposure is labeled on
    the card; the limit is a reader workflow choice, not a validated betting policy.
 

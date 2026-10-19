@@ -199,6 +199,31 @@
     return {eligible:!reasons.length,tier:finite(raw)?1:2,reasons,raw_probability:finite(raw)?raw:null};
   }
   const outcomeKey=r=>JSON.stringify([r.sport,String(r.game_id),r.player||'',r.market_std||r.market,String(r.side).toLowerCase(),r.line,r.settlement_profile||'']);
+  // Discovery joins a lead to every quote with its game, market, player and side,
+  // whatever the line. A lead is one bet: its market's main line, the line the most
+  // books post (ties: price nearest even), and only where at least two books post it,
+  // the blend's two-book rule. Lone alternate lines are dropped, and so are quotes with
+  // unverified settlement rules when a verified book posts that line. Leads on both
+  // sides of one market cancel: neither enters the pool or the review queue.
+  const leadKey=r=>JSON.stringify([r.sport,String(r.game_id),r.player||'',r.market_std||r.market]);
+  function researchLeads(rows) {
+    const books={},sides={},main={};let opposed=0,unposted=0;
+    const lineKey=r=>JSON.stringify([leadKey(r),r.line]);
+    for(const r of rows){(books[lineKey(r)]??=new Set()).add(r.book);(sides[leadKey(r)]??=new Set()).add(String(r.side).toLowerCase());}
+    // NFL's book_count includes the offered book; MLB/NHL count only the other books.
+    const posted=r=>{const c=comparison(r).books;return Math.max(books[lineKey(r)].size,finite(c)?c+(r.sport==='NFL'?0:1):0);};
+    const even=r=>Math.abs(1/decimal(r.price)-.5);
+    for(const r of rows) {
+      const k=leadKey(r),n=posted(r);
+      if(sides[k].size>1||n<BLEND.minBooks)continue;
+      const m=main[k];
+      if(!m||n>m.n||n===m.n&&(even(r)<m.even||even(r)===m.even&&r.line<m.line))main[k]={n,even:even(r),line:r.line};
+    }
+    for(const k of Object.keys(sides))if(sides[k].size>1)opposed++;else if(!main[k])unposted++;
+    const atMain=rows.filter(r=>main[leadKey(r)]?.line===r.line);
+    const verified=new Set(atMain.filter(r=>r.settlement_verified===true).map(leadKey));
+    return {kept:atMain.filter(r=>r.settlement_verified!==false||!verified.has(leadKey(r))),opposed,unposted};
+  }
   const SHORTLIST_LIMIT=10;
   // Variety without forcing picks: each sport's best eligible bet is taken first,
   // then the rest in order, at most 4 per sport and 2 per sport and market.
@@ -225,8 +250,9 @@
   }
   const cardTier=r=>cardValue(r)===null?4:r.forecast_health?.tier||1;
   const confidenceRank=r=>confidenceOf(r.blend)==='moderate'?1:0;
+  // No side: the card never carries both sides of one market.
   function ideaKey(r) {
-    return JSON.stringify([r.sport,String(r.game_id),r.player||'',r.market_std||r.market,String(r.side).toLowerCase(),r.settlement_profile||'']);
+    return JSON.stringify([r.sport,String(r.game_id),r.player||'',r.market_std||r.market,r.settlement_profile||'']);
   }
   function shortlist(selected,now=Date.now()) {
     const seen=new Set(),taken=new Set(),perSport={},perMarket={};
@@ -316,6 +342,8 @@
         candidates.push(...records(discovered.candidates).filter(r=>r.sport===sport&&today(r,now)&&recent(r.quoted_at,now,expiry)));
       }
       candidates=candidates.filter(r=>priced(r)&&r.game_id&&(r.line===null||finite(r.line))).map(r=>({...r,sport}));
+      const leads=researchLeads(candidates.filter(r=>r.discovery_origin==='independent_research'));
+      candidates=[...candidates.filter(r=>r.discovery_origin!=='independent_research'),...leads.kept];
       const discoveryByOutcome=new Map(candidates.filter(r=>r.discovery_origin==='independent_research').map(r=>[outcomeKey(r),r.discovery]));
       for(const r of candidates)if(!r.discovery_origin&&discoveryByOutcome.has(outcomeKey(r))){r.discovery_origin='model_and_independent_research';r.discovery=discoveryByOutcome.get(outcomeKey(r));}
       const healthy=[],belowBlend=[];
@@ -348,17 +376,21 @@
       // Best available book for the identical outcome/line. Different bets in
       // one game remain eligible; exposure is descriptive, never a picks quota.
       healthy.sort((a,b)=>decimal(b.price)-decimal(a.price)||stamp(b.quoted_at)-stamp(a.quoted_at)||String(a.book).localeCompare(String(b.book)));
-      const seen=new Set(),unique=[];
+      const seen=new Set(),offers=[];
       for(const r of healthy) {
-        const identity=outcomeKey(r);if(seen.has(identity))continue;seen.add(identity);unique.push(r);
+        const identity=outcomeKey(r);if(seen.has(identity))continue;seen.add(identity);offers.push(r);
       }
-      unique.sort((a,b)=>rankTier(a)-rankTier(b)||(a.forecast_health.tier-b.forecast_health.tier)||
+      offers.sort((a,b)=>rankTier(a)-rankTier(b)||(a.forecast_health.tier-b.forecast_health.tier)||
         (b.score||0)-(a.score||0)||stamp(a.commence_time)-stamp(b.commence_time)||outcomeKey(a).localeCompare(outcomeKey(b)));
+      // One offer per market: never both sides (a research lead against a model pick, a
+      // model middle) nor several lines or settlement terms of one bet. The highest-ranked
+      // offer stays.
+      const markets=new Set(),unique=offers.filter(r=>!markets.has(leadKey(r))&&markets.add(leadKey(r)));
+      const repeated=offers.length-unique.length;
       // Leans: the sport's best play that is positive after the blend but under the
-      // 1% floor, for an outcome not already picked at another book. Shown for
+      // 1% floor, for a market not already listed at any line, side or book. Shown for
       // interest, never bet, tracked or put on the card.
-      const picked=new Set(unique.map(outcomeKey));
-      const lean=belowBlend.filter(r=>!picked.has(outcomeKey(r)))
+      const lean=belowBlend.filter(r=>!markets.has(leadKey(r)))
         .sort((a,b)=>b.blend.ev-a.blend.ev||decimal(b.price)-decimal(a.price))[0];
       if(lean)leans.push({...lean,sport,lean:true});
       for(const r of unique) {
@@ -373,7 +405,10 @@
         message:(!available?'Current model list unavailable or expired. ':'')+(count?`${count} review candidate${count===1?'':'s'}`:'No qualifying offers currently available')+
           (moderate?` (${high} high, ${moderate} moderate confidence)`:'')+
           (short?` · ${short} below the ${barPct(BLEND.minEV)} market-blend floor`:'')+
-          (held?` · ${held} withheld (thin market, model below market, 50% calibration or unreliable forecast)`:'')+(sport==='NHL'?' · unposted markets can enter on the next refresh':'')});
+          (held?` · ${held} withheld (thin market, model below market, 50% calibration or unreliable forecast)`:'')+
+          (leads.opposed?` · ${leads.opposed} research market${leads.opposed===1?'':'s'} withheld (leads on both sides)`:'')+
+          (leads.unposted?` · ${leads.unposted} research lead${leads.unposted===1?'':'s'} withheld (no line two books post)`:'')+
+          (repeated?` · ${repeated} withheld as another side or line of a listed market`:'')+(sport==='NHL'?' · unposted markets can enter on the next refresh':'')});
     }
     // A reviewed MLB/NHL opportunity must not disappear below the initial
     // twenty unreviewed NFL rows. Compare assessment status across sports;
@@ -459,7 +494,9 @@
     const $=id=>document.getElementById(id);
     function render() {
       const now=Date.now(),result=collect(feeds,now);
-      const edition=feeds.Card,today=edition?.decision_date===day(now),card=currentEditionRows(edition,now),cardKeys=new Set(card.map(key)),pool=result.selected.filter(r=>!cardKeys.has(key(r)));
+      const edition=feeds.Card,today=edition?.decision_date===day(now),card=currentEditionRows(edition,now),cardKeys=new Set(card.map(key)),
+        cardSides=new Map(card.map(r=>[leadKey(r),String(r.side).toLowerCase()])),
+        pool=result.selected.filter(r=>!cardKeys.has(key(r))&&(cardSides.get(leadKey(r))??String(r.side).toLowerCase())===String(r.side).toLowerCase());
       current=[...card,...pool];
       const openReviews=new Set(Array.from(root.querySelectorAll('.pick-research[open]')).map(el=>el.closest('tr').dataset.reviewKey));
       const incomplete=today&&edition.status==='research_incomplete';
