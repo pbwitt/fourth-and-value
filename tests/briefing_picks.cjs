@@ -196,6 +196,14 @@ assert.equal(f.Discovery.candidates.length,8,'discovery records remain intact');
 f=fixture();f.Discovery=discover([lead('Home',null,-120,'a',{market:'h2h',settlement_verified:true,settlement_profile:'full_game',other_books:2}),
  lead('Home',null,-110,'b',{market:'h2h',settlement_verified:false,settlement_profile:'unverified:b:h2h',other_books:0})]);
 assert.deepEqual(collect(f,now).selected.filter(r=>r.discovery_origin).map(r=>r.book),['a'],'verified settlement preferred at the main line');
+// One offer per market: a research lead against a model pick, or a model middle, keeps the higher-ranked side.
+f=fixture();f.Discovery=discover([{...research,quoted_at:iso(now-60e3),game_id:'mlb1',side:'Under',book:'b'}]);out=collect(f,now);
+assert.deepEqual(out.selected.filter(r=>r.sport==='MLB').map(r=>[r.side,r.discovery_origin||'model']),[['Over','model']]);
+assert.match(out.coverage.find(c=>c.sport==='MLB').message,/1 withheld as another side or line of a listed market/);
+f=fixture();f.MLB.rows.push({...f.MLB.rows[0],side:'Under',line:3.5,price:150});
+assert.equal(collect(f,now).selected.filter(r=>r.sport==='MLB').length,1);
+f=fixture();f.MLB.rows.push({...f.MLB.rows[0],line:1.5,price:-200});
+assert.equal(collect(f,now).selected.filter(r=>r.sport==='MLB').length,1,'one line per market');
 // Integer quote identity is numeric even when Python serializes a 5.0 threshold.
 f=fixture();nf=f.NFL.rows[0];nf.point=5;nf.push_prob=.1;
 const intkey=JSON.stringify([nf.game_id,nf.player,nf.market_std]);
@@ -229,6 +237,7 @@ assert.equal(shortlist([{...ready,review_matches_current:false}],now).length,0);
 assert.equal(shortlist([{...ready,qualitative_review:{...ready.qualitative_review,reviewed_at:iso(now-3*3600e3-1)}}],now).length,0);
 const equivalent=[{...ready,market:'batter_hits',line:.5},{...ready,market:'batter_total_bases',line:.5},{...ready,market:'batter_hits',line:1.5}];
 assert.equal(shortlist(equivalent,now).length,1);
+assert.equal(shortlist([ready,{...ready,side:'Under',line:3.5}],now).length,1,'never both sides of one market');
 assert.equal(equivalent.length,3,'research records remain intact');
 assert.equal(shortlist([ready],now).length,1,'no daily minimum');
 assert.equal(shortlist([{...ready,human_decision:'pass'}],now).length,0);
@@ -336,6 +345,9 @@ console.log('PASS: cross-sport card order, comparable units, conservative NFL pr
   Object.assign(g.MLB.rows[0],{model_probability:.56,other_book_probability:.52});
   out=collect(g,now);
   assert.equal(out.selected.filter(r=>r.sport==='MLB').length,1);assert.equal(out.leans.length,0);
+  // Nor is another side or line of a listed market.
+  g=fixture();g.MLB.rows.push({...g.MLB.rows[0],side:'Under',line:3.5,book:'other',price:-112,model_probability:.56,other_book_probability:.52});
+  assert.equal(collect(g,now).leans.length,0);
   // Negative after the blend: no lean.
   g=fixture();Object.assign(g.MLB.rows[0],{price:-130,model_probability:.56,other_book_probability:.52});
   assert.equal(collect(g,now).leans.length,0);
