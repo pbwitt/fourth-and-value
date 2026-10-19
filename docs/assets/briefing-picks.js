@@ -291,7 +291,7 @@
   // silently rewrite it or erase its original analysis.
   function editionRows(edition,now=Date.now()) {
     const at=stamp(edition?.published_at);
-    if(edition?.schema_version!==1||!['morning','test'].includes(edition.kind)||!Number.isFinite(at)||at>now||
+    if(edition?.schema_version!==1||!['morning','afternoon','test'].includes(edition.kind)||!Number.isFinite(at)||at>now||
       edition.decision_date!==day(at)||!Array.isArray(edition.rows)||edition.rows.length>SHORTLIST_LIMIT)return [];
     return edition.rows.filter(r=>r&&priced(r)&&Number.isFinite(stamp(r.commence_time))&&day(stamp(r.commence_time))===edition.decision_date&&
       stamp(r.quoted_at)<=at&&stamp(r.commence_time)>at&&hasReview(r)&&
@@ -304,6 +304,52 @@
   // than standing in for today's.
   function currentEditionRows(edition,now=Date.now()) {
     return edition?.decision_date===day(now)?editionRows(edition,now):[];
+  }
+
+  // Each sport's published rows in the selector's own shape, at every book and line.
+  function feedRows(sport,feeds) {
+    if(sport==='NFL')return rows(feeds.NFL).map(r=>({...r,sport,book:r.bookmaker,side:r.name,line:r.point,quoted_at:r.last_update,
+      game_id:r.game_id||r.game+'|'+r.commence_time}));
+    if(sport==='MLB')return rows(feeds.MLB).map(r=>({...r,sport,game_id:r.mlb_game_id||r.event_id}));
+    return rows(feeds.NHL).map(r=>({...r,sport,game_id:r.nhl_game_id}));
+  }
+  // A published pick at later prices: the same outcome and line at the best current book,
+  // under the same market-blend rule that put it on the card. It never changes the
+  // edition; it says whether the pick still qualifies at the price available now. Null
+  // when no prices for its game have arrived since it was quoted, or the game started.
+  function priceCheck(pick,feeds,now=Date.now()) {
+    if(!pick||pick.discovery_origin==='independent_research'||!(stamp(pick.commence_time)>now))return null;
+    const later=feedRows(pick.sport,feeds).filter(r=>String(r.game_id)===String(pick.game_id)&&priced(r)&&
+      stamp(r.quoted_at)>stamp(pick.quoted_at)&&stamp(r.quoted_at)<=now&&(r.line===null||finite(r.line)));
+    if(!later.length)return null;
+    const checked_at=new Date(Math.max(...later.map(r=>stamp(r.quoted_at)))).toISOString();
+    const same=later.filter(r=>outcomeKey(r)===outcomeKey(pick)).sort((a,b)=>decimal(b.price)-decimal(a.price));
+    if(!same.length) {
+      const side=String(pick.side).toLowerCase();
+      const lines=[...new Set(later.filter(r=>leadKey(r)===leadKey(pick)&&String(r.side).toLowerCase()===side).map(r=>r.line))].sort((a,b)=>a-b);
+      return {status:lines.length?'line_moved':'not_offered',checked_at,lines};
+    }
+    const best=same[0],raw=pick.sport==='NFL'?forecastHealth(best,feeds.NFLContext).raw_probability:null;
+    const b=blend(best,pick.sport==='NFL'&&probability(raw)?Math.min(best.model_prob,raw):undefined);
+    const push=comparison(best).push??0;
+    // The worst price that still clears the floor at the current blend, rounded toward the bettor.
+    const need=probability(b.final)&&b.final>0&&push<1?(BLEND.minEV/(1-push)+1)/b.final:null;
+    const min_price=need===null?null:need>=2?Math.max(100,Math.ceil(+((need-1)*100).toFixed(6))):-Math.floor(+(100/(need-1)).toFixed(6));
+    return {status:b.status,checked_at,book:best.book,book_label:best.book_label||best.book,price:best.price,quoted_at:best.quoted_at,line:best.line,
+      model:b.model??null,market:b.market??null,final:b.final??null,ev:b.ev??null,min_price};
+  }
+  function priceCheckHTML(c) {
+    if(!c)return '';
+    const at=esc(time(c.checked_at)),offer=finite(c.price)?`${esc(odds(c.price))} at ${esc(c.book_label)}`:'',lines=c.lines||[];
+    const text={
+      qualifies:`Still a pick at ${offer}: ${signedPct(c.ev)} expected value after blending with the market.`,
+      below_threshold:`No longer a pick at current prices: ${offer} gives ${signedPct(c.ev)} after blending; ${barPct(BLEND.minEV)} is required${finite(c.min_price)?`, so it needs ${esc(odds(c.min_price))} or better`:''}.`,
+      model_below_market:`No longer a pick: the market now gives this side ${pct(c.market)}, above the model’s ${pct(c.model)}. Best price ${offer}.`,
+      thin_market:`Not rechecked: fewer than two books now post this line. Best price ${offer}.`,
+      no_model:`Not rechecked: no current model estimate. Best price ${offer}.`,
+      line_moved:`Line moved: this line is no longer offered; current line${lines.length===1?'':'s'} ${esc(lines.join(', '))}.`,
+      not_offered:'No longer offered at the books we follow.'}[c.status]||'';
+    return text?`<span class="meta estimate-detail price-check price-check-${c.status==='qualifies'?'ok':'changed'}"><strong>Price check ${at}:</strong> ${text}</span>`:'';
   }
 
   function collect(feeds,now=Date.now()) {
@@ -483,26 +529,37 @@
     const related=r.card_related_candidates??r.related_candidates;
     const exposure=related?'<br>Shared game: '+related+' other '+(r.card_related_candidates!==undefined?'shortlisted bet(s)':'research candidate(s)'):'';
     const dated=r.card_snapshot_at?`<br><strong>${stamp(r.commence_time)<=Date.now()?'Game started · historical assessment':'Published assessment · confirm current conditions'}</strong><br>Analysis and prices preserved from ${esc(time(r.card_snapshot_at))}`:'';
-    return `<tr class="pick-offer-row"><td class="pick-bet"><a href="${esc(r.url)}"><strong>${esc(betLabel(r))}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${confidenceOf(r.blend)?esc(CONFIDENCE[confidenceOf(r.blend)])+' · ':''}${esc(displayReview(r))}${reason}${exposure}${dated}${r.discovery_origin?'<br>Origin: '+(r.discovery_origin==='independent_research'?'independent research':'model and independent research'):''}</span></td><td class="pick-estimate pick-model" data-label="Model prediction">${modelHTML(r)}</td><td class="pick-estimate pick-market" data-label="Market consensus">${marketHTML(r)}</td><td class="pick-offer" data-label="Book line / price">${offer}<span class="meta estimate-detail">${pct(comparison(r).breakEven)} break-even*</span>${blendHTML(r)}</td><td class="pick-quote-time" data-label="Price time (ET)"><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td class="pick-book" data-label="Book">${esc(r.book_label||r.book)}<br><button type="button" class="track-pick secondary" data-track-pick="${index}" ${saved?'disabled':''} aria-label="${esc((saved?'Tracked: ':'Track bet: ')+betLabel(r))}">${saved?'Tracked':'Track bet'}</button></td></tr>${research?`<tr class="pick-research-row" id="pick-review-${index}"><td colspan="6">${research}</td></tr>`:''}`;
+    return `<tr class="pick-offer-row"><td class="pick-bet"><a href="${esc(r.url)}"><strong>${esc(betLabel(r))}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${confidenceOf(r.blend)?esc(CONFIDENCE[confidenceOf(r.blend)])+' · ':''}${esc(displayReview(r))}${reason}${exposure}${dated}${r.discovery_origin?'<br>Origin: '+(r.discovery_origin==='independent_research'?'independent research':'model and independent research'):''}</span></td><td class="pick-estimate pick-model" data-label="Model prediction">${modelHTML(r)}</td><td class="pick-estimate pick-market" data-label="Market consensus">${marketHTML(r)}</td><td class="pick-offer" data-label="Book line / price">${offer}<span class="meta estimate-detail">${pct(comparison(r).breakEven)} break-even*</span>${blendHTML(r)}${priceCheckHTML(r.price_check)}</td><td class="pick-quote-time" data-label="Price time (ET)"><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td class="pick-book" data-label="Book">${esc(r.book_label||r.book)}<br><button type="button" class="track-pick secondary" data-track-pick="${index}" ${saved?'disabled':''} aria-label="${esc((saved?'Tracked: ':'Track bet: ')+betLabel(r))}">${saved?'Tracked':'Track bet'}</button></td></tr>${research?`<tr class="pick-research-row" id="pick-review-${index}"><td colspan="6">${research}</td></tr>`:''}`;
   }
 
   async function mount() {
     const root=document.getElementById('daily-picks');if(!root)return;
-    const urls={NFL:'/props/top-picks.json',MLB:'/mlb/data/latest.json',NHL:'/nhl/data/latest.json',NHLBoard:'/nhl/data/candidates.json',NFLContext:'/props/model-context.json',Discovery:'/briefing/discovery.json',Reviews:'/briefing/reviews.json',Card:'/briefing/morning-card.json'};
+    const urls={NFL:'/props/top-picks.json',MLB:'/mlb/data/latest.json',NHL:'/nhl/data/latest.json',NHLBoard:'/nhl/data/candidates.json',NFLContext:'/props/model-context.json',Discovery:'/briefing/discovery.json',Reviews:'/briefing/reviews.json',Card:'/briefing/morning-card.json',Afternoon:'/briefing/afternoon-card.json'};
     let feeds={},checked=null,loading=false,current=[],visibleLimit=20,draft=null,trackingReady=null,saving=false;
     const tickets=new Map(),dialog=document.getElementById('pick-tracker'),form=document.getElementById('track-bet-form');
     const $=id=>document.getElementById(id);
     function render() {
       const now=Date.now(),result=collect(feeds,now);
-      const edition=feeds.Card,today=edition?.decision_date===day(now),card=currentEditionRows(edition,now),cardKeys=new Set(card.map(key)),
-        cardSides=new Map(card.map(r=>[leadKey(r),String(r.side).toLowerCase()])),
+      const edition=feeds.Card,today=edition?.decision_date===day(now),afternoon=feeds.Afternoon,laterToday=afternoon?.decision_date===day(now);
+      // The afternoon edition's price check, recorded once after the 4:30 p.m. refresh, stays
+      // with each morning pick; the morning edition itself is never rewritten.
+      const checks=new Map(laterToday&&afternoon.morning_edition_id===edition?.edition_id?records(afternoon.price_check).map(c=>[c.key,c]):[]);
+      const card=currentEditionRows(edition,now).map(r=>checks.has(key(r))?{...r,price_check:checks.get(key(r))}:r),later=currentEditionRows(afternoon,now);
+      const published=[...card,...later],cardKeys=new Set(published.map(key)),
+        cardSides=new Map(published.map(r=>[leadKey(r),String(r.side).toLowerCase()])),
         pool=result.selected.filter(r=>!cardKeys.has(key(r))&&(cardSides.get(leadKey(r))??String(r.side).toLowerCase())===String(r.side).toLowerCase());
-      current=[...card,...pool];
+      current=[...card,...later,...pool];
       const openReviews=new Set(Array.from(root.querySelectorAll('.pick-research[open]')).map(el=>el.closest('tr').dataset.reviewKey));
       const incomplete=today&&edition.status==='research_incomplete';
       const emptyMessage=edition&&!today?'Today’s card is not published yet. The morning edition publishes after research finishes; the previous day’s card is not carried over.':incomplete?'Morning research did not finish. This is not a completed no-pick day. See the research status below.':edition?.status==='no_reviewed_candidates'?'Research completed; no reviewed offers qualified for this edition.':'No published morning picks are available. The research pool is separate from the morning edition.';
       document.getElementById('daily-picks-rows').innerHTML=card.map((r,i)=>rowHTML(r,i,tickets.get(key(r))?.saved)).join('')||`<tr><td colspan="6">${emptyMessage}</td></tr>`;
-      const poolRows=$('research-picks-rows');if(poolRows)poolRows.innerHTML=pool.slice(0,visibleLimit).map((r,i)=>rowHTML(r,i+card.length,tickets.get(key(r))?.saved)).join('')||'<tr><td colspan="6">No additional research candidates.</td></tr>';
+      const laterRows=$('afternoon-picks-rows'),laterStatus=$('afternoon-status');
+      if(laterRows)laterRows.innerHTML=later.map((r,i)=>rowHTML(r,i+card.length,tickets.get(key(r))?.saved)).join('')||
+        `<tr><td colspan="6">${!laterToday?'Afternoon picks publish after the 4:30 p.m. Eastern refresh.':afternoon.status==='research_incomplete'?'Afternoon research did not finish; this is not a no-pick afternoon.':
+          afternoon.research?.notes?.length?'No new picks this afternoon: the day’s research allowance was used up before new candidates could be reviewed.':'No new picks qualified this afternoon.'}</td></tr>`;
+      if(laterStatus)laterStatus.textContent=laterToday?`${later.length} afternoon pick${later.length===1?'':'s'} · Published ${time(afternoon.published_at)} · New picks only: markets already on the morning card are left out. Original prices and analysis; not continuously reassessed.`:
+        'Afternoon picks use the 4:30 p.m. prices, after lineups and goalies are more settled. They add new picks only and never repeat a morning pick.';
+      const poolRows=$('research-picks-rows');if(poolRows)poolRows.innerHTML=pool.slice(0,visibleLimit).map((r,i)=>rowHTML(r,i+card.length+later.length,tickets.get(key(r))?.saved)).join('')||'<tr><td colspan="6">No additional research candidates.</td></tr>';
       const poolLabel=$('research-pool-label');if(poolLabel)poolLabel.textContent=`Research pool · ${pool.length} additional offers · not the daily card`;
       const more=$('picks-show-more');if(more){more.hidden=pool.length<=visibleLimit;more.textContent=`Show all ${pool.length} research offers (${Math.min(visibleLimit,pool.length)} shown)`;}
       current.forEach((r,i)=>{const row=$('pick-review-'+i);if(row){row.dataset.reviewKey=key(r);row.querySelector('details').open=openReviews.has(key(r));}});
@@ -519,7 +576,7 @@
       }
       // Research spending is not shown publicly; the owner gets a private report.
       const budgetStatus=document.getElementById('picks-budget-status');
-      if(budgetStatus)budgetStatus.textContent='Research runs in the morning within a fixed daily allowance; additional candidates are not automatically reassessed later.';
+      if(budgetStatus)budgetStatus.textContent='Research runs in the morning within a fixed daily allowance; the afternoon edition reviews new candidates only with what the morning left.';
       const research=document.getElementById('picks-research-status');
       if(research){const d=feeds.Discovery;const extra=d?.decision_date===day(now)?` · Independent discovery: ${d.status.replaceAll('_',' ')}; ${d.submitted_games?.length||0}/${d.slate_games||0} games submitted (not exhaustive research)`:'';research.textContent=['NFL','MLB','NHL'].map(s=>researchStatus(s,feeds.Reviews,result.selected,now)).join(' · ')+extra;}
       if(draft&&dialog.open&&!saving&&!draft.saved&&!collect(feeds,now).selected.some(r=>key(r)===key(draft.row))) {
@@ -544,7 +601,7 @@
       const button=event.target.closest('[data-track-pick]');if(!button)return;
       const row=current[Number(button.dataset.trackPick)];if(!row)return;
       const itemKey=key(row);
-      if(![...currentEditionRows(feeds.Card),...collect(feeds,Date.now()).selected].some(r=>key(r)===itemKey)){render();return;}
+      if(![...currentEditionRows(feeds.Card),...currentEditionRows(feeds.Afternoon),...collect(feeds,Date.now()).selected].some(r=>key(r)===itemKey)){render();return;}
       draft=tickets.get(itemKey)||{id:crypto.randomUUID(),row:{...row},saved:false};tickets.set(itemKey,draft);
       form.reset();$('track-save').disabled=!!draft.saved;$('track-feedback').textContent='';$('track-signin').hidden=true;
       $('track-bet-description').textContent=`${row.sport} · ${row.game} · ${betLabel(row)} · ${row.book_label||row.book}`;
@@ -580,20 +637,21 @@
           try {const response=await fetch(url,{cache:'no-store',signal:AbortSignal.timeout(15000)});if(!response.ok)throw Error();return [sport,await response.json()];}
           catch {return [sport,null];}
         }));
-        const next=Object.fromEntries(entries);if(!next.Card&&feeds.Card)next.Card=feeds.Card;
+        const next=Object.fromEntries(entries);if(!next.Card&&feeds.Card)next.Card=feeds.Card;if(!next.Afternoon&&feeds.Afternoon)next.Afternoon=feeds.Afternoon;
         feeds=next;checked=new Date().toISOString();render();
       } finally {loading=false;}
     }
     // The owner email's "I placed this" link (scripts/morning_email.py) opens Track bet for
-    // that pick of the same edition with the suggested stake filled in, once. A link from
-    // another edition opens nothing; the card below is today's.
+    // that pick of the same edition, morning or afternoon, with the suggested stake filled
+    // in, once. A link from another edition opens nothing; the cards below are today's.
     function openFromLink() {
       const params=new URLSearchParams(location.search),edition=params.get('edition');
       if(!edition)return;
       history.replaceState(null,'',location.pathname+location.hash);
       const pick=Number(params.get('pick')),stake=Number(params.get('stake'));
-      if(feeds.Card?.edition_id!==edition||!Number.isInteger(pick)||!currentEditionRows(feeds.Card)[pick])return;
-      root.querySelector(`#daily-picks-rows [data-track-pick="${pick}"]`)?.click();
+      const morning=currentEditionRows(feeds.Card),later=feeds.Afternoon?.edition_id===edition;
+      if(!Number.isInteger(pick)||!(later?currentEditionRows(feeds.Afternoon):feeds.Card?.edition_id===edition?morning:[])[pick])return;
+      root.querySelector(later?`#afternoon-picks-rows [data-track-pick="${morning.length+pick}"]`:`#daily-picks-rows [data-track-pick="${pick}"]`)?.click();
       if(dialog.open&&Number.isFinite(stake)&&stake>0)$('track-stake').value=stake.toFixed(2);
     }
     await load();openFromLink();setInterval(render,30000);setInterval(load,300000);
@@ -633,6 +691,6 @@
       `<p class="muted"><strong>The case against:</strong> ${esc(r.qualitative_review.countercase)}</p>`+
       `<p class="meta">${started?'<strong>Game started · historical assessment.</strong> ':''}Original price and analysis from the ${esc(shortTime(r.card_snapshot_at))} edition.${started?'':' Confirm the current line before deciding.'}</p>${links}`;
   }
-  if(typeof module==='object'&&module.exports)module.exports={collect,shortlist,editionRows,currentEditionRows,ideaKey,SHORTLIST_LIMIT,CARD_CAPS,BLEND,blend,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus,featuredPick,featuredHTML};
+  if(typeof module==='object'&&module.exports)module.exports={collect,shortlist,editionRows,currentEditionRows,priceCheck,leadKey,rowKey:key,ideaKey,SHORTLIST_LIMIT,CARD_CAPS,BLEND,blend,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus,featuredPick,featuredHTML};
   else {global.FVPicks={featuredPick,featuredHTML};mount();}
 })(typeof window==='undefined'?globalThis:window);

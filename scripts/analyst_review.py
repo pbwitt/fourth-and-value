@@ -95,9 +95,9 @@ def load_feeds():
     return feeds
 
 
-def selected(feeds, now):
+def selected(feeds, now, afternoon=None):
     result = subprocess.run(['node', str(ROOT/'scripts/analyst_shortlist.cjs')],
-        input=json.dumps(dict(feeds=feeds, asof=iso(now)), allow_nan=False),
+        input=json.dumps(dict(feeds=feeds, asof=iso(now), afternoon=afternoon), allow_nan=False),
         capture_output=True, text=True, timeout=30, check=True, cwd=ROOT)
     result = json.loads(result.stdout)
     from nfl_prop_diagnostics import review_diagnostics
@@ -369,6 +369,9 @@ def review_batches(board, feeds, config, archive, clock, prior, assessment_updat
         changed=r.get('review_bet_key') in previous_keys
         independent=bool(r.get('discovery_origin'))
         if board['session']=='later' and changed:return 0
+        # The afternoon first rechecks what the morning review left waiting on a fact
+        # (a goalie, a lineup), then reviews new candidates.
+        if board['session']=='afternoon':return 0 if r.get('afternoon_recheck') else 1
         if independent:return 1
         if changed:return 2
         return 4 if r.get('forecast_health',{}).get('tier')==3 else 3
@@ -439,11 +442,13 @@ def run_queue(boards, feeds, config, archive, clock, assessment_update=False):
 
 
 def prepare(feeds, now, config, *, run_review=False, archive=ARCHIVE, public=PUBLIC,
-            clock=lambda: datetime.now(timezone.utc), assessment_update=False, publication_feeds=None):
+            clock=lambda: datetime.now(timezone.utc), assessment_update=False, publication_feeds=None, afternoon=None):
     decision_date = now.astimezone(ET).date().isoformat()
     feeds=deepcopy(feeds)
     discovery_public=public.with_name('discovery.json')
-    if run_review and session_at(now,config):
+    # Close to the start the market has absorbed most news, so the afternoon runs no
+    # discovery search of its own.
+    if run_review and session_at(now,config) not in (None, 'afternoon'):
         try:
             old_reviews=feeds.get('Reviews') or {}
             questions=[dict(game=r.get('game'),player=r.get('player'),market=r.get('market_std') or r.get('market'),checks=r['qualitative_review']['assessment']['blocking_checks'])
@@ -454,7 +459,7 @@ def prepare(feeds, now, config, *, run_review=False, archive=ARCHIVE, public=PUB
                 public=discovery_public,execute=True,questions=questions[:12])
         except Exception as error:
             feeds['Discovery']={'status':'discovery_unavailable','error':type(error).__name__}
-    selection = selected(feeds, clock() if run_review else now)
+    selection = selected(feeds, clock() if run_review else now, afternoon)
     if publication_feeds is not None:
         publication_feeds.update(deepcopy(feeds))
     try:
@@ -525,6 +530,8 @@ def main():
     parser.add_argument('--test-edition', action='store_true', help='Explicit operator test, visibly labeled; same daily budget')
     parser.add_argument('--replace-card', action='store_true', help='Replace the public edition; immutable copies are retained')
     parser.add_argument('--refresh-results', default='{}', help='Parent workflow sport job results (JSON)')
+    parser.add_argument('--afternoon-edition', action='store_true',
+        help='After the 4:30 p.m. refresh: new picks (no discovery search) and a price check of each morning pick')
     args = parser.parse_args()
     if args.env_file:
         from dotenv import load_dotenv
@@ -537,23 +544,56 @@ def main():
         config=json.loads(CONFIG.read_text())
         if args.test_edition:
             config['sessions']={'test':[0,24]}
-        if args.publish_card:
+        afternoon=None
+        if args.afternoon_edition:
+            from morning_card import existing_today, publish_card
+            if existing_today(ROOT,now,kind='afternoon') and not args.replace_card:
+                report_edition(json.loads((ROOT/'docs/briefing/afternoon-card.json').read_text()))
+                print(json.dumps({'status':'edition_already_published','paid_requests':0}));return
+            if session_at(now,config)!='afternoon':
+                # A late backup start publishes nothing; that is not a failed edition.
+                print(json.dumps({'status':'outside_afternoon_window'}));return 0
+            # A targeted search reserves more than an afternoon usually has left.
+            config=dict(config,verification_candidates=0)
+            afternoon=afternoon_input(now)
+        elif args.publish_card:
             from morning_card import existing_today, publish_card
             if existing_today(ROOT,now,include_test=args.test_edition) and not args.replace_card:
                 report_edition(json.loads((ROOT/'docs/briefing/morning-card.json').read_text()))
                 print(json.dumps({'status':'edition_already_published','paid_requests':0}));return
-            if not session_at(now,config):
+            if session_at(now,config) not in ('morning','test'):
                 print(json.dumps({'status':'outside_morning_window','published_card_preserved':True}));return 1
         feeds=load_feeds()
         publication_feeds={}
         result = prepare(feeds, now, config,
-            run_review=args.astra, assessment_update=args.assessment_update, publication_feeds=publication_feeds)
-        if args.publish_card:
+            run_review=args.astra, assessment_update=args.assessment_update, publication_feeds=publication_feeds,
+            afternoon=afternoon)
+        card=None
+        if args.publish_card or args.afternoon_edition:
+            kind='afternoon' if args.afternoon_edition else 'test' if args.test_edition else 'morning'
             card=publish_card(publication_feeds,result,datetime.now(timezone.utc),root=ROOT,
-                kind='test' if args.test_edition else 'morning',refresh_results=json.loads(args.refresh_results))
+                kind=kind,refresh_results=json.loads(args.refresh_results),afternoon=afternoon)
             report_edition(card)
     print(json.dumps({s: {'status': b['review_status'], 'candidates': len(b['candidates'])} for s, b in result['sports'].items()}))
-    return int(args.publish_card and card['status']=='research_incomplete')
+    return int(bool(card) and card['status']=='research_incomplete')
+
+
+def afternoon_input(now, root=ROOT):
+    """Today's morning edition and today's review verdicts, for the afternoon edition."""
+    def load(relative):
+        try:
+            return json.loads((root/relative).read_text())
+        except (OSError, ValueError):
+            return {}
+    today = now.astimezone(ET).date().isoformat()
+    card, reviews = load('docs/briefing/morning-card.json'), load('docs/briefing/reviews.json')
+    verdict = lambda r: ((r.get('qualitative_review') or {}).get('assessment') or {}).get('verdict')
+    reviewed = [dict(sport=r.get('sport'), game_id=r.get('game_id'), player=r.get('player'), market=r.get('market'),
+                     market_std=r.get('market_std'), side=r.get('side'), verdict=verdict(r))
+                for b in reviews.get('sports', {}).values() if b.get('decision_date') == today
+                for r in b.get('candidates', []) if verdict(r)]
+    morning = card if card.get('kind') == 'morning' and card.get('decision_date') == today else None
+    return dict(morning_edition=morning, reviewed=reviewed)
 
 
 def report_edition(card):

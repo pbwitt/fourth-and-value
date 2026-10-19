@@ -393,9 +393,70 @@ Normal research runs 07:00–12:00 ET, after the feeds complete. Publication has
 promised minute. The whole **$2.75 daily** allowance is available to this morning
 run; there is no afternoon reserve. All charges share
 `artifacts/analyst/daily-budget.json`, including prior/legacy same-day charges.
-No automatic intraday discovery or reassessment runs. Existing odds-feed and
+The afternoon edition (below) reviews only with what the morning left; no other
+intraday discovery or reassessment runs. Existing odds-feed and
 article-writer costs remain outside this cap. The legacy NHL entry point only
 marks the shared queue and cannot spend independently.
+
+## Afternoon edition (from October 19, 2026)
+
+`afternoon-refresh.yml` starts `afternoon-edition.yml` once its NHL and MLB jobs finish
+(success or skipped as already done). `scripts/analyst_review.py --astra
+--afternoon-edition` runs only in the `afternoon` session (`config/analyst_review.json`,
+16:00–19:00 ET; a later start prints `outside_afternoon_window` and exits 0) and only
+once per Eastern date unless `--replace-card`. It then:
+
+- Builds `afternoon_input`: today's morning edition (`docs/briefing/morning-card.json`,
+  kind `morning`) and every verdict in today's `docs/briefing/reviews.json`.
+- Passes it to `scripts/analyst_shortlist.cjs`, which drops every market on the morning
+  card (`leadKey`, either side, any line) and every side reviewed `pass` today, marks
+  sides reviewed `wait` as `afternoon_recheck`, and records `priceCheck` for each morning
+  pick. NFL rows have usually expired by then (90-minute quotes) and drop out on their own.
+- Reviews in the `afternoon` session: no discovery (`prepare` skips it outside the
+  morning/test sessions), `verification_candidates` 0 (a targeted search reserves about
+  $0.83, more than an afternoon usually has left), `afternoon_recheck` rows first, then by
+  `score`. Reservations use `run_cap` after noon, the whole daily limit minus what is
+  already charged, so the afternoon spends only what the morning left.
+- Publishes `docs/briefing/afternoon-card.json` and its dated archive with
+  `morning_card.publish_card(kind='afternoon')`: policy `afternoon-edition-1`,
+  `morning_edition_id`, `price_check` and the shortlisted `rows` (same caps and
+  three-hour review rule). `research_health` checks only NHL and MLB, accepts a refresh
+  skipped as already done, and records `budget_exhausted`/`review_limit_reached` as a
+  `research.notes` entry rather than an incomplete edition.
+- Verifies the public file (`morning_operations.py --kind afternoon --verify-live`) and
+  sends `morning_email.py --kind afternoon`: new picks in the morning layout plus a
+  "Morning picks at 4:30 p.m." section, keyed `afternoon-picks-<edition_id>`. It is
+  skipped (`nothing_new`) when there is no new pick and every morning pick still
+  qualifies. It uses the same `morning_card` subscription row, so one unsubscribe stops
+  both emails.
+
+`priceCheck` (in `docs/assets/briefing-picks.js`) takes the pick's exact outcome and
+line (`outcomeKey`) from rows quoted after the pick, at the best current book, and
+applies `blend` (NFL keeps its smaller-of-raw-and-calibrated chance). Statuses:
+`qualifies`, `below_threshold` (with `min_price`, the worst price that clears 1% at the
+current blend), `model_below_market`, `thin_market`, `no_model`, `line_moved` (with the
+lines now offered for that side) and `not_offered`. It returns nothing for a started game,
+a research lead or a game with no later prices. Today's Picks shows each check under the
+matching morning pick only when the afternoon edition names that morning edition, and lists
+afternoon rows in their own table; the research pool leaves out both editions' markets.
+Weekly recaps (`sport_weekly_review.published_picks`) count the final morning and
+afternoon edition of each date separately.
+
+## Closing prices and the weekly report card
+
+After `Verify this exact edition is live`, both edition workflows run `scripts/pick_closes.py
+--kind <morning|afternoon> --edition <id>` (skipped for test editions; without
+`SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` it registers nothing and never fails the
+edition). It upserts one `public.pick_closes` row per card row (`edition_id`, `pick_index`)
+from `ticketData`, keeps an Odds API `event_id` when the row has one, records the blend's
+`market` as `decision_market_prob`, and deletes the same date and kind's still-open rows from
+older editions. The closing-lines function closes them like tracked bets; a trigger derives
+`clv_ev` and `beat_line` as on `bets`. `scripts/clv_report.weekly(league, start, end)` reads
+every registered pick through `end` and returns, by edition kind, for the week and to date:
+picks, closes, mean `clv_ev` (value at the close), share with `clv_ev > 0` (beat the close)
+and mean `closing_fair_prob - decision_market_prob` (market move). `sport_weekly_review` and
+`nfl_weekly_review` render it with `section_html` and store the week's rows as `closes` in the
+public recap JSON. Unavailable closes leave the section saying so; they never block a recap.
 
 `scripts/morning_card.py` calls the same Node/browser selector at publication.
 Quotes/forecasts must pass the normal sport-specific freshness checks, and

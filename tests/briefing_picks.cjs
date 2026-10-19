@@ -404,3 +404,46 @@ console.log('PASS: immutable edition, review-at-publication validity, future/inv
   assert.match(featuredHTML(null,now),/not published yet/);
 }
 console.log('PASS: featured pick follows the published card, keeps the day’s pick once games start and says why when empty.');
+
+// The afternoon price check: a published pick's exact outcome and line at later prices,
+// under the same blend rule. It reports, never rewrites, the edition.
+{
+  const {priceCheck,editionRows,rowHTML:html}=require('../docs/assets/briefing-picks.js');
+  const pick=collect(fixture(),now).selected.find(r=>r.sport==='MLB'),at=now+30*60e3;
+  const later=(change={})=>{const f=fixture();Object.assign(f.MLB.rows[0],{quoted_at:iso(at-60e3)},change);return f;};
+  let c=priceCheck(pick,later(),at);
+  assert.equal(c.status,'qualifies');assert.equal(c.price,110);assert(c.ev>.01);assert.equal(c.checked_at,iso(at-60e3));
+  assert.match(html({...pick,price_check:c}),/Price check .*Still a pick at \+110 at Book A/);
+  c=priceCheck(pick,later({price:-150}),at);
+  assert.equal(c.status,'below_threshold');assert(c.ev<.01);assert(c.min_price>-150&&c.min_price<0,'needs a better price than -150');
+  assert.match(html({...pick,price_check:c}),/No longer a pick at current prices: -150 at Book A gives .*so it needs -1\d\d or better/);
+  assert.equal(priceCheck(pick,later({other_book_probability:.7}),at).status,'model_below_market');
+  c=priceCheck(pick,later({line:3.5}),at);assert.equal(c.status,'line_moved');assert.deepEqual(c.lines,[3.5]);
+  // The best current book at the same line is the one checked.
+  const two=later();two.MLB.rows.push({...two.MLB.rows[0],book:'b',book_label:'Book B',price:125});
+  assert.equal(priceCheck(pick,two,at).book,'b');
+  assert.equal(priceCheck(pick,fixture(),at),null,'no prices since publication: nothing to report');
+  assert.equal(priceCheck(pick,later(),Date.parse(pick.commence_time)),null,'started games are historical');
+  assert.equal(priceCheck({...pick,discovery_origin:'independent_research'},later(),at),null);
+  // Afternoon editions are read like morning ones.
+  const edition=k=>({schema_version:1,kind:k,decision_date:day(now),published_at:iso(now),rows:[readyRow(pick)]});
+  assert.equal(editionRows(edition('afternoon'),now+1).length,1);assert.equal(editionRows(edition('evening'),now+1).length,0);
+
+  // The afternoon adapter leaves out morning-card markets and passed sides, and flags
+  // sides left waiting for a recheck first.
+  const {execFileSync}=require('node:child_process'),path=require('node:path');
+  const adapter=input=>JSON.parse(execFileSync('node',[path.join(__dirname,'../scripts/analyst_shortlist.cjs')],{input:JSON.stringify(input)}));
+  const feeds=fixture(),morning=edition('morning');
+  const out=adapter({feeds,asof:iso(now+60e3),afternoon:{morning_edition:morning,reviewed:[
+    {sport:'NFL',game_id:'nfl1',player:'Example player',market_std:'receptions',side:'Over',verdict:'pass'},
+    {sport:'NHL',game_id:'nhl1',player:'Example player',market:'player_points',side:'Over',verdict:'wait'}]}});
+  assert.deepEqual(out.selected.map(r=>[r.sport,!!r.afternoon_recheck]),[['NHL',true]]);
+  assert.equal(adapter({feeds,asof:iso(now+60e3)}).selected.length,3,'the morning run is unchanged');
+  // A price check is recorded only once later prices exist, keyed like the page keys rows.
+  assert.deepEqual(out.price_check,[]);
+  const checked=adapter({feeds:later(),asof:iso(at),afternoon:{morning_edition:morning,reviewed:[]}});
+  assert.equal(checked.price_check.length,1);assert.equal(checked.price_check[0].status,'qualifies');
+  assert.equal(checked.price_check[0].pick.player,'Example player');
+  assert.equal(checked.price_check[0].key,JSON.stringify([pick.sport,pick.game_id,pick.player,pick.market,pick.side,pick.line,pick.book,pick.quoted_at]));
+}
+console.log('PASS: afternoon price check, afternoon editions and the afternoon adapter’s exclusions.');

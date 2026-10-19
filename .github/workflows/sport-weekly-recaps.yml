@@ -16,6 +16,7 @@ on:
     branches: [main]
     paths:
       - 'scripts/sport_weekly_review.py'
+      - 'scripts/clv_report.py'
       - 'scripts/recap_schedule.py'
       - 'scripts/nba_weekly_results.py'
       - '.github/workflows/sport-weekly-recaps.yml'
@@ -57,6 +58,9 @@ jobs:
         continue-on-error: true
         env:
           REVIEW_END: ${{ inputs.end }}
+          # Read-only use: the weekly closing-line value report card (scripts/clv_report.py).
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.UPABASE_SERVICE_ROLE_KEY }}
         run: |
           if [ -n "$REVIEW_END" ]; then
             python scripts/sport_weekly_review.py --end "$REVIEW_END"

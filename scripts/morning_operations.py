@@ -63,25 +63,26 @@ def record_start(now, result, *, source='operator', summary_path=None):
 
 
 def verify_live(edition_id, *, root=ROOT, attempts=24, interval=20,
-                fetch=urlopen, sleep=time.sleep):
-    card=json.loads((root/'docs/briefing/morning-card.json').read_text())
+                fetch=urlopen, sleep=time.sleep, kind='morning'):
+    name='afternoon-card.json' if kind=='afternoon' else 'morning-card.json'
+    card=json.loads((root/'docs/briefing'/name).read_text())
     if not edition_id or card.get('edition_id') != edition_id:
         raise RuntimeError('Local edition changed or missing; delivery cannot be verified')
     for attempt in range(attempts):
         query=urlencode({'edition_id':edition_id, 'delivery_check':str(time.time_ns())})
-        request=Request('https://fourthandvalue.com/briefing/morning-card.json?'+query,
+        request=Request(f'https://fourthandvalue.com/briefing/{name}?'+query,
             headers={'User-Agent':'FourthAndValue/1.0 morning-delivery-check', 'Cache-Control':'no-cache'})
         try:
             with fetch(request,timeout=15) as response:
                 live=json.loads(response.read(10_000_000))
             if isinstance(live,dict) and all(live.get(k)==card.get(k) for k in ('edition_id','decision_date','kind','status')):
-                print('Public morning edition verified: '+edition_id)
+                print(f'Public {kind} edition verified: '+edition_id)
                 return
         except (URLError, OSError, ValueError, TypeError):
             pass
         if attempt+1 < attempts:
             sleep(interval)
-    raise RuntimeError('Public morning edition did not match '+edition_id+' within the delivery window')
+    raise RuntimeError(f'Public {kind} edition did not match '+edition_id+' within the delivery window')
 
 
 def main():
@@ -91,6 +92,7 @@ def main():
     parser.add_argument('--replace-card',action='store_true')
     parser.add_argument('--verify-live',metavar='EDITION_ID')
     parser.add_argument('--attempts',type=int,default=24)
+    parser.add_argument('--kind',choices=['morning','afternoon'],default='morning')
     args=parser.parse_args()
     if args.gate:
         now=datetime.now(timezone.utc)
@@ -107,7 +109,7 @@ def main():
                 output.write('refresh='+str(result['refresh']).lower()+'\n')
                 output.write('refresh_nfl='+str(result['refresh_nfl']).lower()+'\n')
     if args.verify_live:
-        verify_live(args.verify_live,attempts=args.attempts)
+        verify_live(args.verify_live,attempts=args.attempts,kind=args.kind)
 
 
 if __name__=='__main__':

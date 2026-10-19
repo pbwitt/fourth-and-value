@@ -117,4 +117,11 @@ class MorningOperationsTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):ops.verify_live('changed-locally',root=root,fetch=fetch)
             fetch.assert_not_called()
 
+    def test_afternoon_delivery_check_reads_the_afternoon_card(self):
+        with TemporaryDirectory() as td:
+            root=Path(td);value=dict(self.value(),kind='afternoon');write_json(root/'docs/briefing/afternoon-card.json',value)
+            fetch=Mock(return_value=BytesIO(json.dumps(value).encode()))
+            ops.verify_live('test-edition',root=root,attempts=1,fetch=fetch,kind='afternoon')
+            self.assertIn('/briefing/afternoon-card.json?',fetch.call_args.args[0].full_url)
+
 if __name__=='__main__':unittest.main()

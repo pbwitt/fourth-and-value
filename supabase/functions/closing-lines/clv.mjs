@@ -26,6 +26,7 @@ export const MARKETS = {
     ...GAME,
     receptions: P('player_receptions'),
     rec_yds: P('player_reception_yds'),
+    recv_yds: P('player_reception_yds'),   // the picks selector's name
     rush_yds: P('player_rush_yds'),
     rush_attempts: P('player_rush_attempts'),
     pass_yds: P('player_pass_yds'),
@@ -50,6 +51,10 @@ export const MARKETS = {
     pitcher_strikeouts: P('pitcher_strikeouts'),
     pitcher_outs: P('pitcher_outs'),
     pitcher_hits_allowed: P('pitcher_hits_allowed'),
+    batter_hits: P('batter_hits'),
+    batter_total_bases: P('batter_total_bases'),
+    batter_rbis: P('batter_rbis'),
+    batter_home_runs: P('batter_home_runs'),
   },
 };
 MARKETS.NBA = {

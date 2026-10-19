@@ -1,7 +1,9 @@
-"""Owner email for the morning card: each pick with a suggested stake, the lowest price
-that still makes the card, a link to the book and a link that opens Bet Tracker's form.
+"""Owner email for the morning card and the afternoon picks: each pick with a suggested
+stake, the lowest price that still makes the card, a link to the book and a link that
+opens Bet Tracker's form. The afternoon email also lists each morning pick's 4:30 p.m.
+price check, and is skipped when it has no new pick and every morning pick still qualifies.
 
-It reads the published docs/briefing/morning-card.json only. It never places a bet,
+It reads the published docs/briefing/morning-card.json (or afternoon-card.json) only. It never places a bet,
 changes the card or calls a model. One email per edition: the Resend idempotency key is
 the edition id, so recovery starts that re-verify a finished card do not send it again.
 Every send honors the recipient's row in public.email_subscriptions
@@ -27,7 +29,11 @@ ROOT = Path(__file__).resolve().parents[1]
 CARD = ROOT / 'docs/briefing/morning-card.json'
 CONFIG = ROOT / 'config/morning_email.json'
 RESEND = 'https://api.resend.com/emails'
+# One subscription covers both emails: unsubscribing stops the afternoon picks too.
 LIST = 'morning_card'
+EDITIONS = {'morning': dict(card=CARD, name='Morning Card', banner='MORNING CARD'),
+            'afternoon': dict(card=ROOT / 'docs/briefing/afternoon-card.json', name='Afternoon Picks',
+                              banner='AFTERNOON PICKS')}
 SETTINGS = ('RESEND_API_KEY', 'EDITORIAL_NOTIFY_FROM', 'EDITORIAL_NOTIFY_EMAIL',
             'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY')
 # A finished edition. research_incomplete is retried by the next recovery start, which
@@ -169,15 +175,45 @@ def picks(card, config, states=None):
     return out
 
 
+def edition(card):
+    return EDITIONS['afternoon' if card.get('kind') == 'afternoon' else 'morning']
+
+
 def subject(card, entries, test=False):
-    n = len(entries)
-    body = (f"Morning Card · {day_label(card['decision_date'])} · {n} pick{'s' if n != 1 else ''}" if n
-            else f"Morning Card · {day_label(card['decision_date'])} · No picks today")
+    n, name = len(entries), edition(card)['name']
+    empty = 'Morning price check' if card.get('kind') == 'afternoon' else 'No picks today'
+    body = (f"{name} · {day_label(card['decision_date'])} · {n} {'new ' if card.get('kind') == 'afternoon' else ''}pick{'s' if n != 1 else ''}" if n
+            else f"{name} · {day_label(card['decision_date'])} · {empty}")
     return ('[Test] ' if test else '') + body
 
 
-def preheader(entries):
+def check_text(c):
+    """One morning pick at the afternoon's prices, as the page words it."""
+    offer = f"{american(c['price'])} at {c['book_label']}" if finite(c.get('price')) else ''
+    ev = f"{100 * c['ev']:+.1f}%" if finite(c.get('ev')) else ''
+    return {'qualifies': f'Still a pick at {offer} ({ev} after blending).',
+            'below_threshold': f'No longer a pick: {offer} gives {ev} after blending'
+                               + (f"; needs {american(c['min_price'])} or better." if finite(c.get('min_price')) else '.'),
+            'model_below_market': f'No longer a pick: the market now rates this side above the model. Best {offer}.',
+            'thin_market': f'Not rechecked: fewer than two books post this line now. Best {offer}.',
+            'no_model': f'Not rechecked: no current model estimate. Best {offer}.',
+            'line_moved': 'Line moved: this line is no longer offered (now '
+                          + ', '.join(str(v) for v in c.get('lines') or []) + ').',
+            'not_offered': 'No longer offered at the books we follow.'}.get(c.get('status'), '')
+
+
+def checks(card):
+    """The afternoon card's price check of each morning pick, for display."""
+    return [dict(title=bet_title(c['pick']), sport=c['pick']['sport'], game=c['pick']['game'],
+                 ok=c.get('status') == 'qualifies', text=check_text(c))
+            for c in card.get('price_check') or [] if isinstance(c.get('pick'), dict)]
+
+
+def preheader(entries, card=None):
     """The inbox preview line."""
+    if not entries and (card or {}).get('kind') == 'afternoon':
+        changed = sum(not c['ok'] for c in checks(card))
+        return f"No new picks · {changed} morning pick{'s' if changed != 1 else ''} no longer qualif{'y' if changed != 1 else 'ies'}"
     if not entries:
         return 'No reviewed offer cleared today’s card.'
     first = min(entries, key=lambda e: e['start_at'])
@@ -187,6 +223,11 @@ def preheader(entries):
 
 
 def notes(card):
+    if card.get('kind') == 'afternoon':
+        return ['New picks from the 4:30 p.m. prices; markets already on the morning card are left out. '
+                'Bet only at the min price or better.' if card.get('rows') else
+                'No new pick cleared this afternoon. The morning picks above were checked at the 4:30 p.m. prices.',
+                'Experimental model and research. Analysis, not a guarantee. Bet responsibly.']
     if card.get('rows'):
         return ['Prices are from the morning card and move during the day. Bet only at the min price or better; '
                 'below it the pick no longer clears the card.',
@@ -199,10 +240,12 @@ def text_body(card, entries, config, unsubscribe, test=False):
     lines = []
     if test:
         lines += [f"TEST SEND of the {day_label(card['decision_date'])} card.", '']
-    lines += ['FOURTH & VALUE · MORNING CARD',
+    lines += [f"FOURTH & VALUE · {edition(card)['banner']}",
               f"{day_label(card['decision_date'], long=True)} · published {clock(card['published_at'])}", '']
     if entries:
         lines += [preheader(entries), '']
+    if checks(card):
+        lines += ['MORNING PICKS AT 4:30 P.M.'] + [f"- {c['title']} ({c['sport']}): {c['text']}" for c in checks(card)] + ['']
     for e in entries:
         lines += [f"{e['index'] + 1}. {e['title']}",
                   f"   {e['sport']} · {e['game']} · starts {e['starts']}",
@@ -221,7 +264,7 @@ def text_body(card, entries, config, unsubscribe, test=False):
     lines += ['', f"Full card and research: {config['site']}/briefing/#daily-picks",
               f"Responsible play: {config['site']}/terms.html#responsible-play",
               'U.S. gambling support: call or text 1-800-MY-RESET.', '',
-              'You receive this because this address is subscribed to the Fourth & Value Morning Card.',
+              'You receive this because this address is subscribed to the Fourth & Value Morning Card and its afternoon picks.',
               f'Unsubscribe: {unsubscribe}']
     return '\n'.join(lines) + '\n'
 
@@ -303,14 +346,24 @@ def html_body(card, entries, config, unsubscribe, test=False):
     banner = (f'<tr><td style="padding:10px 24px;background:#fff4d6;color:#5c4400;font:600 14px/1.5 {FONT}">'
               f'Test send of the {e_(day_label(card["decision_date"]))} card.</td></tr>' if test else '')
     count = len(entries)
-    headline = f'{count} pick{"s" if count != 1 else ""}' if count else 'No picks today'
+    later = card.get('kind') == 'afternoon'
+    headline = (f'{count} {"new " if later else ""}pick{"s" if count != 1 else ""}' if count
+                else 'No new picks' if later else 'No picks today')
+    morning = ''
+    if checks(card):
+        morning = (f'<tr><td style="background:#ffffff;padding:0 24px 16px">'
+                   + p('Morning picks at 4:30 p.m.', f'font:700 15px/1.5 {FONT};color:{TEXT}')
+                   + ''.join(p(f'<span style="font-weight:700;color:{TEXT}">{e_(c["title"])}</span> · {e_(c["sport"])} · '
+                               f'<span style="color:{"#1c6b3a" if c["ok"] else "#8a5a00"}">{e_(c["text"])}</span>',
+                               f'padding-top:6px;font:400 14px/1.5 {FONT};color:{MUTED}') for c in checks(card))
+                   + '</td></tr>')
     return (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         '<meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light">'
         f'<title>{e_(subject(card, entries, test))}</title></head>'
         f'<body style="margin:0;padding:0;background:{PAGE}">'
-        f'<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">{e_(preheader(entries))}'
+        f'<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent">{e_(preheader(entries, card))}'
         + '&#847;&zwnj;&nbsp;' * 60 + '</div>'
         f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:{PAGE}">'
         '<tr><td align="center" style="padding:24px 12px">'
@@ -323,13 +376,14 @@ def html_body(card, entries, config, unsubscribe, test=False):
         f'font:800 15px/36px {FONT};color:{INK}">FV</td></tr></table></td>'
         f'<td valign="middle" style="font:700 20px/1.2 {FONT};color:#ffffff">Fourth <span style="color:{BLUE}">&amp;</span> '
         f'<span style="color:{GREEN}">Value</span></td>'
-        f'<td align="right" valign="middle" style="font:700 11px/1.2 {FONT};letter-spacing:.12em;color:#9aa4b2">MORNING CARD</td>'
+        f'<td align="right" valign="middle" style="font:700 11px/1.2 {FONT};letter-spacing:.12em;color:#9aa4b2">{edition(card)["banner"]}</td>'
         '</tr></table></td></tr>'
         + banner
         + f'<tr><td style="background:#ffffff;padding:24px 24px 18px">'
         + p(e_(day_label(card['decision_date'], long=True)), f'font:800 26px/1.25 {FONT};color:{TEXT}')
         + p(f'{e_(headline)} · published {e_(clock(card["published_at"]))}', f'padding-top:4px;font:400 15px/1.5 {FONT};color:{MUTED}')
         + summary + '</td></tr>'
+        + morning
         + ''.join(pick_html(e, count) for e in entries)
         + f'<tr><td style="background:#ffffff;padding:4px 24px 22px">'
         + ''.join(p(e_(n), f'padding-top:8px;font:400 14px/1.55 {FONT};color:#3a4252') for n in notes(card))
@@ -341,7 +395,7 @@ def html_body(card, entries, config, unsubscribe, test=False):
             f'<a href="{e_(site)}/tracking/" style="{link}">Bet Tracker</a>')
         + p(f'U.S. gambling support: call or text <a href="tel:+18006973738" style="{link}">1-800-MY-RESET</a> · '
             f'<a href="{e_(site)}/terms.html#responsible-play" style="{link}">Responsible play</a>', 'padding-top:10px')
-        + p('You receive this because this address is subscribed to the Fourth &amp; Value Morning Card. '
+        + p('You receive this because this address is subscribed to the Fourth &amp; Value Morning Card and its afternoon picks. '
             f'<a href="{e_(unsubscribe)}" style="{link}">Unsubscribe</a>', 'padding-top:10px')
         + p(f'Fourth &amp; Value · <a href="{e_(site)}" style="{link}">fourthandvalue.com</a>', 'padding-top:10px;color:#9aa4b2')
         + '</td></tr></table></td></tr></table></body></html>')
@@ -368,18 +422,21 @@ def message(card, config, unsubscribe, test=False):
                 headers={'List-Unsubscribe': f'<{unsubscribe}>'})
 
 
-def skip_reason(card, now, expected=None):
-    """Why this card is not today's finished morning edition, or None to send it."""
+def skip_reason(card, now, expected=None, kind='morning'):
+    """Why this card is not today's finished edition of this kind, or None to send it."""
     if expected and card.get('edition_id') != expected:
         return 'edition_mismatch'
-    if card.get('schema_version') != 1 or card.get('kind') != 'morning':
-        return 'not_a_morning_edition'
+    if card.get('schema_version') != 1 or card.get('kind') != kind:
+        return 'not_a_morning_edition' if kind == 'morning' else 'not_an_afternoon_edition'
     if not isinstance(card.get('edition_id'), str) or not card['edition_id']:
         return 'no_edition_id'
     if card.get('status') not in FINAL:
         return 'edition_not_final'
     if card.get('decision_date') != now.astimezone(EASTERN).date().isoformat():
         return 'not_today'
+    # The afternoon email is for new picks or a morning pick that stopped qualifying.
+    if kind == 'afternoon' and not card.get('rows') and all(c['ok'] for c in checks(card)):
+        return 'nothing_new'
     return None
 
 
@@ -419,12 +476,12 @@ def send(mail, key, env, post=requests.post):
     return 'sent'
 
 
-def run(now, *, card_path=CARD, config_path=CONFIG, expected=None, test=False, preview=None, env=None,
-        post=requests.post, http=requests):
+def run(now, *, card_path=None, config_path=CONFIG, expected=None, test=False, preview=None, env=None,
+        post=requests.post, http=requests, kind='morning'):
     env = os.environ if env is None else env
-    card = json.loads(Path(card_path).read_text())
+    card = json.loads(Path(card_path or EDITIONS[kind]['card']).read_text())
     config = json.loads(Path(config_path).read_text())
-    reason = None if test else skip_reason(card, now, expected)
+    reason = None if test else skip_reason(card, now, expected, kind)
     if reason:
         return reason
     if preview:
@@ -438,8 +495,9 @@ def run(now, *, card_path=CARD, config_path=CONFIG, expected=None, test=False, p
         return 'unsubscribed'
     mail = message(card, config, unsubscribe_url(config, row['token']), test)
     print(link_summary(picks(card, config)))
-    key = (f"morning-card-test-{card.get('edition_id')}-{now:%Y%m%d%H%M}" if test
-           else f"morning-card-{card['edition_id']}")
+    prefix = 'afternoon-picks' if kind == 'afternoon' else 'morning-card'
+    key = (f"{prefix}-test-{card.get('edition_id')}-{now:%Y%m%d%H%M}" if test
+           else f"{prefix}-{card['edition_id']}")
     return send(mail, key, env, post)
 
 
@@ -452,6 +510,8 @@ MESSAGES = {
     'previewed': 'Preview written; nothing sent.',
     'edition_mismatch': 'The card on disk is not the verified edition; nothing sent.',
     'not_a_morning_edition': 'Not a morning edition; nothing sent.',
+    'not_an_afternoon_edition': 'Not an afternoon edition; nothing sent.',
+    'nothing_new': 'No new afternoon pick and every morning pick still qualifies; nothing sent.',
     'no_edition_id': 'The card has no edition id; nothing sent.',
     'edition_not_final': 'Research is incomplete; the recovery start that finishes it sends the email.',
     'not_today': "The card is not today's; nothing sent.",
@@ -463,9 +523,10 @@ def main():
     parser.add_argument('--edition', help='only send if the card is this verified edition')
     parser.add_argument('--test', action='store_true', help='send the current card now, labeled as a test')
     parser.add_argument('--preview', metavar='HTML', help='write the email to a file instead of sending it')
+    parser.add_argument('--kind', choices=sorted(EDITIONS), default='morning', help='which edition to email')
     args = parser.parse_args()
     try:
-        status = run(datetime.now(timezone.utc), expected=args.edition, test=args.test, preview=args.preview)
+        status = run(datetime.now(timezone.utc), expected=args.edition, test=args.test, preview=args.preview, kind=args.kind)
     except (RuntimeError, requests.RequestException, ValueError, KeyError) as error:
         raise SystemExit(f'Morning email failed: {error}. The card is published; nothing else changed.')
     # A test send exists to prove the setup, so anything short of a send fails it.

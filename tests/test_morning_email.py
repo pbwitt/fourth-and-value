@@ -231,6 +231,37 @@ class MorningEmailTests(unittest.TestCase):
             self.assertEqual((post.call_count, http.get.call_count), (calls, lookups))
             self.assertIn('Sean Monahan', preview.read_text())
 
+    def test_afternoon_email_lists_new_picks_and_the_morning_price_check(self):
+        after = datetime(2026, 10, 18, 20, 50, tzinfo=timezone.utc)
+        check = dict(key='k', status='below_threshold', price=135, book_label='DraftKings', ev=-0.004, min_price=141,
+                     pick=dict(sport='NHL', game='g', player='Sam Reinhart', side='Over', line=0.5, market='player_assists',
+                               market_label='Assists', price=160, book_label='DraftKings'))
+        later = card(kind='afternoon', edition_id='edition-p', published_at='2026-10-18T20:47:00Z', price_check=[check])
+        mail = email.message(later, CONFIG, UNSUBSCRIBE)
+        self.assertEqual(mail['subject'], 'Afternoon Picks · Sun, Oct 18 · 1 new pick')
+        self.assertIn('MORNING PICKS AT 4:30 P.M.', mail['text'])
+        self.assertIn('- Sam Reinhart Over 0.5 assists (NHL): No longer a pick: +135 at DraftKings gives -0.4% after blending; '
+                      'needs +141 or better.', mail['text'])
+        self.assertIn('AFTERNOON PICKS', mail['html'])
+        self.assertIn('Morning picks at 4:30 p.m.', mail['html'])
+        self.assertIn('edition=edition-p', mail['text'])
+        # Nothing new and every morning pick still qualifies: no email.
+        quiet = dict(later, rows=[], price_check=[dict(check, status='qualifies', ev=0.03)])
+        self.assertEqual(email.skip_reason(quiet, after, kind='afternoon'), 'nothing_new')
+        self.assertEqual(email.message(dict(later, rows=[]), CONFIG, UNSUBSCRIBE)['subject'], 'Afternoon Picks · Sun, Oct 18 · Morning price check')
+        self.assertIsNone(email.skip_reason(dict(later, rows=[]), after, kind='afternoon'))
+        self.assertEqual(email.skip_reason(card(), after, kind='afternoon'), 'not_an_afternoon_edition')
+        self.assertEqual(email.skip_reason(later, after), 'not_a_morning_edition')
+        with TemporaryDirectory() as td:
+            path = Path(td) / 'afternoon.json'
+            path.write_text(json.dumps(later))
+            post, http = Mock(return_value=response(200)), Mock()
+            http.get.return_value = response(200, [{'token': TOKEN, 'subscribed': True}])
+            self.assertEqual(email.run(after, card_path=path, env=ENV, post=post, http=http, kind='afternoon'), 'sent')
+            self.assertEqual(post.call_args.kwargs['headers']['Idempotency-Key'], 'afternoon-picks-edition-p')
+            # One subscription covers both emails.
+            self.assertEqual(http.get.call_args.kwargs['params']['list'], 'eq.morning_card')
+
 
 if __name__ == '__main__':
     unittest.main()

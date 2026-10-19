@@ -31,9 +31,11 @@ Each job checks before every paid request, using the balance the provider report
 
 A morning recovery start (7:35, 8:05, 8:35) reuses an NFL refresh at most 45 minutes old instead of buying the same NFL prices again (`scripts/morning_operations.py`); NFL quotes stay valid for 90 minutes at publication. NHL (30-minute quotes) and MLB refresh on every recovery start.
 
-## Closing lines for tracked bets
+## Closing lines for tracked bets and published picks
 
 `supabase/functions/closing-lines` prices each tracked bet's market once, in the final 6 minutes before its game starts (pg_cron every 5 minutes), and a 10:00 UTC daily backfill uses historical odds for games it missed. It writes the median no-vig closing probability at the bet's exact line to `bets` and stores each paid payload in `odds_snapshots`. A live capture costs 1 credit per market bet on per game; a backfill costs 10 per market plus 1 per sport and day. Setup: `supabase/closing_line_value.sql`, then deploy the function with `verify_jwt` off, then `supabase/closing_lines_schedule.sql` (needs a `closing_lines_secret` Vault secret). Tests: `node tests/closing_lines.cjs`.
+
+From October 20, 2026 it also prices every published pick, morning and afternoon, for the weekly closing-line value report card (`scripts/clv_report.py`, in each sport's recap). `scripts/pick_closes.py` registers an edition's picks in `public.pick_closes` (`supabase/pick_closes.sql`) once the edition is verified live, using Bet Tracker's ticket fields, and a newer edition of the same date and kind replaces the older one's open picks. Picks and tracked bets on the same game share one snapshot, so a pick costs about 1 credit per market per game (roughly 10–15 a day) and nothing when someone also bet that game's market. Picks follow the same 2,000-credit reserve, run cap and backfill rules. The function reads the picks table separately: if it cannot, tracked bets still get their closes. MLB batter props and the selector's NFL `recv_yds` name are mapped, so tracked bets on them now get closes too.
 
 ## One-week NHL milestone-prop test (Oct 4–10, 2026)
 

@@ -1,7 +1,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('node:http'),path=require('node:path');
 const {chromium}=require('playwright');
 const {fixture}=require('./briefing_picks.cjs');
-const {collect,shortlist,reviewKey,reviewBetKey}=require('../docs/assets/briefing-picks.js');
+const {collect,shortlist,reviewKey,reviewBetKey,rowKey}=require('../docs/assets/briefing-picks.js');
 const root=path.resolve(__dirname,'../docs');
 const server=http.createServer((req,res)=>{
   let name=decodeURIComponent(req.url.split('?')[0]);if(name.endsWith('/'))name+='index.html';
@@ -22,7 +22,7 @@ const server=http.createServer((req,res)=>{
     await page.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',r=>r.fulfill({contentType:'text/javascript',body:'/* fake auth client installed by this test */'}));
     await page.route('**/*.supabase.co/**',r=>{throw Error('Test must never call a real tracker database');});
     async function openReview(){const pool=page.locator('#picks-research-pool');if(await pool.locator('.pick-research').count())await pool.evaluate(e=>e.open=true);const d=page.locator('.pick-research').first();if(!await d.evaluate(e=>e.open))await d.locator(':scope > summary').click();}
-    const urls={'/briefing/morning-card.json':'Card','/props/top-picks.json':'NFL','/mlb/data/latest.json':'MLB','/nhl/data/latest.json':'NHL','/nhl/data/candidates.json':'NHLBoard','/briefing/reviews.json':'Reviews'};
+    const urls={'/briefing/morning-card.json':'Card','/briefing/afternoon-card.json':'Afternoon','/props/top-picks.json':'NFL','/mlb/data/latest.json':'MLB','/nhl/data/latest.json':'NHL','/nhl/data/candidates.json':'NHLBoard','/briefing/reviews.json':'Reviews'};
     for(const [url,key] of Object.entries(urls))await page.route('**'+url,r=>feeds[key]?r.fulfill({json:feeds[key]}):r.fulfill({status:503,body:'Unavailable'}));
     for(const width of [320,390,768,1440]) {
       await page.setViewportSize({width,height:1000});await page.goto(base+'/briefing/');
@@ -226,6 +226,24 @@ const server=http.createServer((req,res)=>{
       await page.waitForFunction(()=>!location.search&&document.querySelector('#daily-picks-rows [data-track-pick]'));
       assert.equal(await page.locator('#pick-tracker[open]').count(),0,`${link} opens nothing`);
     }
+    // After the 4:30 p.m. refresh each morning pick shows its recorded price check, new
+    // afternoon picks get their own table, and the email link opens either edition's pick.
+    const morningRow=card.rows[0],laterRow={...morningRow,market:'pitcher_outs',market_label:'Outs',player:'Afternoon arm'};
+    feeds.Afternoon={schema_version:1,kind:'afternoon',decision_date:'2026-09-27',published_at:new Date(now).toISOString(),edition_id:'edition-p',
+      morning_edition_id:'edition-a',status:'published',rows:[laterRow],
+      price_check:[{key:rowKey(morningRow),status:'below_threshold',checked_at:new Date(now).toISOString(),price:-150,book:'a',book_label:'Book A',ev:-.02,min_price:-120}]};
+    await page.goto(base+'/briefing/?edition=edition-p&pick=0&stake=2#daily-picks');
+    await page.waitForSelector('#pick-tracker[open]');
+    assert.match(await page.locator('#track-bet-description').textContent(),/Afternoon arm/);
+    await page.locator('#track-cancel').click();
+    assert.match(await page.locator('#daily-picks-rows').textContent(),/Price check .*No longer a pick at current prices: -150 at Book A .*needs -120 or better/);
+    assert.equal(await page.locator('#afternoon-picks-rows [data-track-pick]').count(),1);
+    assert.match(await page.locator('#afternoon-status').textContent(),/^1 afternoon pick · Published/);
+    feeds.Afternoon={...feeds.Afternoon,morning_edition_id:'another-morning',rows:[],status:'no_reviewed_candidates'};
+    await page.reload();await page.waitForSelector('#daily-picks-rows [data-track-pick]');
+    assert.doesNotMatch(await page.locator('#daily-picks-rows').textContent(),/Price check/,'a check of another morning edition is not shown');
+    assert.match(await page.locator('#afternoon-picks-rows').textContent(),/No new picks qualified this afternoon/);
+    delete feeds.Afternoon;
     await page.clock.fastForward(6*3600e3);
     assert.match(await page.locator('#picks-status').textContent(),/Test edition for 2026-09-27/);
     assert.match(await page.locator('#daily-picks-rows').textContent(),/Game started · historical assessment/);
