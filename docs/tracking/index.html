@@ -96,6 +96,15 @@
     }
     .status-msg.error { color: #ff6b6b; }
     .status-msg.ok { color: #66BB6A; }
+    .code-entry {
+      border-top: 1px solid #2a2a2a;
+      margin-top: 1.5rem;
+      padding-top: 1.5rem;
+    }
+    .code-entry input {
+      letter-spacing: 0.3em;
+      text-align: center;
+    }
 
     /* Main Tracker */
     .container {
@@ -536,12 +545,18 @@
       <h2>📊 Bet Tracker</h2>
       <p class="signin-sub">In order to track your bets, you need to create a free account.</p>
       <div class="privacy-note">
-        This is a completely free tool - no ads, no subscription, ever. We only need your email to create your account and send you a one-time sign-in link, no password required. We will never sell or share your email or personal information with any third party.
+        This is a completely free tool - no ads, no subscription, ever. We only need your email to create your account and send you a one-time sign-in link and code, no password required. We will never sell or share your email or personal information with any third party.
       </div>
       <input type="email" id="emailInput" placeholder="you@example.com" autocomplete="email" />
       <button id="sendLinkBtn" onclick="handleSendLink()">Send sign-in link</button>
       <p class="signin-sub">The site can currently send only 2 sign-in emails per hour, shared by all users. Once signed in, you can keep using your account without requesting another email.</p>
       <div id="signInStatus" class="status-msg"></div>
+      <div class="code-entry">
+        <p class="signin-sub">On a TV, or reading the email on another device? Enter your email above and the 6-digit code from the email here. Don’t tap the email’s link on the other device: that signs in that device and uses up the code.</p>
+        <input type="text" id="codeInput" inputmode="numeric" autocomplete="one-time-code" maxlength="12" placeholder="123456" aria-label="Sign-in code from the email" />
+        <button id="verifyCodeBtn" onclick="handleVerifyCode()">Sign in with code</button>
+        <div id="codeStatus" class="status-msg"></div>
+      </div>
       <p style="font-size:.75rem;color:#777;text-align:center;margin-top:1rem;">
         By creating an account you agree to our <a href="../terms.html" style="color:#4FC3F7;">Terms of Service &amp; Privacy Policy</a>.
       </p>
@@ -737,7 +752,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="bet-tracking.js?v=7"></script>
+  <script src="bet-tracking.js?v=8"></script>
   <script src="performance.js?v=4"></script>
   <script src="live-feeds.js?v=3"></script>
   <script src="live-stats.js?v=9"></script>
@@ -761,7 +776,7 @@
         if (linkError) {
           const statusEl = document.getElementById('signInStatus');
           statusEl.textContent = linkError === 'otp_expired'
-            ? 'That sign-in link was already used or has expired. Each link works once, on the device where you open it. Request a new link and open it on this device.'
+            ? 'That sign-in link was already used or has expired. Each link works once, on the device where you open it. Request a new email, then open its link on this device or enter its code below.'
             : 'That sign-in link didn’t work. Please request a new one.';
           statusEl.className = 'status-msg error';
         }
@@ -776,6 +791,9 @@
 
       document.getElementById('emailInput')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') handleSendLink();
+      });
+      document.getElementById('codeInput')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleVerifyCode();
       });
     });
 
@@ -801,12 +819,44 @@
       btn.textContent = 'Send sign-in link';
 
       if (ok) {
-        statusEl.textContent = 'Check your email for a sign-in link. Open it on this device: opening it on another phone or computer signs in that device instead.';
+        statusEl.textContent = 'Check your email. Open its link on this device, or enter its 6-digit code below.';
         statusEl.className = 'status-msg ok';
       } else {
         statusEl.textContent = signInErrorMessage(error);
         statusEl.className = 'status-msg error';
       }
+    }
+
+    async function handleVerifyCode() {
+      const btn = document.getElementById('verifyCodeBtn');
+      if (btn.disabled) return;
+      const email = document.getElementById('emailInput').value.trim();
+      const code = document.getElementById('codeInput').value.replace(/\s+/g, '');
+      const statusEl = document.getElementById('codeStatus');
+      if (!email || !email.includes('@')) {
+        statusEl.textContent = 'Enter the email address the code was sent to.';
+        statusEl.className = 'status-msg error';
+        return;
+      }
+      if (!/^\d{6,10}$/.test(code)) {
+        statusEl.textContent = 'Enter the 6-digit code from the email.';
+        statusEl.className = 'status-msg error';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Checking...';
+
+      let ok = false, error;
+      try { ({ ok, error } = await verifySignInCode(email, code)); }
+      catch (failure) { error = failure; }
+
+      btn.disabled = false;
+      btn.textContent = 'Sign in with code';
+
+      // On success onAuthStateChange shows the tracker.
+      statusEl.textContent = ok ? '' : signInCodeErrorMessage(error);
+      statusEl.className = ok ? 'status-msg' : 'status-msg error';
     }
 
     async function handleSignOut() {

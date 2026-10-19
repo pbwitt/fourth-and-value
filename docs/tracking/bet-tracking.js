@@ -55,6 +55,24 @@ function signInErrorMessage(error) {
   return detail || 'We couldn’t request a sign-in email. Please try again later.';
 }
 
+// The sign-in email also carries a one-time code. Entering it signs in this
+// browser even when the email was read on another device (a TV, say). Opening
+// the email's link uses the same token, so a link that was opened voids its code.
+async function verifySignInCode(email, code) {
+  const { error } = await supabaseClient.auth.verifyOtp({ email, token: code, type: 'email' });
+  return { ok: !error, error };
+}
+
+function signInCodeErrorMessage(error) {
+  if (error?.code === 'otp_expired' || /expired|invalid/i.test(error?.message || '')) {
+    return 'That code is incorrect, expired or already used. Use the code from your most recent sign-in email. Opening that email’s link also uses up its code.';
+  }
+  if (error?.code === 'over_request_rate_limit' || error?.status === 429) {
+    return 'Too many attempts were made recently. Please wait a few minutes before trying again.';
+  }
+  return error?.message || 'We couldn’t check that code. Please try again.';
+}
+
 async function signOut() {
   await supabaseClient.auth.signOut();
 }
@@ -153,6 +171,8 @@ window.supabaseClient = supabaseClient;
 window.getCurrentUser = getCurrentUser;
 window.signInWithEmail = signInWithEmail;
 window.signInErrorMessage = signInErrorMessage;
+window.verifySignInCode = verifySignInCode;
+window.signInCodeErrorMessage = signInCodeErrorMessage;
 window.signOut = signOut;
 window.autoTrackBet = autoTrackBet;
 window.saveTrackedBet = saveTrackedBet;
