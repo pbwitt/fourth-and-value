@@ -15,6 +15,13 @@ const mlbGame=(gamePk,away,home,gameDate)=>({gamePk,gameDate,scheduledInnings:9,
 const schedule={dates:[{games:[
   mlbGame(776001,mlbTeam('Chicago Cubs','CHC','Cubs',1),mlbTeam('San Diego Padres','SD','Padres',4),'2026-09-30T23:10:00Z'),
   mlbGame(776002,mlbTeam('Boston Red Sox','BOS','Red Sox',2),mlbTeam('New York Yankees','NYY','Yankees',9),'2026-09-30T17:05:00Z')]}]};
+// A game that hasn't started: no box score names yet, so the form reads the MLB odds feed.
+const pregame={dates:[{games:[{gamePk:776010,gameDate:'2026-10-02T23:10:00Z',scheduledInnings:9,linescore:{},
+  status:{abstractGameState:'Preview',codedGameState:'S',detailedState:'Scheduled'},
+  teams:{away:mlbTeam('Cleveland Guardians','CLE','Guardians'),home:mlbTeam('Tampa Bay Rays','TB','Rays')}}]}]};
+const prop=(player,o)=>({mlb_game_id:776010,home_team:'Tampa Bay Rays',away_team:'Cleveland Guardians',commence_time:'2026-10-02T23:10:00Z',player,...o});
+const oddsFeed={rows:[prop('Yandy Diaz'),prop('Yandy Diaz'),prop('Freddy Peralta'),prop(''),
+  prop('Other Game',{mlb_game_id:776011,home_team:'New York Yankees',away_team:'Boston Red Sox'})]};
 const boxscore={teams:{
   home:{batters:[1],pitchers:[],players:{ID1:{person:{id:1,fullName:'Fernando Tatis Jr.'},stats:{batting:{hits:2,totalBases:3}}}}},
   away:{batters:[2],pitchers:[],players:{ID2:{person:{id:2,fullName:'Ian Happ'},stats:{batting:{hits:0}}}}}}};
@@ -32,8 +39,10 @@ const boxscore={teams:{
     await p.route('https://cdn.jsdelivr.net/**',route=>route.fulfill({contentType:'text/javascript',body:''}));
     await p.route('https://statsapi.mlb.com/**',route=>{
       const url=route.request().url();
-      route.fulfill({json:url.includes('/boxscore')?boxscore:url.includes('gamePk=776001')?{dates:[{games:[schedule.dates[0].games[0]]}]}:schedule});
+      route.fulfill({json:url.includes('/boxscore')?boxscore:url.includes('gamePk=776001')?{dates:[{games:[schedule.dates[0].games[0]]}]}:
+        url.includes('date=2026-10-02')?pregame:schedule});
     });
+    await p.route('**/mlb/data/latest.json*',route=>route.fulfill({json:oddsFeed}));
     await p.addInitScript(()=>{
       window.db={rows:[]};const user={id:'test-owner',email:'reader@example.com'};
       const query={order:async()=>({data:db.rows,error:null})};
@@ -97,9 +106,27 @@ const boxscore={teams:{
     await p.waitForFunction(()=>document.querySelector('.bet-card-player .team-tag')?.textContent==='SD');
     assert.equal(await p.locator('#betsTableBody .team-tag').first().textContent(),'SD');
 
+    // Before first pitch, the player list is the props posted for that game in the odds feed.
+    await p.locator('#mb-date').fill('2026-10-02');await p.locator('#mb-date').dispatchEvent('change');
+    await p.waitForFunction(()=>document.querySelectorAll('#mb-game option').length===2);
+    assert.equal(await p.locator('#mb-game option').nth(1).textContent(),'CLE @ TB · 7:10 PM ET');
+    await p.locator('#mb-game').selectOption('776010');
+    await p.locator('#mb-market').selectOption('batter_total_bases');
+    await p.waitForFunction(()=>document.querySelectorAll('#mb-players option').length===2);
+    assert.deepEqual(await p.locator('#mb-players option').evaluateAll(options=>options.map(o=>o.value)),['Freddy Peralta','Yandy Diaz']);
+    await p.locator('#mb-player').fill('Yandy Diaz');
+    assert.match(await p.locator('#mb-check').textContent(),/^✓ Grades automatically once the game is final/);
+    await p.locator('#mb-side').selectOption('over');await p.locator('#mb-line').fill('1.5');
+    await p.locator('#mb-odds').fill('+142');await p.locator('#mb-stake').fill('10');
+    await p.locator('#mb-save').click();
+    await p.waitForFunction(()=>db.rows.length===4);
+    row=await p.evaluate(()=>db.rows.at(-1));
+    assert.deepEqual([row.game_date,row.team_away,row.team_home,row.player,row.market_type,row.side,row.line,row.odds],
+      ['2026-10-02','CLE','TB','Yandy Diaz','batter_total_bases','over',1.5,142]);
+
     for(const width of [390,1440]){await p.setViewportSize({width,height:900});
       assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,`no overflow at ${width}`);}
     assert.deepEqual(errors,[]);
-    console.log('PASS: manual form fills games and markets from the schedule, previews grading, saves offer-identical rows and shows player teams.');
+    console.log('PASS: manual form fills games and markets from the schedule, suggests pregame players from the odds feed, previews grading, saves offer-identical rows and shows player teams.');
   }finally{await browser.close();server.close();}
 })().catch(error=>{console.error(error);server.close();process.exitCode=1;});

@@ -137,7 +137,30 @@
     return { ok: true, text: `Grades automatically about ${SETTLE_AFTER_HOURS} hours after the game starts, once it’s final.` };
   }
 
-  const api = { marketOptions, marketLabel, bookLabel, sideOptions, buildTicket, gradeCheck, kindOf, needsLine, needsPlayer, teamCode };
+  // Box scores list players only once a game starts. Before then, the form suggests the
+  // players the books have posted props for in the league's odds feed (the file its board
+  // reads). NFL props ship inside the board page, so NFL names are typed in until kickoff.
+  const FEEDS = { MLB: '/mlb/data/latest.json', NHL: '/nhl/data/latest.json', NBA: '/nba/data/latest.json' };
+  const GAME_IDS = { MLB: 'mlb_game_id', NHL: 'nhl_game_id' };
+
+  // Player names for a game from a feed's rows: same home and away teams, starting within
+  // a few hours of the scheduled time (or on the chosen date when the time isn't set).
+  // MLB and NHL rows carry the schedule's game id, which settles doubleheaders.
+  function feedPlayers(league, data, game, date) {
+    if (!game || !Array.isArray(data?.rows)) return [];
+    const start = Date.parse(game.start), idKey = GAME_IDS[league], names = new Set();
+    for (const r of data.rows) {
+      if (!r?.player) continue;
+      if (idKey && r[idKey] != null && String(r[idKey]) !== String(game.id)) continue;
+      if (!live.teamMatches(r.home_team, game.home, league) || !live.teamMatches(r.away_team, game.away, league)) continue;
+      const t = Date.parse(r.commence_time);
+      if (!Number.isFinite(t) || (Number.isFinite(start) ? Math.abs(t - start) > 6 * 3600e3 : live.day(t) !== date)) continue;
+      names.add(r.player);
+    }
+    return [...names].sort((a, b) => a.localeCompare(b));
+  }
+
+  const api = { marketOptions, marketLabel, bookLabel, sideOptions, buildTicket, gradeCheck, feedPlayers, FEEDS, kindOf, needsLine, needsPlayer, teamCode };
   if (node) { module.exports = api; return; }
 
   // ---- Browser form -----------------------------------------------------------
@@ -146,7 +169,7 @@
   function mount({ fetchJSON, proxy, onSaved }) {
     const $ = id => document.getElementById('mb-' + id);
     const run = plan => Promise.all(plan.requests.map(r => r.proxy ? proxy(r.proxy) : fetchJSON(r.url))).then(plan.build);
-    const boards = new Map(), boxes = new Map();
+    const boards = new Map(), boxes = new Map(), oddsFeeds = new Map();
     const cached = (map, key, load) => {
       if (!map.has(key)) map.set(key, load().catch(error => { map.delete(key); throw error; }));
       return map.get(key);
@@ -206,17 +229,26 @@
       fillSides(); update();
     }
 
-    // Player names come from the box score once the game has started.
+    // Player names come from the box score once the game has started, and before then
+    // from the props posted for it in the league's odds feed.
     async function loadPlayers() {
       const g = game();
       box = null; $('players').replaceChildren();
-      if (!g || !needsPlayer(kind()) || !['live', 'final'].includes(g.state)) { update(); return; }
-      const token = loadToken, id = g.id;
+      const started = g && ['live', 'final'].includes(g.state);
+      if (!g || !needsPlayer(kind()) || !(started || (g.state === 'pre' && FEEDS[g.league]))) { update(); return; }
+      const token = loadToken, id = g.id, date = $('date').value;
       try {
-        const loaded = await cached(boxes, `${g.league}:${id}`, () => run(feeds.boxPlan(g.league, id)));
-        if (token !== loadToken || game()?.id !== id) return;
-        box = loaded;
-        const names = [...new Set(loaded.players.filter(p => p.played).map(p => p.name))].sort();
+        let names;
+        if (started) {
+          const loaded = await cached(boxes, `${g.league}:${id}`, () => run(feeds.boxPlan(g.league, id)));
+          if (token !== loadToken || game()?.id !== id) return;
+          box = loaded;
+          names = [...new Set(loaded.players.filter(p => p.played).map(p => p.name))].sort();
+        } else {
+          const data = await cached(oddsFeeds, g.league, () => fetchJSON(FEEDS[g.league]));
+          if (token !== loadToken || game()?.id !== id) return;
+          names = feedPlayers(g.league, data, g, date);
+        }
         $('players').replaceChildren(...names.map(name => option(name, '')));
       } catch { /* free text still works; the check just can't confirm the name */ }
       update();

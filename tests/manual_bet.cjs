@@ -92,4 +92,27 @@ assert.equal(M.marketLabel('NHL','team_total'),'Team total','older keys still re
 assert.equal(M.marketLabel('MLB',null),'');
 assert.deepEqual(['williamhill_us','betmgm','DraftKings','Local Book',null].map(M.bookLabel),['Caesars','BetMGM','DraftKings','Local Book','']);
 
-console.log('PASS: manual entry builds offer-identical tickets for every market, grades the SD/CHC total, and flags ungradeable bets.');
+// Before a game starts, player names come from the props posted for it in the league's
+// odds feed: same teams, near the scheduled start, by game id where the feed has one.
+const tonight=game({id:'849815',start:'2026-10-20T00:10:00Z',state:'pre',detail:'',elapsed:null,
+  away:team('CLE','Cleveland Guardians','Guardians',null),home:team('TB','Tampa Bay Rays','Rays',null)});
+const prop=o=>({mlb_game_id:849815,home_team:'Tampa Bay Rays',away_team:'Cleveland Guardians',commence_time:'2026-10-20T00:10:00Z',player:'Yandy Diaz',...o});
+const feed={rows:[prop(),prop({market:'batter_hits'}),prop({player:'Freddy Peralta'}),prop({player:''}),
+  prop({player:'José Ramírez'}),
+  prop({player:'Game 7 Only',mlb_game_id:849816,commence_time:'2026-10-21T00:08:00Z'}),
+  prop({player:'Other Game',mlb_game_id:849900,home_team:'Los Angeles Dodgers',away_team:'Milwaukee Brewers'})]};
+assert.deepEqual(M.feedPlayers('MLB',feed,tonight,'2026-10-19'),['Freddy Peralta','José Ramírez','Yandy Diaz']);
+// A typed feed name grades against the box score's accented spelling.
+assert.equal(live.findPlayer('Yandy Diaz',[{name:'Yandy Díaz'}])?.name,'Yandy Díaz');
+// Without a game id, teams match on full or short names and the start time keeps a series' next game out.
+const clippers=game({id:'401',league:'NBA',start:'2026-10-21T02:30:00Z',state:'pre',
+  away:team('DEN','Denver Nuggets','Nuggets',null),home:team('LAC','LA Clippers','Clippers',null)});
+const nba={rows:[{home_team:'Los Angeles Clippers',away_team:'Denver Nuggets',commence_time:'2026-10-21T02:30:00Z',player:'Nikola Jokić'},
+  {home_team:'Los Angeles Clippers',away_team:'Denver Nuggets',commence_time:'2026-10-23T02:30:00Z',player:'Next Game'},
+  {home_team:'Denver Nuggets',away_team:'Los Angeles Clippers',commence_time:'2026-10-21T02:30:00Z',player:'Wrong Way Round'}]};
+assert.deepEqual(M.feedPlayers('NBA',nba,clippers,'2026-10-20'),['Nikola Jokić']);
+assert.deepEqual(M.feedPlayers('NBA',nba,{...clippers,start:null},'2026-10-20'),['Nikola Jokić'],'no start time: the chosen Eastern date');
+assert.deepEqual(M.feedPlayers('NBA',{},clippers,'2026-10-20'),[]);
+assert.deepEqual(Object.keys(M.FEEDS).sort(),['MLB','NBA','NHL']);
+
+console.log('PASS: manual entry builds offer-identical tickets for every market, grades the SD/CHC total, flags ungradeable bets and suggests pregame players from the odds feed.');
