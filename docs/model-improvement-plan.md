@@ -326,7 +326,7 @@ Robots.txt and terms were read from a GitHub runner (one-off workflow, since rem
 | RotoWire | Allows most paths | Bans automated access without written consent, and bans AI tools from reading or storing its data | Not usable; licensed feed by quote only. Its goalie page was fetched by the check but deliberately not read |
 | Left Wing Lock | Allows all | Personal, non-commercial viewing only; names Starting Goalies as data it bans scraping | Not usable |
 | Daily Faceoff | Allows `/starting-goalies` (disallows `/api/`, `/cms/`) | None on dailyfaceoff.com, but The Nation Network's Terms of Service (published at oilersnation.com/terms-of-service) cover all its brands and bar "any commercial use of ... any content, materials, or databases from our network" and copying or republishing without written permission (checked 2026-10-05) | Not usable automatically without permission or a license. Owner chose not to ask (2026-10-05). The page carries structured data (goalie IDs, Confirmed/Likely status, reporter) |
-| NHL API (`api-web.nhle.com`) | n/a | Covered by the NHL terms above | Pregame it lists each team's goalies with season stats, not the starter; `right-rail` has a `scratches` field (empty at 9 AM). The site already relies on this API, so the NHL terms question applies to existing pipelines too |
+| NHL API (`api-web.nhle.com`) | n/a | Covered by the NHL terms above | Pregame it lists each team's goalies with season stats, not the starter; `right-rail` has a `scratches` field (empty at 9 AM). The site already relies on this API, so the NHL terms question applies to existing pipelines too. Owner decision (2026-10-16): keep using it for all NHL data |
 
 Paid alternatives remain SportsDataIO (Daily Faceoff's data carries FantasyData/SportsDataIO player IDs) and
 MySportsFeeds. The NHL-API-based start-probability model needs no new source.
@@ -484,6 +484,16 @@ coverage is recorded for Market Watch.
   out of sample (Phase 4) before it enters the model. Confirmed starters still need a permitted
   source: Daily Faceoff is ruled out by The Nation Network's terms unless it grants permission, so a paid
   feed (SportsDataIO, MySportsFeeds) or a manual confirmation is the remaining route.
+
+### NHL data source: owner decision (2026-10-16)
+
+- The owner decided to keep using the NHL's public API (`api-web.nhle.com`, `api.nhle.com`) for
+  all NHL data: skater and goalie history, rosters, the daily refresh, projected starting goalies
+  and bet grading. This settles the open question from the goalie source check above. Phase 1 and
+  Phase 2 NHL work can build on these feeds.
+- Not covered: NHL and MLB injuries come from CBS Sports' public injury pages
+  (`scripts/nhl/v2/injuries.py`), whose terms have not been checked. Confirmed starting goalies
+  still need a permitted source.
 
 ### Data fixes (2026-10-05)
 
