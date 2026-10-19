@@ -442,6 +442,22 @@ afternoon rows in their own table; the research pool leaves out both editions' m
 Weekly recaps (`sport_weekly_review.published_picks`) count the final morning and
 afternoon edition of each date separately.
 
+## Closing prices and the weekly report card
+
+After `Verify this exact edition is live`, both edition workflows run `scripts/pick_closes.py
+--kind <morning|afternoon> --edition <id>` (skipped for test editions; without
+`SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` it registers nothing and never fails the
+edition). It upserts one `public.pick_closes` row per card row (`edition_id`, `pick_index`)
+from `ticketData`, keeps an Odds API `event_id` when the row has one, records the blend's
+`market` as `decision_market_prob`, and deletes the same date and kind's still-open rows from
+older editions. The closing-lines function closes them like tracked bets; a trigger derives
+`clv_ev` and `beat_line` as on `bets`. `scripts/clv_report.weekly(league, start, end)` reads
+every registered pick through `end` and returns, by edition kind, for the week and to date:
+picks, closes, mean `clv_ev` (value at the close), share with `clv_ev > 0` (beat the close)
+and mean `closing_fair_prob - decision_market_prob` (market move). `sport_weekly_review` and
+`nfl_weekly_review` render it with `section_html` and store the week's rows as `closes` in the
+public recap JSON. Unavailable closes leave the section saying so; they never block a recap.
+
 `scripts/morning_card.py` calls the same Node/browser selector at publication.
 Quotes/forecasts must pass the normal sport-specific freshness checks, and
 consider reviews must match the exact offer and be no older than three hours.

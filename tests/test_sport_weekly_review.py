@@ -355,5 +355,53 @@ class SportWeeklyReviewTests(unittest.TestCase):
             self.assertTrue((root / 'docs/blog/mlb-recap-2026-10-04.html').exists())
 
 
+class ClosingLineReportTests(unittest.TestCase):
+    """The weekly closing-line value report card (scripts/clv_report.py)."""
+
+    def rows(self):
+        pick = lambda day, kind, status, ev=None, fair=None, decided=None: dict(
+            decision_date=day, edition_kind=kind, clv_status=status, clv_ev=ev, closing_fair_prob=fair, decision_market_prob=decided)
+        return [pick('2026-10-13', 'morning', 'captured', .10, .40, .38),        # an earlier week, counted to date
+                pick('2026-10-19', 'morning', 'captured', .05, .42, .40),
+                pick('2026-10-19', 'morning', 'captured', -.03, .50, .52),
+                pick('2026-10-19', 'afternoon', 'captured', .02, .45, .45),
+                pick('2026-10-20', 'afternoon', 'line_moved'),
+                pick('2026-10-20', 'morning', None)]
+
+    def test_report_card_by_edition_and_to_date(self):
+        import clv_report
+        http = Mock()
+        http.get.return_value = Mock(ok=True, json=Mock(return_value=self.rows()))
+        report = clv_report.weekly('NHL', date(2026, 10, 14), date(2026, 10, 20),
+                                   env=dict(SUPABASE_URL='https://db.example/', SUPABASE_SERVICE_ROLE_KEY='k'), http=http)
+        params = http.get.call_args.kwargs['params']
+        self.assertEqual((params['league'], params['decision_date']), ('eq.NHL', 'lte.2026-10-20'))
+        morning, later, week = report['editions']['morning'], report['editions']['afternoon'], report['week']
+        self.assertEqual((morning['picks'], morning['closed'], morning['pending']), (3, 2, 1))
+        self.assertAlmostEqual(morning['value'], .01)
+        self.assertEqual(morning['beat'], .5)
+        self.assertAlmostEqual(morning['move'], 0)
+        self.assertEqual((later['picks'], later['closed'], later['line_moved']), (2, 1, 1))
+        self.assertEqual((week['picks'], report['to_date']['picks'], report['first_date']), (5, 6, '2026-10-13'))
+        page = clv_report.section_html(report, 'NHL')
+        for text in ('Morning picks', 'Afternoon picks', 'All picks this week', 'All picks since 2026-10-13', '+1.0%', '+0.0 pts',
+                     '1 pick had no close recorded yet.', '1 closed at a different line'):
+            self.assertIn(text, page)
+
+    def test_unavailable_closes_never_block_a_recap(self):
+        import clv_report
+        self.assertEqual(clv_report.weekly('MLB', date(2026, 10, 14), date(2026, 10, 20), env={})['status'], 'unavailable')
+        http = Mock()
+        http.get.return_value = Mock(ok=False, status_code=500)
+        report = clv_report.weekly('MLB', date(2026, 10, 14), date(2026, 10, 20),
+                                   env=dict(SUPABASE_URL='u', SUPABASE_SERVICE_ROLE_KEY='k'), http=http)
+        self.assertEqual(report['status'], 'unavailable')
+        self.assertIn('Closing prices were unavailable', clv_report.section_html(report, 'MLB'))
+        http.get.return_value = Mock(ok=True, json=Mock(return_value=[]))
+        empty = clv_report.weekly('NBA', date(2026, 10, 14), date(2026, 10, 20),
+                                  env=dict(SUPABASE_URL='u', SUPABASE_SERVICE_ROLE_KEY='k'), http=http)
+        self.assertIn('No published NBA picks have been registered', clv_report.section_html(empty, 'NBA'))
+
+
 if __name__ == '__main__':
     unittest.main()

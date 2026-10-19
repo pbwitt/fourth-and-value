@@ -6,6 +6,10 @@
 // public.closing_lines_secret_ok. The Odds API key is the same one live-odds uses:
 // an ODDS_API_KEY secret, else the Vault copy read through public.live_odds_key.
 //
+// Published picks (public.pick_closes, registered by scripts/pick_closes.py when an
+// edition is verified live) are priced exactly like tracked bets and share each game's
+// snapshot, so a pick on a game someone also bet costs nothing extra.
+//
 // POST {}                          live: match pending bets (yesterday..tomorrow ET)
 //                                  to Odds API events (free), then for games starting
 //                                  within 6 minutes take one priced snapshot per game,
@@ -70,11 +74,11 @@ export function createHandler({ fetchImpl = fetch, now = () => Date.now(), env =
     const minimal = { Prefer: 'return=minimal' };
     return {
       rpc: (fn, args = {}) => call(`rpc/${fn}`, { method: 'POST', body: JSON.stringify(args) }),
-      upcoming: (from, to) => call(`bets?select=${FIELDS}&clv_status=is.null`
+      upcoming: (table, from, to) => call(`${table}?select=${FIELDS}&clv_status=is.null`
         + `&game_date=gte.${from}&game_date=lte.${to}&order=game_date`),
-      past: (today, nowIso, limit) => call(`bets?select=${FIELDS}&clv_status=is.null`
+      past: (table, today, nowIso, limit) => call(`${table}?select=${FIELDS}&clv_status=is.null`
         + `&or=(game_date.lt.${today},commence_time.lt.${nowIso})&order=game_date&limit=${limit}`),
-      patch: (id, fields) => call(`bets?id=eq.${encodeURIComponent(id)}`,
+      patch: (table, id, fields) => call(`${table}?id=eq.${encodeURIComponent(id)}`,
         { method: 'PATCH', headers: minimal, body: JSON.stringify(fields) }),
       snapshot: row => call('odds_snapshots', { method: 'POST', headers: minimal, body: JSON.stringify(row) }),
     };
@@ -128,20 +132,26 @@ export function createHandler({ fetchImpl = fetch, now = () => Date.now(), env =
     const t = now();
     const state = { remaining: null, spent: 0 };
     const odds = oddsApi(db, state);
-    const out = { mode, bets: 0, matched: 0, results: {}, errors: [] };
+    const out = { mode, bets: 0, picks: 0, matched: 0, results: {}, errors: [] };
     const count = s => { out.results[s] = (out.results[s] || 0) + 1; };
 
-    const bets = mode === 'backfill'
-      ? await db.past(etDate(t), iso(t), limit)
-      : await db.upcoming(etDate(t - DAY), etDate(t + DAY));
-    out.bets = bets.length;
+    const load = table => (mode === 'backfill'
+      ? db.past(table, etDate(t), iso(t), limit)
+      : db.upcoming(table, etDate(t - DAY), etDate(t + DAY))).then(rows => rows.map(row => ({ ...row, table })));
+    const tracked = await load('bets');
+    // A picks table that cannot be read never costs tracked bets their close.
+    let picks = [];
+    try { picks = await load('pick_closes'); } catch (error) { out.errors.push(`Published picks unavailable: ${error.message}`); }
+    const bets = [...tracked, ...picks];
+    out.bets = tracked.length;
+    out.picks = picks.length;
 
     // Leagues and markets with no mapping are marked once and skipped after.
     const usable = [];
     for (const bet of bets) {
       const spec = specFor(bet);
       if (spec.error) {
-        await db.patch(bet.id, { clv_status: 'unsupported', clv_note: spec.error });
+        await db.patch(bet.table, bet.id, { clv_status: 'unsupported', clv_note: spec.error });
         count('unsupported');
       } else usable.push({ bet, spec });
     }
@@ -167,7 +177,7 @@ export function createHandler({ fetchImpl = fetch, now = () => Date.now(), env =
             if (error.status === 422 && markets.length > 1 && attempt === 0) { rejected.push(...markets); continue; }
             for (const x of group.filter(x => markets.includes(x.spec.key))) {
               if (error.status === 422) {
-                await db.patch(x.bet.id, { clv_status: 'no_market', clv_note: 'The odds service does not offer this market here.' });
+                await db.patch(x.bet.table, x.bet.id, { clv_status: 'no_market', clv_note: 'The odds service does not offer this market here.' });
                 count('no_market');
               }
             }
@@ -179,7 +189,7 @@ export function createHandler({ fetchImpl = fetch, now = () => Date.now(), env =
           const bets = group.filter(x => markets.includes(x.spec.key));
           if (!event || event.id !== eventId) {
             for (const x of bets) {
-              await db.patch(x.bet.id, { clv_status: 'no_market', clv_note: 'The game was not in the odds snapshot.' });
+              await db.patch(x.bet.table, x.bet.id, { clv_status: 'no_market', clv_note: 'The game was not in the odds snapshot.' });
               count('no_market');
             }
             continue;
@@ -188,7 +198,7 @@ export function createHandler({ fetchImpl = fetch, now = () => Date.now(), env =
             snapshot_at: snapshotAt, markets, credits_used: res.cost, payload: event });
           for (const x of bets) {
             const close = closeForBet(x.bet, x.spec, event);
-            await db.patch(x.bet.id, { ...close, closing_captured_at: snapshotAt,
+            await db.patch(x.bet.table, x.bet.id, { ...close, closing_captured_at: snapshotAt,
               event_id: eventId, commence_time: x.bet.commence_time });
             count(close.clv_status);
           }
@@ -219,11 +229,11 @@ export function createHandler({ fetchImpl = fetch, now = () => Date.now(), env =
           if (m.event) {
             x.bet.event_id = m.event.id;
             x.bet.commence_time = m.event.commence_time;
-            await db.patch(x.bet.id, { event_id: m.event.id, commence_time: m.event.commence_time });
+            await db.patch(x.bet.table, x.bet.id, { event_id: m.event.id, commence_time: m.event.commence_time });
             out.matched++;
           } else if (mode === 'backfill') {
             // Live leaves misses for the next run; backfill is the last chance.
-            await db.patch(x.bet.id, { clv_status: 'no_event', clv_note: m.error });
+            await db.patch(x.bet.table, x.bet.id, { clv_status: 'no_event', clv_note: m.error });
             count('no_event');
           }
         }

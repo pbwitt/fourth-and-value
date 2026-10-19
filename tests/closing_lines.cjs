@@ -76,14 +76,16 @@ const near = (a, b, msg) => assert(Math.abs(a - b) < 1e-9, `${msg}: ${a} vs ${b}
     event_id: eventId, commence_time: '2026-10-05T23:10:00Z' });
   const twoGames = [game('b1', 'e9', 'Buffalo Sabres', 'Chicago Blackhawks'), game('b2', 'e8', 'Boston Bruins', 'New York Rangers')];
   // Two games start within 6 minutes, so one run makes two paid requests (1 credit each).
-  function harness({ remaining, last = 1, env = {} }) {
-    const calls = { odds: 0, patches: [], snapshots: 0 };
+  function harness({ remaining, last = 1, env = {}, picks = [] }) {
+    const calls = { odds: 0, patches: [], pickPatches: [], snapshots: 0 };
     const json = (body, headers = {}) => new Response(JSON.stringify(body), { status: 200, headers });
     const fetchImpl = async (url, init = {}) => {
       if (url.includes('/rest/v1/rpc/closing_lines_secret_ok')) return json(true);
       if (url.includes('/rest/v1/rpc/live_odds_key')) return json('test-key');
       if (url.includes('/rest/v1/bets?select=')) return json(twoGames);
       if (url.includes('/rest/v1/bets?id=')) { calls.patches.push(JSON.parse(init.body)); return new Response(null, { status: 204 }); }
+      if (url.includes('/rest/v1/pick_closes?select=')) return picks === null ? new Response('missing', { status: 404 }) : json(picks);
+      if (url.includes('/rest/v1/pick_closes?id=')) { calls.pickPatches.push([url.match(/id=eq\.([^&]+)/)[1], JSON.parse(init.body)]); return new Response(null, { status: 204 }); }
       if (url.includes('/rest/v1/odds_snapshots')) { calls.snapshots++; return new Response(null, { status: 201 }); }
       if (url.startsWith('https://api.the-odds-api.com/')) {
         calls.odds++;
@@ -109,6 +111,25 @@ const near = (a, b, msg) => assert(Math.abs(a - b) < 1e-9, `${msg}: ${a} vs ${b}
     assert.equal(out.results.captured, 2);
     assert.equal(out.credits_left, 15000);
     assert.equal(out.stopped, undefined);
+  }
+  // A published pick on a game someone also bet shares that game's snapshot; a pick on
+  // another market of it adds only that market to the same request.
+  {
+    const pick = { ...game('p1', 'e9', 'Buffalo Sabres', 'Chicago Blackhawks'), market_type: 'points', player: 'Tage Thompson', line: 0.5, side: 'over', odds: 150 };
+    const { calls, post } = harness({ remaining: 15000, picks: [{ ...game('p0', 'e9', 'Buffalo Sabres', 'Chicago Blackhawks') }, pick] });
+    const out = await post({});
+    assert.equal(out.picks, 2);
+    assert.equal(calls.odds, 2, 'still one request per game');
+    assert.deepEqual(calls.pickPatches.map(([id, body]) => [id, body.clv_status]), [['p0', 'captured'], ['p1', 'no_market']]);
+    assert.equal(calls.patches.length, 2, 'tracked bets are written to their own table');
+  }
+  // A missing or unreadable picks table never costs tracked bets their close.
+  {
+    const { calls, post } = harness({ remaining: 15000, picks: null });
+    const out = await post({});
+    assert.equal(out.results.captured, 2);
+    assert.match(out.errors[0], /Published picks unavailable/);
+    assert.equal(calls.pickPatches.length, 0);
   }
   // At 2,000 left the next 1-credit request would cross the floor, so it is refused.
   {

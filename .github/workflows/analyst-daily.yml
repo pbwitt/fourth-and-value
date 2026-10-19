@@ -124,6 +124,16 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.UPABASE_SERVICE_ROLE_KEY }}
         run: python scripts/morning_email.py --edition "$EXPECTED_EDITION"
+      # The closing-lines function prices each registered pick in the minutes before its
+      # game, sharing snapshots with tracked bets, for the weekly closing-line report card.
+      - name: Register the morning picks for closing prices
+        if: steps.research.outputs.edition_id != '' && !inputs.test_edition
+        continue-on-error: true
+        env:
+          EXPECTED_EDITION: ${{ steps.research.outputs.edition_id }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.UPABASE_SERVICE_ROLE_KEY }}
+        run: python scripts/pick_closes.py --kind morning --edition "$EXPECTED_EDITION"
       - name: Fail incomplete or unverified research runs
         if: always() && !cancelled()
         env:

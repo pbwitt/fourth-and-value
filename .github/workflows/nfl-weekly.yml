@@ -125,6 +125,9 @@ jobs:
         env:
           NFL_SEASON: ${{ steps.week.outputs.season }}
           NFL_WEEK: ${{ steps.week.outputs.week }}
+          # Read-only use: the weekly closing-line value report card (scripts/clv_report.py).
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.UPABASE_SERVICE_ROLE_KEY }}
         run: |
           completed=$((NFL_WEEK - 1))
           python scripts/nfl_weekly_review.py review \
