@@ -24,9 +24,24 @@ and review prompts share the presentation rule in `scripts/display_time.py`.
 3. Directions must match real current offers by exact game, player, market and
    side; the actual offer supplies its line, book, price and timestamp. Models
    can supply contrary evidence at the subsequent review stage.
+   `docs/briefing/discovery.json` keeps every matched offer, at every line and book.
 4. `docs/assets/briefing-picks.js` owns the quantitative screen in the browser and
    Node adapter. Union both discovery routes. Prefer the best book for an
    identical outcome, line and settlement. No four-candidate or one-game quota.
+   Since October 19, 2026 (`researchLeads`), a discovery lead is one bet: its
+   market's main line, the line the most books post (the larger of the books
+   among matched offers and the feed's own count: NFL `book_count`, MLB/NHL
+   `other_books` + 1; ties go to the price nearest even), and at least two books
+   must post it, the blend's two-book rule. Lone alternate lines are dropped, as
+   are `settlement_verified: false` quotes when a verified book posts that line.
+   Leads on both sides of one game/player/market cancel and neither enters the
+   pool or review queue (two outlets' opposite spread picks, for example). Coverage
+   reports "research market withheld (leads on both sides)" and "research lead
+   withheld (no line two books post)". Before this, every matching line and both
+   sides entered, and discovery's review priority let alternate rungs crowd out
+   model candidates (October 13: 21 of 67 NHL discovery rows reviewed, 0 of 86
+   model; October 18: 20 of 20 NFL discovery rows, 4 of 15 model). A research
+   lead opposing a model candidate is a real disagreement and both stay.
 5. Source collection, targeted retrieval and review batches rotate across sports.
    Independent discovery ideas are researched early so a large model pool cannot
    consume the allowance before those ideas are assessed. Within each priority

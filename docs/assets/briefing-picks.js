@@ -199,6 +199,31 @@
     return {eligible:!reasons.length,tier:finite(raw)?1:2,reasons,raw_probability:finite(raw)?raw:null};
   }
   const outcomeKey=r=>JSON.stringify([r.sport,String(r.game_id),r.player||'',r.market_std||r.market,String(r.side).toLowerCase(),r.line,r.settlement_profile||'']);
+  // Discovery joins a lead to every quote with its game, market, player and side,
+  // whatever the line. A lead is one bet: its market's main line, the line the most
+  // books post (ties: price nearest even), and only where at least two books post it,
+  // the blend's two-book rule. Lone alternate lines are dropped, and so are quotes with
+  // unverified settlement rules when a verified book posts that line. Leads on both
+  // sides of one market cancel: neither enters the pool or the review queue.
+  const leadKey=r=>JSON.stringify([r.sport,String(r.game_id),r.player||'',r.market_std||r.market]);
+  function researchLeads(rows) {
+    const books={},sides={},main={};let opposed=0,unposted=0;
+    const lineKey=r=>JSON.stringify([leadKey(r),r.line]);
+    for(const r of rows){(books[lineKey(r)]??=new Set()).add(r.book);(sides[leadKey(r)]??=new Set()).add(String(r.side).toLowerCase());}
+    // NFL's book_count includes the offered book; MLB/NHL count only the other books.
+    const posted=r=>{const c=comparison(r).books;return Math.max(books[lineKey(r)].size,finite(c)?c+(r.sport==='NFL'?0:1):0);};
+    const even=r=>Math.abs(1/decimal(r.price)-.5);
+    for(const r of rows) {
+      const k=leadKey(r),n=posted(r);
+      if(sides[k].size>1||n<BLEND.minBooks)continue;
+      const m=main[k];
+      if(!m||n>m.n||n===m.n&&(even(r)<m.even||even(r)===m.even&&r.line<m.line))main[k]={n,even:even(r),line:r.line};
+    }
+    for(const k of Object.keys(sides))if(sides[k].size>1)opposed++;else if(!main[k])unposted++;
+    const atMain=rows.filter(r=>main[leadKey(r)]?.line===r.line);
+    const verified=new Set(atMain.filter(r=>r.settlement_verified===true).map(leadKey));
+    return {kept:atMain.filter(r=>r.settlement_verified!==false||!verified.has(leadKey(r))),opposed,unposted};
+  }
   const SHORTLIST_LIMIT=10;
   // Variety without forcing picks: each sport's best eligible bet is taken first,
   // then the rest in order, at most 4 per sport and 2 per sport and market.
@@ -316,6 +341,8 @@
         candidates.push(...records(discovered.candidates).filter(r=>r.sport===sport&&today(r,now)&&recent(r.quoted_at,now,expiry)));
       }
       candidates=candidates.filter(r=>priced(r)&&r.game_id&&(r.line===null||finite(r.line))).map(r=>({...r,sport}));
+      const leads=researchLeads(candidates.filter(r=>r.discovery_origin==='independent_research'));
+      candidates=[...candidates.filter(r=>r.discovery_origin!=='independent_research'),...leads.kept];
       const discoveryByOutcome=new Map(candidates.filter(r=>r.discovery_origin==='independent_research').map(r=>[outcomeKey(r),r.discovery]));
       for(const r of candidates)if(!r.discovery_origin&&discoveryByOutcome.has(outcomeKey(r))){r.discovery_origin='model_and_independent_research';r.discovery=discoveryByOutcome.get(outcomeKey(r));}
       const healthy=[],belowBlend=[];
@@ -373,7 +400,9 @@
         message:(!available?'Current model list unavailable or expired. ':'')+(count?`${count} review candidate${count===1?'':'s'}`:'No qualifying offers currently available')+
           (moderate?` (${high} high, ${moderate} moderate confidence)`:'')+
           (short?` · ${short} below the ${barPct(BLEND.minEV)} market-blend floor`:'')+
-          (held?` · ${held} withheld (thin market, model below market, 50% calibration or unreliable forecast)`:'')+(sport==='NHL'?' · unposted markets can enter on the next refresh':'')});
+          (held?` · ${held} withheld (thin market, model below market, 50% calibration or unreliable forecast)`:'')+
+          (leads.opposed?` · ${leads.opposed} research market${leads.opposed===1?'':'s'} withheld (leads on both sides)`:'')+
+          (leads.unposted?` · ${leads.unposted} research lead${leads.unposted===1?'':'s'} withheld (no line two books post)`:'')+(sport==='NHL'?' · unposted markets can enter on the next refresh':'')});
     }
     // A reviewed MLB/NHL opportunity must not disappear below the initial
     // twenty unreviewed NFL rows. Compare assessment status across sports;

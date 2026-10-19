@@ -181,6 +181,21 @@ let candidate=collect(f,now).selected.find(r=>r.game_id==='research-game');asser
 assert.equal(ticketData(candidate,110,10).model_prob,null);assert.match(rowHTML(candidate),/Not established/);
 assert.match(rowHTML(candidate),/Origin: independent research/);
 f.Discovery.candidates[0].quoted_at=iso(now-91*60e3);assert(!collect(f,now).selected.some(r=>r.game_id==='research-game'));
+// A lead is one bet at its market's main line, never every alternate or both sides.
+const lead=(side,line,price,book,extra={})=>({...research,quoted_at:iso(now-60e3),market:'totals',market_label:'Game total',player:'',side,line,price,book,other_books:undefined,...extra});
+const discover=c=>({schema_version:1,decision_date:day(now),generated_at:iso(now),candidates:c});
+f=fixture();f.Discovery=discover([lead('Under',8.5,-105,'a'),lead('Under',8.5,-110,'b'),lead('Under',8.5,-108,'c'),lead('Under',9,-125,'b'),lead('Under',9,-120,'d'),
+ lead('Under',7.5,140,'e'),{...research,quoted_at:iso(now-60e3),game_id:'alt-only',line:4.5,price:180,other_books:0}]);
+out=collect(f,now);let leads=out.selected.filter(r=>r.discovery_origin==='independent_research');
+assert.deepEqual(leads.map(r=>[r.line,r.book]),[[8.5,'a']],'main line at its best price; lone alternates dropped');
+assert.match(out.coverage.find(c=>c.sport==='MLB').message,/1 research lead withheld \(no line two books post\)/);
+f.Discovery.candidates.push(lead('Over',8.5,-110,'a'));out=collect(f,now);
+assert(!out.selected.some(r=>r.game_id==='research-game'),'leads on both sides of one market cancel');
+assert.match(out.coverage.find(c=>c.sport==='MLB').message,/1 research market withheld \(leads on both sides\)/);
+assert.equal(f.Discovery.candidates.length,8,'discovery records remain intact');
+f=fixture();f.Discovery=discover([lead('Home',null,-120,'a',{market:'h2h',settlement_verified:true,settlement_profile:'full_game',other_books:2}),
+ lead('Home',null,-110,'b',{market:'h2h',settlement_verified:false,settlement_profile:'unverified:b:h2h',other_books:0})]);
+assert.deepEqual(collect(f,now).selected.filter(r=>r.discovery_origin).map(r=>r.book),['a'],'verified settlement preferred at the main line');
 // Integer quote identity is numeric even when Python serializes a 5.0 threshold.
 f=fixture();nf=f.NFL.rows[0];nf.point=5;nf.push_prob=.1;
 const intkey=JSON.stringify([nf.game_id,nf.player,nf.market_std]);
