@@ -46,3 +46,12 @@ jobs:
     if: needs.gate.outputs.mlb == 'true'
     uses: ./.github/workflows/mlb-daily.yml
     secrets: inherit
+  # After both refreshes: new picks from the 4:30 p.m. prices and a price check of the
+  # morning picks. It runs even when a sport's refresh was skipped as already done.
+  edition:
+    needs: [gate, nhl, mlb]
+    if: always() && !cancelled() && needs.gate.result == 'success'
+    uses: ./.github/workflows/afternoon-edition.yml
+    with:
+      refresh_results: '{"NHL":"${{ needs.nhl.result }}","MLB":"${{ needs.mlb.result }}"}'
+    secrets: inherit

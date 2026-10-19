@@ -538,7 +538,8 @@ can leave Researching/started; inspect the ledger before manually recovering it.
    `EDITORIAL_NOTIFY_FROM` (a sender address on a verified Resend domain).
    `EDITORIAL_NOTIFY_EMAIL` is already configured privately for the owner.
    The same settings turn on the owner's morning card email (ANALYST_RESEARCH.md,
-   Owner morning email). Never commit the API key. Delivery uses https://api.resend.com/emails; see
+   Owner morning email) and the afternoon picks email (ANALYST_RESEARCH.md, Afternoon
+   edition), which share one subscription. Never commit the API key. Delivery uses https://api.resend.com/emails; see
    https://resend.com/docs/api-reference/emails/send-email.
    https://resend.com/docs/dashboard/emails/idempotency-keys documents the
    provider's 24-hour deduplication window. Persistent notification timestamps

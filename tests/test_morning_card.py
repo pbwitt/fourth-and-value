@@ -243,4 +243,81 @@ class MorningCardTests(unittest.TestCase):
         self.assertIn('steps.research.outcome',research)
         self.assertIn('--verify-live "$EXPECTED_EDITION"',research)
 
+class AfternoonEditionTests(unittest.TestCase):
+    AFTER=datetime(2026,9,27,20,45,tzinfo=timezone.utc)   # 4:45 p.m. Eastern
+
+    def afternoon(self,morning=None):
+        return {'morning_edition':morning,'reviewed':[]}
+
+    def test_afternoon_edition_is_separate_and_ignores_sports_without_an_afternoon_refresh(self):
+        with TemporaryDirectory() as td:
+            root=Path(td)
+            morning=card.publish_card(empty_feeds(),empty_reviews(),NOW,root=root)
+            feeds=empty_feeds(self.AFTER);feeds['NFL']=None   # NFL's morning prices have expired
+            later=card.publish_card(feeds,empty_reviews(),self.AFTER,root=root,kind='afternoon',
+                refresh_results={'NHL':'success','MLB':'skipped'},afternoon=self.afternoon(morning))
+            self.assertEqual((later['kind'],later['policy_version'],later['status']),('afternoon','afternoon-edition-1','no_reviewed_candidates'))
+            self.assertEqual((later['morning_edition_id'],later['price_check'],later['discovery_status']),(morning['edition_id'],[],'not_run'))
+            self.assertTrue(card.existing_today(root,self.AFTER,kind='afternoon'))
+            self.assertTrue((root/'docs'/later['archive_url'].lstrip('/')).exists())
+            # The morning edition is never rewritten, and still counts as today's.
+            self.assertEqual(json.loads((root/'docs/briefing/morning-card.json').read_text())['edition_id'],morning['edition_id'])
+            self.assertTrue(card.existing_today(root,self.AFTER))
+            self.assertFalse(card.existing_today(root,self.AFTER+timedelta(days=1),kind='afternoon'))
+
+    def test_an_afternoon_without_allowance_is_a_quiet_no_pick_edition(self):
+        with TemporaryDirectory() as td:
+            reviews=empty_reviews();reviews['sports']['MLB'].update(review_status='budget_exhausted',candidate_count=4,reviewed_count=0)
+            later=card.publish_card(empty_feeds(self.AFTER),reviews,self.AFTER,root=Path(td),kind='afternoon',afternoon=self.afternoon())
+            self.assertEqual(later['status'],'no_reviewed_candidates')
+            self.assertIn('MLB: no daily research allowance left',later['research']['notes'][0])
+            # A failed review is still a failure in the afternoon.
+            reviews['sports']['MLB']['review_status']='review_unavailable'
+            failed=card.publish_card(empty_feeds(self.AFTER),reviews,self.AFTER+timedelta(minutes=1),root=Path(td),kind='afternoon',afternoon=self.afternoon())
+            self.assertEqual(failed['status'],'research_incomplete')
+
+    def test_afternoon_input_is_todays_morning_edition_and_review_verdicts(self):
+        with TemporaryDirectory() as td:
+            root=Path(td)
+            morning=card.publish_card(empty_feeds(),empty_reviews(),NOW,root=root)
+            q=lambda v:{'assessment':{'verdict':v}}
+            write_json(root/'docs/briefing/reviews.json',{'sports':{
+                'NHL':{'decision_date':'2026-09-27','candidates':[dict(sport='NHL',game_id='g',player='P',market='player_points',side='Over',qualitative_review=q('wait')),
+                                                               dict(sport='NHL',game_id='g',player='Q',market='player_points',side='Under')]},
+                'MLB':{'decision_date':'2026-09-26','candidates':[dict(sport='MLB',game_id='m',player='R',market='batter_hits',side='Over',qualitative_review=q('pass'))]}}})
+            value=review.afternoon_input(self.AFTER,root)
+            self.assertEqual(value['morning_edition']['edition_id'],morning['edition_id'])
+            self.assertEqual([(r['player'],r['verdict']) for r in value['reviewed']],[('P','wait')])
+            self.assertIsNone(review.afternoon_input(self.AFTER+timedelta(days=1),root)['morning_edition'])
+
+    def test_afternoon_runs_no_discovery_search(self):
+        from test_analyst_review import CONFIG
+        config=deepcopy(CONFIG);config['sessions']={'afternoon':[0,24]}
+        with TemporaryDirectory() as td,patch.object(review.research_discovery,'run') as discover:
+            result=review.prepare(empty_feeds(),NOW,config,run_review=True,archive=Path(td)/'archive',public=Path(td)/'reviews.json',
+                clock=lambda:NOW,afternoon=self.afternoon())
+            discover.assert_not_called()
+            self.assertEqual({b['session'] for b in result['sports'].values()},{'afternoon'})
+
+    def test_afternoon_run_skips_late_starts_and_repeats_and_makes_no_targeted_searches(self):
+        with TemporaryDirectory() as td:
+            root=Path(td);cfg=root/'config.json'
+            cfg.write_text(json.dumps({'sessions':{'morning':[7,12],'afternoon':[16,19]},'verification_candidates':6}))
+            published={'edition_id':'afternoon-e','status':'no_reviewed_candidates'}
+            with patch.object(review,'ROOT',root),patch.object(review,'CONFIG',cfg),patch.object(review,'load_feeds',return_value={}),\
+                 patch.object(review,'prepare',return_value={'sports':{}}) as paid,patch.object(card,'publish_card',return_value=published) as publish,\
+                 patch.object(review,'datetime') as clock:
+                clock.now.return_value=self.AFTER+timedelta(hours=3)   # 7:45 p.m.: too late, and not a failure
+                with patch('sys.argv',['review','--astra','--afternoon-edition']):self.assertEqual(review.main(),0)
+                paid.assert_not_called()
+                clock.now.return_value=self.AFTER
+                with patch('sys.argv',['review','--astra','--afternoon-edition']):self.assertEqual(review.main(),0)
+                self.assertEqual(paid.call_args.kwargs['afternoon'],self.afternoon())
+                self.assertEqual(paid.call_args.args[2]['verification_candidates'],0)
+                self.assertEqual(publish.call_args.kwargs['kind'],'afternoon')
+                # A morning card cannot be published in the afternoon window.
+                with patch('sys.argv',['review','--astra','--publish-card']):self.assertEqual(review.main(),1)
+                self.assertEqual(paid.call_count,1)
+
+
 if __name__=='__main__':unittest.main()

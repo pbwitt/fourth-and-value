@@ -7,12 +7,17 @@ from nhl.v2.data import ROOT, iso, digest, stamp, write_json
 from nhl.analyst import immutable
 
 ET=ZoneInfo('America/New_York')
+# Afternoon editions add new picks from the 4:30 p.m. NHL/MLB prices and record each
+# morning pick's price check; they never rewrite the morning edition.
+AFTERNOON_POLICY='afternoon-edition-1'
+AFTERNOON_SPORTS=('MLB','NHL')
+FILES={'morning':'morning-card.json','test':'morning-card.json','afternoon':'afternoon-card.json'}
 
-def existing_today(root,now,*,include_test=False):
+def existing_today(root,now,*,include_test=False,kind='morning'):
     """Only a morning edition completes a normal run; tests may reuse either kind."""
     try:
-        card=json.loads((root/'docs/briefing/morning-card.json').read_text())
-        kinds=('morning','test') if include_test else ('morning',)
+        card=json.loads((root/'docs/briefing'/FILES[kind]).read_text())
+        kinds=('afternoon',) if kind=='afternoon' else ('morning','test') if include_test else ('morning',)
         return (card.get('schema_version') == 1 and card.get('kind') in kinds
             and card.get('status') in ('published', 'no_reviewed_candidates')
             and isinstance(card.get('edition_id'), str) and bool(card['edition_id'])
@@ -24,13 +29,16 @@ def existing_today(root,now,*,include_test=False):
         return False
 
 
-def research_health(feeds, reviews, selected, now, refresh_results):
+def research_health(feeds, reviews, selected, now, refresh_results, kind='morning'):
     """Distinguish bounded coverage and a legitimate no-pick day from failures."""
-    sports, issues = {}, []
+    sports, issues, notes = {}, [], []
     failed_batches = {'review_unavailable', 'api_key_unavailable', 'expired_during_research',
         'outside_review_window', 'disabled', 'budget_halted'}
     for coverage in selected['coverage']:
         sport = coverage['sport']; board = reviews.get('sports', {}).get(sport, {})
+        # Only NHL and MLB refresh in the afternoon; other sports' morning prices have expired.
+        if kind == 'afternoon' and sport not in AFTERNOON_SPORTS:
+            continue
         feed = feeds.get(sport) or {}
         count = board.get('candidate_count', len(board.get('candidates', [])))
         done = board.get('reviewed_count', sum(bool(r.get('qualitative_review')) for r in board.get('candidates', [])))
@@ -50,11 +58,16 @@ def research_health(feeds, reviews, selected, now, refresh_results):
                 and not feed.get('model_error') and 0 <= (now-checked).total_seconds() <= 5400)
         except (ValueError, TypeError, AttributeError):
             empty_market = False
-        if refresh_results.get(sport) in ('failure', 'cancelled', 'skipped'):
+        # An afternoon refresh skipped as already done this afternoon is not a failure.
+        if refresh_results.get(sport) in (('failure', 'cancelled') if kind == 'afternoon' else ('failure', 'cancelled', 'skipped')):
             issues.append(sport+': refresh failed or did not finish')
         elif not coverage['available'] and not empty_market:
             issues.append(sport+': current feed unavailable or expired')
-        if count and not done:
+        # The afternoon reviews only with what the morning left of the daily allowance, so an
+        # afternoon without any left publishes no new picks; that is not failed research.
+        if count and not done and kind == 'afternoon' and state in ('budget_exhausted', 'review_limit_reached'):
+            notes.append(sport+': no daily research allowance left this afternoon; candidates were not reviewed')
+        elif count and not done:
             reason={'api_key_unavailable':'analysis unavailable', 'review_unavailable':'analysis unavailable',
                 'expired_during_research':'inputs expired during research',
                 'budget_exhausted':'daily research allowance reached',
@@ -64,33 +77,40 @@ def research_health(feeds, reviews, selected, now, refresh_results):
             issues.append(sport+': some assessments failed')
     discovery=reviews.get('discovery_coverage') or {}
     discovery_without_completion=(discovery.get('slate_games',0) or 0)>0 and not discovery.get('submitted_games') and reviews.get('discovery_status')!='completed'
-    if reviews.get('discovery_status') in ('api_key_unavailable', 'discovery_unavailable', 'budget_halted') or (discovery_without_completion and not any(s['reviewed_count'] for s in sports.values())):
+    # The afternoon edition runs no discovery of its own.
+    if kind != 'afternoon' and (reviews.get('discovery_status') in ('api_key_unavailable', 'discovery_unavailable', 'budget_halted') or (discovery_without_completion and not any(s['reviewed_count'] for s in sports.values()))):
         issues.append('Independent discovery did not complete')
-    return dict(completed=not issues, issues=issues, sports=sports,
+    return dict(completed=not issues, issues=issues, notes=notes, sports=sports,
         candidate_count=sum(s['candidate_count'] for s in sports.values()),
         reviewed_count=sum(s['reviewed_count'] for s in sports.values()))
 
 
-def publish_card(feeds,reviews,now,*,root=ROOT,kind='morning',refresh_results=None):
-    if kind not in ('morning','test'):raise ValueError('Unknown edition kind')
+def publish_card(feeds,reviews,now,*,root=ROOT,kind='morning',refresh_results=None,afternoon=None):
+    if kind not in FILES:raise ValueError('Unknown edition kind')
     merged=deepcopy(feeds);merged['Reviews']=reviews
     result=subprocess.run(['node',str(ROOT/'scripts/analyst_shortlist.cjs')],
-        input=json.dumps({'feeds':merged,'asof':iso(now)},allow_nan=False),
+        input=json.dumps({'feeds':merged,'asof':iso(now),'afternoon':afternoon},allow_nan=False),
         text=True,capture_output=True,check=True,timeout=30,cwd=ROOT)
     selected=json.loads(result.stdout)
     rows=selected['card']
-    health=research_health(feeds,reviews,selected,now,refresh_results or {})
+    health=research_health(feeds,reviews,selected,now,refresh_results or {},kind)
     card=dict(schema_version=1,kind=kind,decision_date=now.astimezone(ET).date().isoformat(),
-        published_at=iso(now),policy_version='morning-edition-5',rows=rows,
+        published_at=iso(now),policy_version=AFTERNOON_POLICY if kind=='afternoon' else 'morning-edition-5',rows=rows,
         coverage=selected['coverage'],budget=reviews.get('budget'),
         discovery_status=reviews.get('discovery_status'),
         discovery_coverage=reviews.get('discovery_coverage'),
         research=health,
         status=('published' if rows else 'no_reviewed_candidates') if health['completed'] else 'research_incomplete',
         basis='Original reviewed forecasts and quotes at publication; no automatic intraday reassessment.')
+    if kind=='afternoon':
+        morning=(afternoon or {}).get('morning_edition') or {}
+        card.update(morning_edition_id=morning.get('edition_id'),price_check=selected.get('price_check',[]),
+            discovery_status='not_run',discovery_coverage=None,
+            basis='New picks from the 4:30 p.m. prices, reviewed without a new discovery search, and each morning pick '
+                  'checked at those prices. Markets on the morning card are left out; the morning edition is unchanged.')
     card['edition_id']=digest(card)[:24]
     relative='docs/briefing/cards/'+card['decision_date']+'-'+card['edition_id']+'.json'
     card['archive_url']='/'+relative.removeprefix('docs/')
     immutable(root/relative,card)
-    write_json(root/'docs/briefing/morning-card.json',card)
+    write_json(root/'docs/briefing'/FILES[kind],card)
     return card

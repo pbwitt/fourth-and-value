@@ -240,6 +240,15 @@ class SportWeeklyReviewTests(unittest.TestCase):
             (cards / 'empty.json').write_text(json.dumps(dict(base, edition_id='empty', rows=[],
                                                       published_at='2026-09-30T19:30:00Z')))
             self.assertEqual(review.published_picks('mlb', date(2026, 9, 28), date(2026, 10, 4), root)['rows'], [])
+            # The afternoon edition is counted beside the morning one, never replacing it.
+            (cards / 'afternoon.json').write_text(json.dumps(dict(base, edition_id='pm', kind='afternoon',
+                policy_version='afternoon-edition-1', published_at='2026-09-30T17:30:00Z',
+                rows=[card_row(price=120, quoted_at='2026-09-30T17:20:00Z',
+                               qualitative_review=dict(card_row()['qualitative_review'], reviewed_at='2026-09-30T17:25:00Z'))])))
+            result = review.published_picks('mlb', date(2026, 9, 28), date(2026, 10, 4), root)
+            self.assertEqual([(r['edition_kind'], r['policy_version'], r['price']) for r in result['rows']],
+                             [('afternoon', 'afternoon-edition-1', 120)])
+            self.assertEqual(sorted(e['kind'] for e in result['editions']), ['afternoon', 'morning'])
 
     def test_nhl_card_only_review_loads_season_and_reports_separate_coverage(self):
         with TemporaryDirectory() as td:
@@ -256,7 +265,7 @@ class SportWeeklyReviewTests(unittest.TestCase):
             self.assertEqual((result['games_with_quotes'], result['published_pick_games']), (0, 1))
             self.assertEqual(set(result['policies']), {'old-policy', 'new-policy'})
             article = (root / 'docs/blog/nhl-recap-2026-10-04.html').read_text()
-            self.assertIn('Separately, 2 published morning picks cover 1 games', article)
+            self.assertIn('Separately, 2 published picks cover 1 games', article)
             self.assertNotIn('evidence begins None', article)
             public = json.loads((root / 'docs/blog/nhl-recap-2026-10-04.json').read_text())
             self.assertEqual(len(public['tickets']), 2)

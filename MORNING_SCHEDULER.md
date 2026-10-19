@@ -183,6 +183,11 @@ so this is scheduled-event delivery, not a runner queue.
    (`scripts/afternoon_gate.py`) skips a sport whose feed already published after
    16:00 Eastern that day and starts nothing after midnight, so a late backup does
    not spend a second round of odds credits. A manual (operator) start always runs.
+4. When both sport jobs finish (or are skipped as already done), the same run starts
+   `afternoon-edition.yml`: the morning picks' price check and the afternoon picks
+   (ANALYST_RESEARCH.md, "Afternoon edition"). No new timer is needed. It publishes
+   only between 16:00 and 19:00 Eastern; a later backup start publishes nothing and
+   is not a failure. A manual start of `Afternoon Picks Edition` reruns only that step.
 
 Install after `afternoon-refresh.yml` is on main: open SQL Editor as `postgres` and
 run [supabase/afternoon_scheduler.sql](supabase/afternoon_scheduler.sql). It requires
