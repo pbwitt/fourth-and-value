@@ -2,8 +2,12 @@ name: NBA Daily Update
 
 on:
   schedule:
-    # 11 AM and 5 PM Eastern during daylight time; hourly DST shift in winter.
-    - cron: '0 15,21 * * *'
+    # Backup only. Supabase starts this at 6:45 AM and 5 PM Eastern (supabase/nba_scheduler.sql);
+    # GitHub's own schedule can run hours late, so the gate skips a slot that already published.
+    - cron: '0 7 * * *'
+      timezone: America/New_York
+    - cron: '15 17 * * *'
+      timezone: America/New_York
   workflow_dispatch:
     inputs:
       refresh_history:
@@ -16,7 +20,23 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      refresh: ${{ steps.gate.outputs.refresh }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - id: gate
+        name: Skip a backup start whose slot already published
+        run: python scripts/nba/schedule_gate.py --event "${{ github.event_name }}"
   update-nba:
+    needs: gate
+    if: needs.gate.outputs.refresh == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

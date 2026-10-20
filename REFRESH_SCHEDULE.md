@@ -1,6 +1,7 @@
 # Scheduled site refreshes
 
 - **MLB:** daily at 15:15 and 21:15 UTC (11:15 AM and 5:15 PM Eastern daylight time; 10:15 AM and 4:15 PM Eastern standard time). Existing `mlb-daily.yml` updates completed-game history, trains/calibrates models as needed, refreshes odds and published orders, validates, archives inputs, and publishes.
+- **NBA:** daily at 6:45 AM and 5 PM Eastern, started by a Supabase timer (`supabase/nba_scheduler.sql`; see MORNING_SCHEDULER.md). GitHub's own 7:00 AM and 5:15 PM Eastern schedule in `nba-daily.yml` is a backup that skips a slot already published.
 - **NFL:** Wednesdays at 14:00 UTC (10 AM Eastern daylight time / 9 AM Eastern standard time). `nfl-weekly.yml` selects the next scheduled regular-season week rather than computing it from a hard-coded season date. Runs outside the upcoming season window skip market requests and publishing.
 - Both workflows can be dispatched manually. GitHub schedules may run later than the exact configured time.
 - Paid game insights are off by default. Scheduled runs receive no OpenAI key. Only an explicit manual `generate_insights=true` approval enables that step; `make` also defaults to `SKIP_AI_INSIGHTS=1`.
