@@ -77,14 +77,19 @@ and review prompts share the presentation rule in `scripts/display_time.py`.
    current consider assessments no older than three hours, or explicit analyst
    selections, qualify. Explicit analyst selections take priority. Wait/pass/unreviewed and changed-price reviews never fill
    empty slots. Consolidate alternate thresholds for the same subject/market, never
-   both sides (`ideaKey` has no side), and equivalent MLB 0.5-hit/0.5-total-base
-   outcomes, preserving original forecasts.
+   both sides (`ideaKey` has no side), and take at most one prop per player in a
+   game (which also covers equivalent outcomes such as a 0.5 hit and a 0.5 total
+   base, or an NHL point and assist), preserving original forecasts.
    The research pool remains separate in a collapsed section, initially showing
    20 additional offers with a Show all control. It retains one eligible offer per
    market, including additional consider decisions beyond the card limit, for audit,
    and never the opposite side of a card pick.
-   There is no per-game or per-sport quota. Shared game exposure is labeled on
-   the card; the limit is a reader workflow choice, not a validated betting policy.
+   From policy `morning-edition-6` (after the October 20, 2026 morning edition) the
+   card holds at most two bets per game; that edition carried four overs on two Tampa Bay–Vegas
+   defensemen (points and assists for each), which were two correlated positions,
+   not four ideas. There is no per-game or per-sport quota (no minimum). Remaining
+   shared game exposure is labeled on the card; the limits are a reader workflow
+   choice, not a validated betting policy.
 
 Existing sport routes and JSON contracts remain supported. Additive feeds are
 `/briefing/discovery.json` and `/nfl/data/quotes.json`; `/briefing/reviews.json`
@@ -191,10 +196,12 @@ the card with one sport. It is an operational ordering heuristic, not a stake
 recommendation, confidence score or validated cross-sport performance claim.
 Missing independent forecasts receive no numerical score and rank after eligible
 models, unless explicitly selected by an analyst. Each sport's best eligible bet is
-taken first, then the rest in order, with at most four per sport and two per sport
-and market; a sport appears only when one of its bets qualifies. Later review batches
+taken first, then the rest in order, with at most four per sport, two per sport
+and market, two per game and one per player in a game (policy `morning-edition-6`;
+earlier editions had no game or player cap); a sport appears only when one of its
+bets qualifies. Later review batches
 prioritize previously reviewed offers needing new context/price assessment.
-Multiple bets in the same game remain possible and are not assumed independent.
+Two bets in the same game remain possible and are not assumed independent.
 The fixed model/market blend above is the only weighting; no qualitative weight is added.
 
 All displayed comparison probabilities condition on no push. NFL already emits
@@ -418,7 +425,8 @@ once per Eastern date unless `--replace-card`. It then:
   `score`. Reservations use `run_cap` after noon, the whole daily limit minus what is
   already charged, so the afternoon spends only what the morning left.
 - Publishes `docs/briefing/afternoon-card.json` and its dated archive with
-  `morning_card.publish_card(kind='afternoon')`: policy `afternoon-edition-1`,
+  `morning_card.publish_card(kind='afternoon')`: policy `afternoon-edition-2`
+  (`afternoon-edition-1`, from October 19, had no game or player cap),
   `morning_edition_id`, `price_check` and the shortlisted `rows` (same caps and
   three-hour review rule). `research_health` checks only NHL and MLB, accepts a refresh
   skipped as already done, and records `budget_exhausted`/`review_limit_reached` as a

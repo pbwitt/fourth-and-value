@@ -9,7 +9,7 @@ from nhl.analyst import immutable
 ET=ZoneInfo('America/New_York')
 # Afternoon editions add new picks from the 4:30 p.m. NHL/MLB prices and record each
 # morning pick's price check; they never rewrite the morning edition.
-AFTERNOON_POLICY='afternoon-edition-1'
+AFTERNOON_POLICY='afternoon-edition-2'
 AFTERNOON_SPORTS=('MLB','NHL')
 FILES={'morning':'morning-card.json','test':'morning-card.json','afternoon':'afternoon-card.json'}
 
@@ -95,7 +95,7 @@ def publish_card(feeds,reviews,now,*,root=ROOT,kind='morning',refresh_results=No
     rows=selected['card']
     health=research_health(feeds,reviews,selected,now,refresh_results or {},kind)
     card=dict(schema_version=1,kind=kind,decision_date=now.astimezone(ET).date().isoformat(),
-        published_at=iso(now),policy_version=AFTERNOON_POLICY if kind=='afternoon' else 'morning-edition-5',rows=rows,
+        published_at=iso(now),policy_version=AFTERNOON_POLICY if kind=='afternoon' else 'morning-edition-6',rows=rows,
         coverage=selected['coverage'],budget=reviews.get('budget'),
         discovery_status=reviews.get('discovery_status'),
         discovery_coverage=reviews.get('discovery_coverage'),

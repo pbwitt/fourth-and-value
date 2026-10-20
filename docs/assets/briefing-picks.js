@@ -226,8 +226,9 @@
   }
   const SHORTLIST_LIMIT=10;
   // Variety without forcing picks: each sport's best eligible bet is taken first,
-  // then the rest in order, at most 4 per sport and 2 per sport and market.
-  const CARD_CAPS={sport:4,market:2};
+  // then the rest in order, at most 4 per sport, 2 per sport and market, 2 per game
+  // and 1 per player in a game.
+  const CARD_CAPS={sport:4,market:2,game:2};
   function cardValue(r) {
     if(r.model_withheld||r.discovery_origin==='independent_research')return null;
     // NHL already supplies worst-scenario log growth at this fixed fraction.
@@ -255,7 +256,7 @@
     return JSON.stringify([r.sport,String(r.game_id),r.player||'',r.market_std||r.market,r.settlement_profile||'']);
   }
   function shortlist(selected,now=Date.now()) {
-    const seen=new Set(),taken=new Set(),perSport={},perMarket={};
+    const seen=new Set(),taken=new Set(),perSport={},perMarket={},perGame={};
     const ordered=[...selected].sort((a,b)=>Number(b.human_decision==='select')-Number(a.human_decision==='select')||
       cardTier(a)-cardTier(b)||confidenceRank(a)-confidenceRank(b)||(cardValue(b)??-Infinity)-(cardValue(a)??-Infinity)||
       stamp(a.commence_time)-stamp(b.commence_time)||outcomeKey(a).localeCompare(outcomeKey(b)));
@@ -263,18 +264,20 @@
       const a=hasReview(r)&&r.review_matches_current!==false&&recent(r.qualitative_review.reviewed_at,now,3*HOUR)?assessment(r.qualitative_review):null;
       return r.human_decision!=='pass'&&(r.human_decision==='select'||a?.verdict==='consider'&&!a.blocking_checks.length);
     });
-    const marketOf=r=>r.sport+'|'+(r.market_std||r.market);
+    const marketOf=r=>r.sport+'|'+(r.market_std||r.market),gameOf=r=>r.sport+'|'+r.game_id;
     function take(r) {
       if(taken.size>=SHORTLIST_LIMIT||taken.has(r))return false;
-      if((perSport[r.sport]||0)>=CARD_CAPS.sport||(perMarket[marketOf(r)]||0)>=CARD_CAPS.market)return false;
+      if((perSport[r.sport]||0)>=CARD_CAPS.sport||(perMarket[marketOf(r)]||0)>=CARD_CAPS.market||
+        (perGame[gameOf(r)]||0)>=CARD_CAPS.game)return false;
       const ideas=[ideaKey(r)];
-      // One hit and one total base are the same binary event at 0.5.
-      // Display consolidation never overwrites either original forecast.
-      if(r.sport==='MLB'&&r.line===.5&&['batter_hits','batter_total_bases'].includes(r.market))
-        ideas.push(ideaKey({...r,market:'batter_any_hit',market_std:'batter_any_hit'}));
+      // One player's props in one game share the same minutes and role, and some are
+      // the same event (an assist is a point; one hit is one total base at 0.5), so the
+      // card takes the best one. Display consolidation never overwrites a forecast.
+      if(r.player)ideas.push(JSON.stringify([r.sport,String(r.game_id),r.player]));
       if(ideas.some(v=>seen.has(v)))return false;
       ideas.forEach(v=>seen.add(v));taken.add(r);
       perSport[r.sport]=(perSport[r.sport]||0)+1;perMarket[marketOf(r)]=(perMarket[marketOf(r)]||0)+1;
+      perGame[gameOf(r)]=(perGame[gameOf(r)]||0)+1;
       return true;
     }
     for(const sport of [...new Set(eligible.map(r=>r.sport))])eligible.filter(r=>r.sport===sport).some(take);
