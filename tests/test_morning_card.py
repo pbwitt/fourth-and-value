@@ -256,7 +256,7 @@ class AfternoonEditionTests(unittest.TestCase):
             feeds=empty_feeds(self.AFTER);feeds['NFL']=None   # NFL's morning prices have expired
             later=card.publish_card(feeds,empty_reviews(),self.AFTER,root=root,kind='afternoon',
                 refresh_results={'NHL':'success','MLB':'skipped'},afternoon=self.afternoon(morning))
-            self.assertEqual((later['kind'],later['policy_version'],later['status']),('afternoon','afternoon-edition-1','no_reviewed_candidates'))
+            self.assertEqual((later['kind'],later['policy_version'],later['status']),('afternoon','afternoon-edition-2','no_reviewed_candidates'))
             self.assertEqual((later['morning_edition_id'],later['price_check'],later['discovery_status']),(morning['edition_id'],[],'not_run'))
             self.assertTrue(card.existing_today(root,self.AFTER,kind='afternoon'))
             self.assertTrue((root/'docs'/later['archive_url'].lstrip('/')).exists())

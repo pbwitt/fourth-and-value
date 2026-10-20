@@ -224,7 +224,7 @@ assert.equal(shortlist(large,now).length,2);
 assert.equal(shortlist(large,now)[0].card_related_candidates,1);
 // Variety: at most 4 per sport, and every sport with an eligible bet is represented.
 const markets=['batter_hits','batter_total_bases','batter_home_runs','batter_rbis','pitcher_strikeouts','pitcher_outs'];
-const mlbMany=markets.flatMap(m=>[0,1].map(i=>({...ready,market:m,player:m+i,line:1.5})));
+const mlbMany=markets.flatMap(m=>[0,1].map(i=>({...ready,market:m,player:m+i,line:1.5,game_id:m+i})));
 const nhlReady=collect(fixture(),now).selected.filter(r=>r.sport==='NHL').map(readyRow)[0];
 const nhlLast={...nhlReady,blend:{...nhlReady.blend,final:.5}};   // the weakest bet still gets the NHL slot
 const varied=shortlist([...mlbMany,nhlLast],now);
@@ -232,6 +232,14 @@ assert.equal(varied.filter(r=>r.sport==='MLB').length,4);
 assert.equal(varied.filter(r=>r.sport==='NHL').length,1);
 assert.equal(varied.length,5,'caps never fill slots with ineligible or capped bets');
 assert.equal(large[0].card_related_candidates,undefined);
+// Exposure: at most 2 per game and 1 per player in a game, whatever the market.
+const oneGame=['batter_hits','batter_total_bases','batter_home_runs','pitcher_strikeouts'].map((m,i)=>({...ready,market:m,player:'Player '+i}));
+assert.equal(shortlist(oneGame,now).length,2,'at most two bets per game');
+assert.equal(shortlist([...oneGame,{...ready,market:'batter_rbis',player:'Elsewhere',game_id:'other-game'}],now).length,3);
+const stacked=['player_points','player_assists'].flatMap(m=>['Hedman','Theodore'].map(p=>({...nhlReady,market:m,player:p})));
+assert.deepEqual(shortlist(stacked,now).map(r=>r.player).sort(),['Hedman','Theodore'],'one prop per player in a game');
+assert.equal(shortlist([{...ready,market:'batter_hits'},{...ready,market:'batter_home_runs',line:.5,game_id:'next-game'}],now).length,2,'a player can appear once in each game');
+assert.equal(shortlist([{...ready,player:'',market:'totals'},{...ready,player:'',market:'h2h'}],now).length,2,'game lines have no player to share');
 for(const verdict of ['wait','pass'])assert.equal(shortlist([{...ready,qualitative_review:{...ready.qualitative_review,assessment:{...ready.qualitative_review.assessment,verdict}}}],now).length,0);
 assert.equal(shortlist([{...ready,review_matches_current:false}],now).length,0);
 assert.equal(shortlist([{...ready,qualitative_review:{...ready.qualitative_review,reviewed_at:iso(now-3*3600e3-1)}}],now).length,0);
