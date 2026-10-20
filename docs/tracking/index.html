@@ -629,6 +629,7 @@
           <div class="stat-label">Profit/Loss</div>
           <div class="stat-value" id="profitLoss">$0</div>
           <div class="stat-note">Returned minus settled stake</div>
+          <div class="stat-note" id="ungradedNote"></div>
         </div>
       </div>
 
@@ -864,23 +865,35 @@
       window.location.reload();
     }
 
+    let signedIn = false;
     function showTracker(user) {
+      signedIn = true;
       document.getElementById('signInScreen').style.display = 'none';
       document.getElementById('betTracker').style.display = 'block';
       document.getElementById('accountEmail').textContent = user.email;
       loadBets();
     }
 
+    // Grades arrive from the grading job (scripts/grade_bets.cjs), not this page, so an
+    // open page reloads the ledger: when the tab is shown again, and every few minutes
+    // while a bet is pending. Only the newest load applies; an unchanged ledger is not redrawn.
+    const REFRESH_MS = 5 * 60e3;
+    let loadSeq = 0, loadedKey = '';
     async function loadBets() {
+      const seq = ++loadSeq;
       const { data, error } = await supabaseClient
         .from('bets')
         .select('*')
         .order('created_at', { ascending: false });
 
+      if (seq !== loadSeq) return;
       if (error) {
         console.error('Error loading bets:', error);
         return;
       }
+      const key = JSON.stringify(data);
+      if (key === loadedKey) return;
+      loadedKey = key;
 
       betsData = data;
       refreshFilterOptions();
@@ -1297,11 +1310,17 @@
           if (v.value!=null) liveSeen.set(id,v.value);
         });
         liveViews=views; liveMeta=meta;
-        renderBets(); renderLivePanel();
+        renderBets(); renderLivePanel(); updateUngradedNote();
         liveBumped=new Set();
       },
     });
-    document.addEventListener('visibilitychange',()=>document.hidden?liveTracker.pause():liveTracker.resume());
+    const isPending=bet=>!['won','lost','push','void'].includes(bet.status);
+    function refreshBets() { if (signedIn && !document.hidden) loadBets(); }
+    document.addEventListener('visibilitychange',()=>{
+      if (document.hidden) return liveTracker.pause();
+      liveTracker.resume(); refreshBets();
+    });
+    setInterval(()=>{ if (betsData.some(isPending)) refreshBets(); }, REFRESH_MS);
 
     const liveNum=n=>Number.isInteger(n)?String(n):Number(n).toFixed(1);
     const teamTag=t=>t.abbrev||t.short||t.name;
@@ -1454,6 +1473,19 @@
       document.getElementById('winRateNote').textContent=[breakEven,pushes?`${pushes} push${pushes===1?'':'es'} not counted`:'']
         .filter(Boolean).join(' · ');
       document.getElementById('breakEvenHow').hidden=document.getElementById('breakEvenNote').hidden=!breakEven;
+      updateUngradedNote();
+    }
+
+    // Games the live view shows as final count once they are graded, which can take hours;
+    // until then the P/L tile says what they would add, from unofficial live stats.
+    function updateUngradedNote() {
+      const done=visibleBets().filter(b=>isPending(b)&&liveViews.get(b.id)?.status==='final'&&['won','lost','push'].includes(liveViews.get(b.id).tone));
+      const pl=done.reduce((sum,b)=>{
+        const tone=liveViews.get(b.id).tone;
+        return sum+(tone==='won'?toWin(b)??0:tone==='lost'?-Number(b.stake_dollars||0):0);
+      },0);
+      document.getElementById('ungradedNote').textContent=done.length
+        ? `${done.length} finished bet${done.length===1?'':'s'} not graded yet: ${signedMoney(pl)} unofficial` : '';
     }
 
     // ---- Filters + CSV download ---------------------------------------------
@@ -1586,6 +1618,8 @@
 
     const betEditor = FVEditBet.mount({
       onSaved(bet) {
+        // A load sent before this save would bring back the old row; the next one always redraws.
+        loadSeq++; loadedKey = '';
         betsData = betsData.map(row => row.id === bet.id ? bet : row);
         refreshFilterOptions(); renderBets(); updateStats(); liveTracker.setBets(betsData);
         document.getElementById('betEditStatus').textContent = 'Bet updated.';
