@@ -2,7 +2,8 @@
 
 Status: **active since September 29, 2026** (24 of 24 morning dispatches accepted
 through October 4). The 4:30 p.m. afternoon refresh uses the same mechanism; see
-[Afternoon refresh](#afternoon-refresh). Merging GitHub changes never installs a
+[Afternoon refresh](#afternoon-refresh), and so does the NBA refresh; see
+[NBA refresh](#nba-refresh). Merging GitHub changes never installs a
 Supabase job. No new paid service or subscription is required by this setup;
 existing platform quotas still apply.
 
@@ -206,3 +207,40 @@ order by slot_at desc limit 7;
 Rollback: `select cron.unschedule('fv-afternoon-dispatch');` stops new requests and
 leaves the ledger. The GitHub backup keeps running; to rely on it alone, restore the
 16:30 schedule in `nhl-daily.yml` and `mlb-daily.yml` or move the backup earlier.
+
+## NBA refresh
+
+Over October 16–19, 2026, GitHub's 15:00 and 21:00 UTC schedule started `nba-daily.yml`
+between 1:36 and 4:17 p.m. and between 6:40 and 8:01 p.m. Eastern, 1.5 to 5 hours late.
+On October 20 the season opened with a 3 p.m. tip, before the "11 a.m." run usually began.
+
+1. `supabase/nba_scheduler.sql` adds a third named job, `fv-nba-dispatch` (every five
+   minutes, UTC 10:00–12:55 and 21:00–22:55). An Eastern-time guard requests
+   `nba-daily.yml` once for each of two slots, 6:45 a.m. and 17:00. The morning slot
+   publishes fresh props before anyone reads the morning card and commits before the
+   7:05 a.m. morning pipeline starts. It reuses the morning schema, ledger
+   (`workflow` column), receipts, advisory lock and Vault token, and sends only the
+   existing `refresh_history` input, so it works with any `nba-daily.yml` on main.
+2. Two runs a day, as before: the 11 a.m. run moved to 6:45 a.m., so odds credits
+   are unchanged (one run with tonight's and tomorrow's props cost 256 credits on
+   October 20).
+3. GitHub backup schedules at 7:00 and 17:15 Eastern remain. Their gate
+   (`scripts/nba/schedule_gate.py`) skips a start when the NBA feed already published
+   after the latest slot, so a late backup does not spend a second round of credits.
+   A manual or Supabase start always runs.
+
+Install: open SQL Editor as `postgres` and run
+[supabase/nba_scheduler.sql](supabase/nba_scheduler.sql). It requires the morning
+installation and fails without changing anything if that is missing. Re-running is safe.
+
+```sql
+select jobname, schedule, active from cron.job where jobname = 'fv-nba-dispatch';
+select fv_morning.nba_slot(now()); -- null outside 6:45–7:45 and 17:00–18:00 ET
+select slot_at at time zone 'America/New_York' as slot_et, workflow,
+       requested_at, response_status, result
+from fv_morning.dispatches where workflow = 'nba-daily.yml'
+order by slot_at desc limit 7;
+```
+
+Rollback: `select cron.unschedule('fv-nba-dispatch');` stops new requests and leaves the
+ledger. The GitHub backups keep running at 7:00 and 17:15 Eastern (often late).

@@ -26,7 +26,8 @@ that apply.
   "player not found"). If NBA bets all stay pending, compare a real
   `.../basketball/nba/summary?event=<id>` response with `ESPN_STATS` (stat keys are
   looked up as `<category name>.<key>`, and NBA categories are expected to be unnamed).
-- Market Analytics first grades Tuesday's games at the Wednesday 11 AM ET NBA refresh.
+- Market Analytics first grades Tuesday's games at the Wednesday 6:45 AM ET NBA refresh
+  (Supabase timer since October 20; see MORNING_SCHEDULER.md, "NBA refresh").
 - Credits: at about 9,300 left on October 17 and about 800–900 a day across all sports,
   the balance runs out around October 28 unless credits are added. Optional jobs
   (Pinnacle snapshot, editorial prices) are paused until the November 1 reset.
