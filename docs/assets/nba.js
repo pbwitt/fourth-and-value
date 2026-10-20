@@ -50,7 +50,7 @@
       // NBA v1 runs in shadow mode: shown for research, labeled experimental, never ranked as a pick.
       const push=Number.isFinite(r.model_push_probability)&&r.model_push_probability>=0.0005?` · push ${pct(r.model_push_probability)}`:'';
       // model_ev_pct stays in the feed for grading; ungraded EV is not shown to readers.
-      const projection=Number.isFinite(r.model_mean)?` · projection ${r.model_mean.toFixed(1)}${Number.isFinite(r.model_minutes)?` in ${r.model_minutes.toFixed(0)} min`:''}`:'';
+      const projection=Number.isFinite(r.model_mean)?` · projection: average ${r.model_mean.toFixed(1)}${Number.isFinite(r.model_median)?`, median ${esc(r.model_median)}`:''}${Number.isFinite(r.model_minutes)?` in ${r.model_minutes.toFixed(0)} min`:''}`:'';
       const injury=r.injury_status?` · ESPN injury report: ${esc(r.injury_status.status)}`:'';
       const model=Number.isFinite(r.model_probability)?`<p class="meta"><strong>NBA v1 (experimental):</strong> ${pct(r.model_probability)} to win${push}${projection}${injury}. Shadow mode; not yet graded against prices.</p>`
         :r.model_unsupported_reason?`<p class="meta">NBA v1: no forecast (${esc(r.model_unsupported_reason)}).</p>`:'';

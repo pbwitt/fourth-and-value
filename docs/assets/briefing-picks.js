@@ -98,10 +98,13 @@
     const c=comparison(r);
     if(r.model_withheld||c.model===null)return `<strong>Not established</strong><span class="estimate-detail">${r.model_withheld?'Forecast withheld: '+esc(r.model_withheld):'Independent research candidate; no eligible probability model'}</span><span class="meta">Prospective research only</span>`;
     const mean=r.sport==='NFL'?r.mu:r.sport==='MLB'?r.model_mean:r.projected_mean;
+    // Lines sit near the median; a skewed count's average can clear a line the model expects to miss.
+    const median=r.sport==='NHL'?r.projected_median:r.sport==='NFL'?null:r.model_median;
     let projection='';
     if(finite(mean)&&r.market!=='h2h') {
       const label=r.sport==='MLB'?r.model_mean_label||'Projected '+r.market_label.toLowerCase():'Projected '+r.market_label.toLowerCase();
-      projection=`<span class="estimate-detail">${esc(label)}: ${esc(number(mean))}</span>`;
+      const middle=finite(median)?` · median ${esc(Number.isInteger(median)?median:number(median))}`:'';
+      projection=`<span class="estimate-detail">${esc(label)}: average ${esc(number(mean))}${middle}</span>`;
     }
     const basis=r.sport==='NFL'?'Historical outcome calibration':r.sport==='NHL'&&r.final_probability!==r.independent_probability?'Final model estimate':'Independent model';
     return `<strong>${pct(c.model)}</strong><span class="estimate-detail">Win chance*</span>${projection}<span class="meta estimate-detail">${basis} · experimental${c.push>0?'<br>Push: '+pct(c.push):''}</span>`;

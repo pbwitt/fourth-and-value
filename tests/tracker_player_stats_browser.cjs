@@ -58,7 +58,7 @@ const mlb={rows:[{player:'Example Pitcher',market:'pitcher_strikeouts',model_mea
     assert.match(await pop.textContent(),/1 of 2 cleared Under 3/,'push is excluded from the win count');
     assert(await pop.locator('.pc-trend .pc-push').count()>0,'push remains visible on the chart');
     assert.match(await pop.textContent(),/through Oct 8, 2026/);
-    assert.doesNotMatch(await pop.textContent(),/Model projection|How it works|Track record|NaN|undefined/);
+    assert.doesNotMatch(await pop.textContent(),/Model projection|Model average|How it works|Track record|NaN|undefined/);
     assert.equal(await pop.locator('.pc-share').count(),0,'private tracker has no broken public snapshot share link');
     await pop.hover();await p.waitForTimeout(250);assert(await pop.isVisible());
     await p.mouse.move(1,1);await pop.waitFor({state:'hidden'});

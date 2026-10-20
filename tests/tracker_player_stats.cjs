@@ -23,7 +23,7 @@ assert.equal(stats.findContext(bet,{rows:[{...source,player_context:{...c,throug
 const html=shared.snapshot({...bet,market:bet.market_type,model_mean:99,model_probability:.9,book_probability:.5,player_context:result},'MLB',
   {statsOnly:true,share:false,notice:'Latest published player stats.'});
 assert.match(html,/Recent games/);assert.match(html,/Latest published player stats/);
-assert.doesNotMatch(html,/Model projection|How it works|Track record|Share player snapshot|Weighted model inputs|NaN|undefined/);
+assert.doesNotMatch(html,/Model projection|Model average|How it works|Track record|Share player snapshot|Weighted model inputs|NaN|undefined/);
 assert.equal(stats.marketKey('NHL','sog'),stats.marketKey('NHL','player_shots_on_goal'));
 assert.equal(stats.marketKey('NBA','pts'),stats.marketKey('NBA','player_points'));
 const nfl={groups:{'["game","Example Back","rush_yds"]':{projection:{family:'rush',carries:15,yards_per_carry:4,

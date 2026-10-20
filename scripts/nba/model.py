@@ -286,6 +286,15 @@ def game_market(matrix, market, side_is_home, line):
     return float(matrix[margin > 0].sum()), float(matrix[margin == 0].sum())
 
 
+def game_median(matrix, market, side_is_home):
+    """Median total, or median margin for the side, from the score matrix."""
+    grid = np.arange(SCORE_MIN, SCORE_MAX + 1)
+    H, A = np.meshgrid(grid, grid, indexing='ij')
+    values = (H + A if market == 'totals' else H - A if side_is_home else A - H).ravel()
+    order = np.argsort(values, kind='stable')
+    return float(values[order][np.searchsorted(np.cumsum(matrix.ravel()[order]), .5)])
+
+
 # ---------------------------------------------------------------- players
 
 class Player:
@@ -502,3 +511,8 @@ def player_market(draws, market, side, line, slope=1.0):
         over = float(calibrate(over / (1 - push), slope)) * (1 - push)
     under = 1 - over - push
     return (over if side == 'Over' else under), push, float(value.mean())
+
+
+def player_median(draws, market):
+    """Smallest simulated value with at least half the draws at or below it (lines sit near it)."""
+    return float(np.quantile(sum(draws[s] for s in MARKET_STATS[market]), .5, method='inverted_cdf'))

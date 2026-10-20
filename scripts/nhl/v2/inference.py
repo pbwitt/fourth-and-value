@@ -12,7 +12,7 @@ from nba.pipeline import normal_name
 from . import VERSION, FEATURE_SCHEMA
 from .data import ROOT, load, stamp, iso, digest, write_json, history_day, observed_history
 from .features import history_at, forecast_ledger, weighted, matchup as opponent_fields
-from .models import outcome, game_outcome
+from .models import outcome, game_outcome, median
 from .pricing import compare, price, signal
 from .review import apply_review, validate_review
 from player_context import describe, nhl_context, versus, opposing, meetings
@@ -181,7 +181,7 @@ def annotate(rows,games,players,events,models,manifest,now,history_checked_at,ro
                          'opportunity_means':[x*multiplier for x in f['opportunity_means']]}
                 pm=models['shots' if j==0 else 'scoring'].pmfs(changed)[j]
                 scenario.append(outcome(pm,row['line'],row['side']))
-            row.update(projected_mean=float(np.dot(np.arange(len(pmf)),pmf)),projected_toi=f['projected_toi'],
+            row.update(projected_mean=float(np.dot(np.arange(len(pmf)),pmf)),projected_median=median(pmf),projected_toi=f['projected_toi'],
                 history_games=f['history_games'],conditional_on_participation=True,participation_probability=None,
                 lineup_assumption='Participation required for action; current role and active lineup unconfirmed',
                 key_drivers=[f"{f['history_games']} prior appearances; last game {f['last_game']}",f"Projected ice time {f['projected_toi']:.1f} minutes; separately shrunk production rate"],

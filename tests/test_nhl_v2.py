@@ -12,7 +12,7 @@ import numpy as np
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from nhl.v2.data import normalize,stamp
 from nhl.v2.features import build,History,decision_time,forecast_ledger,ledger_rows
-from nhl.v2.models import TeamModel,PlayerModel,count_pmf,outcome,game_outcome
+from nhl.v2.models import TeamModel,PlayerModel,count_pmf,outcome,game_outcome,median
 from nhl.v2.pricing import compare,price,decimal,fit_blend
 from nhl.v2.grading import settle,select,closing_value,betting_metrics
 from nhl.v2.review import validate_review,apply_review
@@ -34,6 +34,15 @@ def game(gid,date,home=3,away=2):
       season=20252026,game_type=2,home_id=1,away_id=2,home_team='Home',away_team='Away',home_score=home,away_score=away,
       home_reg_goals=home,away_reg_goals=away,home_shots=30,away_shots=28,home_pp_pct=.2,away_pp_pct=.8,
       home_pk_pct=.8,away_pk_pct=.7,extra_time=False,shootout=False)
+
+
+class MedianTests(unittest.TestCase):
+    def test_skewed_count_mean_can_clear_a_line_the_median_does_not(self):
+        pmf=count_pmf(2.6)
+        self.assertEqual(median(pmf),2)
+        self.assertLess(outcome(pmf,2.5,'Over')['win'],.5,'a 2.6 mean still favors the Under at 2.5')
+        self.assertEqual(median(count_pmf(.4)),0)
+        self.assertEqual(median(np.array([.5,.5])),0,'exactly half at or below counts')
 
 
 class PointInTimeTests(unittest.TestCase):

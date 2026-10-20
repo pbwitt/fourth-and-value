@@ -10,7 +10,9 @@ assert.match(html,/Model input/);assert.match(html,/>Context</);assert.match(htm
 assert.doesNotMatch(html,/NaN|undefined|null/);
 assert.equal(render({...row,model_withheld:'No forecast'},'MLB'),'');
 assert.equal(render({...row,player:''},'MLB'),'');
-assert.doesNotMatch(render({...row,model_mean:null},'MLB'),/Model projection/);
+assert.doesNotMatch(render({...row,model_mean:null},'MLB'),/Model average/);
+assert.match(render({...row,model_median:5},'MLB'),/Model average<\/dt><dd>5\.70 <span>K<\/span><span class="pc-detail">Median 5 · experimental/);
+assert.match(render(row,'MLB'),/<span class="pc-detail">experimental/,'no median, no median text');
 assert.match(render(row,'MLB',{saved:true}),/Preserved with this forecast/);
 const malicious=render({...row,player_context:{...row.player_context,source:'<img src=x onerror=alert(1)>',stat_label:'<script>bad</script>'}},'MLB');
 assert.doesNotMatch(malicious,/<img|<script>/);assert.match(malicious,/&lt;img/);
@@ -38,11 +40,13 @@ assert.match(pop,/last 5 <strong>5\.8<\/strong> · last 10 <strong>6\.1<\/strong
 assert.match(pop,/28 starts · 160⅔ IP · 172 K · 3\.42 ERA/);assert.match(pop,/Pitcher K rate<\/dt><dd>25%<\/dd>/,'model inputs first, untagged');
 assert.match(pop,/5⅓ IP <span class="pc-kind">Context only/);assert.match(pop,/<td class="pc-text">@ BOS/);
 assert.match(pop,/&lt;img src=x&gt;/);assert.doesNotMatch(pop,/<img|NaN|undefined|null/);assert.match(pop,/<td>—<\/td>/,'missing pitches stay missing');
-const hockey=snapshot({player:'Skater',market:'player_shots_on_goal',projected_mean:3.14,player_context:{schema_version:1,source:'NHL completed-game logs',through:'2026-04-16',
+const hockeyRow={player:'Skater',market:'player_shots_on_goal',projected_mean:3.14,player_context:{schema_version:1,source:'NHL completed-game logs',through:'2026-04-16',
   sample_label:'appearances',stat_label:'SOG',workload_label:'Ice time',workload_unit:'min',recent:[{games:5,mean:3.4,workload:21.2}],
   inputs:[{label:'Projected ice time',value:20.4,unit:'min',used:true}],games:[{date:'2026-04-16',opp:'vs CHI',toi:'21:05',shots:4,goals:1,assists:0,points:1}],
-  game_columns:[['date','Date'],['opp','Opp'],['toi','TOI'],['shots','SOG'],['goals','G'],['assists','A'],['points','P']],game_focus:'shots'}},'NHL');
-assert.match(hockey,/TOI \/ game<\/dt><dd>21:12/);assert.match(hockey,/Model projection · experimental<\/dt><dd>3\.1 <span>SOG/);assert.match(hockey,/20:24<\/dd>/);assert.match(hockey,/3\.1 <span>SOG/);assert.match(hockey,/Apr 16, 2026/);
+  game_columns:[['date','Date'],['opp','Opp'],['toi','TOI'],['shots','SOG'],['goals','G'],['assists','A'],['points','P']],game_focus:'shots'}};
+const hockey=snapshot(hockeyRow,'NHL');
+assert.match(hockey,/TOI \/ game<\/dt><dd>21:12/);assert.match(hockey,/Model average · experimental<\/dt><dd>3\.1 <span>SOG/);assert.doesNotMatch(hockey,/Median/);
+assert.match(snapshot({...hockeyRow,projected_median:3},'NHL'),/Model average · experimental<\/dt><dd>3\.1 <span>SOG<\/span><span class="pc-detail">Median 3/);assert.match(hockey,/20:24<\/dd>/);assert.match(hockey,/3\.1 <span>SOG/);assert.match(hockey,/Apr 16, 2026/);
 const qb=snapshot({player:'QB',market_std:'pass_yds',mu:245,projection_diagnostics:JSON.stringify({attempts:32,completion_rate:.65,yards_per_completion:11,
   current_sample:[{season:2026,week:3,attempts:30,completions:20,passing_yards:220},{season:2026,week:4,attempts:36,completions:25,passing_yards:301}]})},'NFL');
 assert.match(qb,/<th scope="row">Wk 4<\/th><td>36<\/td><td>25<\/td><td class="pc-focus">301<\/td>/,'newest week first');

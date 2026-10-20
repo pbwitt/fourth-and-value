@@ -250,6 +250,13 @@ def pmf(mu,model):
     return np.diff(np.column_stack([np.zeros(len(cdf)),cdf,np.ones(len(cdf))]),axis=1)
 
 
+def median(mass,values=None):
+    """Smallest value with at least half the probability at or below it (lines sit near it)."""
+    values=np.arange(len(mass)) if values is None else np.asarray(values)
+    order=np.argsort(values,kind='stable')
+    return int(values[order][np.searchsorted(np.cumsum(np.asarray(mass)[order]),.5)])
+
+
 def outcome(mass,line,side='Over'):
     values=np.arange(len(mass));win=values>line if side=='Over' else values<line
     return float(mass[win].sum()),float(mass[values==line].sum())

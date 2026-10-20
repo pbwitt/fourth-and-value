@@ -9,7 +9,7 @@ import joblib
 import numpy as np
 
 from nba.pipeline import iso, normal_name, timestamp
-from mlb.models import LINES, means, pmf, joint, outcome, game_outcome, expected_return
+from mlb.models import LINES, means, pmf, joint, outcome, game_outcome, expected_return, median
 from mlb.train import MODEL_PATH, signature
 from player_context import describe, mlb_context
 
@@ -82,7 +82,7 @@ def pick_reason(row, report, now):
 def attach(state, now, fetch_box, bundle=None):
     rows = state['rows']
     for row in rows:
-        row.update(model_probability=None, model_push_probability=None, model_mean=None, player_context=None,
+        row.update(model_probability=None, model_push_probability=None, model_mean=None, model_median=None, player_context=None,
                    model_ev_pct=None, model_edge_pp=None, is_model_pick=False,
                    model_status='Forecast unavailable')
     try:
@@ -133,6 +133,7 @@ def attach(state, now, fetch_box, bundle=None):
                 win,push=game_outcome(g['joint'],market,row['line'],row['side']==row['home_team'],row['side'])
                 h,a=np.indices(g['joint'].shape)
                 mean=float((g['joint']*(h+a if market=='totals' else h-a)).sum())
+                middle=median(g['joint'].ravel(),(h+a if market=='totals' else h-a).ravel())
                 inputs={f'{side} recent runs/game':round(g['x'][side]['team_runs'],2) for side in ['home','away']}
                 inputs.update({f'{side} starter recent RA/9':round(g['x'][side]['starter_ra9'],2) for side in ['home','away']})
                 row['model_mean_label']='Projected total runs' if market=='totals' else 'Projected home run margin'
@@ -152,7 +153,7 @@ def attach(state, now, fetch_box, bundle=None):
                     if market.startswith('batter_') and x['batter_pa']<50:raise ValueError('Insufficient batter history (minimum 50 plate appearances)')
                     model=models[market];mass=pmf(means(model,[{'x':x}]),model)[0]
                     g['cache'][key]=(x,mass)
-                x,mass=g['cache'][key];win,push=outcome(mass,row['line'],row['side']);mean=float(mass@np.arange(len(mass)))
+                x,mass=g['cache'][key];win,push=outcome(mass,row['line'],row['side']);mean=float(mass@np.arange(len(mass)));middle=median(mass)
                 row['player_context']=describe(mlb_context,history,g['data']['date'],player,market,x,models[market],mass,g['data'])
                 row['model_player_id']=player['id'];row['model_mean_label']='Projected '+row['market_label'].lower()
                 inputs=dict(zip(['Recent starter outings','Starter outs/start, last five','Starter strikeouts per batter faced','Opponent strikeouts per PA'],
@@ -166,7 +167,7 @@ def attach(state, now, fetch_box, bundle=None):
             ev=100*expected_return(win,push,row['price']);edge=100*(conditional-row['book_probability'])
             fair=-100*conditional/(1-conditional) if conditional>=.5 else 100*(1-conditional)/conditional
             row.update(model_probability=win,model_push_probability=push,model_conditional_probability=conditional,
-                model_mean=mean,model_ev_pct=ev,model_edge_pp=edge,model_fair_price=round(fair),
+                model_mean=mean,model_median=middle,model_ev_pct=ev,model_edge_pp=edge,model_fair_price=round(fair),
                 model_inputs=inputs,model_version=bundle['version'],model_policy=POLICY,
                 model_input_through=report['input_through'])
             reason=pick_reason(row,report,now)
