@@ -184,6 +184,16 @@ the price taken) and `decision_at` beside `model_prob`
 besides the offered one for MLB/NHL, which left the October 6 card empty. Earlier
 editions keep their policy and are not regraded as evidence for a later one.
 
+The NBA, NHL and MLB Player Props and Game Lines boards default to a Best value sort
+that applies this same blend (`boardOrder` in `docs/assets/briefing-picks.js`) as an
+ordering only: qualifying offers by blended EV, then the research tier above 30%, then
+offers below the 1% floor, then offers it cannot score (no model, one book, model below
+market) in game order. The card's freshness, forecast-health, review and exposure rules
+do not apply, and nothing enters Today's Picks. NHL scores only forecasts the board
+shows (model data under 36 hours old) at books with known settlement rules. NBA uses
+0.10 for every market, the rule `scripts/nba/grade_shadow.py` scores; NBA rows never
+enter `collect()`.
+
 A current consider assessment ranks before pending/wait/pass across all sports,
 so a reviewed MLB/NHL offer appears before unreviewed NFL rows in the initial table.
 The research pool retains each sport's numerical order. The main ten-idea card

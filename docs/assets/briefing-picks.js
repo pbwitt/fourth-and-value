@@ -42,11 +42,13 @@
   // All comparison percentages use the same outcome and exclude refunded pushes.
   // Keep missing push mass unknown; never substitute a book probability.
   function comparison(r) {
-    const push=r.sport==='NFL'?r.push_prob:r.sport==='MLB'?r.model_push_probability:r.push_probability;
-    const win=r.sport==='NFL'?null:r.sport==='MLB'?r.model_probability:r.final_probability;
+    // NBA rows (board sort only; NBA is not on the card) use MLB's field names.
+    const mlbFields=r.sport==='MLB'||r.sport==='NBA';
+    const push=r.sport==='NFL'?r.push_prob:mlbFields?r.model_push_probability:r.push_probability;
+    const win=r.sport==='NFL'?null:mlbFields?r.model_probability:r.final_probability;
     const model=r.sport==='NFL'?(probability(r.model_prob)?r.model_prob:null):
       probability(win)&&probability(push)&&push<1&&win+push<=1?win/(1-push):null;
-    const market=r.sport==='NFL'?r.consensus_prob:r.sport==='MLB'?r.other_book_probability:r.market_probability;
+    const market=r.sport==='NFL'?r.consensus_prob:mlbFields?r.other_book_probability:r.market_probability;
     const books=r.sport==='NFL'?r.book_count:r.other_books;
     return {model,market:probability(market)&&finite(books)&&books>0?market:null,
       books,push:probability(push)?push:null,breakEven:1/decimal(r.price)};
@@ -61,7 +63,9 @@
   // that exact line, counting the offered book (a lone alternate line has no market to
   // blend with). The model must give the side at least the market's chance: a better
   // price alone is a Market Watch signal, not a pick. Expected value refunds pushes.
-  const BLEND={version:'market-blend-3',weights:{NFL:.10,NHL:.10,MLB:.25,MLB_game:.10},minEV:.01,highEV:.03,maxEV:.30,minBooks:2};
+  // NBA gets the NHL rule its shadow grade scores (scripts/nba/grade_shadow.py). It
+  // serves only the NBA boards' Best value sort; NBA rows never enter collect().
+  const BLEND={version:'market-blend-3',weights:{NFL:.10,NHL:.10,MLB:.25,MLB_game:.10,NBA:.10},minEV:.01,highEV:.03,maxEV:.30,minBooks:2};
   const GAME_MARKETS=['h2h','spreads','totals'];
   const blendWeight=r=>r.sport==='MLB'&&GAME_MARKETS.includes(r.market)?BLEND.weights.MLB_game:BLEND.weights[r.sport]??BLEND.weights.NFL;
   const logit=p=>Math.log(p/(1-p)),sigmoid=x=>1/(1+Math.exp(-x));
@@ -88,6 +92,20 @@
     if(c==='high')return ` That clears the ${barPct(BLEND.highEV)} bar, so it is a high-confidence pick.`;
     if(c==='moderate')return ` That clears the ${barPct(BLEND.minEV)} floor for a pick but not the ${barPct(BLEND.highEV)} high-confidence bar, so it is a moderate-confidence pick: there is less cushion if the model is too optimistic.`;
     return '';
+  }
+  // Player Props and Game Lines boards sort "Best value" by this same blend: picks by
+  // blended EV, then the research tier above 30%, then offers under the 1% floor. Offers
+  // it cannot score (no model, one book, model below market) keep game order after them.
+  // It is an ordering only: none of the card's health checks, reviews or caps apply.
+  const boardTier=b=>b?.status==='qualifies'?(b.ev>BLEND.maxEV?1:0):b?.status==='below_threshold'?2:3;
+  const boardOrder=(a,b)=>boardTier(a)-boardTier(b)||(boardTier(a)<3?b.ev-a.ev:0);
+  function boardBlendHTML(b) {
+    if(b?.status==='model_below_market')return `<p class="meta">Our blend: model ${pct(b.model)} is below the market's ${pct(b.market)} · not a pick</p>`;
+    if(b?.status==='thin_market')return '<p class="meta">Our blend: fewer than two books post this line · not scored</p>';
+    if(!finite(b?.final))return '';
+    const note=b.status==='below_threshold'?`below the ${barPct(BLEND.minEV)} floor`:
+      b.ev>BLEND.maxEV?`above ${barPct(BLEND.maxEV)}, research only`:CONFIDENCE[confidenceOf(b)];
+    return `<p class="meta"><strong>Our blend:</strong> ${pct(b.final)} · ${signedPct(b.ev)} expected value · ${esc(note)}</p>`;
   }
   function blendHTML(r) {
     const b=r.blend,c=confidenceOf(b);
@@ -697,6 +715,6 @@
       `<p class="muted"><strong>The case against:</strong> ${esc(r.qualitative_review.countercase)}</p>`+
       `<p class="meta">${started?'<strong>Game started · historical assessment.</strong> ':''}Original price and analysis from the ${esc(shortTime(r.card_snapshot_at))} edition.${started?'':' Confirm the current line before deciding.'}</p>${links}`;
   }
-  if(typeof module==='object'&&module.exports)module.exports={collect,shortlist,editionRows,currentEditionRows,priceCheck,leadKey,rowKey:key,ideaKey,SHORTLIST_LIMIT,CARD_CAPS,BLEND,blend,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus,featuredPick,featuredHTML};
-  else {global.FVPicks={featuredPick,featuredHTML};mount();}
+  if(typeof module==='object'&&module.exports)module.exports={collect,shortlist,editionRows,currentEditionRows,priceCheck,leadKey,rowKey:key,ideaKey,SHORTLIST_LIMIT,CARD_CAPS,BLEND,blend,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus,featuredPick,featuredHTML,boardOrder,boardBlendHTML};
+  else {global.FVPicks={featuredPick,featuredHTML,blend,boardOrder,boardBlendHTML};mount();}
 })(typeof window==='undefined'?globalThis:window);

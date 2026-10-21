@@ -43,8 +43,22 @@ const server=http.createServer((req,res)=>{
     await p.locator('#book').selectOption('a');assert((await p.locator('.prop-card').textContent()).includes('Book A'));
     await p.locator('#search').fill('missing');assert.equal(await p.locator('.prop-card').count(),0);
     await p.locator('#reset').click();assert.equal(await p.locator('.prop-card').count(),1);
+    // Best value (the default) orders by the card's market blend; Game time restores A-Z at one tip.
+    const scored=(player,model,price)=>({...row,player,price,book_probability:price<0?-price/(100-price):100/(100+price),model_probability:model,model_push_probability:0,other_book_probability:.5,other_books:3});
+    fixture={...fixture,rows:[scored('Alpha Guard',.5,-110),scored('Zeta Forward',.6,100),scored('Mid Center',.45,150)]};
+    await p.reload();await p.waitForSelector('.prop-card');
+    const names=async()=>(await p.locator('.prop-card h2').allTextContents()).map(s=>s.trim());
+    assert.equal(await p.locator('#sort').inputValue(),'value');
+    assert.deepEqual(await names(),['Zeta Forward','Alpha Guard','Mid Center']);
+    assert((await p.locator('.prop-card').nth(0).textContent()).includes('Our blend: 51.0% · +2.0% expected value · Moderate confidence'));
+    assert((await p.locator('.prop-card').nth(1).textContent()).includes('Our blend: 50.0% · -4.5% expected value · below the 1% floor'));
+    assert((await p.locator('.prop-card').nth(2).textContent()).includes("model 45.0% is below the market's 50.0% · not a pick"));
+    assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'Sort mobile overflow');
+    await p.locator('#sort').selectOption('time');assert.deepEqual(await names(),['Alpha Guard','Mid Center','Zeta Forward']);
+    assert(p.url().includes('sort=time'));await p.reload();await p.waitForSelector('.prop-card');assert.equal(await p.locator('#sort').inputValue(),'time');
+    await p.locator('#reset').click();assert.equal(await p.locator('#sort').inputValue(),'value');assert.deepEqual(await names(),['Zeta Forward','Alpha Guard','Mid Center']);
     fixture={...fixture,status:'feed_error'};await p.reload();await p.waitForFunction(()=>document.getElementById('feed-status').textContent.includes('failed'));assert.equal(await p.locator('.prop-card').count(),0);
     fixture={...fixture,status:'ready',last_success_at:new Date(+now-25*3600e3).toISOString()};await p.reload();await p.waitForFunction(()=>document.getElementById('feed-status').textContent.includes('needs a refresh'));assert.equal(await p.locator('.prop-card').count(),0);
-    assert.deepEqual(errors,[]);console.log('PASS: NBA nav/layout at five widths, populated props filters, best-book selection, error/stale suppression.');
+    assert.deepEqual(errors,[]);console.log('PASS: NBA nav/layout at five widths, populated props filters, best-book selection, Best value sort, error/stale suppression.');
   }finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);server.close();process.exitCode=1;});
