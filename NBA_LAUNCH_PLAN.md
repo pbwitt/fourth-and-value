@@ -30,7 +30,8 @@ that apply.
   (Supabase timer since October 20; see MORNING_SCHEDULER.md, "NBA refresh").
 - Credits: at about 9,300 left on October 17 and about 800–900 a day across all sports,
   the balance runs out around October 28 unless credits are added. Optional jobs
-  (Pinnacle snapshot, editorial prices) are paused until the November 1 reset.
+  (editorial prices) are paused until the November 1 reset. From October 21 Pinnacle
+  is recorded by the core refreshes at no extra cost (`scripts/sharp_reference.py`).
 
 ## Constraints
 

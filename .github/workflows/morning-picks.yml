@@ -76,13 +76,9 @@ jobs:
       replace_card: ${{ inputs.replace_card || false }}
       refresh_results: '{"NFL":"${{ needs.gate.outputs.refresh == ''true'' && needs.gate.outputs.refresh_nfl == ''false'' && ''reused_fresh'' || needs.nfl.result }}","MLB":"${{ needs.mlb.result }}","NHL":"${{ needs.nhl.result }}"}'
     secrets: inherit
-  # Record only: Pinnacle prices for the Step 2c refit. It runs beside research and
-  # never feeds the card; a failure is a warning, not a failed edition.
-  pinnacle:
-    needs: [gate, nfl, mlb, nhl]
-    if: always() && !cancelled() && needs.gate.result == 'success' && needs.gate.outputs.refresh == 'true' && !inputs.test_edition
-    uses: ./.github/workflows/pinnacle-snapshot.yml
-    secrets: inherit
+  # Pinnacle (record only) now rides along with the core refreshes above at no extra
+  # credit cost (scripts/sharp_reference.py); the separate optional snapshot job, which the
+  # credit reserve blocked from Oct 18, 2026, is manual only. Pinnacle Reference Check alerts.
   editorial:
     needs: [gate, nfl, mlb, nhl]
     if: always() && !cancelled() && needs.gate.result == 'success' && needs.gate.outputs.refresh == 'true' && !inputs.test_edition

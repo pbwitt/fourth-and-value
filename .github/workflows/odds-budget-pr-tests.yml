@@ -1,4 +1,4 @@
-name: Odds credit floor and closing-lines tests
+name: Odds credit floor, Pinnacle reference and closing-lines tests
 on:
   pull_request:
     paths:
@@ -12,9 +12,15 @@ on:
       - 'scripts/fetch_odds.py'
       - 'scripts/nfl_fetch_totals_spreads.py'
       - 'scripts/editorial.py'
+      - 'scripts/sharp_reference.py'
+      - 'scripts/check_sharp_reference.py'
+      - 'scripts/fit_pinnacle_split.py'
       - 'supabase/functions/closing-lines/**'
       - 'tests/test_odds_budget.py'
       - 'tests/test_odds_links.py'
+      - 'tests/test_sharp_reference.py'
+      - 'tests/test_fit_pinnacle_split.py'
+      - '.github/workflows/sharp-reference-check.yml'
       - 'tests/closing_lines.cjs'
       - '.github/workflows/odds-budget-pr-tests.yml'
 permissions:
@@ -33,8 +39,9 @@ jobs:
       - run: pip install -r requirements-nhl.txt
       - run: python -m unittest tests/test_odds_budget.py
       - run: python -m unittest tests/test_odds_links.py
+      - run: python -m unittest tests/test_sharp_reference.py tests/test_fit_pinnacle_split.py
       - name: Every Odds API caller still compiles with the shared floor
-        run: python -m py_compile scripts/fetch_all_player_props.py scripts/fetch_odds.py scripts/nfl_fetch_totals_spreads.py scripts/editorial.py scripts/mlb/refresh.py scripts/nhl/refresh.py
+        run: python -m py_compile scripts/fetch_all_player_props.py scripts/fetch_odds.py scripts/nfl_fetch_totals_spreads.py scripts/editorial.py scripts/mlb/refresh.py scripts/nhl/refresh.py scripts/nba/pipeline.py scripts/sharp_reference.py scripts/check_sharp_reference.py scripts/fit_pinnacle_split.py
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
