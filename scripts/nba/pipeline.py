@@ -19,6 +19,7 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 from market_math import implied_probability
 from odds_budget import CORE, CreditBudget, CreditFloorReached, estimate_cost
 from odds_links import link_fields
+from sharp_reference import Recorder, odds_params
 
 UTC = timezone.utc
 SPORT = 'basketball_nba'
@@ -91,8 +92,13 @@ class OddsClient:
         # NHL and MLB share this client and feed the morning card (core); NBA has no model yet.
         # NBA, NHL and MLB refreshes all share this client, and all are core jobs.
         self.budget = budget or CreditBudget(label=f'{sport} refresh', tier=CORE)
+        # Pinnacle rides along as the sharp reference and is split off every odds
+        # response before the caller sees it (scripts/sharp_reference.py).
+        self.reference = Recorder(sport)
 
     def get(self, suffix, _links=True, **params):
+        if suffix.endswith('odds'):
+            params = odds_params(params)
         # The event list is free and reports the balance before any paid request.
         try:
             self.budget.ensure(estimate_cost(f'sports/{self.sport}/{suffix}', params))
@@ -112,7 +118,8 @@ class OddsClient:
                 return OddsClient.get(self, suffix, _links=False, **params)  # not a subclass's archiving get
             if not response.ok:
                 raise FeedError(f'Odds provider returned HTTP {response.status_code}')
-            return response.json()
+            payload = response.json()
+            return self.reference.take(payload) if suffix.endswith('odds') else payload
         except (requests.RequestException, ValueError) as error:
             # Never include the request URL: it contains credentials.
             raise FeedError(f'Odds provider request failed ({type(error).__name__})') from None
@@ -357,7 +364,10 @@ def main():
     if not args.offline:
         try:
             client = OddsClient(os.getenv('ODDS_API_KEY'))
-            state = refresh(client, now, history, state, model_history)
+            try:
+                state = refresh(client, now, history, state, model_history)
+            finally:
+                client.reference.save(now)
             # Request-start time is not the time the completed forecast became available.
             state['captured_at'] = iso(datetime.now(UTC))
             archive = ROOT / 'data/nba/snapshots' / f"{now.strftime('%Y%m%dT%H%M%SZ')}.json"

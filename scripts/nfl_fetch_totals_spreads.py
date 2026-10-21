@@ -23,6 +23,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from odds_budget import CORE, CreditBudget, CreditFloorReached, estimate_cost, urllib_preflight
+from sharp_reference import Recorder, odds_params
 
 # Core refresh for the morning card: may spend the shared balance to zero; per-run cap
 # applies (scripts/odds_budget.py).
@@ -160,22 +161,24 @@ def main():
         sys.exit(1)
 
     # Build URL
-    params = {
-        "regions": args.regions,
-        "markets": "h2h,spreads,totals",
-        "oddsFormat": "american",
-        "apiKey": api_key,
-    }
+    # regions=us becomes the ten named books, Pinnacle included at no extra cost; Pinnacle is
+    # split off below before anything else sees the response (scripts/sharp_reference.py).
+    request = odds_params({"regions": args.regions, "markets": "h2h,spreads,totals", "oddsFormat": "american"})
+    params = dict(request, apiKey=api_key)
     base_url = "https://api.the-odds-api.com/v4"
     url = f"{base_url}/sports/{urllib.parse.quote(args.sport_key)}/odds?{urllib.parse.urlencode(params)}"
 
     print(f"Fetching NFL totals and spreads from The Odds API...", file=sys.stderr)
     try:
-        BUDGET.ensure(estimate_cost("sports/nfl/odds", {"markets": "h2h,spreads,totals", "regions": args.regions}),
-                      preflight=urllib_preflight(api_key))
+        BUDGET.ensure(estimate_cost("sports/nfl/odds", request), preflight=urllib_preflight(api_key))
     except CreditFloorReached as error:
         raise SystemExit(f"[ERR] {error}")
-    events = fetch_json(url)
+    reference = Recorder(args.sport_key)
+    started = datetime.now(timezone.utc)
+    try:
+        events = reference.take(fetch_json(url))
+    finally:
+        reference.save(started)
     print(f"✓ Fetched {len(events)} events", file=sys.stderr)
 
     # Preserve source quote timestamps and the complete response independently of

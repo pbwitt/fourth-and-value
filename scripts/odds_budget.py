@@ -65,7 +65,8 @@ def _limit(name, default, stricter):
 def estimate_cost(path, params=None):
     """Upper bound on one request's cost from the documented Odds API rules.
 
-    Event lists and the sports list are free; odds cost markets x regions; scores
+    Event lists and the sports list are free; odds cost markets x regions, where each
+    group of ten named bookmakers counts as one region; scores
     cost 1 (2 with daysFrom); historical odds cost 10x and historical events 1.
     """
     params = params or {}
@@ -78,7 +79,12 @@ def estimate_cost(path, params=None):
     if path.endswith('/scores'):
         return 2 if params.get('daysFrom') else 1
     markets = len([m for m in str(params.get('markets') or 'h2h').split(',') if m.strip()]) or 1
-    regions = len([r for r in str(params.get('regions') or 'us').split(',') if r.strip()]) or 1
+    if params.get('bookmakers'):
+        # Named bookmakers take priority over regions; each group of ten bills as one region.
+        books = len([b for b in str(params['bookmakers']).split(',') if b.strip()]) or 1
+        regions = -(-books // 10)
+    else:
+        regions = len([r for r in str(params.get('regions') or 'us').split(',') if r.strip()]) or 1
     return markets * regions * (10 if historical else 1)
 
 

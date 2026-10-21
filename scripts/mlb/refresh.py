@@ -303,7 +303,10 @@ def main():
             games = schedule(now)
             history = load_history(now)
             client = OddsClient(os.getenv('MLB_ODDS_API_KEY') or os.getenv('ODDS_API_KEY'), SPORT)
-            state = refresh(client, now, games, history)
+            try:
+                state = refresh(client, now, games, history)
+            finally:
+                client.reference.save(now)  # Pinnacle, record only (scripts/sharp_reference.py)
             state = add_positions(state, official_json)
             from mlb.predict import attach
             state = attach(state, datetime.now(UTC), official_json)

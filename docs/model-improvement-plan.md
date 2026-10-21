@@ -9,7 +9,7 @@ Owner: pbwitt. Started 2026-10-05. Update this file as each phase finishes.
 | 0. Audit | Done 2026-10-05 | Findings and proposed plan below. Step 1 (housekeeping) merged and deployed 2026-10-05. |
 | 1. News and lineup data | In progress | NHL projected starting goalies (start chance and shrunk save rate from official box scores) as context only, 2026-10-05. Confirmed starters still need a permitted source. |
 | 2. Model fixes | In progress | 2026-10-06: NFL home/away multipliers refitted on 2012–2025 (passing and receiving yards ±1.4%, was ±6%); NHL v2.4 adds each player's record against our own forecasts (locked evaluation, `reports/nhl-v2.4`). MLB platoon (batter side vs pitcher hand) tested on the production MLB data and kept research only: no reliable gain on box scores (`reports/mlb-platoon`). |
-| 3. Market blend before betting | In progress | Step 2 (blend live on Top Picks at w = 0.25, 3% EV) merged 2026-10-05 in pbwitt/fourth-and-value#87. Step 2b (2026-10-06): 1% floor with high (≥ 3%) and moderate (1–3%) confidence tiers, and the two-book rule counts the offered book for every sport. Step 2c (2026-10-14): weights by sport (NHL, NFL props and MLB game lines 0.10; MLB props 0.25) and the model must be at least the market. Pinnacle recorded each morning, not yet in the market; refit due 2026-10-28. |
+| 3. Market blend before betting | In progress | Step 2 (blend live on Top Picks at w = 0.25, 3% EV) merged 2026-10-05 in pbwitt/fourth-and-value#87. Step 2b (2026-10-06): 1% floor with high (≥ 3%) and moderate (1–3%) confidence tiers, and the two-book rule counts the offered book for every sport. Step 2c (2026-10-14): weights by sport (NHL, NFL props and MLB game lines 0.10; MLB props 0.25) and the model must be at least the market. Pinnacle recorded by every core refresh from 2026-10-21 (the optional snapshot stalled Oct 18–21), not yet in the market; interim score 2026-10-28, switch-on decision no earlier than 2026-11-04. |
 | 4. Backtest and calibration | In progress | 2026-10-06: matchup backtest (player vs opponent, home/away splits, platoon) across NFL, NHL and MLB, `reports/matchups/`; published as research report FV-2026-03. |
 | 5. Monitoring and site | Not started | |
 
@@ -457,6 +457,29 @@ graded after Oct 12 (out of sample for this fit). (3) Report 7 a.m. Pinnacle cov
 the credit cost per morning, including whether ten named bookmakers billed as one region. Then
 propose the market-term change. The NBA has no model yet, so no weight applies; its Pinnacle
 coverage is recorded for Market Watch.
+
+**Pinnacle recording stalled, Oct 18–21; moved into the core refreshes (2026-10-21).** The
+optional snapshot recorded Oct 15, 16 and 17 (about 1,630 quotes, 154 credits), then every
+request was refused from Oct 18: the shared budget keeps 850 credits a day for the core
+refreshes until the Nov 1 reset, and the balance was below that reserve. The job only logged
+a workflow warning, so the stall went unnoticed. Its billing probe answered question (3):
+ten named bookmakers bill as one region. So from Oct 21 every core odds request (NFL props and
+game lines, NHL, MLB, NBA) names the nine US books our feeds use most plus Pinnacle instead of
+`regions=us`, at the same cost (`scripts/sharp_reference.py`). BetUS and LowVig are the two
+US-region books no longer requested. Pinnacle is split off each response before any other code
+sees it and recorded under `artifacts/pinnacle/reference/<sport>/<date>.json` with each run's
+capture time; the separate snapshot job is manual only. `.github/workflows/sharp-reference-check.yml`
+(9:50 a.m. and 6:20 p.m. ET) fails and opens a GitHub issue when a refreshed sport recorded none.
+
+`scripts/fit_pinnacle_split.py` does step (1) of the follow-up: it joins every Pinnacle capture
+to the graded recap lines, using only captures taken at or before our own decision time, and
+reports log loss for the US median, Pinnacle and their mix by sport and market. On Oct 21 it
+joined 377 graded lines from 36 games (Oct 15–17 captures): US median 0.6708, Pinnacle 0.6696,
+no clear difference (90% range of Pinnacle minus US, −0.0051 to +0.0031). That is far too few
+to fit a split per market. Proposed schedule: an interim run on Oct 28 (one week of core-refresh
+captures, NFL Week 7), and a switch-on decision no earlier than Nov 4 (Week 8 graded), for each
+sport and market whose 90% range is clearly below zero. Until the owner approves a change, the
+market term stays the US median.
 
 ### Phase 1, NHL goalies: projected starters as context (2026-10-05)
 

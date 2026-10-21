@@ -11,6 +11,7 @@ CLI is flexible: --season/--week are OPTIONAL (kept for Makefile compatibility).
 """
 
 import argparse, csv, os, sys, time
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Tuple
 from pathlib import Path
 import requests
@@ -18,6 +19,7 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from odds_budget import CORE, CreditBudget, CreditFloorReached
 from odds_links import link_fields
+from sharp_reference import Recorder, odds_params
 
 # Core refresh for the morning card: may spend the shared balance to zero; per-run cap
 # applies (scripts/odds_budget.py).
@@ -115,15 +117,24 @@ def filter_events_to_week(events: List[Dict[str, Any]], start, end) -> List[Dict
     return out
 
 def fetch_event_props(api_key: str, sport_key: str, event_id: str,
-                      markets: List[str], regions: str, chunk: int, sleep: float) -> List[Dict[str, Any]]:
+                      markets: List[str], regions: str, chunk: int, sleep: float,
+                      reference: "Recorder" = None) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
-    region_count = len([r for r in regions.split(",") if r.strip()]) or 1
+    # regions=us becomes the ten named books, Pinnacle included at no extra cost; Pinnacle is
+    # split off each response before the rows are built (scripts/sharp_reference.py).
+    books = odds_params({"regions": regions})
+    if "bookmakers" in books:
+        books_param = f"bookmakers={books['bookmakers']}"
+        region_count = -(-len(books["bookmakers"].split(",")) // 10)
+    else:
+        books_param = f"regions={regions}"
+        region_count = len([r for r in regions.split(",") if r.strip()]) or 1
     for mchunk in chunks(markets, chunk):
         BUDGET.ensure(len(mchunk) * region_count)
         markets_param = ",".join(mchunk)
         url = (
             f"https://api.the-odds-api.com/v4/sports/{sport_key}/events/{event_id}/odds"
-            f"?regions={regions}&oddsFormat=american&markets={markets_param}&includeLinks=true&apiKey={api_key}"
+            f"?{books_param}&oddsFormat=american&markets={markets_param}&includeLinks=true&apiKey={api_key}"
         )
         data = req_json(url)
         if isinstance(data, dict) and data.get("__422__"):
@@ -135,6 +146,8 @@ def fetch_event_props(api_key: str, sport_key: str, event_id: str,
         if not isinstance(data, dict):
             print(f"[warn] event {event_id} unexpected type {type(data)}", file=sys.stderr)
             continue
+        if reference is not None:
+            data = reference.take(data)
 
         event = {"id": data.get("id"), "commence_time": data.get("commence_time")}
         home = (data.get("home_team") or "").strip() if isinstance(data.get("home_team"), str) else ""
@@ -199,12 +212,15 @@ def main():
                   f"fetching all {len(events)} events instead", file=sys.stderr)
 
     all_rows: List[Dict[str, Any]] = []
+    reference = Recorder(args.sport_key)
+    started = datetime.now(timezone.utc)
     try:
         for i, ev in enumerate(events, 1):
             ev_id = ev.get("id")
             if not ev_id:
                 continue
-            rows = fetch_event_props(api_key, args.sport_key, ev_id, markets, args.regions, args.chunk, args.sleep)
+            rows = fetch_event_props(api_key, args.sport_key, ev_id, markets, args.regions, args.chunk, args.sleep,
+                                     reference)
             if rows:
                 all_rows.extend(rows)
             if i % 10 == 0:
@@ -213,6 +229,8 @@ def main():
         # Fail before writing: a partial board must not replace the published one.
         print(f"[ERR] {error}", file=sys.stderr)
         sys.exit(3)
+    finally:
+        reference.save(started)  # Pinnacle, record only
     print(f"[info] Odds API credits: {BUDGET.spent:.0f} spent this run, {BUDGET.remaining} left")
 
     out_path = Path(args.out); out_path.parent.mkdir(parents=True, exist_ok=True)

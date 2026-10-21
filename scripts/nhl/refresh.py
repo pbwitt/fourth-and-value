@@ -33,7 +33,11 @@ class OddsClient(BaseOddsClient):
         payload = super().get(suffix, **params)
         from nhl.v2.data import digest, write_json
         captured = datetime.now(UTC)
-        record = dict(source='the_odds_api', resource=suffix, parameters=params,
+        from sharp_reference import odds_params
+        # The parameters actually sent; the archived payload is the one the refresh used
+        # (Pinnacle already split off by the base client).
+        sent = odds_params(params) if suffix.endswith('odds') else params
+        record = dict(source='the_odds_api', resource=suffix, parameters=sent,
                       ingested_at=iso(captured), payload=payload)
         write_json(ROOT/'data/nhl/v2/raw_odds'/f'{captured.strftime("%Y%m%dT%H%M%S%fZ")}-{digest(payload)[:12]}.json', record)
         return payload
@@ -284,7 +288,10 @@ def main():
             games = schedule(now)
             history = load_history(now)
             client = OddsClient(os.getenv('NHL_ODDS_API_KEY') or os.getenv('ODDS_API_KEY'), SPORT)
-            state = refresh(client, now, games, history)
+            try:
+                state = refresh(client, now, games, history)
+            finally:
+                client.reference.save(now)  # Pinnacle, record only (scripts/sharp_reference.py)
             milestones = state.pop('milestone_quotes', [])
             from nhl.v2.inference import enrich
             state = enrich(state, now)

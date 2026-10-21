@@ -1,0 +1,63 @@
+name: Pinnacle Reference Check
+
+# Pinnacle rides along with every core odds refresh (scripts/sharp_reference.py). This
+# fails, and opens or updates a GitHub issue, when a sport refreshed today without
+# recording it, so a stall is reported the same day instead of going unnoticed.
+on:
+  schedule:
+    # After the morning edition (7:05-8:35 AM) and after the evening NBA refresh.
+    - cron: '50 9 * * *'
+      timezone: America/New_York
+    - cron: '20 18 * * *'
+      timezone: America/New_York
+  workflow_dispatch:
+
+concurrency:
+  group: sharp-reference-check
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check today's Pinnacle reference
+        id: check
+        shell: bash  # -o pipefail: the check's exit code survives the tee
+        run: python scripts/check_sharp_reference.py | tee check.md
+      - name: Open or update the alert issue
+        if: failure() && steps.check.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title='Pinnacle reference missing'
+          { cat check.md; echo; echo "Run: $RUN_URL"; } > body.md
+          number=$(gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number')
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body-file body.md
+          else
+            gh issue create --title "$title" --body-file body.md
+          fi
+      - name: Close the alert issue once the reference is back
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          title='Pinnacle reference missing'
+          number=$(gh issue list --state open --search "\"$title\" in:title" --json number --jq '.[0].number')
+          if [ -n "$number" ] && grep -q 'Status: OK' check.md; then
+            gh issue close "$number" --comment "$(cat check.md)"
+          fi
