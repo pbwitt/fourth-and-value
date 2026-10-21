@@ -64,6 +64,11 @@ const server=http.createServer((req,res)=>{
     assert.equal(await p.locator('.prop-card').count(),0);
     await p.goto(base+'/mlb/props/');await p.waitForSelector('.prop-card');
     assert((await p.locator('.prop-card').textContent()).includes('Research forecast: model inputs need a fresh check'));
+    // Best value blends the shown forecast at MLB's prop weight (25%) with the other books' price.
+    fixture={...fixture,rows:[{...pick,other_book_probability:.5,other_books:2}]};await p.reload();await p.waitForSelector('.prop-card');
+    assert.equal(await p.locator('#sort').inputValue(),'value');
+    assert((await p.locator('.prop-card').textContent()).includes('Our blend: 51.6% · -1.3% expected value · below the 1% floor'));
+    fixture={...fixture,rows:[pick]};
     fixture={...fixture,model_checked_at:now.toISOString(),rows:[{...pick,quoted_at:new Date(+now-91*60e3).toISOString()}]};
     await p.goto(base+'/mlb/picks.html');await p.waitForFunction(()=>document.getElementById('result-count').textContent.includes('matching offers'));
     assert.equal(await p.locator('.prop-card').count(),0);

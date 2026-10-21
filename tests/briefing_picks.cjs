@@ -285,7 +285,7 @@ console.log('PASS: cross-sport card order, comparable units, conservative NFL pr
 {
   const {blend,BLEND}=require('../docs/assets/briefing-picks.js');
   const lg=p=>Math.log(p/(1-p)),mix=(w,m,c)=>1/(1+Math.exp(-(w*lg(m)+(1-w)*lg(c))));
-  assert.deepEqual([BLEND.weights,BLEND.minEV,BLEND.highEV,BLEND.minBooks],[{NFL:.10,NHL:.10,MLB:.25,MLB_game:.10},.01,.03,2]);
+  assert.deepEqual([BLEND.weights,BLEND.minEV,BLEND.highEV,BLEND.minBooks],[{NFL:.10,NHL:.10,MLB:.25,MLB_game:.10,NBA:.10},.01,.03,2]);
   // The brief's example: an SOG Under at -140, model 71%, market 52%. At 25% it blended to
   // about 57%; at NHL's 10% it is about 54%. Either way below the 58.3% break-even.
   const sog={sport:'NHL',price:-140,final_probability:.71,push_probability:0,market_probability:.52,other_books:4};
@@ -297,6 +297,11 @@ console.log('PASS: cross-sport card order, comparable units, conservative NFL pr
   assert.equal(blend(mlbRow).weight,.25);assert(Math.abs(blend(mlbRow).final-mix(.25,.532,.403))<1e-12);
   for(const market of ['h2h','spreads','totals'])assert.equal(blend({...mlbRow,market}).weight,.10,market);
   assert.equal(blend({sport:'NFL',price:110,model_prob:.6,push_prob:0,consensus_prob:.53,book_count:2}).weight,.10);
+  // NBA (board sort only) reads MLB's field names at the NHL weight, for props and game lines alike.
+  const nbaRow={...mlbRow,sport:'NBA',market:'player_assists'};
+  for(const market of ['player_assists','h2h','spreads','totals'])assert.equal(blend({...nbaRow,market}).weight,.10,market);
+  assert(Math.abs(blend(nbaRow).final-mix(.10,.532,.403))<1e-12);
+  assert.equal(blend({...nbaRow,model_push_probability:.1}).model,.532/.9,'NBA pushes condition the model like MLB');
   // The model must give the side at least the market's chance; price alone is Market Watch.
   const shopped={sport:'NHL',price:280,final_probability:.302,push_probability:0,market_probability:.314,other_books:2};
   assert.equal(blend(shopped).status,'model_below_market');assert.equal(blend(shopped).final,undefined);
@@ -315,6 +320,18 @@ console.log('PASS: cross-sport card order, comparable units, conservative NFL pr
   const pushed=blend({...sog,price:150,final_probability:.6,push_probability:.1,market_probability:.5});
   const fin=1/(1+Math.exp(-(.10*Math.log((.6/.9)/(1-.6/.9)))));
   assert(Math.abs(pushed.final-fin)<1e-12);assert(Math.abs(pushed.ev-.9*(fin*2.5-1))<1e-12);
+  // Board sort: picks by blended EV, then the research tier above 30%, then offers under
+  // the floor; offers the blend cannot score keep their incoming (game-time) order.
+  const {boardOrder,boardBlendHTML}=require('../docs/assets/briefing-picks.js');
+  const qualified=ev=>({status:'qualifies',ev,final:.5,confidence:ev>=.03?'high':'moderate'});
+  const board=[{status:'no_model'},{status:'below_threshold',ev:-.01,final:.5},qualified(.35),null,qualified(.02),{status:'model_below_market'},qualified(.05),{status:'thin_market'}];
+  assert.deepEqual(board.map((b,i)=>[b,i]).sort(([a,i],[b,j])=>boardOrder(a,b)||i-j).map(([,i])=>i),[6,4,2,1,0,3,5,7]);
+  assert.match(boardBlendHTML(qualified(.046)),/Our blend:<\/strong> 50\.0% · \+4\.6% expected value · High confidence/);
+  assert.match(boardBlendHTML(qualified(.35)),/above 30%, research only/);
+  assert.match(boardBlendHTML({status:'below_threshold',ev:-.012,final:.51}),/-1\.2% expected value · below the 1% floor/);
+  assert.match(boardBlendHTML({status:'model_below_market',model:.52,market:.55}),/model 52\.0% is below the market's 55\.0% · not a pick/);
+  assert.match(boardBlendHTML({status:'thin_market'}),/fewer than two books/);
+  assert.equal(boardBlendHTML({status:'no_model'}),'');assert.equal(boardBlendHTML(null),'');
   // In collect: a qualifying bet carries its blend; a thin or 50% NFL estimate is withheld.
   let g=fixture();let out=collect(g,now);
   assert(out.selected.every(r=>r.blend.status==='qualifies'&&r.blend.ev>=.03&&r.blend.confidence==='high'&&Math.abs(r.score-100*r.blend.ev)<1e-9));

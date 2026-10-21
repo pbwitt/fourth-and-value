@@ -60,9 +60,19 @@ const server=http.createServer((req,res)=>{
     assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,'Forecast panel mobile overflow');
     await p.evaluate(()=>window.scrollTo(0,0));await p.screenshot({path:'/tmp/fv-nhl-model-mobile.png',fullPage:true});
     await p.setViewportSize({width:1440,height:1000});await p.screenshot({path:'/tmp/fv-nhl-model-desktop.png',fullPage:true});
+    // Best value scores the card's blend (10% model) only where other books post the line,
+    // and never at a book whose settlement rules are unknown.
+    assert((await p.locator('.prop-card').textContent()).includes('fewer than two books post this line'));
+    fixture.rows=fixture.rows.map(r=>({...r,other_books:2}));await p.reload();await p.waitForSelector('.prop-card');
+    assert.equal(await p.locator('#sort').inputValue(),'value');
+    assert((await p.locator('.prop-card').textContent()).includes('Our blend: 50.6% · +1.2% expected value · Moderate confidence'));
+    fixture.rows=fixture.rows.map(r=>({...r,settlement_verified:false}));await p.reload();await p.waitForSelector('.prop-card');
+    assert(!(await p.locator('.prop-card').textContent()).includes('Our blend'),'unknown settlement rules are not scored');
+    fixture.rows=fixture.rows.map(r=>({...r,settlement_verified:true}));
     fixture.rows=fixture.rows.map(r=>({...r,model_data_checked_at:new Date(+now-37*3600e3).toISOString()}));
     await p.reload();await p.waitForSelector('.prop-card');assert.equal(await p.locator('.nhl-forecast').count(),0);
     assert((await p.locator('.prop-card').textContent()).includes('forecast hidden'));
+    assert(!(await p.locator('.prop-card').textContent()).includes('Our blend'),'hidden forecasts are not scored');
     fixture.rows=fixture.rows.map(r=>({...r,independent_probability:null,final_probability:null,model_status:'Independent model unavailable'}));
     await p.reload();await p.waitForSelector('.prop-card');assert.equal(await p.locator('.nhl-forecast').count(),0);
     assert((await p.locator('.prop-card').textContent()).includes('Independent model unavailable'));

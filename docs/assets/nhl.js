@@ -41,13 +41,23 @@
     $(id).value=params.get(id)||'';
   });
   $('search').value=params.get('q')||'';
+  // Best value (Player Props, Game Lines) orders offers by the card's market blend. It scores
+  // only forecasts this page shows (model data under 36 hours old) at books with known rules.
+  const FV=window.FVPicks,sortable=!!$('sort')&&!!FV?.blend,valued=new Map();
+  const value=r=>{
+    if(!sortable||started(r))return null;
+    if(!valued.has(r)){const age=now-Date.parse(r.model_data_checked_at);valued.set(r,age>=0&&age<36*3600e3&&r.settlement_verified!==false?FV.blend({...r,sport:'NHL'}):null);}
+    return valued.get(r);
+  };
+  const byTime=(a,b)=>a.commence_time.localeCompare(b.commence_time)||a.player.localeCompare(b.player);
+  if($('sort')){$('sort').value=sortable&&params.get('sort')!=='time'?'value':'time';$('sort').disabled=!sortable;}
   let limit=30;
   function render(){
     const q=$('search').value.toLowerCase();
     const showStarted=!!$('history')?.checked;
     let selected=relevant.filter(r=>(showStarted||!started(r))&&(r.player+' '+r.game).toLowerCase().includes(q)&&(!$('market').value||r.market===$('market').value)&&(!$('book').value||r.book===$('book').value)&&(!$('game').value||r.event_id===$('game').value));
     if($('best').checked){const cheapest=new Map();for(const r of selected){const key=JSON.stringify([r.event_id,r.player,r.market,r.line,r.side,r.settlement_profile]);cheapest.set(key,Math.min(cheapest.get(key)??1,r.book_probability));}selected=selected.filter(r=>r.book_probability===cheapest.get(JSON.stringify([r.event_id,r.player,r.market,r.line,r.side,r.settlement_profile])));}
-    selected.sort((a,b)=>page==='watch'?b.conditional_price_advantage-a.conditional_price_advantage:a.commence_time.localeCompare(b.commence_time)||a.player.localeCompare(b.player));
+    selected.sort((a,b)=>page==='watch'?b.conditional_price_advantage-a.conditional_price_advantage:$('sort')?.value==='value'?FV.boardOrder(value(a),value(b))||byTime(a,b):byTime(a,b));
     $('result-count').textContent=`${selected.length} matching offers`;
     $('results').innerHTML=selected.slice(0,limit).map(r=>{
       const historyAge=now-Date.parse(data.history_checked_at);
@@ -56,14 +66,14 @@
       const watch=page==='watch'?`<p>Other-book fair probability: ${pct(r.other_book_probability)} (${r.other_books} books). Price gap: ${(100*(r.other_book_probability-r.book_probability)).toFixed(1)} percentage points.</p>`:'';
       const modelAge=now-Date.parse(r.model_data_checked_at),modelFresh=modelAge>=0&&modelAge<36*3600e3;
       const model=modelFresh&&Number.isFinite(r.independent_probability)?`<details class="nhl-forecast"><summary>Experimental forecast · ${pct(r.final_probability)} win probability</summary><p>${esc(r.model_status)}</p><dl><dt>Independent win</dt><dd>${pct(r.independent_probability)}</dd><dt>Other-book market (non-push)</dt><dd>${pct(r.market_probability)}</dd><dt>Final win</dt><dd>${pct(r.final_probability)}</dd><dt>Push</dt><dd>${pct(r.push_probability)}</dd><dt>Fair odds</dt><dd>${Number.isFinite(r.fair_odds)?esc(odds(Math.round(r.fair_odds))):'Unavailable'}</dd><dt>Estimated EV per unit</dt><dd>${pct(r.estimated_ev)}</dd><dt>Minimum acceptable price</dt><dd>${Number.isFinite(r.minimum_acceptable_odds)?esc(odds(Math.ceil(r.minimum_acceptable_odds))):'Unavailable'}</dd><dt>Hockey / market difference (non-push)</dt><dd>${Number.isFinite(r.independent_market_difference)?(100*r.independent_market_difference).toFixed(1)+' pp':'Unavailable'}</dd></dl><p>Signal: ${esc((r.signal_type||'unavailable').replaceAll('_',' '))}. Analyst: ${esc(r.analyst_status||'unreviewed')}.</p><p>${(r.key_drivers||[]).map(esc).join('. ')}.</p><p>Uncertainties: ${(r.uncertainties||[]).map(esc).join('; ')}.</p><p>${esc(r.goalie_assumption||'')} ${esc(r.lineup_assumption||'')}</p>${r.sensitivity?`<p>Scenario win range: ${pct(r.sensitivity.win_min)}–${pct(r.sensitivity.win_max)}. ${esc(r.sensitivity.assumption)}. The minimum price uses the lower scenario and a 2% EV buffer; it is not a validated betting threshold.</p>`:''}<p>Recheck if: ${(r.invalidation_conditions||[]).map(esc).join('; ')}.</p>${Number.isFinite(r.analyst_probability)?`<p>Analyst shadow override: ${pct(r.analyst_probability)}. Original model forecast preserved. ${esc(r.analyst_review?.reason||'')}</p>`:''}<p class="meta">${esc(r.model_version)} · ${esc(r.validation_status)} · Inputs checked ${esc(time(r.model_data_checked_at))}</p></details>`:`<p class="meta">${esc(r.model_status||'Independent forecast unavailable')}${Number.isFinite(r.independent_probability)&&!modelFresh?' · Model inputs expired; forecast hidden.':''}</p>`;
-      return `<article class="panel prop-card"><p class="meta">${esc(r.game)} · ${esc(time(r.commence_time))}</p>${started(r)?'<p class="meta"><strong>Game started · historical quote</strong></p>':''}<h2>${r.player&&modelFresh&&Number.isFinite(r.independent_probability)?(window.FVPlayerContext?.name?.(r,'NHL')??esc(r.player)):esc(r.player||r.market_label)}</h2><p class="betline">${esc(r.side)} ${r.line===null?'':esc(r.line)} · ${esc(r.market_label)}</p><p><strong>${esc(r.book_label)} ${esc(odds(r.price))}</strong></p><dl><dt>Book probability (non-push)</dt><dd>${pct(r.book_probability)}</dd><dt>Paired fair probability (non-push)</dt><dd>${pct(r.fair_probability)}</dd><dt>Same-line consensus (non-push)</dt><dd>${pct(r.consensus_probability)}</dd><dt>Paired books</dt><dd>${r.paired_books}</dd></dl>${watch}${model}${baseline}<p class="meta">Quote: ${esc(time(r.quoted_at))}. ${esc(r.settlement_scope||'Verify sportsbook settlement rules.')}</p></article>`;
+      return `<article class="panel prop-card"><p class="meta">${esc(r.game)} · ${esc(time(r.commence_time))}</p>${started(r)?'<p class="meta"><strong>Game started · historical quote</strong></p>':''}<h2>${r.player&&modelFresh&&Number.isFinite(r.independent_probability)?(window.FVPlayerContext?.name?.(r,'NHL')??esc(r.player)):esc(r.player||r.market_label)}</h2><p class="betline">${esc(r.side)} ${r.line===null?'':esc(r.line)} · ${esc(r.market_label)}</p><p><strong>${esc(r.book_label)} ${esc(odds(r.price))}</strong></p><dl><dt>Book probability (non-push)</dt><dd>${pct(r.book_probability)}</dd><dt>Paired fair probability (non-push)</dt><dd>${pct(r.fair_probability)}</dd><dt>Same-line consensus (non-push)</dt><dd>${pct(r.consensus_probability)}</dd><dt>Paired books</dt><dd>${r.paired_books}</dd></dl>${sortable?FV.boardBlendHTML(value(r)):''}${watch}${model}${baseline}<p class="meta">Quote: ${esc(time(r.quoted_at))}. ${esc(r.settlement_scope||'Verify sportsbook settlement rules.')}</p></article>`;
     }).join('')||`<p class="empty">No matching NHL offers. Markets may not be posted yet, or your filters may exclude the available quotes.${$('history')&&!showStarted&&relevant.some(started)?' Include started games to see their last pregame quotes.':''}</p>`;
     window.FVOfferTracker?.attach($('results'),selected.slice(0,limit).map(r=>({...r,sport:'NHL'})));
     $('more').hidden=selected.length<=limit;
-    const p=new URLSearchParams();for(const id of ['market','book','game'])if($(id).value)p.set(id,$(id).value);if(q)p.set('q',$('search').value);if(showStarted)p.set('history','1');history.replaceState(null,'',location.pathname+(p.size?'?'+p.toString():''));
+    const p=new URLSearchParams();for(const id of ['market','book','game'])if($(id).value)p.set(id,$(id).value);if(q)p.set('q',$('search').value);if(showStarted)p.set('history','1');if($('sort')?.value==='time')p.set('sort','time');history.replaceState(null,'',location.pathname+(p.size?'?'+p.toString():''));
   }
-  for(const id of ['search','market','book','game','best','history'])$(id)?.addEventListener(id==='search'?'input':'change',()=>{limit=30;render();});
-  $('reset').onclick=()=>{['search','market','book','game'].forEach(id=>$(id).value='');$('best').checked=true;if($('history'))$('history').checked=false;limit=30;render();};
+  for(const id of ['search','market','book','game','sort','best','history'])$(id)?.addEventListener(id==='search'?'input':'change',()=>{limit=30;render();});
+  $('reset').onclick=()=>{['search','market','book','game'].forEach(id=>$(id).value='');$('best').checked=true;if($('history'))$('history').checked=false;if(sortable)$('sort').value='value';limit=30;render();};
   $('more').onclick=()=>{limit+=30;render();};
   render();
   // Move started games behind the toggle and drop expired quotes on an open tab as well as at load.
