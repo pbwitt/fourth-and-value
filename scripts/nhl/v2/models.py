@@ -29,6 +29,15 @@ def count_pmf(mean, alpha=0):
     return values/values.sum()
 
 
+def median(pmf):
+    """Smallest count with at least half the probability at or below it.
+
+    Prop lines sit near the median, and right-skewed counts put it below the mean: a 2.6 SOG
+    mean can still favor the Under at 2.5. Readers see both numbers.
+    """
+    return int(np.searchsorted(np.cumsum(pmf), .5))
+
+
 def outcome(pmf,line,side='Over'):
     values = np.arange(len(pmf))
     win = float(pmf[values>line].sum() if side=='Over' else pmf[values<line].sum())

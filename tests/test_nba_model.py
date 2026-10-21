@@ -87,6 +87,13 @@ class PlayerDraws(unittest.TestCase):
         same = M.simulate(PARAMS['players'], rates, 32, 5, n=5000, seed=3)[0]
         self.assertTrue((same['PTS'] == draws['PTS']).all(), 'seeded draws are reproducible')
 
+    def test_median_is_the_inverted_cdf_middle_draw(self):
+        draws = {st: np.zeros(7, dtype=int) for st in M.STATS}
+        draws['PTS'] = np.array([30, 10, 12, 11, 40, 9, 13])
+        self.assertEqual(M.player_median(draws, 'player_points'), 12.0)
+        self.assertGreater(float(draws['PTS'].mean()), 17.5, 'right-skewed: the mean clears a line the median misses')
+        self.assertLess(M.player_market(draws, 'player_points', 'Over', 17.5)[0], .5)
+
     def test_calibration_shrinks_toward_even(self):
         self.assertAlmostEqual(float(M.calibrate(0.8, 1.0)), 0.8)
         self.assertLess(float(M.calibrate(0.8, 0.7)), 0.8)
@@ -125,6 +132,11 @@ class Inference(unittest.TestCase):
         self.assertIsNone(unknown['model_probability'])
         self.assertNotIn('model_checked_at', meta, 'shadow mode never makes NBA editorial/Top Picks eligible')
         self.assertEqual(meta['model_coverage']['forecast'], 4)
+        # The median sits on the side of a half line that the model favors; the mean need not.
+        for row in (total, pts, pra):
+            favored = row['model_probability'] / (1 - row['model_push_probability']) > .5
+            self.assertEqual(row['model_median'] > row['line'] if row['side'] == 'Over' else row['model_median'] < row['line'], favored, row)
+        self.assertIsNone(injured['model_median'])
 
 
 if __name__ == '__main__':

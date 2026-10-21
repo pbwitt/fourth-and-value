@@ -41,7 +41,7 @@ const server=http.createServer((req,res)=>{
       }
       assert.match(await page.locator('#research-picks-rows').textContent(),/53.0%/);
       assert.equal(await page.locator('.book-offer-line').first().textContent(),'Over 2.5');
-      assert.match(await page.locator('#research-picks-rows').textContent(),/Projected Points: 3.4/i);
+      assert.match(await page.locator('#research-picks-rows').textContent(),/Projected Points: average 3.4/i);
       assert(!(await page.locator('#daily-picks').textContent()).includes('Astra'));
       const headings=await page.locator('main > h2, #daily-picks-heading').allTextContents();
       assert.equal(headings[0],"Today's picks");

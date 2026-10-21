@@ -92,7 +92,7 @@ def ev_pct(win, push, price):
 
 def unsupported(row, reason):
     row.update(model_probability=None, model_push_probability=None, model_ev_pct=None, model_mean=None,
-               model_unsupported_reason=reason)
+               model_median=None, model_unsupported_reason=reason)
 
 
 def add_model(rows, history, now, params=None, fetch=fetch_json):
@@ -135,6 +135,7 @@ def add_model(rows, history, now, params=None, fetch=fetch_json):
             win, push = M.game_market(matrix, row['market'], side_home, row['line'] or 0)
             mean = mean_home + mean_away if row['market'] == 'totals' else (mean_home - mean_away) * (1 if side_home else -1)
             row.update(model_probability=win, model_push_probability=push, model_mean=round(mean, 2),
+                       model_median=M.game_median(matrix, row['market'], side_home),
                        model_ev_pct=round(ev_pct(win, push, row['price']), 2))
             continue
         if row['market'] not in M.MARKET_STATS:
@@ -180,7 +181,7 @@ def add_model(rows, history, now, params=None, fetch=fetch_json):
         win, push, mean = M.player_market(sim, row['market'], row['side'], row['line'],
                                            pp.get('calibration', {}).get(row['market'], 1.0))
         row.update(model_probability=win, model_push_probability=push, model_mean=round(mean, 2),
-                   model_minutes=round(minutes, 1), espn_player_id=pid,
+                   model_median=M.player_median(sim, row['market']), model_minutes=round(minutes, 1), espn_player_id=pid,
                    model_ev_pct=round(ev_pct(win, push, row['price']), 2))
     reasons = defaultdict(int)
     for row in rows:

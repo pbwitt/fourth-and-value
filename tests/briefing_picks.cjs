@@ -127,6 +127,11 @@ assert.equal(comparison({...mlb,other_book_probability:null,consensus_probabilit
 assert(!rowHTML({...mlb,model_mean_label:'<img src=x>'}).includes('<img'));
 assert(!rowHTML({...mlb,market:'h2h',model_mean:987.6}).includes('987.6'));
 assert(!rowHTML({...nhl,projected_mean:null,projected_home_reg_goals:99.9}).includes('99.9'));
+// The average can clear a line the model expects to miss, so the median is shown beside it.
+assert.match(rowHTML({...nhl,projected_mean:2.6,projected_median:2}),/: average 2\.6 · median 2</);
+assert.match(rowHTML({...mlb,model_mean:5.7,model_median:5}),/: average 5\.7 · median 5</);
+assert.match(rowHTML({...nhl,projected_mean:2.6,projected_median:null}),/: average 2\.6</);
+assert.doesNotMatch(rowHTML({...nflView,model_median:3}),/median 3/,'the NFL Normal curve has no separate median');
 const noEvidence={...nflView,reviewed_candidate:reviewed,review_sources:[],qualitative_review:{...reviewed.qualitative_review,
  status:'needs_information',prompt_version:'mlb-nfl-context-1',evidence:[]}};
 const detail=rowHTML(noEvidence),brief=summaryHTML([noEvidence]);

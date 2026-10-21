@@ -9,7 +9,7 @@ import numpy as np
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from mlb.model_data import normalize, BAT_KEYS, PITCH_KEYS, manifest
-from mlb.models import State, dataset, pmf, outcome, joint, game_outcome, expected_return, TARGETS
+from mlb.models import State, dataset, pmf, outcome, joint, game_outcome, expected_return, median, TARGETS
 from mlb.predict import published_lineups, pick_reason, attach, load_bundle
 from mlb.train import partition, score
 
@@ -34,6 +34,12 @@ def lineup_box():
 
 
 class ModelTests(unittest.TestCase):
+    def test_median_of_counts_and_of_signed_margins(self):
+        self.assertEqual(median(np.array([.3,.15,.25,.3])),2)
+        self.assertEqual(median(np.array([.2,.3,.1,.4]),values=[1,-2,3,-1]),-1,'values are ordered before accumulating')
+        h,a=np.indices((3,3));j=joint(np.array([.2,.5,.3]),np.array([.5,.3,.2]))
+        self.assertEqual(median(j.ravel(),(h+a).ravel()),2)
+
     def test_current_future_and_same_day_results_cannot_enter_features(self):
         games=[game(f'2026-08-{day:02}',day) for day in range(1,21)]
         games.append(game('2026-08-20',99))

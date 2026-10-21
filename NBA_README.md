@@ -50,7 +50,7 @@ De-vig needs both outcomes from the same book/event/player/market/line. Spread p
 
 `scripts/nba/model.py`, `train.py` and `inference.py`; parameters in `artifacts/nba/model/nba-v1.json`; model card and
 evaluation in `reports/nba-v1/`. The daily refresh only runs inference (a few seconds; ESPN rosters and injury report,
-free). It never retrains. Rows gain `model_probability`, `model_push_probability`, `model_mean`, `model_minutes`,
+free). It never retrains. Rows gain `model_probability`, `model_push_probability`, `model_mean`, `model_median`, `model_minutes`,
 `model_ev_pct` (feed only, not displayed) and `model_unsupported_reason`. The feed gains `model_version`,
 `model_predicted_at` and `model_coverage`, but never `model_checked_at`, so editorial and Top Picks keep skipping NBA.
 Retrain (about 20 minutes, no network) after the history changes materially:

@@ -9,6 +9,8 @@
   const thirds=v=>{if(!finite(v))return '—';const outs=Math.round(v*3);return Math.floor(outs/3)+['','⅓','⅔'][outs%3];};
   const boxInnings=v=>{const m=/^(\d+)\.([012])$/.exec(String(v??''));return m?m[1]+['','⅓','⅔'][+m[2]]:String(v??'');};
   const measure=(v,unit,d=2)=>unit==='IP'?thirds(v):number(v,d);
+  // Lines sit near the median; a skewed count's average can clear a line the model expects to miss.
+  const medianOf=(r,sport)=>{const m=sport==='NHL'?r.projected_median:sport==='NFL'?null:r.model_median;return finite(m)?m:null;};
   function tile(label,value,unit='',detail='',featured=false){
     return `<div class="pc-stat${featured?' pc-stat-primary':''}"><dt>${esc(label)}</dt><dd>${esc(value)}${unit?` <span>${esc(unit)}</span>`:''}${detail?`<span class="pc-detail">${esc(detail)}</span>`:''}</dd></div>`;
   }
@@ -135,7 +137,8 @@
     const inputs=Array.isArray(c.inputs)?c.inputs:[];
     const mean=sport==='MLB'?r.model_mean:sport==='NFL'?r.mu:r.projected_mean;
     const first=recent[0],workload=inputs.find(i=>/Projected ice time|Recent innings \/ start|Expected plate appearances/.test(i.label));
-    let stats=finite(mean)?tile('Model projection',number(mean),c.stat_label,'Expected count · experimental',true):'';
+    const median=medianOf(r,sport);
+    let stats=finite(mean)?tile('Model average',number(mean),c.stat_label,`${median!==null?`Median ${fmt(median,'',sport)} · `:''}experimental`,true):'';
     if(first&&finite(first.mean))stats+=tile(`Last ${first.games} ${c.sample_label||'games'}`,number(first.mean),c.stat_label,'Observed average');
     if(workload&&finite(workload.value))stats+=tile(workload.label,measure(workload.value,workload.unit),workload.unit,'Prior-adjusted estimate');
     else if(first&&finite(first.workload))stats+=tile(c.workload_label,measure(first.workload,c.workload_unit),c.workload_unit,'Observed average');
@@ -175,8 +178,8 @@
     const line=lineOf(r),market=marketKey(r);
     const bet=[sideText(r),line!==null?lineText(line):'',r.market_label||(c?statName(c):'')].filter(Boolean).join(' ');
     const title=[r.player,bet].filter(Boolean).join(' · ');
-    const mean=sport==='MLB'?r.model_mean:sport==='NFL'?r.mu:r.projected_mean;
-    const text=`${title}.${c&&finite(mean)?` Model projection: ${fmt(mean,'',sport)} ${c.stat_label}.`:''} Player snapshot on Fourth & Value.`;
+    const mean=sport==='MLB'?r.model_mean:sport==='NFL'?r.mu:r.projected_mean,median=medianOf(r,sport);
+    const text=`${title}.${c&&finite(mean)?` Model average: ${fmt(mean,'',sport)} ${c.stat_label}${median!==null?` (median ${fmt(median,'',sport)})`:''}.`:''} Player snapshot on Fourth & Value.`;
     const url=new URL(global.location.pathname,global.location.href);
     url.searchParams.set('q',r.player);
     if(market)url.searchParams.set('market',market);
@@ -217,7 +220,8 @@
     const v=stripValues(r,sport),vs=c?versusParts(c,r,sport):null;
     const bet=[sideText(r),line!==null?lineText(line):'',r.market_label||(c?statName(c):'')].filter(Boolean).join(' ');
     const sub=[position(r),r.game].filter(Boolean).join(' · ');
-    const tiles=[c&&finite(mean)?['Model projection',`${fmt(mean,'',sport)} ${c.stat_label}`]:null,
+    const median=medianOf(r,sport);
+    const tiles=[c&&finite(mean)?[`Model average${median!==null?` · median ${fmt(median,'',sport)}`:''}`,`${fmt(mean,'',sport)} ${c.stat_label}`]:null,
       v?[sport==='NBA'?'Past hit rate':'Model chance',odds(v[0])]:null,v&&finite(v[1])?['Market',odds(v[1])]:null,v?['Break-even',odds(v[2])]:null].filter(Boolean);
     const games=(Array.isArray(c?.games)?c.games:[]).filter(g=>g&&g[focus]!==undefined&&g[focus]!==null).slice(0,5);
     const label=focus&&Array.isArray(c?.game_columns)?(c.game_columns.find(x=>x[0]===focus)||[])[1]:'';
@@ -665,7 +669,8 @@
     const inputs=(c?.inputs||[]).filter(i=>i&&finite(i.value)).sort((a,b)=>!!b.used-!!a.used).slice(0,6);
     const mean=sport==='MLB'?r.model_mean:sport==='NFL'?r.mu:r.projected_mean,first=recent[0];
     const per=c?.sample_label==='starts'?'start':'game';
-    const projection=!options.statsOnly&&c&&finite(mean)?`<dl class="pc-stats pc-proj">${tile('Model projection · experimental',fmt(mean,'',sport),c.stat_label,'',true)}</dl>`:'';
+    const median=medianOf(r,sport);
+    const projection=!options.statsOnly&&c&&finite(mean)?`<dl class="pc-stats pc-proj">${tile('Model average · experimental',fmt(mean,'',sport),c.stat_label,median!==null?`Median ${fmt(median,'',sport)}`:'',true)}</dl>`:'';
     let tiles='';
     if(first&&finite(first.mean))tiles+=tile(`${statName(c)} / ${per}`,fmt(first.mean,'',sport));
     if(first&&finite(first.workload))tiles+=tile(`${workName(c,sport)} / ${per}`,fmt(first.workload,c.workload_unit,sport));

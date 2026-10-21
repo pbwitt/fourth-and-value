@@ -52,9 +52,9 @@ def history():
 
 ROWS = [
     quote('Tage Thompson', 'player_shots_on_goal', 2.5, 'Over', 'fanduel', 120, player_id=1, fair_probability=.44,
-          conditional_probability=.47, projected_mean=2.9),
+          conditional_probability=.47, projected_mean=2.9, projected_median=2),
     quote('Tage Thompson', 'player_shots_on_goal', 2.5, 'Over', 'draftkings', 105, player_id=1, fair_probability=.46,
-          conditional_probability=.47, projected_mean=2.9),
+          conditional_probability=.47, projected_mean=2.9, projected_median=2),
     quote('Tage Thompson', 'player_shots_on_goal', 2.5, 'Under', 'fanduel', -150, player_id=1, fair_probability=.56),
     quote('Tage Thompson', 'player_goals', 1.0, 'Over', 'betrivers', 400, player_id=1),
     quote('Connor Bedard', 'player_points', 0.5, 'Over', 'draftkings', -160),
@@ -120,7 +120,7 @@ class PlayerPageTests(unittest.TestCase):
         self.assertIn('+122', row, 'fair odds from the median paired probability (45%)')
         self.assertIn('47%', row, 'experimental model estimate')
         self.assertIn('Over 1 · can push', html)
-        self.assertIn('Experimental model projection: 2.9 shots.', html)
+        self.assertIn('Experimental model projection: 2.9 shots on average; median 2.', html)
         self.assertIn('shots over 2.5 in 4 of 10', html, 'last 10 regular-season games; the playoff game is excluded')
         self.assertIn('vs CHI', html)
         self.assertIn('<td>2025–26</td><td class="num">12</td>', html)

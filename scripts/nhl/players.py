@@ -111,7 +111,8 @@ def summarize(quotes):
     paired = [q['fair_probability'] for q in quotes if q.get('fair_probability') is not None]
     model = next((q['conditional_probability'] for q in quotes if q.get('conditional_probability') is not None), None)
     return dict(best=best, books=len({q['book'] for q in quotes}), fair=statistics.median(paired) if paired else None,
-                model=model, projection=next((q['projected_mean'] for q in quotes if q.get('projected_mean') is not None), None))
+                model=model, projection=next((q['projected_mean'] for q in quotes if q.get('projected_mean') is not None), None),
+                median=next((q['projected_median'] for q in quotes if q.get('projected_median') is not None), None))
 
 
 def ticket(row):
@@ -184,6 +185,7 @@ def player_page(slug, entry, offer, recent, seasons, mates, team_names, now=None
                 continue
             stats = [summarize(lines[k]) for k in keys]
             projection = next((s['projection'] for s in stats if s['projection'] is not None), None)
+            median = next((s['median'] for s in stats if s['median'] is not None), None)
             rows = []
             for (_, line, side), s in zip(keys, stats):
                 tickets.append(ticket(s['best']))
@@ -193,7 +195,9 @@ def player_page(slug, entry, offer, recent, seasons, mates, team_names, now=None
                 rows.append(f'<tr><td>{side} {line:g}{push}</td><td class="num">{odds(s["best"]["price"])}<span class="sub">{book}</span></td>'
                             f'<td class="num">{s["books"]}</td><td class="num">{fair(s["fair"]) or "—"}</td><td class="num">{model}</td>'
                             f'<td><span data-offer="{len(tickets) - 1}"></span></td></tr>')
-            note = f'<p class="muted">Experimental model projection: {projection:.1f} {unit}.</p>' if projection is not None else ''
+            # Lines sit near the median, which a skewed count's average overstates.
+            middle = f'; median {median}' if median is not None else ''
+            note = f'<p class="muted">Experimental model projection: {projection:.1f} {unit} on average{middle}.</p>' if projection is not None else ''
             body.append(f'<h3>{label}</h3>{note}<div class="table-wrap"><table><thead><tr><th>Bet</th><th>Best price</th><th>Books</th>'
                         f'<th>Fair odds</th><th>Model</th><th>Track</th></tr></thead><tbody>{"".join(rows)}</tbody></table></div>')
         sections.append(f'<section class="panel" id="lines"><h2>{escape(name)} lines and prices</h2>{"".join(body)}</section>')
