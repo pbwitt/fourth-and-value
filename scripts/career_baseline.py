@@ -44,6 +44,9 @@ import pandas as pd
 CAREER_SEASON_DECAY = 0.75   # weight multiplier per season further in the past
 K_CAREER_POS = 40            # career games needed to fully trust player over position pool
 K_RECENT_MU = 4              # current-season games needed to fully trust recent over career
+RECENT_GAMES = 4             # current-season games in the recent-form estimate
+RECENT_ALPHA = 0.4           # per-game decay within that window (newest game weighs most)
+QB_STARTS_ONLY = False       # passing history counts only games the QB led his team in attempts
 K_RECENT_SIGMA = 8           # current-season games needed to fully trust recent sigma
 
 
@@ -76,6 +79,22 @@ def load_career_logs(seasons: list[int], data_dir: str = "data") -> pd.DataFrame
     if not frames:
         return pd.DataFrame()
     return pd.concat(frames, ignore_index=True)
+
+
+def qb_starts(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop quarterback games that were not starts (relief, garbage time, trick plays).
+
+    A start is leading the team's quarterbacks in pass attempts that week. Partial starts
+    (injury exits, blowouts) stay: a prop on a starter is graded on them too. Other
+    positions are untouched.
+    """
+    team = "recent_team" if df is not None and "recent_team" in df else "team"
+    if df is None or df.empty or not {"attempts", "position", "season", "week", team} <= set(df.columns):
+        return df  # without team and week there is no way to tell a start from relief
+    qb = df["position"].eq("QB")
+    attempts = pd.to_numeric(df["attempts"], errors="coerce").fillna(0)
+    lead = attempts.where(qb).groupby([df["season"], df["week"], df[team]]).transform("max")
+    return df[~qb | (attempts.gt(0) & attempts.eq(lead))]
 
 
 def _per_game_ratio(df: pd.DataFrame, num_col: str, den_col: Optional[str] = None) -> pd.Series:

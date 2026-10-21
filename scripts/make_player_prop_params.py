@@ -234,6 +234,7 @@ from typing import Dict, Tuple, Optional
 
 import numpy as np
 import pandas as pd
+import career_baseline as cb
 
 # --- import market normalizer (works whether you're running from repo root or scripts/)
 # nfl_data_py is preferred; if missing, we'll degrade gracefully
@@ -1011,7 +1012,6 @@ def estimate_rush_latents(
     """
     use_career = career_df is not None and not career_df.empty and season is not None
     if use_career:
-        import career_baseline as cb
         pos_vol_mu, pos_vol_sigma = cb.compute_position_pool(career_df, "RB", "carries")
         pos_ypc_mu, pos_ypc_sigma = cb.compute_position_pool(career_df, "RB", "rushing_yards", "carries")
         career_prior = career_df[career_df["season"] < season]
@@ -1084,7 +1084,7 @@ def estimate_rush_latents(
 
         if player in grp.groups:
             player_data = grp.get_group(player).sort_index()
-            recent = player_data.tail(4)
+            recent = player_data.tail(cb.RECENT_GAMES)
 
             if len(recent) > 0:
                 # Volume (carries)
@@ -1151,7 +1151,6 @@ def estimate_receive_latents(
     """
     use_career = career_df is not None and not career_df.empty and season is not None
     if use_career:
-        import career_baseline as cb
         recv_positions = ["WR", "TE", "RB"]
         pos_pools = {
             pos: (
@@ -1228,7 +1227,7 @@ def estimate_receive_latents(
 
         if player in grp.groups:
             player_data = grp.get_group(player).sort_index()
-            recent = player_data.tail(4)
+            recent = player_data.tail(cb.RECENT_GAMES)
 
             if len(recent) > 0:
                 # If we have targets, use them; otherwise estimate from receptions
@@ -1304,6 +1303,8 @@ def estimate_pass_latents(
     """
     Estimate PASS family latents: Volume (attempts), Comp%, Yards/Completion.
     See estimate_rush_latents for the career_df blending rationale.
+    With cb.QB_STARTS_ONLY, relief appearances leave the recent sample, the career
+    history and the position pool (cb.qb_starts).
 
     Returns dict with:
       - volume_mu: pass attempts
@@ -1312,9 +1313,10 @@ def estimate_pass_latents(
       - ypc_mu: yards per completion
       - ypc_sigma: Y/C variance
     """
+    if cb.QB_STARTS_ONLY:
+        logs, career_df = cb.qb_starts(logs), cb.qb_starts(career_df)
     use_career = career_df is not None and not career_df.empty and season is not None
     if use_career:
-        import career_baseline as cb
         pos_vol_mu, pos_vol_sigma = cb.compute_position_pool(career_df, "QB", "attempts")
         pos_ypc_mu, pos_ypc_sigma = cb.compute_position_pool(career_df, "QB", "passing_yards", "completions")
         career_prior = career_df[career_df["season"] < season]
@@ -1383,7 +1385,7 @@ def estimate_pass_latents(
 
         if player in grp.groups:
             player_data = grp.get_group(player).sort_index()
-            recent = player_data.tail(4)
+            recent = player_data.tail(cb.RECENT_GAMES)
 
             if len(recent) > 0:
                 # Volume (attempts)
@@ -1618,9 +1620,9 @@ def build_params(cands, logs, season, week, defensive_ratings=None, opponent_map
     print("[family] Estimating latent parameters for Rush, Receive, Pass families...")
 
     # Estimate latent parameters for each family
-    rush_latents = estimate_rush_latents(logs, player_idx, alpha=0.4, career_df=career_df, season=season)
-    receive_latents = estimate_receive_latents(logs, player_idx, alpha=0.4, career_df=career_df, season=season)
-    pass_latents = estimate_pass_latents(logs, player_idx, alpha=0.4, career_df=career_df, season=season)
+    rush_latents = estimate_rush_latents(logs, player_idx, alpha=cb.RECENT_ALPHA, career_df=career_df, season=season)
+    receive_latents = estimate_receive_latents(logs, player_idx, alpha=cb.RECENT_ALPHA, career_df=career_df, season=season)
+    pass_latents = estimate_pass_latents(logs, player_idx, alpha=cb.RECENT_ALPHA, career_df=career_df, season=season)
 
     # Package into dict for derive_market_from_latents
     latents = {
@@ -2074,7 +2076,6 @@ def main():
     # This ensures we're using the most recent games from THIS season
     logs = fetch_recent_game_logs(season, week)
 
-    import career_baseline as cb
     career_seasons = list(range(season - 6, season + 1))
     career_df = cb.load_career_logs(career_seasons)
     if not career_df.empty:
