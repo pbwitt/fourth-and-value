@@ -70,7 +70,7 @@ The lower calibration MSE wins. No test results choose the candidate or tune mod
 
 Counts use Poisson distributions if overdispersion is negligible, otherwise negative binomial distributions with residual-estimated dispersion. Pitcher outs use a normal CDF evaluated at half-count boundaries. Isotonic calibration maps raw cumulative probabilities to observed cumulative outcomes on the calibration partition. A 2% raw-distribution mixture avoids exact certainty in unobserved tails. Finite supports collect the remaining upper tail at their endpoint; tested betting thresholds remain well below these endpoints.
 
-Displayed means come from the calibrated mass function, rather than the raw regression mean. All team and prop probabilities preserve total mass. The joint team-run distribution is an independent outer product with tied final scores removed and the remainder normalized. This approximation does not model run correlation, starter changes or extra innings explicitly.
+Displayed means (`model_mean`) and medians (`model_median`) come from the calibrated mass function, rather than the raw regression mean. All team and prop probabilities preserve total mass. The joint team-run distribution is an independent outer product with tied final scores removed and the remainder normalized. This approximation does not model run correlation, starter changes or extra innings explicitly.
 
 At decimal price D:
 
