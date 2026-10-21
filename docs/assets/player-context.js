@@ -97,7 +97,10 @@
       missing:family==='pass'?['Weather and wind','Game script (trailing teams pass more)','Teammate injuries and target changes']
         :family==='rush'?['Game script (leading teams run more)','Offensive line injuries','Goal-line and short-yardage roles']
         :['Quarterback changes','Teammate injuries and target share','Weather and wind'],
-      note:'Parts are shown before the matchup and venue adjustments. Recent weight is the share given to this season versus his career. Partial appearances are not separately adjusted.'};
+      note:'Parts are shown before the matchup and venue adjustments. Recent weight is the share given to this season versus his career.'+
+        // Trace version 2 (October 2026): every game this season, halving every six; QB starts only.
+        (p.version==='nfl-projection-trace-2'?" Within this season a game's weight halves every six games."+(family==='pass'?' Relief appearances are left out; partial starts count as starts.':' Partial appearances are not separately adjusted.')
+          :' Partial appearances are not separately adjusted.')};
   }
   function fallback(r,sport){
     if(sport==='NFL')return nflContext(r);

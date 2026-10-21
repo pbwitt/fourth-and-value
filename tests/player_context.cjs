@@ -88,6 +88,10 @@ const back={version:'nfl-projection-trace-1',family:'rush',carries:16.2,yards_pe
   opponent:{team:'WAS',kind:'rush',rating:1.15,rank:6,of:32,allowed:98.4,league:112.3,games:4,season:2026}};
 const rush=snapshot({player:'Back',market_std:'rush_yds',name:'under',point:70.5,mu:72.2,model_prob:.47,push_prob:0,prob_devig:.5,mkt_prob:.52,projection_diagnostics:JSON.stringify(back)},'NFL');
 assert.match(rush,/2 of 4 cleared Under 70\.5/,'the row’s side and point drive the trend');
+// A saved version-1 forecast keeps the old wording; version 2 describes the full-season window.
+assert.doesNotMatch(rush,/halves every six games/);assert.match(rush,/Partial appearances are not separately adjusted/);
+const rush2=snapshot({player:'Back',market_std:'rush_yds',name:'under',point:70.5,mu:72.2,model_prob:.47,push_prob:0,prob_devig:.5,mkt_prob:.52,projection_diagnostics:JSON.stringify({...back,version:'nfl-projection-trace-2'})},'NFL');
+assert.match(rush2,/halves every six games/);assert.doesNotMatch(rush2,/Relief appearances/,'the starts rule is passing only');
 assert.match(rush,/<th scope="row">Wk 4<\/th><td class="pc-text">KC<\/td><td>20<\/td><td class="pc-focus">111<\/td>/,'newest week first, with the opponent');
 assert.match(rush,/Rush yds \/ game<\/dt><dd>76</);assert.match(rush,/Carries \/ game<\/dt><dd>16\.3</);
 assert.match(rush,/Expected carries<\/span><strong>16\.2<.*Yards per carry<\/span><strong>4\.4<.*Before matchup<\/span><strong>71\.3 rush yds<.*Opposing run defense<\/span><strong>0\.96×<.*Home game<\/span><strong>1\.06×<.*Projection<\/span><strong>72\.2 rush yds/s);

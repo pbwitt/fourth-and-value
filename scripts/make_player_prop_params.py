@@ -2072,7 +2072,7 @@ def main():
 
     logging.info(f"Candidates: {len(cands)} unique (player, market_std) pairs.")
 
-    # Always use current season for L4 (last 4 games) methodology
+    # Season form always uses the current season (cb.RECENT_GAMES, cb.RECENT_ALPHA)
     # This ensures we're using the most recent games from THIS season
     logs = fetch_recent_game_logs(season, week)
 

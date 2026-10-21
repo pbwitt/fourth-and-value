@@ -21,8 +21,8 @@ efficiency ratio (e.g. yards per carry = rushing_yards / carries):
   2. Player career baseline: each player's own multi-season history,
      exponentially weighted so recent seasons count more, shrunk toward
      the position pool in proportion to how much career data they have.
-  3. Blend with current-season recent form (still computed the existing
-     way, last 4 games of the CURRENT season only) in proportion to how
+  3. Blend with current-season recent form (the CURRENT season only,
+     RECENT_GAMES games at RECENT_ALPHA decay) in proportion to how
      many current-season games exist - 0 games this season (Week 1) means
      100% career baseline; the weight shifts to recent form as the season
      goes on.
@@ -44,9 +44,13 @@ import pandas as pd
 CAREER_SEASON_DECAY = 0.75   # weight multiplier per season further in the past
 K_CAREER_POS = 40            # career games needed to fully trust player over position pool
 K_RECENT_MU = 4              # current-season games needed to fully trust recent over career
-RECENT_GAMES = 4             # current-season games in the recent-form estimate
-RECENT_ALPHA = 0.4           # per-game decay within that window (newest game weighs most)
-QB_STARTS_ONLY = False       # passing history counts only games the QB led his team in attempts
+# Recent form uses every current-season game, a game's weight halving every six games, and
+# quarterback history counts starts only. Replayed against 2024-26 box scores, both cut
+# error versus the old last-4 window (0.4 decay) and all-appearance passing history:
+# reports/nfl-model-diagnostics/2026-10-21-pass-volume-recency.
+RECENT_GAMES = 17            # current-season games in the recent-form estimate
+RECENT_ALPHA = 0.5 ** (1 / 6)  # per-game decay within that window (newest game weighs most)
+QB_STARTS_ONLY = True        # passing history counts only games the QB led his team in attempts
 K_RECENT_SIGMA = 8           # current-season games needed to fully trust recent sigma
 
 
