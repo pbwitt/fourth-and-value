@@ -216,7 +216,7 @@ def focus_target(packet,target):
 def compact_model_row(row):
     keys=['id','event_id','game','commence_time','book','book_label','market','market_label','player','side','line','price',
           'book_probability','consensus_probability','fair_probability','paired_books','best_price','quoted_at',
-          'model_probability','model_push_probability','model_conditional_probability','model_mean','model_mean_label',
+          'model_probability','model_push_probability','model_conditional_probability','model_mean','model_median','model_mean_label',
           'model_ev_pct','model_edge_pp','model_fair_price','model_inputs','model_status','is_model_pick',
           'model_input_through','model_version','lineup_status']
     return {key:row.get(key) for key in keys if key in row}
@@ -234,14 +234,14 @@ def nhl_board(board):
     for row in board.get('rows',[]):
         home,away=row.get('projected_home_reg_goals'),row.get('projected_away_reg_goals')
         if row.get('player'):
-            mean,label=row.get('projected_mean'),'Projected '+str(row.get('market_label') or row.get('market'))
+            mean,median,label=row.get('projected_mean'),row.get('projected_median'),'Projected '+str(row.get('market_label') or row.get('market'))
         elif isinstance(home,(int,float)) and isinstance(away,(int,float)) and row.get('event_id') not in games:
             # One game projection per event, not repeated on each moneyline/puck-line/total row.
             games.add(row.get('event_id'))
-            mean,label=home+away,f"Projected regulation goals: {row.get('home_team')} {home:.2f}, {row.get('away_team')} {away:.2f}"
+            mean,median,label=home+away,None,f"Projected regulation goals: {row.get('home_team')} {home:.2f}, {row.get('away_team')} {away:.2f}"
             row=dict(row,market='game_projection',market_label='Game projection',side='')
-        else:mean=label=None
-        rows.append(dict(row,model_mean=mean,model_mean_label=label,model_input_through=board.get('history_through_date'),
+        else:mean=median=label=None
+        rows.append(dict(row,model_mean=mean,model_median=median,model_mean_label=label,model_input_through=board.get('history_through_date'),
             model_version=row.get('model_version') or board['model_version'],model_status=NHL_EXPERIMENTAL))
     return dict(board,rows=rows,model_checked_at=board['model_prediction_at'])
 
@@ -286,7 +286,7 @@ def evidence(sport, now):
             identity=(row.get('event_id'),row.get('market'),row.get('player'))
             if not valid or row.get('model_mean') is None or identity in seen:continue
             seen.add(identity)
-            references.append(dict(id='reference-'+str(len(references)),**{k:row.get(k) for k in ['event_id','commence_time','game','player','market','market_label','side','model_mean','model_mean_label','model_inputs','model_status','model_input_through','model_version']},note='Saved projection only; no current price or EV. Interpret the supplied validation status, not a betting recommendation.'))
+            references.append(dict(id='reference-'+str(len(references)),**{k:row.get(k) for k in ['event_id','commence_time','game','player','market','market_label','side','model_mean','model_median','model_mean_label','model_inputs','model_status','model_input_through','model_version']},note='Saved projection only; no current price or EV. Interpret the supplied validation status, not a betting recommendation.'))
     methods=''
     if sport=='MLB':
         notes=(ed.ROOT/'MLB_MODEL_README.md').read_text()
