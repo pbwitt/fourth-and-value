@@ -343,6 +343,11 @@ class ResearchTests(unittest.TestCase):
         self.assertEqual(context['market'],.52)
         self.assertEqual(context['books'],3)
         self.assertAlmostEqual(context['breakEven'],1/2.1)
+        self.assertNotIn('projected_median',context,'NFL uses a Normal curve; its median is its mean')
+        f=feeds(); f['MLB']['rows'][0].update(model_mean=5.7,model_median=5)
+        row=analyst.normalized(next(r for r in analyst.selected(f,NOW)['selected'] if r['sport']=='MLB'))
+        context=json.loads(astra.payload(dict(board('MLB'),candidates=[row]),[],NOW,CONFIG)['input'])['candidates'][0]['review_context']
+        self.assertEqual((context['projected_quantity'],context['projected_median']),(5.7,5),'lines sit near the median')
         self.assertIsNone(context['calibration_sample_size'])
 
     def test_expiry_during_collection_and_checkpoint_failure_prevent_payment(self):

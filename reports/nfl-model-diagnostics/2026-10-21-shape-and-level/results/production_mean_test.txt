@@ -1,0 +1,71 @@
+rows by actual source: {'box score': 3519, 'did not play': 86, 'snaps, no line': 76}
+graded player-markets: 3595 across 93 games, weeks 1-6; snapshot lead time median 0 days 02:19:05
+
+Level: bias = actual - mu (95% interval resampling games)
+                     n  games  mean_mu  mean_actual   bias  bias_lo  bias_hi  median_err
+market                                                                                  
+pass_attempts      185     93    30.22        32.52   2.29     1.03     3.63        1.81
+pass_completions   185     93    19.39        20.88   1.49     0.65     2.34        1.74
+pass_yds           185     93   213.80       228.20  14.40     3.66    24.46       10.86
+receptions        1081     93     3.02         3.12   0.11    -0.02     0.24       -0.25
+recv_yds          1086     93    34.19        34.76   0.57    -1.11     2.17       -5.66
+rush_attempts      337     93     9.38        10.58   1.19     0.78     1.66        0.12
+rush_yds           536     93    33.14        33.56   0.42    -1.37     2.24       -6.16
+
+Against the main market line (most books, then most even price)
+                  share_mu_below_line  mu_minus_line  over_rate  fair_over  n_mu_below  under_hit_when_mu_below
+market                                                                                                         
+pass_attempts                   0.692         -1.588      0.492      0.501         128                    0.492
+pass_completions                0.676         -1.022      0.546      0.502         125                    0.416
+pass_yds                        0.589         -8.516      0.546      0.500         109                    0.459
+receptions                      0.471          0.066      0.482      0.489         508                    0.528
+recv_yds                        0.353          4.080      0.483      0.500         383                    0.512
+rush_attempts                   0.608         -0.829      0.481      0.500         205                    0.522
+rush_yds                        0.377          3.455      0.433      0.498         202                    0.554
+
+Accuracy as a mean forecast, same rows (RMSE; negative MSE diff = the other mean is better)
+pass_attempts    market-implied mean  n= 185  mu   9.83 vs market   9.09  MSE diff    -14.08 [-23.54, -3.79]
+pass_completions market-implied mean  n= 185  mu   6.71 vs market   6.03  MSE diff     -8.62 [-14.45, -2.84]
+pass_yds         market-implied mean  n= 185  mu  79.86 vs market  72.68  MSE diff  -1094.38 [-1863.91, -389.88]
+pass_yds         simple average       n= 181  mu  80.41 vs simple  76.74  MSE diff   -576.60 [-1376.26, +177.42]
+receptions       market-implied mean  n=1078  mu   2.29 vs market   2.10  MSE diff     -0.83 [-1.13, -0.53]
+receptions       simple average       n= 977  mu   2.30 vs simple   2.18  MSE diff     -0.55 [-0.82, -0.29]
+recv_yds         market-implied mean  n=1086  mu  30.72 vs market  28.88  MSE diff   -109.65 [-178.82, -38.12]
+recv_yds         simple average       n= 978  mu  30.79 vs simple  29.28  MSE diff    -90.42 [-133.01, -47.19]
+rush_attempts    market-implied mean  n= 337  mu   5.07 vs market   4.23  MSE diff     -7.79 [-11.11, -4.81]
+rush_yds         market-implied mean  n= 536  mu  26.10 vs market  26.30  MSE diff    +10.13 [-92.02, +105.75]
+rush_yds         simple average       n= 494  mu  26.50 vs simple  25.81  MSE diff    -36.04 [-81.72, +8.28]
+
+Adjustment stages against the published mean (boards that record them)
+pass_attempts    before_adjustments   n=  86  mu   9.62 vs stage   9.71  MSE diff     +1.72 [-6.01, +9.96]  games=43
+pass_attempts    after_defense        n=  86  mu   9.62 vs stage   9.62  MSE diff     +0.00 [-0.00, +0.00]  games=43
+pass_completions before_adjustments   n=  86  mu   6.65 vs stage   6.80  MSE diff     +1.98 [-1.45, +5.82]  games=43
+pass_completions after_defense        n=  86  mu   6.65 vs stage   6.65  MSE diff     +0.00 [-0.00, +0.00]  games=43
+pass_yds         before_adjustments   n=  86  mu  71.19 vs stage  73.98  MSE diff   +404.68 [-44.23, +901.51]  games=43
+pass_yds         after_defense        n=  86  mu  71.19 vs stage  72.24  MSE diff   +151.02 [-97.11, +434.54]  games=43
+receptions       before_adjustments   n= 424  mu   2.32 vs stage   2.32  MSE diff     +0.04 [-0.07, +0.16]  games=35
+receptions       after_defense        n= 424  mu   2.32 vs stage   2.32  MSE diff     +0.01 [-0.02, +0.04]  games=35
+recv_yds         before_adjustments   n= 424  mu  29.53 vs stage  29.61  MSE diff     +5.14 [-9.15, +19.79]  games=35
+recv_yds         after_defense        n= 424  mu  29.53 vs stage  29.59  MSE diff     +3.52 [-5.15, +13.09]  games=35
+rush_attempts    before_adjustments   n= 127  mu   4.78 vs stage   4.77  MSE diff     -0.10 [-1.39, +1.19]  games=35
+rush_attempts    after_defense        n= 127  mu   4.78 vs stage   4.76  MSE diff     -0.11 [-0.51, +0.23]  games=35
+rush_yds         before_adjustments   n= 211  mu  26.63 vs stage  26.60  MSE diff     -2.07 [-26.79, +23.58]  games=35
+rush_yds         after_defense        n= 211  mu  26.63 vs stage  26.51  MSE diff     -6.63 [-18.52, +5.17]  games=35
+
+Simple average by recency half-life against mu (same rows per market)
+half-life 0.76 games: recv_yds 30.74 vs mu 30.79 [-46.7, +44.0] | receptions 2.34 vs mu 2.30 [-0.1, +0.4] | rush_yds 27.37 vs mu 26.50 [+7.6, +92.3] | pass_yds 79.70 vs mu 80.41 [-721.9, +541.2]
+half-life    2 games: recv_yds 29.78 vs mu 30.79 [-100.8, -16.9] | receptions 2.24 vs mu 2.30 [-0.5, -0.0] | rush_yds 26.24 vs mu 26.50 [-44.6, +16.5] | pass_yds 77.96 vs mu 80.41 [-1044.1, +259.5]
+half-life    4 games: recv_yds 29.35 vs mu 30.79 [-127.8, -43.6] | receptions 2.19 vs mu 2.30 [-0.8, -0.2] | rush_yds 25.87 vs mu 26.50 [-71.7, +5.6] | pass_yds 77.01 vs mu 80.41 [-1293.8, +176.3]
+half-life    6 games: recv_yds 29.28 vs mu 30.79 [-133.0, -47.2] | receptions 2.18 vs mu 2.30 [-0.8, -0.3] | rush_yds 25.81 vs mu 26.50 [-81.7, +8.3] | pass_yds 76.74 vs mu 80.41 [-1376.3, +177.4]
+half-life   10 games: recv_yds 29.37 vs mu 30.79 [-129.0, -41.0] | receptions 2.18 vs mu 2.30 [-0.8, -0.3] | rush_yds 25.86 vs mu 26.50 [-85.3, +15.4] | pass_yds 76.65 vs mu 80.41 [-1432.5, +197.1]
+
+Bias by week (actual - mu)
+week               1.0  2.0   3.0   4.0   5.0   6.0
+market                                             
+pass_attempts      0.4 -0.0   4.1   2.3   2.1   5.1
+pass_completions   1.0  0.2   2.1   1.7   1.6   2.5
+pass_yds          12.0  5.2  21.4  21.4  12.7  13.3
+receptions         0.3  0.1  -0.1   0.2  -0.0   0.2
+recv_yds           2.4 -0.0  -1.2   1.8  -0.6   1.2
+rush_attempts      1.6  0.8   1.7   1.3   1.2   0.5
+rush_yds           5.7 -3.1   1.1   0.2   3.2  -4.0
