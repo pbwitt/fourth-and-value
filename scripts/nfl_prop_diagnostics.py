@@ -21,16 +21,16 @@ FAMILY_SAMPLE = {'rush': ['season', 'week', 'opponent_team', 'carries', 'rushing
 
 def family_trace(logs, latents, family, players, career_available):
     """Rushing and receiving: the recent sample and the latent components behind each mean."""
-    from career_baseline import K_RECENT_MU
+    from career_baseline import K_RECENT_MU, RECENT_GAMES
     import pandas as pd
     result = {}
     for player in players:
-        recent = logs[logs.player.eq(player)].sort_index().tail(4) if logs is not None and not logs.empty else pd.DataFrame()
+        recent = logs[logs.player.eq(player)].sort_index().tail(RECENT_GAMES) if logs is not None and not logs.empty else pd.DataFrame()
         columns = [c for c in FAMILY_SAMPLE[family] if c in recent]
         part = lambda key: float(latents[key][player]) if key in latents and player in latents[key].index else None
         parts = (dict(carries=part('volume_mu'), yards_per_carry=part('ypc_mu')) if family == 'rush' else
                  dict(targets=part('volume_mu'), catch_rate=part('cr_mu'), yards_per_reception=part('ypr_mu')))
-        result[player] = clean(dict(version='nfl-projection-trace-1', family=family,
+        result[player] = clean(dict(version='nfl-projection-trace-2', family=family,
             current_sample=recent[columns].to_dict('records'),
             recent_mean_weight=len(recent)/(len(recent)+K_RECENT_MU) if career_available else None, **parts))
     return result
@@ -62,14 +62,17 @@ def opponent_trace(market, player, opponent_map, ratings):
 
 def passing_trace(logs, career, latents, season, players):
     """Capture the actual input sample and latent means used by this run."""
-    from career_baseline import compute_position_pool, player_career_baseline, K_RECENT_MU
+    import career_baseline as cb
+    from career_baseline import compute_position_pool, player_career_baseline, K_RECENT_MU, RECENT_GAMES
     import pandas as pd
+    if cb.QB_STARTS_ONLY:  # the same games estimate_pass_latents used
+        logs, career = cb.qb_starts(logs), cb.qb_starts(career)
     result = {}
     prior = career[career.season < season] if career is not None and not career.empty else pd.DataFrame()
     specs = [('attempts', 'attempts', None), ('yards_per_completion', 'passing_yards', 'completions')]
     pools = {label: compute_position_pool(career, 'QB', num, den) for label, num, den in specs} if not prior.empty else {}
     for player in players:
-        recent = logs[logs.player.eq(player)].sort_index().tail(4) if logs is not None and not logs.empty else pd.DataFrame()
+        recent = logs[logs.player.eq(player)].sort_index().tail(RECENT_GAMES) if logs is not None and not logs.empty else pd.DataFrame()
         base = {}
         if not prior.empty:
             own = prior[prior.player.eq(player)]
@@ -79,7 +82,7 @@ def passing_trace(logs, career, latents, season, players):
                 base[label] = dict(mean=mu, games=n, position_pool_mean=pool[0])
         columns = [c for c in ['season', 'week', 'opponent_team', 'attempts', 'completions', 'passing_yards'] if c in recent]
         result[player] = clean(dict(
-            version='nfl-projection-trace-1', current_sample=recent[columns].to_dict('records'),
+            version='nfl-projection-trace-2', current_sample=recent[columns].to_dict('records'),
             recent_mean_weight=len(recent)/(len(recent)+K_RECENT_MU) if base else None,
             yards_per_completion_recent_weight=(int((recent.completions > 0).sum()) /
                 (int((recent.completions > 0).sum())+K_RECENT_MU)) if base and 'completions' in recent else None,
@@ -87,7 +90,7 @@ def passing_trace(logs, career, latents, season, players):
             attempts=float(latents['volume_mu'][player]),
             completion_rate=float(latents['comp_pct_mu'][player]),
             yards_per_completion=float(latents['ypc_mu'][player]),
-            limitations=['Appearance totals do not distinguish partial games from normal starter workloads.',
+            limitations=['Relief appearances are left out; partial starts (injury exits, blowouts) count as starts.',
                         'Completion rate uses recent games without career shrinkage.',
                         'Variance omits completion-rate uncertainty and dependence among components.']))
     return result

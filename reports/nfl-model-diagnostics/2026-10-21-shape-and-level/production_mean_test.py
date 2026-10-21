@@ -7,7 +7,7 @@ as not playing (books void those props). The mean is compared with the outcome, 
 market's implied mean (backed out of the main line and its no-vig price) and with the simple
 recency-weighted average from shape_backtest.py. Intervals resample whole games.
 
-usage: production_mean_test.py BOARDS_CSV NFLVERSE_DIR [--max-week N]
+usage: production_mean_test.py BOARDS_CSV NFLVERSE_DIR [--max-week N] [--out GRADED_CSV]
 """
 import argparse
 import math
@@ -158,11 +158,14 @@ def main():
     ap.add_argument('boards', type=Path)
     ap.add_argument('nflverse', type=Path)
     ap.add_argument('--max-week', type=int, default=None, help='last 2026 week to grade')
+    ap.add_argument('--out', type=Path, default=None, help='write the graded rows (used by the pass-volume replay)')
     a = ap.parse_args()
     d = attach_actuals(decision_rows(a.boards), a.nflverse, a.max_week)
     print('rows by actual source:', d.source.value_counts().to_dict())
     d = d[d.actual.notna()].copy()
     d = simple_means(d, a.nflverse, sb.HALF_LIFE)
+    if a.out:
+        d.to_csv(a.out, index=False)
     print(f'graded player-markets: {len(d)} across {d.nfl_game.nunique()} games, weeks {int(d.week.min())}-'
           f'{int(d.week.max())}; snapshot lead time median {(d.kickoff - d.committed).median()}')
     pd.set_option('display.width', 250)
