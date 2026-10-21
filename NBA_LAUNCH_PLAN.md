@@ -89,9 +89,21 @@ jointly; per-market calibration slopes fit on 2024–25. Test on 2025–26: mone
 last-10 pseudo-lines. States exclude playoff and play-in games (they would bias opening-night
 totals about 5 points low). Players listed Out on ESPN's injury report are withheld.
 
+Prospective grading (done, October 21): `scripts/nba/grade_shadow.py`, run by `nba-daily.yml`
+after Market Analytics, writes `artifacts/nba/evaluation/prospective.json` and `PROSPECTIVE.md`.
+Each final game's last pregame forecasts are scored against the books' consensus at the same
+line (log loss, Brier, blend weights), with the market's movement toward the model between the
+last two pregame snapshots (a CLV proxy) and the offers that would have passed the NHL card's
+price rule, split into one-book-off-market (*price*) and model-disagreement (*model*) value.
+Main lines are the headline sample; intervals bootstrap over games and appear from 10 games.
+Only the production model version is graded, so a retrain starts a fresh record. Opening night
+(3 games): settlement checked by hand against ESPN box scores; too few games to read.
+
+Proposed bar for Phase 3, per market (the owner decides; nothing switches automatically):
+at least 150 graded games, the 10% blend beating the market on log loss with the whole 95%
+interval below zero, and the market moving toward the model with the whole interval above zero.
+
 Still open:
-- Grade v1 prospectively: join `artifacts/nba/runs/` snapshots (model fields included) to
-  ESPN finals for log loss and CLV against the market, by market and by weeks into the season.
 - The points tails remain overconfident after calibration; revisit with a role or usage
   feature once 2026–27 data accumulates.
 - Teammate-absence adjustments to minutes and usage need verified injury inputs;
@@ -100,6 +112,9 @@ Still open:
   blending toward the market or a preseason roster prior before Phase 3.
 
 ## Phase 3: Top Picks and research (after graded evidence)
+
+Start with the markets `artifacts/nba/evaluation/PROSPECTIVE.md` marks *supported*, and use
+its blend curve to choose the `BLEND` weight.
 
 - `docs/assets/briefing-picks.js`: add NBA to `collect`, `researchStatus` and the summary
   loops, and give it a `BLEND` weight. `comparison()` reads `final_probability`,

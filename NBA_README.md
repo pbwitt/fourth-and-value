@@ -53,6 +53,13 @@ evaluation in `reports/nba-v1/`. The daily refresh only runs inference (a few se
 free). It never retrains. Rows gain `model_probability`, `model_push_probability`, `model_mean`, `model_median`, `model_minutes`,
 `model_ev_pct` (feed only, not displayed) and `model_unsupported_reason`. The feed gains `model_version`,
 `model_predicted_at` and `model_coverage`, but never `model_checked_at`, so editorial and Top Picks keep skipping NBA.
+**Prospective grading** (`scripts/nba/grade_shadow.py`, run by `nba-daily.yml` after Market Analytics with
+`--offline`): each final game's last pregame forecasts against the books' paired consensus at the same line and ESPN
+finals, by market and week; the market's movement toward the model between the last two pregame snapshots; and the
+offers that would have passed the NHL card's price rule, tagged *price* (one book off the market) or *model*. Output:
+`artifacts/nba/evaluation/prospective.json` and `PROSPECTIVE.md`, including the proposed per-market bar for Top Picks
+(see NBA_LAUNCH_PLAN.md). Only the production model version is graded. `make nba_grade PY=.venv/bin/python` runs it locally.
+
 Retrain (about 20 minutes, no network) after the history changes materially:
 
 ```sh
@@ -84,7 +91,9 @@ No NBA injury automation, paid summaries or model best-bet claims are enabled. N
 
 ## Verification
 
-`tests/test_nba_market_results.py` checks pregame snapshot choice, ESPN settlement, voids and saved-result reuse. `tests/test_nba.py` checks cross-line/event isolation, opposite spread signs, duplicates, leave-one-book-out comparisons, chronology/DNP/push behavior, empty slates, failures and stale prices. `tests/nba_browser.cjs` checks navigation/layout, filters, best prices, stale data and failure suppression using an in-memory fixture (never shipped).
+`tests/test_nba_market_results.py` checks pregame snapshot choice, ESPN settlement, voids and saved-result reuse.
+`tests/test_nba_shadow_grade.py` checks the shadow grader's units (push-conditional probabilities, home-handicap
+spreads, main lines), settlement and voids, version exclusion, movement, the card-pool rule and its price/model tag. `tests/test_nba.py` checks cross-line/event isolation, opposite spread signs, duplicates, leave-one-book-out comparisons, chronology/DNP/push behavior, empty slates, failures and stale prices. `tests/nba_browser.cjs` checks navigation/layout, filters, best prices, stale data and failure suppression using an in-memory fixture (never shipped).
 
 ```sh
 NODE_PATH=/path/to/node_modules node tests/nba_browser.cjs
