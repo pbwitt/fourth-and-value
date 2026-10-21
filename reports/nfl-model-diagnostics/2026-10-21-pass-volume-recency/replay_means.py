@@ -63,8 +63,9 @@ for season, weeks in SEASONS.items():
             est = getattr(mpp, f'estimate_{family}_latents')
             latents = {family: est(logs, idx, alpha=cb.RECENT_ALPHA, career_df=career, season=season)}
             for market in markets:
-                mu, _ = mpp.derive_market_from_latents(market, latents, idx)
-                part = who.assign(mu=who.player.map(mu.to_dict()), market=market, actual=who[ACTUAL[market]].fillna(0))
-                rows.append(part[['season', 'week', 'game_id', 'player', 'position', 'market', 'mu', 'actual', 'qb_start']])
+                mu, sigma = mpp.derive_market_from_latents(market, latents, idx)
+                part = who.assign(mu=who.player.map(mu.to_dict()), sigma=who.player.map(sigma.to_dict()), market=market,
+                                  actual=who[ACTUAL[market]].fillna(0))
+                rows.append(part[['season', 'week', 'game_id', 'player', 'position', 'market', 'mu', 'sigma', 'actual', 'qb_start']])
         print(f'{VARIANT} {season} wk{week} {time.time() - t0:.0f}s', flush=True)
 pd.concat(rows).assign(variant=VARIANT).to_csv(OUT, index=False)
