@@ -24,6 +24,8 @@ result.card=shortlist(result.selected,asof);
 result.selected=result.selected.filter(r=>['NFL','MLB','NHL'].includes(r.sport)).map(r=>({...r,review_key:reviewKey(r),review_bet_key:reviewBetKey(r),
   review_context:{...comparison(r),probability_basis:'conditional_on_nonpush',
     projected_quantity:r.sport==='NFL'?r.mu:r.sport==='NHL'?r.projected_mean:r.model_mean,
+    // Lines sit near the median; NFL's Normal curve has no separate one.
+    projected_median:(r.sport==='NHL'?r.projected_median:r.sport==='MLB'?r.model_median:null)??undefined,
     quantity_label:r.sport==='NFL'?r.market_label:r.model_mean_label,
     market_median_line:r.sport==='NFL'?r.consensus_line:null,
     validation:'Experimental; no established executable betting edge',

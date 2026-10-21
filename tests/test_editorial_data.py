@@ -31,7 +31,7 @@ class DataOrdering(unittest.TestCase):
         board={'status':'ready','last_success_at':self.now.isoformat(),'model_prediction_at':self.now.isoformat(),'model_version':'nhl-v2.1','history_through_date':'2026-09-21',
                'model_status':'Experimental independent forecasts; market blend and recommendations disabled',
                'rows':[dict(game,market='h2h',side='Home'),dict(game,market='totals',side='Over'),
-                       dict(game,market='player_shots_on_goal',market_label='Shots on goal',player='Skater',projected_mean=2.1,side='Under')]}
+                       dict(game,market='player_shots_on_goal',market_label='Shots on goal',player='Skater',projected_mean=2.1,projected_median=2,side='Under')]}
         adapted=w.nhl_board(board)
         self.assertEqual(adapted['model_checked_at'],board['model_prediction_at'])
         self.assertTrue(w.data_readiness('NHL',adapted,self.briefing,self.now)['ready'])
@@ -39,6 +39,9 @@ class DataOrdering(unittest.TestCase):
         games=[r for r in adapted['rows'] if r['market']=='game_projection']
         self.assertEqual(len(games),1);self.assertAlmostEqual(games[0]['model_mean'],5.5)
         self.assertIn('Home 3.00, Away 2.50',games[0]['model_mean_label'])
+        self.assertIsNone(games[0]['model_median'])
+        skater=next(r for r in adapted['rows'] if r.get('player')=='Skater')
+        self.assertEqual((skater['model_mean'],skater['model_median']),(2.1,2),'the writer sees both, as readers do')
         self.assertTrue(all('not validated against betting prices' in r['model_status'] for r in adapted['rows']))
         # Two days of history lag is accepted for NHL only.
         packet={'sport':'NHL','model_rows':[],'model_references':[r for r in adapted['rows'] if r['model_mean'] is not None]}
