@@ -73,6 +73,13 @@ jobs:
         # Rebuilt from the committed run archive: last pregame snapshot per game vs. ESPN final box
         # scores (free). Saved results in artifacts/nba/results are reused; an odds outage does not stop it.
         run: python scripts/build_market_results.py --sport nba
+      - name: Grade the shadow model against prices and results
+        id: shadow_grade
+        if: always() && (steps.refresh.outcome == 'success' || steps.refresh.outcome == 'failure')
+        continue-on-error: true
+        # Phase 2 evidence for Top Picks (NBA_LAUNCH_PLAN.md): each game's last pregame forecasts vs. the
+        # books' consensus and ESPN finals. Reads committed snapshots and the results saved above; no requests.
+        run: python scripts/nba/grade_shadow.py --offline
       - name: Archive odds and model inputs for later review
         if: always()
         uses: actions/upload-artifact@v4
@@ -121,4 +128,9 @@ jobs:
         if: steps.market_results.outcome == 'failure'
         run: |
           echo '::error::NBA market results were not rebuilt; the page keeps its previous data.'
+          exit 1
+      - name: Report shadow grading failures after publishing
+        if: steps.shadow_grade.outcome == 'failure'
+        run: |
+          echo '::error::NBA shadow-model grading was not rebuilt; artifacts/nba/evaluation keeps its previous report.'
           exit 1

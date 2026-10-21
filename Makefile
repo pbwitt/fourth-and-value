@@ -316,7 +316,7 @@ nfl_totals_daily: nfl_totals_predict nfl_totals_consensus nfl_totals_page injury
 # ========================================================================
 
 # NBA market pipeline; no paid commentary generation.
-.PHONY: nba_daily nba_pages nba_test nba_train
+.PHONY: nba_daily nba_pages nba_test nba_train nba_grade
 nba_daily:
 	$(PY) scripts/nba/pipeline.py
 
@@ -325,6 +325,10 @@ nba_pages:
 
 nba_train:
 	$(PY) scripts/nba/train.py
+
+# Grade the shadow model's pregame forecasts against prices and ESPN finals (free).
+nba_grade:
+	$(PY) scripts/nba/grade_shadow.py
 
 nba_test:
 	$(PY) -m unittest discover -s tests -p 'test_nba.py'
