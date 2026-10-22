@@ -1,4 +1,4 @@
-// docs/nav.js (v=50) — site navigation, footer social links and chart sharing
+// docs/nav.js (v=51) — site navigation, footer social links and chart sharing
 (function () {
   // --- Find script & compute base (works locally and deployed) ---
   const scriptEl =
@@ -220,6 +220,8 @@
     },
     { type: 'dropdown', label: 'Markets', className: 'markets-menu', items: [
       { href: `${base}/markets/`, label: 'Market Analytics' },
+      { href: `${base}/arbitrage/`, label: 'Arbitrage Finder' },
+      { href: `${base}/arbitrage/plan.html`, label: 'Arbitrage Plan' },
       { href: `${base}/prediction-markets/`, label: 'Prediction Markets' },
     ] },
     {

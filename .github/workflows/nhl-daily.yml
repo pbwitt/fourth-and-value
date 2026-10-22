@@ -91,6 +91,12 @@ jobs:
         continue-on-error: true
         # Latest pregame quote for each recent card pick; read by the briefing.
         run: python scripts/line_movement.py --sport nhl
+      - name: Scan saved prices for arbitrage
+        if: always()
+        continue-on-error: true
+        # Same engine and rules as the Arbitrage page (docs/assets/arbitrage.js); reads the saved
+        # snapshot only, no requests. Writes this league's docs/arbitrage/data files and paper ledger.
+        run: node scripts/arbitrage/scan.cjs --sport NHL
       - name: Include responsible-use notices
         id: notices
         if: always()
@@ -103,7 +109,7 @@ jobs:
         run: |
           git config user.name 'GitHub Actions Bot'
           git config user.email 'actions@github.com'
-          git add docs/nhl/ artifacts/nhl/ docs/markets/
+          git add docs/nhl/ artifacts/nhl/ docs/markets/ docs/arbitrage/data/
           if git diff --cached --quiet; then exit 0; fi
           git commit -m 'NHL: refresh market snapshot and pages'
           for attempt in 1 2 3; do

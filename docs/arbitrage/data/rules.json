@@ -1,0 +1,345 @@
+{
+ "version": "arbitrage-rules-2026-10-22+nhl-standard-2026-10-06",
+ "scope": "Standard full-game markets only. NHL rules come from config/nhl_settlement.json. A pair is locked only when both books have a profile on file for the market group and the profiles match; anything else is listed under Check before betting. Confirm jurisdiction, market header and void exceptions before every bet.",
+ "assumed_note": "Assumed industry-standard rules, set 2026-10-22 when the multi-sport arbitrage scan launched, following the NHL treatment (owner decision 2026-10-06). Not yet checked against each book's published rules. Remove a book or market group here to send its pairs to Check before betting; replace each assumption with a source once its rules are read.",
+ "kinds": {
+  "licensed": "Licensed by US state regulators where it operates.",
+  "offshore": "Not licensed by any US state. Legal, payout and account risks are yours.",
+  "sweepstakes": "A sweepstakes or social sportsbook, not a state-licensed sportsbook."
+ },
+ "books": {
+  "draftkings": {
+   "label": "DraftKings",
+   "kind": "licensed",
+   "licensed": true
+  },
+  "fanduel": {
+   "label": "FanDuel",
+   "kind": "licensed",
+   "licensed": true
+  },
+  "betmgm": {
+   "label": "BetMGM",
+   "kind": "licensed",
+   "licensed": true
+  },
+  "williamhill_us": {
+   "label": "Caesars",
+   "kind": "licensed",
+   "licensed": true
+  },
+  "betrivers": {
+   "label": "BetRivers",
+   "kind": "licensed",
+   "licensed": true
+  },
+  "fanatics": {
+   "label": "Fanatics",
+   "kind": "licensed",
+   "licensed": true
+  },
+  "espnbet": {
+   "label": "theScore Bet",
+   "kind": "licensed",
+   "licensed": true
+  },
+  "hardrockbet": {
+   "label": "Hard Rock Bet",
+   "kind": "licensed",
+   "licensed": true
+  },
+  "ballybet": {
+   "label": "Bally Bet",
+   "kind": "licensed",
+   "licensed": true
+  },
+  "betparx": {
+   "label": "betPARX",
+   "kind": "licensed",
+   "licensed": true
+  },
+  "fliff": {
+   "label": "Fliff",
+   "kind": "sweepstakes",
+   "licensed": false
+  },
+  "bovada": {
+   "label": "Bovada",
+   "kind": "offshore",
+   "licensed": false
+  },
+  "betonlineag": {
+   "label": "BetOnline",
+   "kind": "offshore",
+   "licensed": false
+  },
+  "mybookieag": {
+   "label": "MyBookie",
+   "kind": "offshore",
+   "licensed": false
+  },
+  "betus": {
+   "label": "BetUS",
+   "kind": "offshore",
+   "licensed": false
+  },
+  "lowvig": {
+   "label": "LowVig",
+   "kind": "offshore",
+   "licensed": false
+  }
+ },
+ "sports": {
+  "NFL": {
+   "profiles": {
+    "nfl_full_game_ot_tie_push": {
+     "label": "Includes overtime; a tied moneyline is refunded",
+     "description": "Moneylines, spreads and totals are graded on the final score including overtime. A two-way moneyline on a game that ends tied is a push."
+    },
+    "nfl_player_ot_participation": {
+     "label": "Overtime counts; void if the player doesn't play",
+     "description": "Player props count the whole game including overtime. A player who does not play is void, not a loss."
+    }
+   },
+   "books": {
+    "draftkings": {
+     "game": "nfl_full_game_ot_tie_push",
+     "player": "nfl_player_ot_participation",
+     "assumed": [
+      "game",
+      "player"
+     ]
+    },
+    "fanduel": {
+     "game": "nfl_full_game_ot_tie_push",
+     "player": "nfl_player_ot_participation",
+     "assumed": [
+      "game",
+      "player"
+     ]
+    },
+    "betmgm": {
+     "game": "nfl_full_game_ot_tie_push",
+     "player": "nfl_player_ot_participation",
+     "assumed": [
+      "game",
+      "player"
+     ]
+    },
+    "williamhill_us": {
+     "game": "nfl_full_game_ot_tie_push",
+     "player": "nfl_player_ot_participation",
+     "assumed": [
+      "game",
+      "player"
+     ]
+    },
+    "betrivers": {
+     "game": "nfl_full_game_ot_tie_push",
+     "player": "nfl_player_ot_participation",
+     "assumed": [
+      "game",
+      "player"
+     ]
+    },
+    "bovada": {
+     "game": "nfl_full_game_ot_tie_push",
+     "player": "nfl_player_ot_participation",
+     "assumed": [
+      "game",
+      "player"
+     ]
+    },
+    "betonlineag": {
+     "game": "nfl_full_game_ot_tie_push",
+     "player": "nfl_player_ot_participation",
+     "assumed": [
+      "game",
+      "player"
+     ]
+    }
+   },
+   "pending": {
+    "fanatics": "Not yet on file, as for NHL; its pairs go to Check before betting."
+   }
+  },
+  "NBA": {
+   "profiles": {
+    "nba_full_game_ot": {
+     "label": "Includes overtime",
+     "description": "Moneylines, spreads and totals are graded on the final score including overtime."
+    },
+    "nba_player_ot_participation": {
+     "label": "Overtime counts; void if the player doesn't play",
+     "description": "Player props count the whole game including overtime. A player who does not play is void, not a loss."
+    }
+   },
+   "books": {
+    "draftkings": {
+     "game": "nba_full_game_ot",
+     "player": "nba_player_ot_participation",
+     "assumed": [
+      "game",
+      "player"
+     ]
+    },
+    "fanduel": {
+     "game": "nba_full_game_ot",
+     "player": "nba_player_ot_participation",
+     "assumed": [
+      "game",
+      "player"
+     ]
+    },
+    "betmgm": {
+     "game": "nba_full_game_ot",
+     "player": "nba_player_ot_participation",
+     "assumed": [
+      "game",
+      "player"
+     ]
+    },
+    "williamhill_us": {
+     "game": "nba_full_game_ot",
+     "player": "nba_player_ot_participation",
+     "assumed": [
+      "game",
+      "player"
+     ]
+    },
+    "betrivers": {
+     "game": "nba_full_game_ot",
+     "player": "nba_player_ot_participation",
+     "assumed": [
+      "game",
+      "player"
+     ]
+    },
+    "bovada": {
+     "game": "nba_full_game_ot",
+     "player": "nba_player_ot_participation",
+     "assumed": [
+      "game",
+      "player"
+     ]
+    },
+    "betonlineag": {
+     "game": "nba_full_game_ot",
+     "player": "nba_player_ot_participation",
+     "assumed": [
+      "game",
+      "player"
+     ]
+    }
+   },
+   "pending": {
+    "fanatics": "Not yet on file, as for NHL; its pairs go to Check before betting."
+   }
+  },
+  "NHL": {
+   "profiles": {
+    "nhl_full_game_ot_so": {
+     "label": "Includes overtime and shootout",
+     "description": "Game bets (moneyline, puck line, total) are graded on the final score including overtime and the shootout; a shootout win adds one goal to the winning team's score."
+    },
+    "nhl_player_ot_no_so_participation": {
+     "label": "Overtime counts, shootout does not; void if the player doesn't play",
+     "description": "Player props count statistics from regulation and overtime, not the shootout. The player must take part in the game; a player who does not play is void, not a loss."
+    }
+   },
+   "pending": {
+    "fanatics": "verification in progress; until it is complete, Fanatics prices are shown but treated as unverified."
+   },
+   "books": {
+    "draftkings": {
+     "game": "nhl_full_game_ot_so",
+     "player": "nhl_player_ot_no_so_participation",
+     "source": "https://sportsbook.draftkings.com/help/sport-rules/hockey"
+    },
+    "fanduel": {
+     "game": "nhl_full_game_ot_so",
+     "player": "nhl_player_ot_no_so_participation",
+     "source": "https://www.fanduel.com/fanduel-sportsbook-house-rules-nj"
+    },
+    "betmgm": {
+     "game": "nhl_full_game_ot_so",
+     "source": "https://betmgm-mibetmgmcom.zendesk.com/hc/en-us/articles/32971308623892-How-do-hockey-shootouts-work",
+     "player": "nhl_player_ot_no_so_participation",
+     "assumed": [
+      "player"
+     ]
+    },
+    "williamhill_us": {
+     "game": "nhl_full_game_ot_so",
+     "source": "https://www.caesars.com/content/dam/empire/cvr/casino/sportsbook/pdfs/caesarssportsbook-house-rules.pdf",
+     "player": "nhl_player_ot_no_so_participation",
+     "assumed": [
+      "player"
+     ]
+    },
+    "betrivers": {
+     "player": "nhl_player_ot_no_so_participation",
+     "assumed": [
+      "player"
+     ]
+    },
+    "betonlineag": {
+     "player": "nhl_player_ot_no_so_participation",
+     "assumed": [
+      "player"
+     ]
+    },
+    "bovada": {
+     "player": "nhl_player_ot_no_so_participation",
+     "assumed": [
+      "player"
+     ]
+    }
+   }
+  },
+  "MLB": {
+   "profiles": {
+    "mlb_game_action": {
+     "label": "Action; official after 5 innings",
+     "description": "Moneylines stand whoever pitches and are official after five innings (4½ if the home team leads). Run lines and totals need nine innings (8½ if the home team leads)."
+    }
+   },
+   "books": {
+    "draftkings": {
+     "game": "mlb_game_action",
+     "assumed": [
+      "game"
+     ]
+    },
+    "fanduel": {
+     "game": "mlb_game_action",
+     "assumed": [
+      "game"
+     ]
+    },
+    "betmgm": {
+     "game": "mlb_game_action",
+     "assumed": [
+      "game"
+     ]
+    },
+    "williamhill_us": {
+     "game": "mlb_game_action",
+     "assumed": [
+      "game"
+     ]
+    },
+    "betrivers": {
+     "game": "mlb_game_action",
+     "assumed": [
+      "game"
+     ]
+    }
+   },
+   "pending": {
+    "batter and pitcher props": "Books differ on whether a batter must start or only bat once, and on listed-pitcher voids. No player profile is on file, so every MLB prop pair goes to Check before betting.",
+    "offshore game lines": "Offshore books may default to listed pitchers, which voids one side if a starter changes. Not on file."
+   }
+  }
+ }
+}
