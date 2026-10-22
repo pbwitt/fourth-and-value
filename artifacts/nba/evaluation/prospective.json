@@ -1,0 +1,2627 @@
+{
+ "schema": 1,
+ "generated_at": "2026-10-22T00:02:39.709940+00:00",
+ "model_version": "nba-v1.0",
+ "status": "prospective_shadow_only",
+ "through": "2026-10-20",
+ "coverage": {
+  "games_tipped": 8,
+  "games_graded": 3,
+  "units_graded": 1026,
+  "main_line_units": 326,
+  "settlement": {
+   "graded": 1028,
+   "participation_unconfirmed": 23,
+   "result_pending_or_unmatched": 5
+  },
+  "other_model_versions_excluded": {}
+ },
+ "criteria": {
+  "unit": "One forecast per game, market, player and line from the last snapshot saved before tipoff; model and market probabilities are conditional on no push; pushes and voids are left out.",
+  "market": "Average of each paired book's no-vig probability at that line (one vote per book).",
+  "main_line": "The line the most books pair for that player and market (ties: nearest the median).",
+  "blend_weight": 0.1,
+  "card_rule": {
+   "weight": 0.1,
+   "ev_floor": 0.01,
+   "min_line_books": 2
+  },
+  "movement": "Consensus change between the last two pregame snapshots (within 36 hours) in the direction of the earlier model lean, where the lean was at least 3%.",
+  "readiness": "Proposed, not automatic: at least 150 graded games, the 10% blend beating the market on log loss with the whole 95% interval below zero, and the market moving toward the model with the whole interval above zero.",
+  "intervals": "95% percentile intervals from 1000 bootstrap replicates over games, shown once at least 10 games are in the sample."
+ },
+ "groups": {
+  "props": {
+   "main_lines": {
+    "units": 317,
+    "games": 3,
+    "outcome_rate": 0.4543,
+    "model_mean": 0.4018,
+    "market_mean": 0.4936,
+    "mean_abs_disagreement": 0.1114,
+    "log_loss": {
+     "model": 0.69742,
+     "market": 0.68235,
+     "blend": 0.68037
+    },
+    "brier": {
+     "model": 0.25145,
+     "market": 0.24471
+    },
+    "model_minus_market": {
+     "mean": 0.01507,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": -0.00198,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.68235
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.68127
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.68037
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.6791
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.67855
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.67968
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.69742
+     }
+    ],
+    "best_weight_in_sample": 0.3
+   },
+   "alternate_lines": {
+    "units": 690,
+    "games": 3,
+    "outcome_rate": 0.4319,
+    "model_mean": 0.4122,
+    "market_mean": 0.5096,
+    "mean_abs_disagreement": 0.1164,
+    "log_loss": {
+     "model": 0.67062,
+     "market": 0.66322,
+     "blend": 0.66011
+    },
+    "brier": {
+     "model": 0.23816,
+     "market": 0.23538
+    },
+    "model_minus_market": {
+     "mean": 0.0074,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": -0.00311,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.66322
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.66156
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.66011
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.65783
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.65637
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.65592
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.67062
+     }
+    ],
+    "best_weight_in_sample": 0.5
+   },
+   "movement": {
+    "units": 533,
+    "games": 8,
+    "toward": 0.5741,
+    "away": 0.3846,
+    "points": {
+     "mean": 0.33107,
+     "ci95": null
+    }
+   },
+   "card_pool": {
+    "bets": 65,
+    "games": 3,
+    "wins": 35,
+    "losses": 30,
+    "pushes": 0,
+    "units": 7.717,
+    "claimed_ev": 0.0273,
+    "roi": {
+     "mean": 0.11873,
+     "ci95": null
+    },
+    "by_source": {
+     "price": {
+      "bets": 21,
+      "games": 3,
+      "wins": 12,
+      "losses": 9,
+      "pushes": 0,
+      "units": 5.771,
+      "claimed_ev": 0.0309,
+      "roi": {
+       "mean": 0.27479,
+       "ci95": null
+      }
+     },
+     "model": {
+      "bets": 44,
+      "games": 3,
+      "wins": 23,
+      "losses": 21,
+      "pushes": 0,
+      "units": 1.947,
+      "claimed_ev": 0.0256,
+      "roi": {
+       "mean": 0.04424,
+       "ci95": null
+      }
+     }
+    }
+   },
+   "calibration": [
+    {
+     "bin": "0.1-0.2",
+     "n": 7,
+     "model": 0.1862,
+     "market": 0.4457,
+     "observed": 0.1429
+    },
+    {
+     "bin": "0.2-0.3",
+     "n": 58,
+     "model": 0.2517,
+     "market": 0.4474,
+     "observed": 0.4138
+    },
+    {
+     "bin": "0.3-0.4",
+     "n": 101,
+     "model": 0.3597,
+     "market": 0.4904,
+     "observed": 0.3366
+    },
+    {
+     "bin": "0.4-0.5",
+     "n": 85,
+     "model": 0.4436,
+     "market": 0.5029,
+     "observed": 0.6471
+    },
+    {
+     "bin": "0.5-0.6",
+     "n": 46,
+     "model": 0.5376,
+     "market": 0.5259,
+     "observed": 0.5
+    },
+    {
+     "bin": "0.6-0.7",
+     "n": 19,
+     "model": 0.6274,
+     "market": 0.5474,
+     "observed": 0.3684
+    },
+    {
+     "bin": "0.7-0.8",
+     "n": 1,
+     "model": 0.7664,
+     "market": 0.5133,
+     "observed": 0.0
+    }
+   ],
+   "readiness": {
+    "status": "insufficient_sample",
+    "games": 3,
+    "games_needed": 150
+   }
+  },
+  "game_lines": {
+   "main_lines": {
+    "units": 9,
+    "games": 3,
+    "outcome_rate": 0.3333,
+    "model_mean": 0.5578,
+    "market_mean": 0.509,
+    "mean_abs_disagreement": 0.0837,
+    "log_loss": {
+     "model": 0.75409,
+     "market": 0.72441,
+     "blend": 0.7257
+    },
+    "brier": {
+     "model": 0.27896,
+     "market": 0.26535
+    },
+    "model_minus_market": {
+     "mean": 0.02968,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": 0.00129,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.72441
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.72501
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.7257
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.72736
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.72938
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.73453
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.75409
+     }
+    ],
+    "best_weight_in_sample": 0.0
+   },
+   "alternate_lines": {
+    "units": 10,
+    "games": 3,
+    "outcome_rate": 0.4,
+    "model_mean": 0.5374,
+    "market_mean": 0.4988,
+    "mean_abs_disagreement": 0.0726,
+    "log_loss": {
+     "model": 0.69931,
+     "market": 0.69249,
+     "blend": 0.69182
+    },
+    "brier": {
+     "model": 0.2531,
+     "market": 0.24967
+    },
+    "model_minus_market": {
+     "mean": 0.00683,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": -0.00067,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.69249
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.69211
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.69182
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.69144
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.69137
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.69212
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.69931
+     }
+    ],
+    "best_weight_in_sample": 0.3
+   },
+   "movement": {
+    "units": 17,
+    "games": 8,
+    "toward": 0.5882,
+    "away": 0.2353,
+    "points": {
+     "mean": 0.28308,
+     "ci95": null
+    }
+   },
+   "card_pool": {
+    "bets": 0
+   },
+   "calibration": [
+    {
+     "bin": "0.3-0.4",
+     "n": 1,
+     "model": 0.343,
+     "market": 0.5,
+     "observed": 0.0
+    },
+    {
+     "bin": "0.5-0.6",
+     "n": 6,
+     "model": 0.5613,
+     "market": 0.4942,
+     "observed": 0.5
+    },
+    {
+     "bin": "0.6-0.7",
+     "n": 2,
+     "model": 0.6546,
+     "market": 0.5577,
+     "observed": 0.0
+    }
+   ],
+   "readiness": {
+    "status": "insufficient_sample",
+    "games": 3,
+    "games_needed": 150
+   }
+  }
+ },
+ "by_market": {
+  "h2h": {
+   "label": "Moneyline",
+   "group": "game_lines",
+   "main_lines": {
+    "units": 3,
+    "games": 3,
+    "outcome_rate": 0.3333,
+    "model_mean": 0.617,
+    "market_mean": 0.5276,
+    "mean_abs_disagreement": 0.0894,
+    "log_loss": {
+     "model": 0.89257,
+     "market": 0.78837,
+     "blend": 0.79685
+    },
+    "brier": {
+     "model": 0.34455,
+     "market": 0.29677
+    },
+    "model_minus_market": {
+     "mean": 0.1042,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": 0.00849,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.78837
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.79256
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.79685
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.80574
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.81503
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.83488
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.89257
+     }
+    ],
+    "best_weight_in_sample": 0.0
+   },
+   "all_lines": {
+    "units": 3,
+    "games": 3,
+    "outcome_rate": 0.3333,
+    "model_mean": 0.617,
+    "market_mean": 0.5276,
+    "mean_abs_disagreement": 0.0894,
+    "log_loss": {
+     "model": 0.89257,
+     "market": 0.78837,
+     "blend": 0.79685
+    },
+    "brier": {
+     "model": 0.34455,
+     "market": 0.29677
+    },
+    "model_minus_market": {
+     "mean": 0.1042,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": 0.00849,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.78837
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.79256
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.79685
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.80574
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.81503
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.83488
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.89257
+     }
+    ],
+    "best_weight_in_sample": 0.0
+   },
+   "movement": {
+    "units": 8,
+    "games": 8,
+    "toward": 0.625,
+    "away": 0.25,
+    "points": {
+     "mean": 0.35384,
+     "ci95": null
+    }
+   },
+   "card_pool": {
+    "bets": 0
+   },
+   "readiness": {
+    "status": "insufficient_sample",
+    "games": 3,
+    "games_needed": 150
+   }
+  },
+  "spreads": {
+   "label": "Spread",
+   "group": "game_lines",
+   "main_lines": {
+    "units": 3,
+    "games": 3,
+    "outcome_rate": 0.3333,
+    "model_mean": 0.5948,
+    "market_mean": 0.4993,
+    "mean_abs_disagreement": 0.0955,
+    "log_loss": {
+     "model": 0.78495,
+     "market": 0.69173,
+     "blend": 0.69922
+    },
+    "brier": {
+     "model": 0.2951,
+     "market": 0.24929
+    },
+    "model_minus_market": {
+     "mean": 0.09323,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": 0.00749,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.69173
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.69543
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.69922
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.70709
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.71535
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.73307
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.78495
+     }
+    ],
+    "best_weight_in_sample": 0.0
+   },
+   "all_lines": {
+    "units": 7,
+    "games": 3,
+    "outcome_rate": 0.2857,
+    "model_mean": 0.5973,
+    "market_mean": 0.5,
+    "mean_abs_disagreement": 0.0973,
+    "log_loss": {
+     "model": 0.81549,
+     "market": 0.69322,
+     "blend": 0.70348
+    },
+    "brier": {
+     "model": 0.31003,
+     "market": 0.25003
+    },
+    "model_minus_market": {
+     "mean": 0.12228,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": 0.01027,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.69322
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.6983
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.70348
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.71415
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.72523
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.74866
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.81549
+     }
+    ],
+    "best_weight_in_sample": 0.0
+   },
+   "movement": {
+    "units": 6,
+    "games": 6,
+    "toward": 0.5,
+    "away": 0.3333,
+    "points": {
+     "mean": 0.11503,
+     "ci95": null
+    }
+   },
+   "card_pool": {
+    "bets": 0
+   },
+   "readiness": {
+    "status": "insufficient_sample",
+    "games": 3,
+    "games_needed": 150
+   }
+  },
+  "totals": {
+   "label": "Game total",
+   "group": "game_lines",
+   "main_lines": {
+    "units": 3,
+    "games": 3,
+    "outcome_rate": 0.3333,
+    "model_mean": 0.4614,
+    "market_mean": 0.5,
+    "mean_abs_disagreement": 0.0661,
+    "log_loss": {
+     "model": 0.58475,
+     "market": 0.69315,
+     "blend": 0.68103
+    },
+    "brier": {
+     "model": 0.19721,
+     "market": 0.25
+    },
+    "model_minus_market": {
+     "mean": -0.1084,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": -0.01211,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.69315
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.68705
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.68103
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.66925
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.65777
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.63566
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.58475
+     }
+    ],
+    "best_weight_in_sample": 1.0
+   },
+   "all_lines": {
+    "units": 9,
+    "games": 3,
+    "outcome_rate": 0.4444,
+    "model_mean": 0.4846,
+    "market_mean": 0.4984,
+    "mean_abs_disagreement": 0.0589,
+    "log_loss": {
+     "model": 0.59931,
+     "market": 0.69189,
+     "blend": 0.68161
+    },
+    "brier": {
+     "model": 0.20419,
+     "market": 0.24937
+    },
+    "model_minus_market": {
+     "mean": -0.09258,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": -0.01027,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.69189
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.68672
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.68161
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.6716
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.66183
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.64297
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.59931
+     }
+    ],
+    "best_weight_in_sample": 1.0
+   },
+   "movement": {
+    "units": 3,
+    "games": 3,
+    "toward": 0.6667,
+    "away": 0.0,
+    "points": {
+     "mean": 0.43048,
+     "ci95": null
+    }
+   },
+   "card_pool": {
+    "bets": 0
+   },
+   "readiness": {
+    "status": "insufficient_sample",
+    "games": 3,
+    "games_needed": 150
+   }
+  },
+  "player_assists": {
+   "label": "Assists",
+   "group": "props",
+   "main_lines": {
+    "units": 33,
+    "games": 3,
+    "outcome_rate": 0.4242,
+    "model_mean": 0.435,
+    "market_mean": 0.4859,
+    "mean_abs_disagreement": 0.1007,
+    "log_loss": {
+     "model": 0.64113,
+     "market": 0.66748,
+     "blend": 0.66192
+    },
+    "brier": {
+     "model": 0.22489,
+     "market": 0.2374
+    },
+    "model_minus_market": {
+     "mean": -0.02635,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": -0.00556,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.66748
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.66462
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.66192
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.65702
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.65276
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.64615
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.64113
+     }
+    ],
+    "best_weight_in_sample": 1.0
+   },
+   "all_lines": {
+    "units": 73,
+    "games": 3,
+    "outcome_rate": 0.3973,
+    "model_mean": 0.4389,
+    "market_mean": 0.4951,
+    "mean_abs_disagreement": 0.1052,
+    "log_loss": {
+     "model": 0.64984,
+     "market": 0.65166,
+     "blend": 0.64835
+    },
+    "brier": {
+     "model": 0.23022,
+     "market": 0.2299
+    },
+    "model_minus_market": {
+     "mean": -0.00181,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": -0.00331,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.65166
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.64991
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.64835
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.64576
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.64386
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.64207
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.64984
+     }
+    ],
+    "best_weight_in_sample": 0.5
+   },
+   "movement": {
+    "units": 54,
+    "games": 8,
+    "toward": 0.5556,
+    "away": 0.4074,
+    "points": {
+     "mean": 0.27483,
+     "ci95": null
+    }
+   },
+   "card_pool": {
+    "bets": 10,
+    "games": 2,
+    "wins": 6,
+    "losses": 4,
+    "pushes": 0,
+    "units": 3.039,
+    "claimed_ev": 0.0297,
+    "roi": {
+     "mean": 0.30391,
+     "ci95": null
+    },
+    "by_source": {
+     "price": {
+      "bets": 7,
+      "games": 2,
+      "wins": 3,
+      "losses": 4,
+      "pushes": 0,
+      "units": -0.191,
+      "claimed_ev": 0.029,
+      "roi": {
+       "mean": -0.02727,
+       "ci95": null
+      }
+     },
+     "model": {
+      "bets": 3,
+      "games": 2,
+      "wins": 3,
+      "losses": 0,
+      "pushes": 0,
+      "units": 3.23,
+      "claimed_ev": 0.0313,
+      "roi": {
+       "mean": 1.07667,
+       "ci95": null
+      }
+     }
+    }
+   },
+   "readiness": {
+    "status": "insufficient_sample",
+    "games": 3,
+    "games_needed": 150
+   }
+  },
+  "player_blocks": {
+   "label": "Blocks",
+   "group": "props",
+   "main_lines": {
+    "units": 12,
+    "games": 3,
+    "outcome_rate": 0.75,
+    "model_mean": 0.3242,
+    "market_mean": 0.457,
+    "mean_abs_disagreement": 0.1328,
+    "log_loss": {
+     "model": 0.87432,
+     "market": 0.68993,
+     "blend": 0.70357
+    },
+    "brier": {
+     "model": 0.33586,
+     "market": 0.24796
+    },
+    "model_minus_market": {
+     "mean": 0.18439,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": 0.01364,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.68993
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.69663
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.70357
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.71814
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.73366
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.76777
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.87432
+     }
+    ],
+    "best_weight_in_sample": 0.0
+   },
+   "all_lines": {
+    "units": 12,
+    "games": 3,
+    "outcome_rate": 0.75,
+    "model_mean": 0.3242,
+    "market_mean": 0.457,
+    "mean_abs_disagreement": 0.1328,
+    "log_loss": {
+     "model": 0.87432,
+     "market": 0.68993,
+     "blend": 0.70357
+    },
+    "brier": {
+     "model": 0.33586,
+     "market": 0.24796
+    },
+    "model_minus_market": {
+     "mean": 0.18439,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": 0.01364,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.68993
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.69663
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.70357
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.71814
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.73366
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.76777
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.87432
+     }
+    ],
+    "best_weight_in_sample": 0.0
+   },
+   "movement": {
+    "units": 9,
+    "games": 3,
+    "toward": 0.5556,
+    "away": 0.4444,
+    "points": {
+     "mean": 0.14201,
+     "ci95": null
+    }
+   },
+   "card_pool": {
+    "bets": 0
+   },
+   "readiness": {
+    "status": "insufficient_sample",
+    "games": 3,
+    "games_needed": 150
+   }
+  },
+  "player_points": {
+   "label": "Points",
+   "group": "props",
+   "main_lines": {
+    "units": 42,
+    "games": 3,
+    "outcome_rate": 0.4524,
+    "model_mean": 0.4253,
+    "market_mean": 0.4986,
+    "mean_abs_disagreement": 0.1035,
+    "log_loss": {
+     "model": 0.71405,
+     "market": 0.69762,
+     "blend": 0.69624
+    },
+    "brier": {
+     "model": 0.25871,
+     "market": 0.25223
+    },
+    "model_minus_market": {
+     "mean": 0.01643,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": -0.00138,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.69762
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.69685
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.69624
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.69547
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.69533
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.69698
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.71405
+     }
+    ],
+    "best_weight_in_sample": 0.3
+   },
+   "all_lines": {
+    "units": 274,
+    "games": 3,
+    "outcome_rate": 0.4015,
+    "model_mean": 0.4135,
+    "market_mean": 0.4939,
+    "mean_abs_disagreement": 0.1048,
+    "log_loss": {
+     "model": 0.65082,
+     "market": 0.65728,
+     "blend": 0.65358
+    },
+    "brier": {
+     "model": 0.22977,
+     "market": 0.23243
+    },
+    "model_minus_market": {
+     "mean": -0.00646,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": -0.0037,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.65728
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.65534
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.65358
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.65056
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.64821
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.64547
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.65082
+     }
+    ],
+    "best_weight_in_sample": 0.5
+   },
+   "movement": {
+    "units": 69,
+    "games": 8,
+    "toward": 0.5797,
+    "away": 0.3913,
+    "points": {
+     "mean": 0.23857,
+     "ci95": null
+    }
+   },
+   "card_pool": {
+    "bets": 15,
+    "games": 3,
+    "wins": 8,
+    "losses": 7,
+    "pushes": 0,
+    "units": 1.29,
+    "claimed_ev": 0.0286,
+    "roi": {
+     "mean": 0.08602,
+     "ci95": null
+    },
+    "by_source": {
+     "price": {
+      "bets": 3,
+      "games": 1,
+      "wins": 2,
+      "losses": 1,
+      "pushes": 0,
+      "units": 1.4,
+      "claimed_ev": 0.0462,
+      "roi": {
+       "mean": 0.46667,
+       "ci95": null
+      }
+     },
+     "model": {
+      "bets": 12,
+      "games": 3,
+      "wins": 6,
+      "losses": 6,
+      "pushes": 0,
+      "units": -0.11,
+      "claimed_ev": 0.0242,
+      "roi": {
+       "mean": -0.00914,
+       "ci95": null
+      }
+     }
+    }
+   },
+   "readiness": {
+    "status": "insufficient_sample",
+    "games": 3,
+    "games_needed": 150
+   }
+  },
+  "player_points_assists": {
+   "label": "Points + assists",
+   "group": "props",
+   "main_lines": {
+    "units": 32,
+    "games": 3,
+    "outcome_rate": 0.4062,
+    "model_mean": 0.4103,
+    "market_mean": 0.503,
+    "mean_abs_disagreement": 0.1119,
+    "log_loss": {
+     "model": 0.67895,
+     "market": 0.70002,
+     "blend": 0.69472
+    },
+    "brier": {
+     "model": 0.2424,
+     "market": 0.25343
+    },
+    "model_minus_market": {
+     "mean": -0.02107,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": -0.0053,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.70002
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.69728
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.69472
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.6901
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.68616
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.68034
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.67895
+     }
+    ],
+    "best_weight_in_sample": 1.0
+   },
+   "all_lines": {
+    "units": 96,
+    "games": 3,
+    "outcome_rate": 0.4062,
+    "model_mean": 0.4201,
+    "market_mean": 0.5191,
+    "mean_abs_disagreement": 0.1172,
+    "log_loss": {
+     "model": 0.67898,
+     "market": 0.69521,
+     "blend": 0.69001
+    },
+    "brier": {
+     "model": 0.24213,
+     "market": 0.25101
+    },
+    "model_minus_market": {
+     "mean": -0.01623,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": -0.0052,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.69521
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.69251
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.69001
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.68559
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.68195
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.67699
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.67898
+     }
+    ],
+    "best_weight_in_sample": 0.5
+   },
+   "movement": {
+    "units": 59,
+    "games": 8,
+    "toward": 0.678,
+    "away": 0.322,
+    "points": {
+     "mean": 0.80614,
+     "ci95": null
+    }
+   },
+   "card_pool": {
+    "bets": 4,
+    "games": 3,
+    "wins": 0,
+    "losses": 4,
+    "pushes": 0,
+    "units": -4.0,
+    "claimed_ev": 0.0285,
+    "roi": {
+     "mean": -1.0,
+     "ci95": null
+    },
+    "by_source": {
+     "price": {
+      "bets": 1,
+      "games": 1,
+      "wins": 0,
+      "losses": 1,
+      "pushes": 0,
+      "units": -1.0,
+      "claimed_ev": 0.0323,
+      "roi": {
+       "mean": -1.0,
+       "ci95": null
+      }
+     },
+     "model": {
+      "bets": 3,
+      "games": 3,
+      "wins": 0,
+      "losses": 3,
+      "pushes": 0,
+      "units": -3.0,
+      "claimed_ev": 0.0272,
+      "roi": {
+       "mean": -1.0,
+       "ci95": null
+      }
+     }
+    }
+   },
+   "readiness": {
+    "status": "insufficient_sample",
+    "games": 3,
+    "games_needed": 150
+   }
+  },
+  "player_points_rebounds": {
+   "label": "Points + rebounds",
+   "group": "props",
+   "main_lines": {
+    "units": 38,
+    "games": 3,
+    "outcome_rate": 0.4474,
+    "model_mean": 0.4132,
+    "market_mean": 0.5079,
+    "mean_abs_disagreement": 0.1074,
+    "log_loss": {
+     "model": 0.68823,
+     "market": 0.69296,
+     "blend": 0.68944
+    },
+    "brier": {
+     "model": 0.24764,
+     "market": 0.2499
+    },
+    "model_minus_market": {
+     "mean": -0.00473,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": -0.00352,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.69296
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.69111
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.68944
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.68658
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.68437
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.68193
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.68823
+     }
+    ],
+    "best_weight_in_sample": 0.5
+   },
+   "all_lines": {
+    "units": 112,
+    "games": 3,
+    "outcome_rate": 0.4554,
+    "model_mean": 0.4193,
+    "market_mean": 0.5218,
+    "mean_abs_disagreement": 0.1143,
+    "log_loss": {
+     "model": 0.68799,
+     "market": 0.69173,
+     "blend": 0.68783
+    },
+    "brier": {
+     "model": 0.24708,
+     "market": 0.24927
+    },
+    "model_minus_market": {
+     "mean": -0.00374,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": -0.0039,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.69173
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.68968
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.68783
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.6847
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.68234
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.67991
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.68799
+     }
+    ],
+    "best_weight_in_sample": 0.5
+   },
+   "movement": {
+    "units": 71,
+    "games": 8,
+    "toward": 0.5775,
+    "away": 0.338,
+    "points": {
+     "mean": 0.38603,
+     "ci95": null
+    }
+   },
+   "card_pool": {
+    "bets": 1,
+    "games": 1,
+    "wins": 1,
+    "losses": 0,
+    "pushes": 0,
+    "units": 0.962,
+    "claimed_ev": 0.0201,
+    "roi": {
+     "mean": 0.96154,
+     "ci95": null
+    },
+    "by_source": {
+     "price": {
+      "bets": 1,
+      "games": 1,
+      "wins": 1,
+      "losses": 0,
+      "pushes": 0,
+      "units": 0.962,
+      "claimed_ev": 0.0201,
+      "roi": {
+       "mean": 0.96154,
+       "ci95": null
+      }
+     },
+     "model": {
+      "bets": 0
+     }
+    }
+   },
+   "readiness": {
+    "status": "insufficient_sample",
+    "games": 3,
+    "games_needed": 150
+   }
+  },
+  "player_points_rebounds_assists": {
+   "label": "Points + rebounds + assists",
+   "group": "props",
+   "main_lines": {
+    "units": 33,
+    "games": 3,
+    "outcome_rate": 0.4545,
+    "model_mean": 0.3865,
+    "market_mean": 0.5009,
+    "mean_abs_disagreement": 0.1338,
+    "log_loss": {
+     "model": 0.72572,
+     "market": 0.69432,
+     "blend": 0.69274
+    },
+    "brier": {
+     "model": 0.26394,
+     "market": 0.25059
+    },
+    "model_minus_market": {
+     "mean": 0.0314,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": -0.00158,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.69432
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.69341
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.69274
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.69211
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.69244
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.6961
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.72572
+     }
+    ],
+    "best_weight_in_sample": 0.2
+   },
+   "all_lines": {
+    "units": 161,
+    "games": 3,
+    "outcome_rate": 0.441,
+    "model_mean": 0.4001,
+    "market_mean": 0.5194,
+    "mean_abs_disagreement": 0.1363,
+    "log_loss": {
+     "model": 0.70672,
+     "market": 0.69499,
+     "blend": 0.69124
+    },
+    "brier": {
+     "model": 0.255,
+     "market": 0.25084
+    },
+    "model_minus_market": {
+     "mean": 0.01173,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": -0.00375,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.69499
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.69298
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.69124
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.68853
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.68687
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.68667
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.70672
+     }
+    ],
+    "best_weight_in_sample": 0.5
+   },
+   "movement": {
+    "units": 64,
+    "games": 8,
+    "toward": 0.5781,
+    "away": 0.3594,
+    "points": {
+     "mean": 0.3083,
+     "ci95": null
+    }
+   },
+   "card_pool": {
+    "bets": 7,
+    "games": 3,
+    "wins": 3,
+    "losses": 4,
+    "pushes": 0,
+    "units": -1.048,
+    "claimed_ev": 0.0206,
+    "roi": {
+     "mean": -0.14972,
+     "ci95": null
+    },
+    "by_source": {
+     "price": {
+      "bets": 1,
+      "games": 1,
+      "wins": 0,
+      "losses": 1,
+      "pushes": 0,
+      "units": -1.0,
+      "claimed_ev": 0.0206,
+      "roi": {
+       "mean": -1.0,
+       "ci95": null
+      }
+     },
+     "model": {
+      "bets": 6,
+      "games": 3,
+      "wins": 3,
+      "losses": 3,
+      "pushes": 0,
+      "units": -0.048,
+      "claimed_ev": 0.0206,
+      "roi": {
+       "mean": -0.00801,
+       "ci95": null
+      }
+     }
+    }
+   },
+   "readiness": {
+    "status": "insufficient_sample",
+    "games": 3,
+    "games_needed": 150
+   }
+  },
+  "player_rebounds": {
+   "label": "Rebounds",
+   "group": "props",
+   "main_lines": {
+    "units": 39,
+    "games": 3,
+    "outcome_rate": 0.5385,
+    "model_mean": 0.3923,
+    "market_mean": 0.4962,
+    "mean_abs_disagreement": 0.1148,
+    "log_loss": {
+     "model": 0.72975,
+     "market": 0.6859,
+     "blend": 0.68637
+    },
+    "brier": {
+     "model": 0.26585,
+     "market": 0.24646
+    },
+    "model_minus_market": {
+     "mean": 0.04384,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": 0.00046,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.6859
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.68604
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.68637
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.68758
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.68957
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.696
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.72975
+     }
+    ],
+    "best_weight_in_sample": 0.0
+   },
+   "all_lines": {
+    "units": 110,
+    "games": 3,
+    "outcome_rate": 0.5545,
+    "model_mean": 0.3834,
+    "market_mean": 0.4901,
+    "mean_abs_disagreement": 0.1165,
+    "log_loss": {
+     "model": 0.70451,
+     "market": 0.63918,
+     "blend": 0.64151
+    },
+    "brier": {
+     "model": 0.25154,
+     "market": 0.22379
+    },
+    "model_minus_market": {
+     "mean": 0.06533,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": 0.00234,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.63918
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.64025
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.64151
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.64463
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.64857
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.65903
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.70451
+     }
+    ],
+    "best_weight_in_sample": 0.0
+   },
+   "movement": {
+    "units": 76,
+    "games": 8,
+    "toward": 0.5526,
+    "away": 0.4342,
+    "points": {
+     "mean": 0.33744,
+     "ci95": null
+    }
+   },
+   "card_pool": {
+    "bets": 13,
+    "games": 3,
+    "wins": 9,
+    "losses": 4,
+    "pushes": 0,
+    "units": 5.448,
+    "claimed_ev": 0.0289,
+    "roi": {
+     "mean": 0.41908,
+     "ci95": null
+    },
+    "by_source": {
+     "price": {
+      "bets": 4,
+      "games": 3,
+      "wins": 3,
+      "losses": 1,
+      "pushes": 0,
+      "units": 2.71,
+      "claimed_ev": 0.0205,
+      "roi": {
+       "mean": 0.6775,
+       "ci95": null
+      }
+     },
+     "model": {
+      "bets": 9,
+      "games": 3,
+      "wins": 6,
+      "losses": 3,
+      "pushes": 0,
+      "units": 2.738,
+      "claimed_ev": 0.0326,
+      "roi": {
+       "mean": 0.30422,
+       "ci95": null
+      }
+     }
+    }
+   },
+   "readiness": {
+    "status": "insufficient_sample",
+    "games": 3,
+    "games_needed": 150
+   }
+  },
+  "player_rebounds_assists": {
+   "label": "Rebounds + assists",
+   "group": "props",
+   "main_lines": {
+    "units": 32,
+    "games": 3,
+    "outcome_rate": 0.4375,
+    "model_mean": 0.3996,
+    "market_mean": 0.5085,
+    "mean_abs_disagreement": 0.1259,
+    "log_loss": {
+     "model": 0.73415,
+     "market": 0.67708,
+     "blend": 0.67816
+    },
+    "brier": {
+     "model": 0.26825,
+     "market": 0.242
+    },
+    "model_minus_market": {
+     "mean": 0.05707,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": 0.00108,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.67708
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.67751
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.67816
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.68014
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.68304
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.69177
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.73415
+     }
+    ],
+    "best_weight_in_sample": 0.0
+   },
+   "all_lines": {
+    "units": 96,
+    "games": 3,
+    "outcome_rate": 0.4792,
+    "model_mean": 0.4223,
+    "market_mean": 0.5335,
+    "mean_abs_disagreement": 0.1274,
+    "log_loss": {
+     "model": 0.70326,
+     "market": 0.66507,
+     "blend": 0.66411
+    },
+    "brier": {
+     "model": 0.25331,
+     "market": 0.23629
+    },
+    "model_minus_market": {
+     "mean": 0.0382,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": -0.00095,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.66507
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.66447
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.66411
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.66413
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.66512
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.67011
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.70326
+     }
+    ],
+    "best_weight_in_sample": 0.1
+   },
+   "movement": {
+    "units": 56,
+    "games": 8,
+    "toward": 0.6429,
+    "away": 0.3036,
+    "points": {
+     "mean": 0.46295,
+     "ci95": null
+    }
+   },
+   "card_pool": {
+    "bets": 6,
+    "games": 3,
+    "wins": 3,
+    "losses": 3,
+    "pushes": 0,
+    "units": -0.013,
+    "claimed_ev": 0.0311,
+    "roi": {
+     "mean": -0.00209,
+     "ci95": null
+    },
+    "by_source": {
+     "price": {
+      "bets": 2,
+      "games": 1,
+      "wins": 2,
+      "losses": 0,
+      "pushes": 0,
+      "units": 2.14,
+      "claimed_ev": 0.0346,
+      "roi": {
+       "mean": 1.07,
+       "ci95": null
+      }
+     },
+     "model": {
+      "bets": 4,
+      "games": 3,
+      "wins": 1,
+      "losses": 3,
+      "pushes": 0,
+      "units": -2.153,
+      "claimed_ev": 0.0293,
+      "roi": {
+       "mean": -0.53814,
+       "ci95": null
+      }
+     }
+    }
+   },
+   "readiness": {
+    "status": "insufficient_sample",
+    "games": 3,
+    "games_needed": 150
+   }
+  },
+  "player_steals": {
+   "label": "Steals",
+   "group": "props",
+   "main_lines": {
+    "units": 20,
+    "games": 3,
+    "outcome_rate": 0.3,
+    "model_mean": 0.3131,
+    "market_mean": 0.4487,
+    "mean_abs_disagreement": 0.1356,
+    "log_loss": {
+     "model": 0.50361,
+     "market": 0.58374,
+     "blend": 0.57264
+    },
+    "brier": {
+     "model": 0.16465,
+     "market": 0.19676
+    },
+    "model_minus_market": {
+     "mean": -0.08013,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": -0.0111,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.58374
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.5781
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.57264
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.56229
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.55264
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.5354
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.50361
+     }
+    ],
+    "best_weight_in_sample": 1.0
+   },
+   "all_lines": {
+    "units": 22,
+    "games": 3,
+    "outcome_rate": 0.2727,
+    "model_mean": 0.3047,
+    "market_mean": 0.4368,
+    "mean_abs_disagreement": 0.1321,
+    "log_loss": {
+     "model": 0.48051,
+     "market": 0.56546,
+     "blend": 0.55408
+    },
+    "brier": {
+     "model": 0.15412,
+     "market": 0.18806
+    },
+    "model_minus_market": {
+     "mean": -0.08495,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": -0.01138,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.56546
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.55968
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.55408
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.5434
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.53338
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.51526
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.48051
+     }
+    ],
+    "best_weight_in_sample": 1.0
+   },
+   "movement": {
+    "units": 20,
+    "games": 3,
+    "toward": 0.45,
+    "away": 0.5,
+    "points": {
+     "mean": -0.04973,
+     "ci95": null
+    }
+   },
+   "card_pool": {
+    "bets": 2,
+    "games": 2,
+    "wins": 2,
+    "losses": 0,
+    "pushes": 0,
+    "units": 2.66,
+    "claimed_ev": 0.0174,
+    "roi": {
+     "mean": 1.33,
+     "ci95": null
+    },
+    "by_source": {
+     "price": {
+      "bets": 0
+     },
+     "model": {
+      "bets": 2,
+      "games": 2,
+      "wins": 2,
+      "losses": 0,
+      "pushes": 0,
+      "units": 2.66,
+      "claimed_ev": 0.0174,
+      "roi": {
+       "mean": 1.33,
+       "ci95": null
+      }
+     }
+    }
+   },
+   "readiness": {
+    "status": "insufficient_sample",
+    "games": 3,
+    "games_needed": 150
+   }
+  },
+  "player_threes": {
+   "label": "Threes made",
+   "group": "props",
+   "main_lines": {
+    "units": 36,
+    "games": 3,
+    "outcome_rate": 0.4444,
+    "model_mean": 0.4255,
+    "market_mean": 0.4854,
+    "mean_abs_disagreement": 0.0764,
+    "log_loss": {
+     "model": 0.71082,
+     "market": 0.69338,
+     "blend": 0.69268
+    },
+    "brier": {
+     "model": 0.25753,
+     "market": 0.25006
+    },
+    "model_minus_market": {
+     "mean": 0.01743,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": -0.0007,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.69338
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.69298
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.69268
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.69243
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.69265
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.6946
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.71082
+     }
+    ],
+    "best_weight_in_sample": 0.2
+   },
+   "all_lines": {
+    "units": 51,
+    "games": 3,
+    "outcome_rate": 0.3922,
+    "model_mean": 0.4196,
+    "market_mean": 0.4804,
+    "mean_abs_disagreement": 0.0724,
+    "log_loss": {
+     "model": 0.70498,
+     "market": 0.6917,
+     "blend": 0.69062
+    },
+    "brier": {
+     "model": 0.25297,
+     "market": 0.24907
+    },
+    "model_minus_market": {
+     "mean": 0.01329,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": -0.00108,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.6917
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.6911
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.69062
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.69
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.68984
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.69105
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.70498
+     }
+    ],
+    "best_weight_in_sample": 0.3
+   },
+   "movement": {
+    "units": 55,
+    "games": 8,
+    "toward": 0.4727,
+    "away": 0.4727,
+    "points": {
+     "mean": -0.02539,
+     "ci95": null
+    }
+   },
+   "card_pool": {
+    "bets": 7,
+    "games": 3,
+    "wins": 3,
+    "losses": 4,
+    "pushes": 0,
+    "units": -0.621,
+    "claimed_ev": 0.0247,
+    "roi": {
+     "mean": -0.08872,
+     "ci95": null
+    },
+    "by_source": {
+     "price": {
+      "bets": 2,
+      "games": 2,
+      "wins": 1,
+      "losses": 1,
+      "pushes": 0,
+      "units": 0.75,
+      "claimed_ev": 0.0408,
+      "roi": {
+       "mean": 0.375,
+       "ci95": null
+      }
+     },
+     "model": {
+      "bets": 5,
+      "games": 3,
+      "wins": 2,
+      "losses": 3,
+      "pushes": 0,
+      "units": -1.371,
+      "claimed_ev": 0.0183,
+      "roi": {
+       "mean": -0.27421,
+       "ci95": null
+      }
+     }
+    }
+   },
+   "readiness": {
+    "status": "insufficient_sample",
+    "games": 3,
+    "games_needed": 150
+   }
+  }
+ },
+ "by_week": [
+  {
+   "week": "2026-10-19",
+   "label": "Week of Oct 19",
+   "props": {
+    "units": 317,
+    "games": 3,
+    "outcome_rate": 0.4543,
+    "model_mean": 0.4018,
+    "market_mean": 0.4936,
+    "mean_abs_disagreement": 0.1114,
+    "log_loss": {
+     "model": 0.69742,
+     "market": 0.68235,
+     "blend": 0.68037
+    },
+    "brier": {
+     "model": 0.25145,
+     "market": 0.24471
+    },
+    "model_minus_market": {
+     "mean": 0.01507,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": -0.00198,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.68235
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.68127
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.68037
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.6791
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.67855
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.67968
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.69742
+     }
+    ],
+    "best_weight_in_sample": 0.3
+   },
+   "game_lines": {
+    "units": 9,
+    "games": 3,
+    "outcome_rate": 0.3333,
+    "model_mean": 0.5578,
+    "market_mean": 0.509,
+    "mean_abs_disagreement": 0.0837,
+    "log_loss": {
+     "model": 0.75409,
+     "market": 0.72441,
+     "blend": 0.7257
+    },
+    "brier": {
+     "model": 0.27896,
+     "market": 0.26535
+    },
+    "model_minus_market": {
+     "mean": 0.02968,
+     "ci95": null
+    },
+    "blend_minus_market": {
+     "weight": 0.1,
+     "mean": 0.00129,
+     "ci95": null
+    },
+    "blend_curve": [
+     {
+      "weight": 0.0,
+      "log_loss": 0.72441
+     },
+     {
+      "weight": 0.05,
+      "log_loss": 0.72501
+     },
+     {
+      "weight": 0.1,
+      "log_loss": 0.7257
+     },
+     {
+      "weight": 0.2,
+      "log_loss": 0.72736
+     },
+     {
+      "weight": 0.3,
+      "log_loss": 0.72938
+     },
+     {
+      "weight": 0.5,
+      "log_loss": 0.73453
+     },
+     {
+      "weight": 1.0,
+      "log_loss": 0.75409
+     }
+    ],
+    "best_weight_in_sample": 0.0
+   }
+  }
+ ]
+}
