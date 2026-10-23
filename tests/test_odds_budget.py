@@ -62,22 +62,22 @@ class Reserve(unittest.TestCase):
             budget.ensure(11)
 
     def test_optional_jobs_leave_the_core_reserve_until_the_reset(self):
-        # 16.5 days before the November 1 reset: 850 x 16.5 = 14,025 kept for core refreshes.
+        # 16.5 days before the November 1 reset: 550 x 16.5 = 9,075 kept for core refreshes.
         budget = CreditBudget(clock=clock('2026-10-15T12:00:00+00:00'))
         self.assertEqual(budget.tier, OPTIONAL, 'unknown jobs are optional')
-        self.assertAlmostEqual(budget.reserve(), 14025)
-        budget.observe(Response(remaining=14075).headers)
+        self.assertAlmostEqual(budget.reserve(), 9075)
+        budget.observe(Response(remaining=9125).headers)
         budget.ensure(50)
         with self.assertRaisesRegex(CreditFloorReached, 'kept for the NFL, NHL, MLB and NBA refreshes'):
             budget.ensure(51)
 
     def test_reserve_shrinks_to_zero_at_the_monthly_reset(self):
         late = CreditBudget(clock=clock('2026-10-31T20:00:00+00:00'))   # four hours left
-        self.assertAlmostEqual(late.reserve(), 850 * 4 / 24)
+        self.assertAlmostEqual(late.reserve(), 550 * 4 / 24)
         self.assertEqual(odds_budget.next_reset(datetime(2026, 12, 15, tzinfo=timezone.utc)),
                          datetime(2027, 1, 1, tzinfo=timezone.utc))
         fresh = CreditBudget(clock=clock('2026-11-01T00:00:00+00:00'))
-        self.assertAlmostEqual(fresh.reserve(), 850 * 30, msg='a full month is reserved right after the reset')
+        self.assertAlmostEqual(fresh.reserve(), 550 * 30, msg='a full month is reserved right after the reset')
 
     def test_free_requests_always_allowed(self):
         budget = CreditBudget()
@@ -94,9 +94,9 @@ class Reserve(unittest.TestCase):
         budget = CreditBudget(tier=CORE)
         budget.ensure(500, preflight=lambda b: b.observe(Response(remaining=9000).headers))
         self.assertEqual(budget.remaining, 9000)
-        low = CreditBudget(clock=clock('2026-10-31T00:00:00+00:00'))   # 850 reserved
+        low = CreditBudget(clock=clock('2026-10-31T00:00:00+00:00'))   # 550 reserved
         with self.assertRaises(CreditFloorReached):
-            low.ensure(5, preflight=lambda b: b.observe(Response(remaining=851).headers))
+            low.ensure(5, preflight=lambda b: b.observe(Response(remaining=551).headers))
 
     def test_run_cap(self):
         budget = CreditBudget(tier=CORE)
@@ -108,7 +108,7 @@ class Reserve(unittest.TestCase):
     def test_environment_can_only_tighten(self):
         with mock.patch.dict(os.environ, {'ODDS_CREDIT_FLOOR': '-5', 'ODDS_CORE_DAILY': '100', 'ODDS_RUN_CAP': '9000'}):
             loose = CreditBudget()
-        self.assertEqual((loose.floor, loose.core_daily, loose.run_cap), (0, 850, 2000))
+        self.assertEqual((loose.floor, loose.core_daily, loose.run_cap), (0, 550, 2000))
         with mock.patch.dict(os.environ, {'ODDS_CREDIT_FLOOR': '3000', 'ODDS_CORE_DAILY': '900', 'ODDS_RUN_CAP': '300'}):
             strict = CreditBudget(tier=CORE)
         self.assertEqual((strict.floor, strict.core_daily, strict.run_cap), (3000, 900, 300))
