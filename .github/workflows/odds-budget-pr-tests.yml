@@ -12,6 +12,8 @@ on:
       - 'scripts/fetch_odds.py'
       - 'scripts/nfl_fetch_totals_spreads.py'
       - 'scripts/editorial.py'
+      - 'scripts/pinnacle_snapshot.py'
+      - 'tests/test_pinnacle_snapshot.py'
       - 'supabase/functions/closing-lines/**'
       - 'tests/test_odds_budget.py'
       - 'tests/test_odds_links.py'
@@ -33,8 +35,9 @@ jobs:
       - run: pip install -r requirements-nhl.txt
       - run: python -m unittest tests/test_odds_budget.py
       - run: python -m unittest tests/test_odds_links.py
+      - run: python -m unittest tests/test_pinnacle_snapshot.py
       - name: Every Odds API caller still compiles with the shared floor
-        run: python -m py_compile scripts/fetch_all_player_props.py scripts/fetch_odds.py scripts/nfl_fetch_totals_spreads.py scripts/editorial.py scripts/mlb/refresh.py scripts/nhl/refresh.py
+        run: python -m py_compile scripts/fetch_all_player_props.py scripts/fetch_odds.py scripts/nfl_fetch_totals_spreads.py scripts/editorial.py scripts/mlb/refresh.py scripts/nhl/refresh.py scripts/pinnacle_snapshot.py
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
