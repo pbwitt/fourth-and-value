@@ -184,8 +184,10 @@ research tier. NFL uses the smaller of raw and calibrated model probability, and
 withholds a calibrated 50% (the curve's flat centre, no information). The 1% and
 3% bars are starting values from `docs/model-improvement-plan.md`; the weights are
 refit as recaps accumulate (Step 2c there). Pinnacle no-vig prices are recorded each
-morning by `scripts/pinnacle_snapshot.py` for that refit only; they do not enter
-`market` or any pick. The best
+morning by `scripts/pinnacle_snapshot.py` for that refit; they do not enter
+`market` or any pick. From October 24, 2026, `docs/briefing/pinnacle.json` carries
+Pinnacle's no-vig chance for our feed lines, shown beside morning picks as a sharp
+reference only (a line reads as not posted only when Pinnacle was asked for that game). The best
 positive offer below 1% per sport is shown as a lean (not a pick, not tracked).
 Tickets record `market_prob`, `final_prob`, `blend_weight`, `expected_value` (at
 the price taken) and `decision_at` beside `model_prob`

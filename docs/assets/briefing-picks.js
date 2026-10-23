@@ -131,7 +131,7 @@
     const c=comparison(r),line=finite(r.line)?' at '+r.line:' for this outcome';
     const median=r.sport==='NFL'&&finite(r.consensus_line)?`<span class="estimate-detail">Median line: ${esc(r.consensus_line)}</span>`:'';
     const basis=c.market===null?'Paired prices unavailable':`${c.books} ${r.sport==='NFL'?'paired':'other paired'} book${c.books===1?' only':'s'}${r.sport==='NFL'?' · includes listed book':''}`;
-    return `<strong>${pct(c.market)}</strong><span class="estimate-detail">Win chance*${esc(line)}</span>${median}<span class="meta estimate-detail">${esc(basis)}</span>`;
+    return `<strong>${pct(c.market)}</strong><span class="estimate-detail">Win chance*${esc(line)}</span>${median}<span class="meta estimate-detail">${esc(basis)}</span>${pinnacleHTML(r.pinnacle)}`;
   }
   function screenReason(r) {
     const c=comparison(r);
@@ -376,6 +376,33 @@
     return text?`<span class="meta estimate-detail price-check price-check-${c.status==='qualifies'?'ok':'changed'}"><strong>Price check ${at}:</strong> ${text}</span>`:'';
   }
 
+  // Pinnacle's no-vig chance at the same line, from the morning snapshot (/briefing/pinnacle.json).
+  // A sharp reference beside morning picks only: it never selects, ranks or reprices a pick, and a
+  // line counts as not posted only when Pinnacle was actually asked for that game.
+  const pinnacleKey=(sport,event,market,player,side,line)=>JSON.stringify([sport,String(event??''),market,
+    String(player??'').toLowerCase(),String(side??'').toLowerCase(),finite(line)?Number(line):null]);
+  function pinnacleIndex(feed,decisionDate) {
+    if(feed?.schema_version!==1||feed.status!=='recorded'||!decisionDate||feed.decision_date!==decisionDate||!Number.isFinite(stamp(feed.generated_at)))return null;
+    const index=new Map();
+    for(const p of records(feed.lines))if(probability(p.probability))
+      for(const m of [p.market,p.market_std].filter(Boolean))index.set(pinnacleKey(p.sport,p.event_id,m,p.player,p.side,p.line),p);
+    return {index,checked_at:feed.generated_at,games:new Set(feed.checked_games||[]),events:new Set(feed.checked_events||[])};
+  }
+  function pinnacleFor(r,ref) {
+    if(!ref)return null;
+    const event=r.event_id||r.game_id,markets=[r.market,r.market_std].filter(Boolean);
+    for(const m of markets){const hit=ref.index.get(pinnacleKey(r.sport,event,m,r.player,r.side,r.line));if(hit)return {status:'posted',probability:hit.probability,checked_at:ref.checked_at};}
+    const asked=markets.some(m=>GAME_MARKETS.includes(m))?ref.games.has(r.sport):ref.events.has(String(event??''));
+    return asked?{status:'not_posted',checked_at:ref.checked_at}:null;
+  }
+  function pinnacleHTML(p) {
+    if(!p)return '';
+    const at=esc(new Date(p.checked_at).toLocaleString('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit'})+' ET');
+    return p.status==='posted'
+      ?`<span class="meta estimate-detail pinnacle-ref"><strong>Pinnacle ${pct(p.probability)}</strong> no-vig at ${at} · sharp reference, not used to choose picks</span>`
+      :`<span class="meta estimate-detail pinnacle-ref">Pinnacle had not posted this line at ${at}.</span>`;
+  }
+
   function collect(feeds,now=Date.now()) {
     const selected=[],coverage=[],excluded=[],leans=[];
     for(const sport of ['NFL','MLB','NHL']) {
@@ -558,7 +585,7 @@
 
   async function mount() {
     const root=document.getElementById('daily-picks');if(!root)return;
-    const urls={NFL:'/props/top-picks.json',MLB:'/mlb/data/latest.json',NHL:'/nhl/data/latest.json',NHLBoard:'/nhl/data/candidates.json',NFLContext:'/props/model-context.json',Discovery:'/briefing/discovery.json',Reviews:'/briefing/reviews.json',Card:'/briefing/morning-card.json',Afternoon:'/briefing/afternoon-card.json'};
+    const urls={NFL:'/props/top-picks.json',MLB:'/mlb/data/latest.json',NHL:'/nhl/data/latest.json',NHLBoard:'/nhl/data/candidates.json',NFLContext:'/props/model-context.json',Discovery:'/briefing/discovery.json',Reviews:'/briefing/reviews.json',Card:'/briefing/morning-card.json',Afternoon:'/briefing/afternoon-card.json',Pinnacle:'/briefing/pinnacle.json'};
     let feeds={},checked=null,loading=false,current=[],visibleLimit=20,draft=null,trackingReady=null,saving=false;
     const tickets=new Map(),dialog=document.getElementById('pick-tracker'),form=document.getElementById('track-bet-form');
     const $=id=>document.getElementById(id);
@@ -568,7 +595,9 @@
       // The afternoon edition's price check, recorded once after the 4:30 p.m. refresh, stays
       // with each morning pick; the morning edition itself is never rewritten.
       const checks=new Map(laterToday&&afternoon.morning_edition_id===edition?.edition_id?records(afternoon.price_check).map(c=>[c.key,c]):[]);
-      const card=currentEditionRows(edition,now).map(r=>checks.has(key(r))?{...r,price_check:checks.get(key(r))}:r),later=currentEditionRows(afternoon,now);
+      // Pinnacle's morning reference attaches to morning picks only; afternoon picks use later prices.
+      const pin=pinnacleIndex(feeds.Pinnacle,today?edition.decision_date:null);
+      const card=currentEditionRows(edition,now).map(r=>({...r,...(checks.has(key(r))?{price_check:checks.get(key(r))}:{}),...(pin?{pinnacle:pinnacleFor(r,pin)}:{})})),later=currentEditionRows(afternoon,now);
       const published=[...card,...later],cardKeys=new Set(published.map(key)),
         cardSides=new Map(published.map(r=>[leadKey(r),String(r.side).toLowerCase()])),
         pool=result.selected.filter(r=>!cardKeys.has(key(r))&&(cardSides.get(leadKey(r))??String(r.side).toLowerCase())===String(r.side).toLowerCase());
@@ -715,6 +744,6 @@
       `<p class="muted"><strong>The case against:</strong> ${esc(r.qualitative_review.countercase)}</p>`+
       `<p class="meta">${started?'<strong>Game started · historical assessment.</strong> ':''}Original price and analysis from the ${esc(shortTime(r.card_snapshot_at))} edition.${started?'':' Confirm the current line before deciding.'}</p>${links}`;
   }
-  if(typeof module==='object'&&module.exports)module.exports={collect,shortlist,editionRows,currentEditionRows,priceCheck,leadKey,rowKey:key,ideaKey,SHORTLIST_LIMIT,CARD_CAPS,BLEND,blend,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus,featuredPick,featuredHTML,boardOrder,boardBlendHTML};
+  if(typeof module==='object'&&module.exports)module.exports={collect,shortlist,editionRows,currentEditionRows,priceCheck,pinnacleIndex,pinnacleFor,pinnacleHTML,leadKey,rowKey:key,ideaKey,SHORTLIST_LIMIT,CARD_CAPS,BLEND,blend,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus,featuredPick,featuredHTML,boardOrder,boardBlendHTML};
   else {global.FVPicks={featuredPick,featuredHTML,blend,boardOrder,boardBlendHTML};mount();}
 })(typeof window==='undefined'?globalThis:window);

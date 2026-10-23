@@ -22,7 +22,7 @@ const server=http.createServer((req,res)=>{
     await page.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',r=>r.fulfill({contentType:'text/javascript',body:'/* fake auth client installed by this test */'}));
     await page.route('**/*.supabase.co/**',r=>{throw Error('Test must never call a real tracker database');});
     async function openReview(){const pool=page.locator('#picks-research-pool');if(await pool.locator('.pick-research').count())await pool.evaluate(e=>e.open=true);const d=page.locator('.pick-research').first();if(!await d.evaluate(e=>e.open))await d.locator(':scope > summary').click();}
-    const urls={'/briefing/morning-card.json':'Card','/briefing/afternoon-card.json':'Afternoon','/props/top-picks.json':'NFL','/mlb/data/latest.json':'MLB','/nhl/data/latest.json':'NHL','/nhl/data/candidates.json':'NHLBoard','/briefing/reviews.json':'Reviews'};
+    const urls={'/briefing/pinnacle.json':'Pinnacle','/briefing/morning-card.json':'Card','/briefing/afternoon-card.json':'Afternoon','/props/top-picks.json':'NFL','/mlb/data/latest.json':'MLB','/nhl/data/latest.json':'NHL','/nhl/data/candidates.json':'NHLBoard','/briefing/reviews.json':'Reviews'};
     for(const [url,key] of Object.entries(urls))await page.route('**'+url,r=>feeds[key]?r.fulfill({json:feeds[key]}):r.fulfill({status:503,body:'Unavailable'}));
     for(const width of [320,390,768,1440]) {
       await page.setViewportSize({width,height:1000});await page.goto(base+'/briefing/');
@@ -212,6 +212,15 @@ const server=http.createServer((req,res)=>{
     feeds.Reviews={schema_version:1,sports:{MLB:{decision_date:'2026-09-27',candidates:[reviewed],sources:[]}}};
     const card={schema_version:1,kind:'test',decision_date:'2026-09-27',published_at:new Date(now).toISOString(),rows:shortlist(collect(feeds,now).selected,now)};
     feeds={Card:card};await page.reload();await page.waitForSelector('#daily-picks-rows [data-track-pick]');
+    assert.doesNotMatch(await page.locator('#daily-picks-rows').textContent(),/Pinnacle/,'no snapshot: no Pinnacle line');
+    // Pinnacle's morning reference sits beside the morning pick and never changes the card.
+    const pick=card.rows[0],event=pick.event_id||pick.game_id;
+    feeds.Pinnacle={schema_version:1,status:'recorded',decision_date:'2026-09-27',generated_at:new Date(now-60e3).toISOString(),
+      checked_games:[],checked_events:[String(event)],lines:[{sport:pick.sport,event_id:event,market:pick.market,market_std:pick.market_std,
+      player:pick.player,side:pick.side,line:pick.line,probability:0.512}]};
+    await page.reload();await page.waitForFunction(()=>document.getElementById('daily-picks-rows').textContent.includes('Pinnacle'));
+    assert.match(await page.locator('#daily-picks-rows').textContent(),/Pinnacle 51\.2% no-vig at .* ET · sharp reference, not used to choose picks/);
+    assert.equal(await page.locator('#daily-picks-rows [data-track-pick]').count(),1,'the reference adds no picks');
     // The owner email's "I placed this" link opens Track bet for that pick of the same
     // edition with the suggested stake, once; a link from another edition opens nothing.
     card.edition_id='edition-a';

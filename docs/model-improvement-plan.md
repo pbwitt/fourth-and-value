@@ -9,7 +9,7 @@ Owner: pbwitt. Started 2026-10-05. Update this file as each phase finishes.
 | 0. Audit | Done 2026-10-05 | Findings and proposed plan below. Step 1 (housekeeping) merged and deployed 2026-10-05. |
 | 1. News and lineup data | In progress | NHL projected starting goalies (start chance and shrunk save rate from official box scores) as context only, 2026-10-05. Confirmed starters still need a permitted source. |
 | 2. Model fixes | In progress | 2026-10-06: NFL home/away multipliers refitted on 2012–2025 (passing and receiving yards ±1.4%, was ±6%); NHL v2.4 adds each player's record against our own forecasts (locked evaluation, `reports/nhl-v2.4`). MLB platoon (batter side vs pitcher hand) tested on the production MLB data and kept research only: no reliable gain on box scores (`reports/mlb-platoon`). 2026-10-21: NFL quarterback history counts starts only, and season form uses every current-season game (half-life six games, was last four at 0.4); replayed through the production estimators on 2024–26, passing bias on 2026 board rows falls from +2.96 to +0.56 attempts and receiving and rushing RMSE improve (`reports/nfl-model-diagnostics/2026-10-21-pass-volume-recency`). Calibration not refitted. |
-| 3. Market blend before betting | In progress | Step 2 (blend live on Top Picks at w = 0.25, 3% EV) merged 2026-10-05 in pbwitt/fourth-and-value#87. Step 2b (2026-10-06): 1% floor with high (≥ 3%) and moderate (1–3%) confidence tiers, and the two-book rule counts the offered book for every sport. Step 2c (2026-10-14): weights by sport (NHL, NFL props and MLB game lines 0.10; MLB props 0.25) and the model must be at least the market. Pinnacle recorded each morning, not yet in the market; refit due 2026-10-28. |
+| 3. Market blend before betting | In progress | Step 2 (blend live on Top Picks at w = 0.25, 3% EV) merged 2026-10-05 in pbwitt/fourth-and-value#87. Step 2b (2026-10-06): 1% floor with high (≥ 3%) and moderate (1–3%) confidence tiers, and the two-book rule counts the offered book for every sport. Step 2c (2026-10-14): weights by sport (NHL, NFL props and MLB game lines 0.10; MLB props 0.25) and the model must be at least the market. Pinnacle recorded each morning, not yet in the market; refit due 2026-11-11 (moved from Oct 28; see Step 2c). |
 | 4. Backtest and calibration | In progress | 2026-10-06: matchup backtest (player vs opponent, home/away splits, platoon) across NFL, NHL and MLB, `reports/matchups/`; published as research report FV-2026-03. |
 | 5. Monitoring and site | Not started | |
 
@@ -447,11 +447,11 @@ no goals), MLB strikeouts, total bases and home runs (no pitcher outs, hits or R
 modeled NFL prop markets, and a few NBA props. It posts only main game lines, so it matches 100%
 of our moneylines but 25–50% of our spreads and totals. From `morning-edition-5`,
 `scripts/pinnacle_snapshot.py` records Pinnacle and US quotes each morning after the sports
-refreshes (`artifacts/pinnacle/snapshots/`). Nothing it records enters a pick. Proposed starting
+refreshes (`artifacts/pinnacle/snapshots/`). Nothing it records enters a pick; from Oct 24 its no-vig chance is shown beside morning picks for reference (`docs/briefing/pinnacle.json`). Proposed starting
 split once switched on: Pinnacle alone for game lines where it posts the exact line, 50/50 with the
 US median for props, US median otherwise.
 
-**Follow-up due 2026-10-28.** (1) Fit the Pinnacle/US split per sport and market by log loss
+**Follow-up due 2026-11-11.** *Moved on 2026-10-23 from 2026-10-28: the credit reserve refused the Pinnacle snapshot from Oct 18 to 23, leaving three mornings (Oct 15–17); snapshots resume Oct 24.* (1) Fit the Pinnacle/US split per sport and market by log loss
 on graded lines, joining the snapshots to the recap boards. (2) Refit the model weights on lines
 graded after Oct 12 (out of sample for this fit). (3) Report 7 a.m. Pinnacle coverage by market and
 the credit cost per morning, including whether ten named bookmakers billed as one region. Then

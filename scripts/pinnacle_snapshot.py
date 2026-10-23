@@ -5,7 +5,9 @@ morning this records Pinnacle's game lines and the props our feeds request, for 
 events in our own feeds that start within 36 hours, so the split between Pinnacle and
 the US-book median can be fitted against graded results (docs/model-improvement-plan.md,
 Step 2c). A one-market probe naming ten bookmakers records whether The Odds API bills
-them as one region. Nothing recorded here enters a model, a pick or a public page.
+them as one region. Nothing recorded here enters a model or a pick. From October 24, 2026 a small
+public file (docs/briefing/pinnacle.json) gives Pinnacle's no-vig chance for the lines in our feeds,
+shown beside morning picks as a sharp reference only; it never selects, ranks or reprices a pick.
 Paid requests go through the shared credit budget as an optional job (scripts/odds_budget.py),
 leaving the sports refreshes their reserve, and the run stops at --max-credits. One snapshot per Eastern date; later starts skip.
 """
@@ -138,7 +140,10 @@ def probe(client, sport, now):
 
 
 def run(client, root, now, sports):
+    """Pinnacle quotes plus what was actually checked: sports whose game lines and events whose
+    props came back, so a line is reported as not posted only when Pinnacle was asked."""
     quotes, ours, asked, probed = [], {}, {}, None
+    checked = dict(games=[], props=[])
     for sport in sports:
         cfg = SPORTS[sport]
         upcoming = [q for q in feed_outcomes(root, sport) if now < stamp(q['commence_time']) <= now + WINDOW]
@@ -150,6 +155,8 @@ def run(client, root, now, sports):
             probed = probe(client, sport, now)
         games = client.get(f"{cfg['key']}/odds", bookmakers='pinnacle', markets=','.join(GAME),
                            oddsFormat='american', **window(now))
+        if isinstance(games, list):
+            checked['games'].append(sport)
         for event in games or []:
             quotes += flatten(event, sport)
         # Props for our own feed's events, earliest first, preferring events with prop rows.
@@ -160,8 +167,9 @@ def run(client, root, now, sports):
             event = client.get(f"{cfg['key']}/events/{event_id}/odds", bookmakers='pinnacle',
                                markets=','.join(cfg['props']), oddsFormat='american')
             if isinstance(event, dict) and event.get('id') == event_id:
+                checked['props'].append(event_id)
                 quotes += flatten(event, sport)
-    return quotes, ours, asked, probed
+    return quotes, ours, asked, probed, checked
 
 
 def coverage(quotes, ours, asked):
@@ -199,13 +207,47 @@ def report(result):
     return '\n'.join(lines)
 
 
+def no_vig(quotes):
+    """Pinnacle's no-vig chance per outcome, from its own two-sided prices (multiplicative)."""
+    pairs = {}
+    for q in quotes:
+        line = abs(q['line']) if q['market'] == 'spreads' and q['line'] is not None else q['line']
+        pairs.setdefault((q['event_id'], q['market'], q['player'].casefold(), line), []).append(q)
+    fair = {}
+    for pair in pairs.values():
+        if len(pair) != 2 or any(not isinstance(q['price'], (int, float)) or q['price'] == 0 for q in pair):
+            continue
+        implied = [1 / (1 + (q['price'] / 100 if q['price'] > 0 else 100 / -q['price'])) for q in pair]
+        for q, chance in zip(pair, implied):
+            fair[identity(q)] = chance / sum(implied)
+    return fair
+
+
+def public_reference(quotes, ours, checked, now):
+    """The public sharp reference: Pinnacle's no-vig chance for the outcomes in our own feeds."""
+    fair = no_vig(quotes)
+    wanted = {identity(q) for outcomes in ours.values() for q in outcomes}
+    lines = [dict(sport=q['sport'], event_id=q['event_id'], market=q['market'],
+                  market_std=ALIAS_MAP.get(q['market']), player=q['player'], side=q['side'], line=q['line'],
+                  price=q['price'], probability=round(fair[identity(q)], 4), last_update=q['last_update'])
+             for q in quotes if identity(q) in fair and identity(q) in wanted]
+    checked_any = bool(checked['games'] or checked['props'])
+    return dict(schema_version=1, generated_at=now.isoformat(), decision_date=now.astimezone(EASTERN).date().isoformat(),
+                status='recorded' if checked_any else 'unavailable', use='reference_only',
+                basis='Pinnacle two-sided prices at the same line, vig removed proportionally',
+                checked_games=sorted(checked['games']), checked_events=sorted(set(checked['props'])), lines=lines)
+
+
 def snapshot(client, budget, root, now, sports):
-    quotes, ours, asked, probed = run(client, root, now, sports)
+    """The record-only research snapshot, and the public sharp reference built from it."""
+    quotes, ours, asked, probed, checked = run(client, root, now, sports)
+    public = public_reference(quotes, ours, checked, now)
     return dict(schema_version=1, generated_at=now.isoformat(), decision_date=now.astimezone(EASTERN).date().isoformat(),
                 evaluation_status='record_only', window_hours=WINDOW.total_seconds() / 3600,
                 credits_spent=budget.spent, credits_remaining=budget.remaining, billing_probe=probed,
                 requests=client.log, events_requested=asked, coverage=coverage(quotes, ours, asked),
-                fields=FIELDS, quotes=[[q[k] for k in FIELDS] for q in quotes])
+                checked=dict(games=sorted(checked['games']), props=sorted(set(checked['props']))),
+                fields=FIELDS, quotes=[[q[k] for k in FIELDS] for q in quotes]), public
 
 
 def main():
@@ -214,6 +256,7 @@ def main():
     parser.add_argument('--sports', default=','.join(SPORTS))
     parser.add_argument('--max-credits', type=int, default=250)
     parser.add_argument('--out-dir', default='artifacts/pinnacle/snapshots')
+    parser.add_argument('--public', default='docs/briefing/pinnacle.json', help='Public sharp-reference file')
     parser.add_argument('--force', action='store_true', help='Replace an existing snapshot for this Eastern date')
     args = parser.parse_args()
     now = datetime.now(timezone.utc)
@@ -226,9 +269,11 @@ def main():
         sys.exit('ODDS_API_KEY is not set')
     budget = CreditBudget(run_cap=args.max_credits, label='Pinnacle snapshot', tier=OPTIONAL)
     client = Client(key, budget)
-    result = snapshot(client, budget, Path(args.root), now, [s.strip() for s in args.sports.split(',') if s.strip()])
+    result, public = snapshot(client, budget, Path(args.root), now, [s.strip() for s in args.sports.split(',') if s.strip()])
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(result, separators=(',', ':')) + '\n')
+    Path(args.public).parent.mkdir(parents=True, exist_ok=True)
+    Path(args.public).write_text(json.dumps(public, separators=(',', ':')) + '\n')
     text = report(result)
     print(text)
     if os.environ.get('GITHUB_STEP_SUMMARY'):

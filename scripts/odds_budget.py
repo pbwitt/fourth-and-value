@@ -25,9 +25,10 @@ import re
 from datetime import datetime, timezone
 
 FLOOR = 0           # core refreshes may spend to zero; the balance resets monthly
-# Credits a day the core refreshes use: NFL, NHL and MLB ~450-550 in October 2026, plus
-# about 350 for NBA on a full slate (up to 16 games x 11 prop markets, twice a day).
-CORE_DAILY = 850
+# Credits a day the core refreshes use, measured October 20-22, 2026 with the NBA regular
+# season: about 500 in all (NBA about 80-130 per refresh). 550 keeps a 10% margin. 850, set
+# on October 17 from a 350-a-day NBA estimate, held back more than the whole balance.
+CORE_DAILY = 550
 RUN_CAP = 2000
 CORE, OPTIONAL = 'core', 'optional'
 UNKNOWN_BALANCE_MAX = 50   # the most one request may cost before the balance is known
