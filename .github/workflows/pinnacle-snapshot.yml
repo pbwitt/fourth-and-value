@@ -1,8 +1,9 @@
 name: Pinnacle Snapshot
 
-# Record only: Pinnacle's prices for the events in our feeds, kept for the Step 2c
-# market-blend refit (docs/model-improvement-plan.md). Started by Morning Picks after
-# the sports refreshes; never feeds a model, a pick or a public page.
+# Pinnacle's prices for the events in our feeds, kept for the Step 2c market-blend refit
+# (docs/model-improvement-plan.md). Started by Morning Picks after the sports refreshes. It
+# never feeds a model or a pick; docs/briefing/pinnacle.json shows its no-vig chance beside
+# morning picks as a sharp reference only.
 on:
   workflow_call:
   workflow_dispatch:
@@ -38,6 +39,7 @@ jobs:
           git config user.name 'Fourth & Value Research'
           git config user.email 'actions@github.com'
           git add artifacts/pinnacle/snapshots/
+          if [ -f docs/briefing/pinnacle.json ]; then git add docs/briefing/pinnacle.json; fi
           if git diff --cached --quiet; then exit 0; fi
           git commit -m 'Research: record Pinnacle snapshot'
           for attempt in 1 2 3; do

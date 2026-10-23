@@ -447,7 +447,7 @@ no goals), MLB strikeouts, total bases and home runs (no pitcher outs, hits or R
 modeled NFL prop markets, and a few NBA props. It posts only main game lines, so it matches 100%
 of our moneylines but 25–50% of our spreads and totals. From `morning-edition-5`,
 `scripts/pinnacle_snapshot.py` records Pinnacle and US quotes each morning after the sports
-refreshes (`artifacts/pinnacle/snapshots/`). Nothing it records enters a pick. Proposed starting
+refreshes (`artifacts/pinnacle/snapshots/`). Nothing it records enters a pick; from Oct 24 its no-vig chance is shown beside morning picks for reference (`docs/briefing/pinnacle.json`). Proposed starting
 split once switched on: Pinnacle alone for game lines where it posts the exact line, 50/50 with the
 US median for props, US median otherwise.
 

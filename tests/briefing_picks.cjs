@@ -477,3 +477,29 @@ console.log('PASS: featured pick follows the published card, keeps the day’s p
   assert.equal(checked.price_check[0].key,JSON.stringify([pick.sport,pick.game_id,pick.player,pick.market,pick.side,pick.line,pick.book,pick.quoted_at]));
 }
 console.log('PASS: afternoon price check, afternoon editions and the afternoon adapter’s exclusions.');
+// Pinnacle's morning no-vig chance is a reference beside morning picks only. It is "not posted"
+// only when Pinnacle was asked for that game, and never shown from another day's snapshot.
+{
+  const {pinnacleIndex,pinnacleFor,pinnacleHTML}=require('../docs/assets/briefing-picks.js');
+  const feed={schema_version:1,status:'recorded',decision_date:'2026-10-24',generated_at:'2026-10-24T11:09:41Z',
+    checked_games:['NHL'],checked_events:['nhl-event','nfl-event'],
+    lines:[{sport:'NHL',event_id:'nhl-event',market:'player_assists',market_std:null,player:'Sam Reinhart',side:'Over',line:0.5,probability:0.4317},
+      {sport:'NFL',event_id:'nfl-event',market:'player_receptions',market_std:'receptions',player:'AJ Barner',side:'Under',line:2.5,probability:0.426},
+      {sport:'NHL',event_id:'nhl-event',market:'h2h',market_std:null,player:'',side:'Florida Panthers',line:null,probability:0.6}]};
+  const ref=pinnacleIndex(feed,'2026-10-24');
+  const nhl={sport:'NHL',event_id:'nhl-event',game_id:2026020200,market:'player_assists',player:'Sam Reinhart',side:'over',line:0.5};
+  assert.deepEqual(pinnacleFor(nhl,ref),{status:'posted',probability:0.4317,checked_at:'2026-10-24T11:09:41Z'});
+  const nfl={sport:'NFL',event_id:null,game_id:'nfl-event',market_std:'receptions',player:'AJ Barner',side:'under',line:2.5};
+  assert.equal(pinnacleFor(nfl,ref).probability,0.426,'NFL rows match by game id and standard market');
+  assert.equal(pinnacleFor({sport:'NHL',event_id:'nhl-event',market:'h2h',player:null,side:'Florida Panthers',line:null},ref).probability,0.6);
+  assert.equal(pinnacleFor({...nhl,line:1.5},ref).status,'not_posted','asked for this game, no price at this line');
+  assert.equal(pinnacleFor({...nhl,event_id:'unasked-event'},ref),null,'never asked: show nothing');
+  assert.equal(pinnacleFor({sport:'MLB',event_id:'mlb-event',market:'totals',player:null,side:'Over',line:8.5},ref),null,'MLB game lines were not checked');
+  assert.equal(pinnacleIndex(feed,'2026-10-23'),null,'another day’s snapshot is never shown');
+  assert.equal(pinnacleIndex({...feed,status:'unavailable'},'2026-10-24'),null);
+  assert.equal(pinnacleIndex(feed,null),null);
+  assert.match(pinnacleHTML(pinnacleFor(nhl,ref)),/Pinnacle 43\.2%<\/strong> no-vig at 7:09 AM ET · sharp reference, not used to choose picks/);
+  assert.match(pinnacleHTML(pinnacleFor({...nhl,line:1.5},ref)),/Pinnacle had not posted this line at 7:09 AM ET/);
+  assert.equal(pinnacleHTML(null),'');
+}
+console.log('PASS: Pinnacle reference matches exact lines, labels unposted lines only when asked and ignores other days.');
