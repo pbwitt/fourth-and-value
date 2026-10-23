@@ -350,7 +350,7 @@ assert.equal(O.signed(-115),'−115');assert.equal(O.signed(120),'+120');assert.
     // NBA: its own sport path and markets, its own caches; anything else is refused before any request.
     const {req,calls}=setup();
     const {SPORTS}=await import('../supabase/functions/live-odds/handler.mjs');
-    for(const sport of ['MLB',5,'__proto__',''])assert.equal((await req({sport})).status,400,`sport ${String(sport)}`);
+    for(const sport of ['WNBA',5,'__proto__',''])assert.equal((await req({sport})).status,400,`sport ${String(sport)}`);
     assert.equal(calls.length,0);
     const listed=await (await req({sport:'NBA'})).json();
     assert.equal(listed.sport,'NBA','the list names its league, so the page can tell an outdated function');

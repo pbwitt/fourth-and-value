@@ -1,0 +1,480 @@
+{
+ "schema_version": 1,
+ "generated_by": "scripts/arbitrage/replay.cjs",
+ "ref": "origin/main",
+ "rules_version": "arbitrage-rules-2026-10-22+nhl-standard-2026-10-06",
+ "window": {
+  "from": "2026-09-21T21:45:37.989072Z",
+  "to": "2026-10-22T11:08:27.353067Z"
+ },
+ "sports": {
+  "NFL": {
+   "snapshots": 71,
+   "snapshots_with_pairs": 7,
+   "pairs": 8,
+   "locked": 5,
+   "persisted": 0,
+   "top_book_pairs": [
+    [
+     "BetRivers",
+     "DraftKings",
+     2
+    ],
+    [
+     "BetRivers",
+     "LowVig",
+     1
+    ],
+    [
+     "BetRivers",
+     "BetUS",
+     1
+    ],
+    [
+     "BetRivers",
+     "Caesars",
+     1
+    ],
+    [
+     "BetRivers",
+     "FanDuel",
+     1
+    ]
+   ]
+  },
+  "NBA": {
+   "snapshots": 62,
+   "snapshots_with_pairs": 18,
+   "pairs": 84,
+   "locked": 83,
+   "persisted": 8,
+   "top_book_pairs": [
+    [
+     "BetRivers",
+     "Bovada",
+     34
+    ],
+    [
+     "Bovada",
+     "FanDuel",
+     18
+    ],
+    [
+     "BetMGM",
+     "Bovada",
+     8
+    ],
+    [
+     "BetRivers",
+     "DraftKings",
+     4
+    ],
+    [
+     "BetOnline",
+     "Bovada",
+     4
+    ]
+   ]
+  },
+  "NHL": {
+   "snapshots": 79,
+   "snapshots_with_pairs": 41,
+   "pairs": 75,
+   "locked": 69,
+   "persisted": 16,
+   "top_book_pairs": [
+    [
+     "BetMGM",
+     "BetOnline",
+     23
+    ],
+    [
+     "BetMGM",
+     "DraftKings",
+     23
+    ],
+    [
+     "Bovada",
+     "DraftKings",
+     7
+    ],
+    [
+     "BetOnline",
+     "DraftKings",
+     5
+    ],
+    [
+     "BetOnline",
+     "FanDuel",
+     4
+    ]
+   ]
+  },
+  "MLB": {
+   "snapshots": 113,
+   "snapshots_with_pairs": 62,
+   "pairs": 165,
+   "locked": 8,
+   "persisted": 51,
+   "top_book_pairs": [
+    [
+     "BetMGM",
+     "BetRivers",
+     63
+    ],
+    [
+     "BetMGM",
+     "DraftKings",
+     37
+    ],
+    [
+     "BetRivers",
+     "DraftKings",
+     19
+    ],
+    [
+     "BetRivers",
+     "FanDuel",
+     6
+    ],
+    [
+     "BetRivers",
+     "LowVig",
+     5
+    ]
+   ]
+  }
+ },
+ "scenarios": [
+  {
+   "label": "A. Every pair under 100%",
+   "note": "Any book, any rules status, gone or not by the next refresh.",
+   "pairs": 332,
+   "mean_return_pct": 1.0271868562204423,
+   "profit": {
+    "250": 853,
+    "1000": 3410
+   },
+   "profit_no_mlb": {
+    "250": 457,
+    "1000": 1829
+   }
+  },
+  {
+   "label": "B. Still there at the next refresh",
+   "note": "Seen in two or more snapshots, so there was time to act.",
+   "pairs": 75,
+   "mean_return_pct": 1.198393143310872,
+   "profit": {
+    "250": 225,
+    "1000": 899
+   },
+   "profit_no_mlb": {
+    "250": 89,
+    "1000": 355
+   }
+  },
+  {
+   "label": "C. Licensed books only",
+   "note": "Both books licensed by US states.",
+   "pairs": 183,
+   "mean_return_pct": 0.9105643203741441,
+   "profit": {
+    "250": 417,
+    "1000": 1666
+   },
+   "profit_no_mlb": {
+    "250": 108,
+    "1000": 431
+   }
+  },
+  {
+   "label": "D. Licensed and still there",
+   "note": "Both conditions.",
+   "pairs": 51,
+   "mean_return_pct": 1.0900846870245646,
+   "profit": {
+    "250": 139,
+    "1000": 556
+   },
+   "profit_no_mlb": {
+    "250": 20,
+    "1000": 78
+   }
+  },
+  {
+   "label": "E. Rules on file for both books",
+   "note": "Reached Locked at least once; checked or assumed settlement rules.",
+   "pairs": 165,
+   "mean_return_pct": 1.1025409360421847,
+   "profit": {
+    "250": 455,
+    "1000": 1819
+   },
+   "profit_no_mlb": {
+    "250": 440,
+    "1000": 1759
+   }
+  }
+ ],
+ "persisted_mix": {
+  "offshore": 30,
+  "mlb_props": 39,
+  "licensed_other": 6
+ },
+ "tax": {
+  "stake": 1000,
+  "cases": [
+   {
+    "label": "Before tax",
+    "profit": 899,
+    "pairs": 75,
+    "pairs_positive": 75
+   },
+   {
+    "label": "After tax: 24% bracket, itemizing (90% of losses deductible)",
+    "profit": -452,
+    "pairs": 75,
+    "pairs_positive": 11
+   },
+   {
+    "label": "After tax: 32% bracket, itemizing",
+    "profit": -902,
+    "pairs": 75,
+    "pairs_positive": 4
+   },
+   {
+    "label": "After tax: 24% bracket, standard deduction (losses not deductible)",
+    "profit": -10663,
+    "pairs": 75,
+    "pairs_positive": 0
+   }
+  ]
+ },
+ "examples": [
+  {
+   "sport": "MLB",
+   "game": "St. Louis Cardinals @ Milwaukee Brewers",
+   "subject": "Andre Pallante · Pitcher strikeouts",
+   "first_seen": "2026-09-27T18:22:29.424350Z",
+   "snapshots": 1,
+   "return_pct": 8.947368421052637,
+   "status": "check",
+   "licensed": false,
+   "legs": [
+    {
+     "book": "fanatics",
+     "book_label": "Fanatics",
+     "market_label": "Pitcher strikeouts",
+     "side": "Over",
+     "line": 3.5,
+     "price": 130
+    },
+    {
+     "book": "mybookieag",
+     "book_label": "MyBookie",
+     "market_label": "Pitcher strikeouts",
+     "side": "Under",
+     "line": 3.5,
+     "price": 107
+    }
+   ]
+  },
+  {
+   "sport": "NHL",
+   "game": "New York Islanders @ Toronto Maple Leafs",
+   "subject": "Matias Maccelli · Shots on goal",
+   "first_seen": "2026-09-30T11:36:34.907210Z",
+   "snapshots": 2,
+   "return_pct": 7.267441860465129,
+   "status": "locked",
+   "licensed": false,
+   "legs": [
+    {
+     "book": "bovada",
+     "book_label": "Bovada",
+     "market_label": "Shots on goal",
+     "side": "Over",
+     "line": 1.5,
+     "price": 105
+    },
+    {
+     "book": "draftkings",
+     "book_label": "DraftKings",
+     "market_label": "Shots on goal",
+     "side": "Under",
+     "line": 1.5,
+     "price": 125
+    }
+   ]
+  },
+  {
+   "sport": "NHL",
+   "game": "Calgary Flames @ Anaheim Ducks",
+   "subject": "Matvei Gridin · Assists",
+   "first_seen": "2026-10-13T11:36:34.192817Z",
+   "snapshots": 1,
+   "return_pct": 5.6140350877192935,
+   "status": "locked",
+   "licensed": true,
+   "legs": [
+    {
+     "book": "draftkings",
+     "book_label": "DraftKings",
+     "market_label": "Assists",
+     "side": "Over",
+     "line": 0.5,
+     "price": 330
+    },
+    {
+     "book": "betmgm",
+     "book_label": "BetMGM",
+     "market_label": "Assists",
+     "side": "Under",
+     "line": 0.5,
+     "price": -250
+    }
+   ]
+  },
+  {
+   "sport": "NHL",
+   "game": "Minnesota Wild @ Winnipeg Jets",
+   "subject": "Joel Eriksson Ek · Points",
+   "first_seen": "2026-10-13T11:36:34.192817Z",
+   "snapshots": 3,
+   "return_pct": 5.387810079694688,
+   "status": "locked",
+   "licensed": false,
+   "legs": [
+    {
+     "book": "betmgm",
+     "book_label": "BetMGM",
+     "market_label": "Points",
+     "side": "Over",
+     "line": 0.5,
+     "price": -105
+    },
+    {
+     "book": "betonlineag",
+     "book_label": "BetOnline",
+     "market_label": "Points",
+     "side": "Under",
+     "line": 0.5,
+     "price": 129
+    }
+   ]
+  },
+  {
+   "sport": "NBA",
+   "game": "Boston Celtics @ Detroit Pistons",
+   "subject": "Mitchell Robinson · Points",
+   "first_seen": "2026-10-18T22:41:37.231650Z",
+   "snapshots": 1,
+   "return_pct": 5.308056872037903,
+   "status": "locked",
+   "licensed": false,
+   "legs": [
+    {
+     "book": "betrivers",
+     "book_label": "BetRivers",
+     "market_label": "Points",
+     "side": "Over",
+     "line": 6.5,
+     "price": 102
+    },
+    {
+     "book": "bovada",
+     "book_label": "Bovada",
+     "market_label": "Points",
+     "side": "Under",
+     "line": 6.5,
+     "price": 120
+    }
+   ]
+  },
+  {
+   "sport": "NHL",
+   "game": "Calgary Flames @ Anaheim Ducks",
+   "subject": "Yegor Sharangovich · Shots on goal",
+   "first_seen": "2026-10-13T11:36:34.192817Z",
+   "snapshots": 3,
+   "return_pct": 4.316219900045426,
+   "status": "locked",
+   "licensed": false,
+   "legs": [
+    {
+     "book": "betmgm",
+     "book_label": "BetMGM",
+     "market_label": "Shots on goal",
+     "side": "Over",
+     "line": 1.5,
+     "price": -105
+    },
+    {
+     "book": "betonlineag",
+     "book_label": "BetOnline",
+     "market_label": "Shots on goal",
+     "side": "Under",
+     "line": 1.5,
+     "price": 124
+    }
+   ]
+  },
+  {
+   "sport": "NBA",
+   "game": "Atlanta Hawks @ Orlando Magic",
+   "subject": "Dyson Daniels · Three-pointers made",
+   "first_seen": "2026-10-21T10:47:06.465415Z",
+   "snapshots": 1,
+   "return_pct": 4.296875,
+   "status": "locked",
+   "licensed": true,
+   "legs": [
+    {
+     "book": "betmgm",
+     "book_label": "BetMGM",
+     "market_label": "Three-pointers made",
+     "side": "Over",
+     "line": 0.5,
+     "price": 200
+    },
+    {
+     "book": "betrivers",
+     "book_label": "BetRivers",
+     "market_label": "Three-pointers made",
+     "side": "Under",
+     "line": 0.5,
+     "price": -167
+    }
+   ]
+  },
+  {
+   "sport": "MLB",
+   "game": "Los Angeles Angels @ Seattle Mariners",
+   "subject": "J.P. Crawford · Batter RBIs",
+   "first_seen": "2026-09-26T11:41:12.896840Z",
+   "snapshots": 13,
+   "return_pct": 4.209935447656465,
+   "status": "check",
+   "licensed": true,
+   "legs": [
+    {
+     "book": "betrivers",
+     "book_label": "BetRivers",
+     "market_label": "Batter RBIs",
+     "side": "Over",
+     "line": 0.5,
+     "price": 370
+    },
+    {
+     "book": "betmgm",
+     "book_label": "BetMGM",
+     "market_label": "Batter RBIs",
+     "side": "Under",
+     "line": 0.5,
+     "price": -295
+    }
+   ]
+  }
+ ]
+}

@@ -128,6 +128,16 @@ research allowance. See `PREDICTION_MARKETS.md` for simulation and fee limitatio
 These contracts do not enter the shared Top Picks selector or Market Watch.
 Exact sportsbook comparisons require independently verified matching settlement
 rules; NFL ties paying 50 cents are not automatically equivalent to pushes.
+
+### Arbitrage scans
+
+From October 22, 2026, each NFL, NBA, NHL and MLB refresh scans its saved quotes
+with `scripts/arbitrage/scan.cjs` after saving them and before publishing, so
+results go out with that refresh. The scan makes no requests. Editors' Scan now
+presses on `/arbitrage/` go through the `live-odds` function and share its credit
+reserve and 60-second reuse. Arbitrage pairs do not enter the shared Top Picks
+selector or Market Watch, and the one-time history replay is a paper exercise,
+not evidence for any pick policy. See `ARBITRAGE.md`.
 Missing forecasts remain unknown. The private paper ledger is not Bet Tracker
 and cannot establish live returns; historical research keeps its original policy.
 

@@ -1,8 +1,8 @@
 // HTTP handler for live-odds. Kept free of Deno APIs so tests/live_odds.cjs can
 // run it with stubbed fetches; index.ts only wires it to Deno.serve.
 //
-// One press of Run now on the private Live Odds page (docs/live/) is at most one
-// paid Odds API request, for one NHL or NBA game. Only editor accounts
+// One press of Run now on the private Live Odds page (docs/live/), or of Scan now on
+// the Arbitrage page (docs/arbitrage/), is at most one paid Odds API request. Only editor accounts
 // (app_metadata.fv_editor) may spend it, and the key never leaves the server: an
 // ODDS_API_KEY Edge Function secret if set, otherwise the copy the "Live Odds key"
 // workflow keeps in Supabase Vault (supabase/live_odds_key.sql), read with the
@@ -10,18 +10,23 @@
 //
 // POST {sport}        -> that league's games from 6 hours ago to 24 hours ahead
 //                        (free endpoint), with the sport echoed back. sport is
-//                        'NHL' (the default) or 'NBA'.
+//                        'NHL' (the default), 'NBA', 'NFL' or 'MLB'.
 // POST {sport, event:'<id>'} -> that game's prices from US books: moneyline, puck
-//                        line or spread, total and four player props. The Odds API
-//                        charges one credit per market returned, so 7 at most.
+//                        line, run line or spread, total and four player props. The
+//                        Odds API charges one credit per market returned, so 7 at most.
 // POST {sport, event:'<id>', live:true} -> also the milestone lines books post
 //                        during games: NHL anytime goal scorer and alternate shots
 //                        and points (10 at most); NBA alternate points, rebounds,
 //                        assists and threes (11 at most).
+// POST {sport, scan:'lines'} -> moneylines, spreads and totals for every game in the
+//                        league starting in the next 8 days, in one request: one
+//                        credit per market, so 3 (Arbitrage page's Scan now).
+// more:true with either paid request also asks the second group of US books
+// (regions us,us2), which doubles its cost.
 //
-// Guards: a game's prices are reused for 60 seconds, so repeat presses cost
-// nothing; paid requests stop while the credits left are below the reserve kept
-// for the scheduled refreshes (LIVE_ODDS_RESERVE, default 2000).
+// Guards: prices are reused for 60 seconds, so repeat presses cost nothing; paid
+// requests stop while the credits left are below the reserve kept for the scheduled
+// refreshes (LIVE_ODDS_RESERVE, default 2000).
 
 const ORIGINS = new Set(['https://fourthandvalue.com', 'https://www.fourthandvalue.com']);
 const ODDS = 'https://api.the-odds-api.com/v4/sports/';
@@ -32,7 +37,16 @@ export const SPORTS = {
   NBA: { key: 'basketball_nba',
     markets: ['h2h', 'spreads', 'totals', 'player_points', 'player_rebounds', 'player_assists', 'player_threes'],
     live: ['player_points_alternate', 'player_rebounds_alternate', 'player_assists_alternate', 'player_threes_alternate'] },
+  NFL: { key: 'americanfootball_nfl',
+    markets: ['h2h', 'spreads', 'totals', 'player_pass_yds', 'player_rush_yds', 'player_reception_yds', 'player_receptions'],
+    live: [] },
+  MLB: { key: 'baseball_mlb',
+    markets: ['h2h', 'spreads', 'totals', 'batter_hits', 'batter_total_bases', 'batter_rbis', 'pitcher_strikeouts'],
+    live: [] },
 };
+export const LINES = ['h2h', 'spreads', 'totals'];
+const SCAN_DAYS = 8;
+const regions = more => more ? 'us,us2' : 'us';
 export const MARKETS = SPORTS.NHL.markets;
 export const LIVE_MARKETS = SPORTS.NHL.live;
 const TTL = { odds: 60e3, events: 300e3, error: 10e3 };
@@ -137,16 +151,22 @@ export function createHandler({ fetchImpl = fetch, now = () => Date.now(), env =
     return { sport, games: await value, remaining };
   }
 
-  async function prices(sport, event, live) {
-    const key = `odds:${sport}:${event}:${live ? 'live' : 'pre'}`, hit = cache.get(key);
+  // A paid request waits for credits above the reserve; prices still in the cache are free.
+  function guard(key) {
+    const hit = cache.get(key);
     if (!(hit && hit.expires > now()) && remaining != null && remaining < reserve()) {
       throw new Failure(429, `Live odds are paused: ${remaining} credits left, below the ${reserve()} kept for the scheduled refreshes.`);
     }
+  }
+
+  async function prices(sport, event, live, more) {
+    const key = `odds:${sport}:${event}:${live ? 'live' : 'pre'}:${regions(more)}`;
+    guard(key);
     const { value, reused } = cached(key, TTL.odds, async () => {
       const fetched = now();
       const { markets, live: milestones } = SPORTS[sport];
       const ask = list => upstream(sport, `events/${event}/odds`,
-        { regions: 'us', markets: list.join(','), oddsFormat: 'american', dateFormat: 'iso' });
+        { regions: regions(more), markets: list.join(','), oddsFormat: 'american', dateFormat: 'iso' });
       let response;
       try {
         response = await ask(live ? [...markets, ...milestones] : markets);
@@ -163,6 +183,21 @@ export function createHandler({ fetchImpl = fetch, now = () => Date.now(), env =
     });
     const result = await value;
     return { ...result, cost: reused ? 0 : result.cost, reused, remaining };
+  }
+
+  // Every upcoming game's game lines in one request, for the Arbitrage page.
+  async function lines(sport, more) {
+    const key = `lines:${sport}:${regions(more)}`;
+    guard(key);
+    const { value, reused } = cached(key, TTL.odds, async () => {
+      const fetched = now();
+      const { body, cost } = await upstream(sport, 'odds', { regions: regions(more), markets: LINES.join(','),
+        oddsFormat: 'american', dateFormat: 'iso', commenceTimeFrom: iso(fetched), commenceTimeTo: iso(fetched + SCAN_DAYS * 86400e3) });
+      if (!Array.isArray(body)) throw new Failure(502, 'The odds service listed prices in an unexpected format.');
+      return { events: body.filter(e => EVENT_ID.test(String(e?.id))), fetched_at: iso(fetched), cost };
+    });
+    const result = await value;
+    return { sport, scan: 'lines', regions: regions(more), ...result, cost: reused ? 0 : result.cost, reused, remaining };
   }
 
   return async function handle(req) {
@@ -185,6 +220,8 @@ export function createHandler({ fetchImpl = fetch, now = () => Date.now(), env =
     if (!input || typeof input !== 'object' || Array.isArray(input)) return reply(400, { error: 'Invalid request' });
     if (input.event != null && !EVENT_ID.test(String(input.event))) return reply(400, { error: 'Invalid game' });
     if (input.live != null && typeof input.live !== 'boolean') return reply(400, { error: 'Invalid request' });
+    if (input.more != null && typeof input.more !== 'boolean') return reply(400, { error: 'Invalid request' });
+    if (input.scan != null && (input.scan !== 'lines' || input.event != null)) return reply(400, { error: 'Invalid request' });
     // Pages from before the sport choice send none: they meant NHL.
     const sport = input.sport ?? 'NHL';
     if (!Object.hasOwn(SPORTS, sport)) return reply(400, { error: 'Unsupported sport' });
@@ -193,7 +230,9 @@ export function createHandler({ fetchImpl = fetch, now = () => Date.now(), env =
       const allowed = await editor(authorization);
       if (allowed === null) return reply(401, { error: 'Sign in again.' });
       if (!allowed) return reply(403, { error: 'Live odds are limited to editor accounts.' });
-      return reply(200, input.event == null ? await games(sport) : await prices(sport, String(input.event), input.live === true));
+      const more = input.more === true;
+      return reply(200, input.scan === 'lines' ? await lines(sport, more)
+        : input.event == null ? await games(sport) : await prices(sport, String(input.event), input.live === true, more));
     } catch (error) {
       if (error instanceof Failure) return reply(error.status, { error: error.message, remaining });
       return reply(502, { error: 'Live odds are unavailable right now.', remaining });

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sports Arbitrage Finder: NFL, NBA, NHL, MLB | Fourth &amp; Value</title>
+<meta name="description" content="Find sportsbook arbitrage across NFL, NBA, NHL and MLB: two bets at two books that pay either way, with stakes, rules checks and after-tax estimates.">
+<link rel="canonical" href="https://fourthandvalue.com/arbitrage/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Sports Arbitrage Finder: NFL, NBA, NHL, MLB | Fourth &amp; Value">
+<meta property="og:description" content="Find sportsbook arbitrage across NFL, NBA, NHL and MLB: two bets at two books that pay either way, with stakes, rules checks and after-tax estimates.">
+<meta property="og:url" content="https://fourthandvalue.com/arbitrage/">
+<meta property="og:image" content="https://fourthandvalue.com/assets/social-card.png"><meta property="og:image:alt" content="Fourth &amp; Value"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="https://fourthandvalue.com/assets/social-card.png">
+<link rel="icon" href="/assets/logo.svg"><link rel="stylesheet" href="/assets/site.css">
+<link rel="stylesheet" href="/assets/offer-tracker.css?v=1">
+<link rel="stylesheet" href="/arbitrage/arbitrage.css?v=1">
+<link rel="stylesheet" href="/assets/responsible-use.css?v=1"></head><body>
+<a class="skip-link" href="#main">Skip to arbitrage pairs</a><div id="nav-root"></div><script src="/nav.js?v=51"></script>
+<main class="wrap arb" id="main">
+<nav class="subnav" aria-label="Arbitrage"><a href="/arbitrage/" aria-current="page">Arbitrage finder</a><a href="/arbitrage/plan.html">Arbitrage plan</a><a href="/nhl/arbitrage.html">NHL pricing contradictions</a><a href="/live/">Live odds</a><a href="/tracking/">Bet Tracker</a></nav>
+<header><p class="eyebrow">Markets · Arbitrage</p>
+<h1>Arbitrage finder</h1></header><!-- fv-notices:notice:start --><aside id="fv-betting-notice" class="fv-use-notice" aria-label="Betting information disclaimer"><strong>Analysis, not a guarantee.</strong> Picks and projections are uncertain; odds and player information can change. No outcome or profit is guaranteed. Any wager is your decision and responsibility. <a href="/terms.html#responsible-play">Read our limitations and responsible-play guidance</a>.</aside><!-- fv-notices:notice:end -->
+<p class="lead">Two bets at two sportsbooks that pay back more than you staked whichever side wins. Every NFL, NBA, NHL and MLB price refresh is scanned with the same rules, and editors can rescan current prices with one button.</p>
+<div class="notice"><strong>Small edges, real taxes.</strong> <p>Most pairs return about 1% before tax. From 2026 only 90% of gambling losses are deductible, so a pair can lose money after federal tax. Set your bracket below. <a href="/arbitrage/plan.html#tax">Why tax matters</a>.</p></div>
+
+<section class="panel settings" aria-labelledby="settings-heading">
+<h2 id="settings-heading" class="visually-hidden">Settings</h2>
+<div class="controls">
+<label for="sport">League <select id="sport"><option value="">All leagues</option><option>NFL</option><option>NBA</option><option>NHL</option><option>MLB</option></select></label>
+<label for="stake">Total stake per pair ($) <input id="stake" type="number" min="1" step="1" inputmode="decimal" value="100"></label>
+<label for="rate">Federal tax bracket <select id="rate"><option value="0">Ignore tax</option><option value="0.10">10%</option><option value="0.12">12%</option><option value="0.22">22%</option><option value="0.24" selected>24%</option><option value="0.32">32%</option><option value="0.35">35%</option><option value="0.37">37%</option></select></label>
+</div>
+<div class="checks">
+<label><input type="checkbox" id="itemize" checked> I itemize deductions</label>
+<label><input type="checkbox" id="licensed"> Licensed US books only</label>
+<label><input type="checkbox" id="taxpositive"> Hide pairs that lose money after tax</label>
+</div>
+</section>
+
+<div class="grid summary" id="summary" aria-live="polite">
+<article class="panel"><h2>Locked now</h2><p class="betline" id="count-locked">—</p><p class="meta" id="count-locked-note">Rules on file, quotes together, pays either way</p></article>
+<article class="panel"><h2>Check before betting</h2><p class="betline" id="count-check">—</p><p class="meta">Under 100%, but rules unknown or quotes apart</p></article>
+<article class="panel"><h2>Closest misses</h2><p class="betline" id="count-near">—</p><p class="meta">Two-way pairs within 1% of a lock</p></article>
+</div>
+<ul class="scans meta" id="scans" role="status"><li>Loading the latest scans…</li></ul>
+
+<details class="panel scan-now" id="scan-panel">
+<summary><strong>Scan now</strong> <span class="meta">Editors: rescan current prices</span></summary>
+<p id="scan-message" class="meta" role="status" aria-live="polite">Checking your sign-in…</p>
+<form id="scan-login" class="controls" hidden>
+<label for="scan-email">Email <input id="scan-email" type="email" autocomplete="email" required></label>
+<button type="submit">Email me a sign-in link</button>
+</form>
+<div id="scan-desk" hidden>
+<p class="meta">Each scan spends paid Odds API credits through the same editor-only service as Live Odds. Prices are reused for 60 seconds, so pressing again sooner costs nothing, and scans pause when credits fall to the reserve kept for the scheduled refreshes.</p>
+<div class="controls">
+<label for="scan-sport">League <select id="scan-sport"><option>NFL</option><option>NBA</option><option>NHL</option><option>MLB</option></select></label>
+<label class="inline"><input type="checkbox" id="scan-more"> More books (second US group, twice the credits)</label>
+<button id="scan-lines" class="button primary" type="button">Scan game lines, every game</button>
+</div>
+<p class="meta" id="scan-lines-cost">Moneylines, spreads and totals for every game in the next 8 days: 3 credits.</p>
+<div class="controls">
+<label for="scan-game">Game <select id="scan-game"></select></label>
+<button id="scan-event" class="button" type="button" disabled>Scan this game with props</button>
+<button id="scan-signout" type="button">Sign out</button>
+</div>
+<p class="meta" id="scan-event-cost">Game lines and four player props for one game: up to 7 credits.</p>
+</div>
+</details>
+
+<section class="section" aria-labelledby="locked-heading"><h2 id="locked-heading">Locked now</h2>
+<p class="meta">Stake as shown and either side returns the same payout. Prices move fast: open both books, confirm the line and both prices, and place the price that stands out first.</p>
+<div id="locked" class="pairs"><p class="empty">Loading…</p></div></section>
+
+<section class="section" aria-labelledby="check-heading"><h2 id="check-heading">Check before betting</h2>
+<p class="meta">These add up to less than 100%, but something is unconfirmed: a book’s settlement rules for the market are not on file or differ, or the two quotes were taken more than five minutes apart. Treat them as leads.</p>
+<div id="check" class="pairs"><p class="empty">Loading…</p></div></section>
+
+<section class="section" aria-labelledby="near-heading"><h2 id="near-heading">Closest to arbitrage</h2>
+<p class="meta">Best price on each side across books, between 100% and 101%. A negative return is the cost of holding both sides.</p>
+<div id="near"><p class="empty">Loading…</p></div></section>
+
+<section class="section" aria-labelledby="record-heading"><h2 id="record-heading">Paper record</h2>
+<p class="meta">Every pair the scheduled scans have seen in the last 30 days, at the prices when first seen. These are saved quotes, not bets placed. “Seen twice or more” means it was still there at a later refresh.</p>
+<div id="record"><p class="empty">Loading…</p></div>
+<p><a href="/arbitrage/plan.html#history">The month before this record started →</a></p></section>
+
+<section class="section help" aria-labelledby="how-heading"><h2 id="how-heading">Placing a pair</h2>
+<ol>
+<li>Pick a Locked pair whose after-tax result is positive at your settings.</li>
+<li>Open both sportsbooks. Confirm the same game, player, market and line, and that each price is the one shown or better.</li>
+<li>Bet the price that stands out from the other books first; it is the one most likely to move. Then bet the other side.</li>
+<li>Use the stakes shown for your total. If the second price has moved, decide before betting whether to take it, hedge elsewhere, or hold.</li>
+<li>Press Track on each bet to record it in Bet Tracker with the price you actually got.</li>
+</ol>
+<p>Limits, voids, obvious-error cancellations and account restrictions are not modeled. Offshore books are not licensed by any US state. Read the <a href="/arbitrage/plan.html">arbitrage plan</a> for the rules we rely on and the month of history behind this page. This page is separate from Today’s Picks and Market Watch and does not feed either.</p>
+</section>
+<noscript><p>Enable JavaScript to view current pairs and stakes. The scans are published as <a href="/arbitrage/data/nba.json">NBA</a>, <a href="/arbitrage/data/nfl.json">NFL</a>, <a href="/arbitrage/data/nhl.json">NHL</a> and <a href="/arbitrage/data/mlb.json">MLB</a> data.</p></noscript>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/tracking/bet-tracking.js?v=3"></script>
+<script src="/assets/offer-tracker.js?v=3"></script>
+<script src="/assets/arbitrage.js?v=1"></script>
+<script src="/arbitrage/finder.js?v=1"></script>
+<!-- fv-notices:footer:start --><section id="fv-responsible-footer" class="fv-use-footer" aria-label="Responsible use"><p>Fourth &amp; Value provides sports analysis for informational and entertainment purposes. We do not accept wagers. You are responsible for your wagering decisions and for meeting applicable age and legal requirements. Never wager money you cannot afford to lose.</p><p><a href="/terms.html">Terms &amp; privacy</a> · <a href="/terms.html#responsible-play">Responsible play</a> · U.S. gambling support: call or text <a href="tel:+18006973738">1-800-MY-RESET</a> or <a href="https://www.ncpgambling.org/help-treatment/">find confidential help</a>.</p></section><!-- fv-notices:footer:end --></body></html>

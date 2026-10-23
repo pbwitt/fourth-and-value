@@ -165,6 +165,12 @@ jobs:
             reports/nfl-weekly/
           retention-days: 30
           if-no-files-found: ignore
+      - name: Scan saved prices for arbitrage
+        if: steps.refresh.outcome == 'success'
+        continue-on-error: true
+        # Same engine and rules as the Arbitrage page (docs/assets/arbitrage.js); reads the saved
+        # snapshot only, no requests. Writes this league's docs/arbitrage/data files and paper ledger.
+        run: node scripts/arbitrage/scan.cjs --sport NFL
       - name: Include responsible-use notices
         if: steps.refresh.outcome == 'success'
         run: |

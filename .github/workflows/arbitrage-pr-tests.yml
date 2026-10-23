@@ -1,0 +1,41 @@
+name: Arbitrage tests
+on:
+  pull_request:
+    paths:
+      - 'docs/assets/arbitrage.js'
+      - 'docs/arbitrage/**'
+      - 'scripts/arbitrage/**'
+      - 'config/arbitrage_settlement.json'
+      - 'config/nhl_settlement.json'
+      - 'scripts/nhl/v2/arbitrage.py'
+      - 'supabase/functions/live-odds/**'
+      - 'docs/assets/offer-tracker.*'
+      - 'tests/arbitrage*.cjs'
+      - 'tests/test_arbitrage.py'
+      - '.github/workflows/arbitrage-pr-tests.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      # The NHL scanner the parity test compares against needs only requests.
+      - run: pip install 'requests>=2.31'
+      - name: Engine, scheduled scan, ledger and Scan now relay
+        run: node tests/arbitrage.cjs
+      - name: Generated rules and plan are current; NHL locks match the NHL page
+        run: |
+          python scripts/arbitrage/build.py --check
+          python -m unittest tests/test_arbitrage.py
+      - run: npm install --no-save --package-lock=false playwright@1.55.1
+      - run: npx playwright install --with-deps chromium
+      - name: Finder and plan in a browser
+        run: node tests/arbitrage_browser.cjs
