@@ -1,6 +1,6 @@
 # Arbitrage: scans, Scan now and the plan
 
-The Arbitrage section (`/arbitrage/`, Markets > Arbitrage Finder) lists pairs of
+The Arbitrage section (`/arbitrage/`; off the site menu for now, reached by URL) lists pairs of
 bets at two sportsbooks that pay back more than the total staked whichever side
 wins, for the NFL, NBA, NHL and MLB. The reader-facing plan, history and rules
 are on `/arbitrage/plan.html`. Nothing here feeds Top Picks or Market Watch.
