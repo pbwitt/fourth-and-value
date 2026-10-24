@@ -12,6 +12,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from site_metadata import seo_title
+
 ROOT=Path(__file__).resolve().parents[1]
 ET=ZoneInfo("America/New_York")
 
@@ -56,11 +58,66 @@ def config(root):
     return load(Path(root)/"config/editorial.json",{})
 
 
+# Today's picks, explained (writer.mode "picks"): one article a day built from the
+# published picks card, with afternoon picks added to it. A session is terminal once
+# published, skipped after a paid attempt, started (an uncertain charge is never
+# retried), or when its card has nothing left to explain.
+CARD_FILES={'morning':'morning-card.json','afternoon':'afternoon-card.json'}
+PICKS_TERMINAL=('published','skipped','started','no_picks','expired')
+
+
+def picks_mode(root):
+    return config(root).get('writer',{}).get('mode')=='picks'
+
+
+def picks_url(day):
+    return f'/editorial/articles/{day}-todays-picks.html'
+
+
+def today_card(root,now,session='morning'):
+    """Today's published card for a session, else None. Test editions never qualify."""
+    card=load(Path(root)/'docs/briefing'/CARD_FILES[session],{})
+    published=stamp(card.get('published_at'))
+    day=now.astimezone(ET).date().isoformat()
+    if (card.get('schema_version')!=1 or card.get('kind')!=session or not isinstance(card.get('rows'),list)
+            or card.get('status') not in ('published','no_reviewed_candidates') or not published or published>now
+            or card.get('decision_date')!=day or published.astimezone(ET).date().isoformat()!=day):
+        return None
+    return card
+
+
+def unstarted(rows,now):
+    return [row for row in rows if (stamp(row.get('commence_time')) or now)>now]
+
+
+def picks_pending(root,now):
+    """The next card session whose picks still need explaining, and why."""
+    slots=today_state(root,now).get('slots',{})
+    reason='waiting_for_morning_card'
+    for session in ('morning','afternoon'):
+        card=today_card(root,now,session)
+        if card is None:continue
+        status=slots.get('picks-'+session,{}).get('status')
+        if status in PICKS_TERMINAL:reason=f'{session}_picks_{status}';continue
+        if not card['rows']:reason=f'{session}_card_has_no_picks';continue
+        if not unstarted(card['rows'],now):reason=f'{session}_picks_already_started';continue
+        return session,f'{session}_picks_unexplained'+('_retry' if status else '')
+    return None,reason
+
+
 def writer_need(root,now):
     cfg=config(root)
     limit=min(int(cfg.get("writer",{}).get("daily_story_limit",2) or 2),2)
     if not cfg.get("writing_enabled",False):
         return False,"writing_disabled"
+    if picks_mode(root):
+        state=today_state(root,now)
+        if state.get("funding_required"):
+            return False,"funding_required"
+        if any(value.get("status")=="started" for value in state.get("slots",{}).values()):
+            return False,"uncertain_started_slot"
+        session,reason=picks_pending(root,now)
+        return session is not None,reason
     published=today_catalog(root,now)
     if len(published)>=limit:
         return False,"daily_publication_limit_reached"
@@ -133,10 +190,16 @@ def plan(root=ROOT,now=None,event_name=None,event_schedule=None,manual_refresh=F
     need,need_reason=writer_need(root,now)
     after_start=now>=morning_start(now)
     ready_sports=current_morning_models(root,now)
-    writer_eligible=bool(need and (manual or (event_name=="schedule" and morning_window(now) and ready_sports)))
-    if need and not manual:
-        if not morning_window(now):need_reason='outside_morning_writing_window'
-        elif not ready_sports:need_reason='waiting_for_morning_models'
+    picks=picks_mode(root)
+    if picks:
+        # The explainer reads only the published card, whenever it lands; the card
+        # carries its own freshness, review and start-time checks.
+        writer_eligible=bool(need and (manual or event_name=="schedule"))
+    else:
+        writer_eligible=bool(need and (manual or (event_name=="schedule" and morning_window(now) and ready_sports)))
+        if need and not manual:
+            if not morning_window(now):need_reason='outside_morning_writing_window'
+            elif not ready_sports:need_reason='waiting_for_morning_models'
 
     briefing=load(Path(root)/"docs/briefing/latest.json",{})
     briefing_at=briefing.get("generated_at")
@@ -144,8 +207,9 @@ def plan(root=ROOT,now=None,event_name=None,event_schedule=None,manual_refresh=F
     briefing_today=same_et_day(briefing_at,now)
     briefing_stale_for_writer=(not briefing_today) or briefing_age is None or briefing_age>=1.0
     briefing_routine_due=(not briefing_today) or briefing_age is None or briefing_age>=4.5
+    # The picks explainer never reads the price briefing, so it never forces a paid refresh.
     refresh_briefing=manual or (event_name=="schedule" and after_start and
-        ((writer_eligible and briefing_stale_for_writer) or briefing_routine_due))
+        ((writer_eligible and not picks and briefing_stale_for_writer) or briefing_routine_due))
 
     retry_mlb,retry_reason=mlb_retry_relevant(root,now)
     board=load(Path(root)/"docs/mlb/data/latest.json",{})
@@ -248,9 +312,37 @@ def no_eligible_story(root,state,now):
         for sport in config(root).get('sports') or ('NFL','MLB','NBA','NHL'))
 
 
+def verify_picks_delivery(root,now):
+    """One explainer is due by 8:30 a.m. when the morning card has picks; none on a no-pick day."""
+    day=now.astimezone(ET).date().isoformat();url=picks_url(day)
+    card=today_card(root,now,'morning');state=today_state(root,now)
+    slot=state.get('slots',{}).get('picks-morning',{})
+    published=any(row.get('url')==url for row in today_catalog(root,now)) and (Path(root)/'docs'/url.lstrip('/')).is_file()
+    due=delivery_due(now)
+    if published:status='complete'
+    elif card is not None and not card['rows']:status='no_picks'
+    elif card is None:status='waiting_for_card'
+    elif slot.get('status')=='expired':status='limited'
+    else:status='overdue' if due else 'pending'
+    result=dict(date=day,expected=0 if status=='no_picks' else 1,delivery_target=delivery_target(now).isoformat(),
+        published=int(published),status=status,url=url if published else None,writer_reason=writer_need(root,now)[1],
+        slots={key:value.get('status') for key,value in state.get('slots',{}).items()})
+    print(json.dumps(result,indent=2))
+    summary=os.getenv('GITHUB_STEP_SUMMARY')
+    if summary:
+        with open(summary,'a') as stream:
+            stream.write(f"\n## Today's picks, explained: {status}\n\n```json\n"+json.dumps(result,indent=2)+'\n```\n')
+    # The picks workflow reports a missing card itself; the explainer follows the card.
+    if status=='waiting_for_card' and due:print("::warning::No morning picks card for today yet; the explainer follows it")
+    elif status=='limited':print('::warning::Every morning pick had started before the explainer could run')
+    elif status=='overdue':raise SystemExit("Today's picks explainer is not published; inspect delivery diagnostics")
+    return result
+
+
 def verify_delivery(root=ROOT,now=None):
     """Check the product delivered, after publishing so a partial edition survives."""
     now=(now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    if picks_mode(root):return verify_picks_delivery(root,now)
     cfg=config(root)
     limit=min(int(cfg.get('writer',{}).get('daily_story_limit',2) or 2),2)
     # A catalog entry without its public article is not a delivery.
@@ -293,7 +385,9 @@ def verify_live(root=ROOT,now=None,attempts=12):
                 with urlopen(request,timeout=10) as response:
                     page=response.read(1000000).decode('utf-8')
                 title=re.search(r'<title>(.*?)</title>',page,re.S|re.I)
-                if title and row.get('title') and row['title'] in unescape(title.group(1)):
+                shown=unescape(title.group(1)).strip() if title else ''
+                # A long headline is shortened for search (editorial_seo.metadata).
+                if row.get('title') and (row['title'] in shown or shown==seo_title(row.get('seo_title') or row['title'])):
                     del pending[path]
             except (URLError,TimeoutError,OSError,UnicodeError):pass
         if not pending:

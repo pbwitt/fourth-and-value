@@ -13,6 +13,7 @@ SPORTS=('NFL','MLB','NBA','NHL')
 STAGES={
  'Refresh market prices and briefing':'prices',
  'Research and publish original analysis':'writing',
+ "Explain today's picks (or research a requested idea)":'writing',
  'Verify expected writer execution':'writer_check',
  'Publish public pages only':'publication',
  'Rebuild site':'deployment',
@@ -104,7 +105,7 @@ def build_report(root=ROOT,now=None,run=None,phase='finish'):
     for key,slot in state.get('slots',{}).items():
         url=slot.get('url');public=catalog.get(url,{})
         provenance=slot.get('source_check',{})
-        articles.append({'slot':key,'sport':key.split('-')[-1].upper(),'status':slot.get('status','unknown'),
+        articles.append({'slot':key,'sport':slot.get('sport') or key.split('-')[-1].upper(),'status':slot.get('status','unknown'),
             'title':public.get('title'),'url':url if url in stored else None,
             'reason':safe_reason(slot.get('reason')),
             'review':'passed' if slot.get('status') in ('published','review') else 'failed' if 'audit' in str(slot.get('reason','')).lower() else 'not_recorded',

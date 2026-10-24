@@ -55,14 +55,14 @@ def render():
         if name in ('nhl-daily.yml','mlb-daily.yml'):
             schedule+='daily: 4:30 p.m. via afternoon market refresh'
         if name=='afternoon-refresh.yml':schedule='Primary: daily 4:30 p.m., started by the Supabase timer<br>Backup GitHub schedule (often late):<br>'+schedule
-        if name=='editorial-daily.yml':schedule='Primary: after morning sports refreshes<br>Recovery / maintenance checks:<br>'+schedule
+        if name=='editorial-daily.yml':schedule='Primary: after the morning picks card publishes<br>Recovery / maintenance checks (hourly runs also add afternoon picks):<br>'+schedule
         if name=='editorial-watchdog.yml':schedule+='; also after scheduled Morning Picks completes'
         if name=='analyst-daily.yml':schedule='After morning data jobs finish; incomplete-edition recovery or explicit manual tests only otherwise'
         if name=='afternoon-edition.yml':schedule='After the 4:30 p.m. afternoon market refresh finishes; publishes between 4 and 7 p.m. only'
         rows.append(f'<tr><td>{escape(label)}</td><td>{schedule}</td><td>{escape(description)}</td></tr>')
     paths=[ROOT/'.github/workflows'/n for n in WORKFLOWS]
     paths += [ROOT/p for p in ['config/analyst_review.json','config/nhl_analyst.json',
-        'scripts/editorial_schedule.py','scripts/editorial_writer.py','scripts/editorial_diagnostics.py','scripts/analyst_review.py','scripts/research_discovery.py','scripts/research_verify.py',
+        'scripts/editorial_schedule.py','scripts/editorial_writer.py','scripts/editorial_explainer.py','scripts/editorial_diagnostics.py','scripts/analyst_review.py','scripts/research_discovery.py','scripts/research_verify.py',
         'scripts/display_time.py','scripts/research_budget.py','scripts/morning_card.py','scripts/morning_operations.py','scripts/analyst_shortlist.cjs','supabase/morning_scheduler.sql',
         'supabase/afternoon_scheduler.sql','scripts/afternoon_gate.py','scripts/mlb/predict.py','scripts/nhl/v2/candidates.py','docs/assets/briefing-picks.js']]
     fingerprint=hashlib.sha256(b''.join(p.read_bytes() for p in paths)).hexdigest()[:20]

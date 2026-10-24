@@ -83,15 +83,16 @@ jobs:
     if: always() && !cancelled() && needs.gate.result == 'success' && needs.gate.outputs.refresh == 'true' && !inputs.test_edition
     uses: ./.github/workflows/pinnacle-snapshot.yml
     secrets: inherit
+  # Today's picks, explained is written from the published card, so it starts after research.
   editorial:
-    needs: [gate, nfl, mlb, nhl]
+    needs: [gate, nfl, mlb, nhl, research]
     if: always() && !cancelled() && needs.gate.result == 'success' && needs.gate.outputs.refresh == 'true' && !inputs.test_edition
     runs-on: ubuntu-latest
     permissions:
       actions: write
       contents: read
     steps:
-      - name: Start editorial after the sports refreshes finish
+      - name: Start editorial after the card is published
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}

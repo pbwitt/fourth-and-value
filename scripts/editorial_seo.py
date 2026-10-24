@@ -21,7 +21,8 @@ def metadata(item):
     image=item.get('image')
     if image and (image.startswith('/') or image.startswith(BASE+'/')):schema['image']=BASE+image if image.startswith('/') else image
     esc=lambda s:html.escape(str(s),quote=True)
-    tags=[f'<title>{esc(seo_title(title))}</title>',f'<meta name="description" content="{esc(seo_description(excerpt))}">',
+    # A long on-page headline may carry its own short search title.
+    tags=[f'<title>{esc(seo_title(item.get("seo_title") or title))}</title>',f'<meta name="description" content="{esc(seo_description(excerpt))}">',
         f'<link rel="canonical" href="{esc(url)}">','<meta name="author" content="Fourth &amp; Value">',
         '<meta name="robots" content="index,follow,max-image-preview:large">']
     values={'og:title':title,'og:description':excerpt,'og:url':url,'og:type':'article','og:site_name':'Fourth & Value',

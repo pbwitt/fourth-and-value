@@ -1,8 +1,9 @@
 name: Editorial Morning Briefing
 on:
   schedule:
-    # Primary start is dispatched after Morning Picks finishes the sports feeds.
-    # These are recovery opportunities; target two live articles by 8:30 AM ET.
+    # Primary start is dispatched after Morning Picks publishes its card. These are
+    # recovery opportunities; today's picks explainer is due by 8:30 AM ET, and the
+    # hourly run adds afternoon picks to it once the afternoon card publishes.
     - cron: '47 7-10 * * *'
       timezone: America/New_York
     - cron: '7 11,16,21 * * *'
@@ -155,7 +156,7 @@ jobs:
           echo "Editorial mode: ${{ needs.plan.outputs.mode }}"
           echo "Eastern planner time: ${{ needs.plan.outputs.eastern_time }}"
           echo "Writer reason: ${{ needs.plan.outputs.writer_reason }}"
-      - name: Research and publish original analysis
+      - name: Explain today's picks (or research a requested idea)
         if: needs.plan.outputs.writer_eligible == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || secrets.CLAUDE_CODE }}
@@ -171,7 +172,7 @@ jobs:
               python scripts/editorial_writer.py --idea "$REQUESTED_ID"
             fi
           else
-            python scripts/editorial_writer.py
+            python scripts/editorial_explainer.py
           fi
       - name: Verify expected writer execution
         id: writer_check

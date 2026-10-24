@@ -105,10 +105,10 @@ model and market comparison, sourced assessment and Bet Tracker. Research-only
 rows without an eligible model say Not established and cannot create a tracker
 model probability/edge. Original forecasts remain archived and may be supplied
 as explicitly unqualified diagnostic context. Numerical estimates are never
-invented or adjusted by the language model. Market Watch and daily-article
-selection/writing remain separate. MLB no longer has automatic early editorial
-refreshes; article writing follows the coordinated 7:05 a.m. sports feeds,
-with an 8:30 a.m. delivery target.
+invented or adjusted by the language model. Market Watch remains separate.
+Since October 24, 2026 the daily article, Today's picks, explained, is written
+from the published card and never selects, reorders or reprices a pick; it
+follows the card, with an 8:30 a.m. delivery target (EDITORIAL_OPERATIONS.md).
 
 ## Quantitative policy and ranking
 
@@ -289,10 +289,11 @@ pull: a completed same-day morning edition skips all three feeds and paid resear
 verifies delivery. A missing or incomplete edition calls NFL, MLB and NHL reusable
 workflows, waits for all three, then calls research. A recovery start reuses an NFL
 refresh at most 45 minutes old instead of paying for it again (its result travels as
-`reused_fresh`); NHL and MLB refresh on every start. A separate short handoff
-dispatches editorial with scheduled recovery semantics; writing does not block
-Top Picks research or its recovery starts. Explicit test editions skip the
-automatic editorial handoff.
+`reused_fresh`); NHL and MLB refresh on every start. After research finishes, a
+short handoff dispatches editorial with scheduled recovery semantics, so Today's
+picks, explained starts from the published card; writing never blocks Top Picks
+research or its recovery starts. Explicit test editions skip the automatic
+editorial handoff, and a test card never qualifies for the article.
 Parent job results travel with the card. A failed sport or expired feed marks
 the run incomplete; completed assessments from healthy boards remain visible.
 NHL/MLB afternoon refreshes start at **16:30 Eastern** through `Afternoon Market
@@ -301,10 +302,11 @@ Its 16:45 GitHub schedule is only a backup: the gate (`scripts/afternoon_gate.py
 skips a sport already published since 16:00 and starts nothing after midnight.
 Existing NFL game-day updates remain. Neither later updates nor editorial publication trigger paid research.
 There is no hourly MLB refresh. The article watchdog uses scheduled recovery
-eligibility, not the manual full-refresh path. Automatic articles require
-post-7:05 model checks within 90 minutes and remain subject to per-story data
-and source validation. Editorial targets 08:30 ET and closes automatic writing
-at noon; hourly maintenance and approved-post publication continue. NBA
+eligibility, not the manual full-refresh path. The daily explainer needs today's
+published card and at least one pick that has not started; it targets 08:30 ET
+when the morning card has picks, and the first hourly run after the afternoon
+card adds its picks to the same page. Hourly maintenance and approved-post
+publication continue. NBA
 integration into the coordinated sports refresh remains future work.
 
 ### Owner morning email

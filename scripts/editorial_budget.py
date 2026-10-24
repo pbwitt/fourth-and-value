@@ -18,9 +18,12 @@ INPUT_RATE,OUTPUT_RATE=RATES['gpt-6-astra']
 # Claude counts thinking against the output ceiling, so the audit needs room
 # beyond its short JSON verdict. A revision resends the writing input plus the
 # rejected draft and the audit's findings.
-LIMITS={'write':(18000,8000),'audit':(24000,4000),'revise':(28000,8000)}
+LIMITS={'write':(18000,8000),'audit':(24000,4000),'revise':(28000,8000),
+        # Today's picks, explained covers up to ten card picks in one article.
+        'picks':(40000,12000),'picks_audit':(52000,4000),'picks_revise':(60000,12000)}
 # A story is a write and its audit, plus at most one revision and a fresh audit.
 STORY=('write','audit','revise','audit')
+PICKS_STORY=('picks','picks_audit','picks_revise','picks_audit')
 ASTRA='gpt-6-astra'
 
 def bounds(payload,phase):

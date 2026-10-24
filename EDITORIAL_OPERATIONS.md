@@ -18,6 +18,55 @@ timestamp to a ready label such as "Wed, Oct 14, 2026, 7:08 AM EDT" (made by
 out a weekday. That day's NFL draft was rejected for calling Wednesday's 7:08 AM
 quotes "Tuesday".
 
+## Today's picks, explained — the daily article since October 24, 2026
+
+The owner retired the news-driven daily features (no article published from
+October 18 to 23: their readiness checks disagreed with the picks pipeline, and
+earlier drafts failed the audit over free-form numbers). `config/editorial.json`
+`writer.mode` = `"picks"` switches the daily run to `scripts/editorial_explainer.py`;
+remove the key to restore the legacy writer, which the same entry point then runs.
+Editor-requested ideas (Write now) still use `editorial_writer.py` unchanged.
+
+- **What it is.** One article a day, `/editorial/articles/YYYY-MM-DD-todays-picks.html`,
+  that walks through the published card in an easy, conversational voice: what we
+  like, why it made the card, the case against, what to check before the game.
+  Owner direction: "here are some ideas, here is what we like and why"; call the
+  model experimental and keep strong words out.
+- **Inputs.** Only `docs/briefing/morning-card.json` / `afternoon-card.json` for
+  today (test editions never qualify) and the picks whose games have not started.
+  Each card row already carries the offer, model numbers, player context and the
+  analyst review (case, countercase, open checks, cited sources). The packet adds
+  the player's team only when the opponent abbreviation resolves unambiguously.
+  Nothing is fetched at writing time. Research notes saying "edge" are softened
+  to "margin" before the writer sees them.
+- **Headline.** A custom daily hook (25–84 characters) after the fixed
+  "Today's picks, explained:" prefix, plus a short `seo_hook` used for the page
+  `<title>` ("Oct 24 Picks Explained: …"); the catalog keeps both (`seo_title`).
+  `editorial_seo.metadata` and the live-delivery check use the search title.
+- **Checks.** Every pick covered once, 70–260 words each, its exact line and price
+  stated (even money may be written out), only that pick's sources cited, no ISO
+  timestamps, "experimental" present, and no edge/value/lock/guarantee/sure thing/
+  can't-miss/free money/best bet/hammer/slam dunk/no-brainer. A draft failing these
+  checks or the Opus audit gets one revision; a second failure skips the session.
+- **Afternoon.** The first hourly run after the afternoon card adds its picks as a
+  dated "Added this afternoon" section on the same page (mode `addendum`). If the
+  morning article did not publish, the afternoon picks get a full article.
+- **State and delivery.** Slots `picks-morning` and `picks-afternoon` in
+  `docs/editorial/runs/DATE.json`; published, skipped, started, no_picks and
+  expired are terminal (no automatic paid retry). Delivery is `complete`,
+  `no_picks` (no article due), `waiting_for_card` (warning; the picks workflow
+  reports its own failure), `limited` (every pick started first) or `overdue`
+  after 8:30 a.m. (fails). Morning Picks now starts editorial after research.
+- **Budget.** Own request bounds (`picks` 40 KB write / 12k output tokens, audit
+  52 KB, revision 60 KB) so a ten-pick card fits; the reservation is about $1.30
+  per session and settles to actual usage under the same $9 rolling week.
+- **Homepage.** Featured until the last explained pick starts. Public evidence:
+  `/editorial/evidence/YYYY-MM-DD-todays-picks.json` holds each session's packet and
+  article.
+
+The sections below describe the legacy news-driven writer and the shared
+briefing, desk and budget machinery.
+
 ## Schedule and costs
 
 The coordinated **07:05 America/New_York** sports refresh starts the day. After
