@@ -17,8 +17,10 @@ import research_budget as budget
 from display_time import TIMEZONE_INSTRUCTIONS
 
 PUBLIC = ROOT/'docs/briefing/discovery.json'
-# Room for high-effort thinking plus up to 24 directions.
-MAX_OUTPUT_TOKENS = 8000
+# Room for high-effort thinking plus up to 24 directions. Thinking counts as output:
+# October 25, 2026 (17 games) spent 3,508 thinking tokens and was cut off at 8,000
+# after 15 directions, about 320 tokens each.
+MAX_OUTPUT_TOKENS = 16000
 INSTRUCTIONS = '''Act as a skeptical professional sports researcher. Research the supplied upcoming
 slate as of the supplied time, without our model rankings. Start with today's published expert
 picks, best bets and player-prop projections for these games from the allowed outlets, then look

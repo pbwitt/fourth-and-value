@@ -583,7 +583,10 @@ batches were rejected for writing "±10%" and the remaining NHL candidates hit t
 daily allowance.
 Discovery uses an isolated request with one basic web search
 (`web_search_20250305`, `max_uses: 1`, the trusted domain list), no response
-history, at most 12,000 request bytes and 8,000 output tokens. Search citations
+history, at most 12,000 request bytes and 16,000 output tokens (8,000 until
+October 25, 2026, when the 17-game Sunday slate's answer was cut off at that limit
+after 15 directions; discovery failed closed and the morning edition never completed
+or emailed). Search citations
 cannot be combined with JSON outputs, so discovery states the schema in its
 instructions and validates the returned object locally. Claude has no
 search-context-size setting; conservative search reservations still include
