@@ -87,7 +87,11 @@ def forecasts(models,samples):
                 values['b'].append(float(model['reference_pmf'][int(line)+1:].sum()));values['ids'].append(row['game_id'])
     games=default_game_pairs(samples['team_runs'])
     totals={market:dict(p=[],y=[],b=[],ids=[]) for market in ['totals','h2h','spreads']}
-    model=models['team_runs'];rows=samples['team_runs'];mass=pmf(means(model,rows),model)
+    result.update(totals)
+    model=models['team_runs'];rows=samples['team_runs']
+    # A postseason longer than the test window leaves no regular-season games to score.
+    if not rows:return result
+    mass=pmf(means(model,rows),model)
     reference=joint(model['reference_pmf'],model['reference_pmf'])
     for game_id,pair in games.items():
         if set(pair)!= {'home','away'}:continue
@@ -98,7 +102,6 @@ def forecasts(models,samples):
                 p,_=game_outcome(matrix,market,line);b,_=game_outcome(reference,market,line)
                 y=int(home+away>line) if market=='totals' else int(home>away) if market=='h2h' else int(home-away+line>0)
                 values['p'].append(p);values['y'].append(y);values['b'].append(b);values['ids'].append(game_id)
-    result.update(totals)
     return result
 
 

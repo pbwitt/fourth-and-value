@@ -6,12 +6,13 @@ import unittest
 from unittest.mock import patch
 
 import numpy as np
+from sklearn.ensemble import HistGradientBoostingRegressor
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 from mlb.model_data import normalize, BAT_KEYS, PITCH_KEYS, manifest
 from mlb.models import State, dataset, pmf, outcome, joint, game_outcome, expected_return, median, TARGETS
 from mlb.predict import published_lineups, pick_reason, attach, load_bundle
-from mlb.train import partition, score
+from mlb.train import partition, score, evaluate
 
 NOW=datetime(2026,9,21,18,tzinfo=timezone.utc)
 
@@ -131,6 +132,16 @@ class ModelTests(unittest.TestCase):
         train,cal,test=partition(samples,'2026-08-10','2026-08-20','2026-08-30')
         self.assertEqual([len(v['team_runs']) for v in [train,cal,test]],[10,10,10])
         self.assertFalse(score([.9]*200,[0]*200,[.5]*200,list(range(200)))['passed'])
+
+    def test_empty_regular_season_test_window_scores_nothing_instead_of_crashing(self):
+        # Thirty days into the postseason the regular-season test window holds no games.
+        models={t:dict(target=t,kind='rolling',alpha=.2,sigma=3) for t in TARGETS}
+        # A fitted boosted model rejects an empty feature matrix outright.
+        models['team_runs'].update(kind='boosted',features=['x'],
+            estimator=HistGradientBoostingRegressor(max_iter=5).fit([[0],[1]]*20,[3,5]*20))
+        report=evaluate(models,{t:[] for t in TARGETS})
+        self.assertEqual({m:(r['samples'],r['passed']) for m,r in report.items()},
+                         {m:(0,False) for m in ['h2h','spreads','totals',*TARGETS[1:]]})
 
     def test_live_all_markets_price_distributions_and_deduplicate_picks(self):
         history=State()
