@@ -585,7 +585,11 @@ Discovery uses an isolated request with one basic web search
 (`web_search_20250305`, `max_uses: 1`, the trusted domain list), no response
 history, at most 12,000 request bytes and 8,000 output tokens. Search citations
 cannot be combined with JSON outputs, so discovery states the schema in its
-instructions and validates the returned object locally. Claude has no
+instructions and validates the returned object locally. Since October 28, 2026 each
+direction is checked on its own: a malformed reply still fails closed, but a direction
+that breaks a field rule is dropped with a job-log warning and the rest are kept (that
+morning one 510-character hypothesis, against a 500-character limit, discarded the
+whole search). A reply in which every direction breaks a rule still fails. Claude has no
 search-context-size setting; conservative search reservations still include
 131,072 search-context tokens, twice serialized request bytes, overhead, output
 maximum, $0.01 search fee ($10 per 1,000 searches) and margin. Refusals,

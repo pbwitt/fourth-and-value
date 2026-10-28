@@ -44,6 +44,20 @@ class DiscoveryTests(unittest.TestCase):
         d['game_id']='invented';response['output'][0]['content'][0]['text']=json.dumps(dict(directions=[d]))
         with self.assertRaises(ValueError):discovery.response_directions(response,games)
 
+    def test_one_overlong_direction_is_dropped_not_the_whole_search(self):
+        games=discovery.slate(discovery.catalog(feeds(),NOW));g=games[0]
+        d=dict(game_id=g['game_id'],sport=g['sport'],market=g['markets'][0],player='',side='Over',
+            hypothesis='A conditional research direction.',question='Confirm starters.',lead_type='own_research',outlet='',published_line='',source_urls=['https://www.espn.com/example'])
+        # October 28, 2026: a 510-character hypothesis discarded the morning's whole discovery search.
+        long=dict(d,side='Under',hypothesis='x'*510)
+        def reply(value):
+            return dict(status='completed',output=[dict(type='web_search_call',action=dict(sources=[dict(url=d['source_urls'][0])])),
+                dict(type='message',content=[dict(type='output_text',text=json.dumps(value))])])
+        self.assertEqual([r['side'] for r in discovery.response_directions(reply(dict(directions=[long,d])),games)],['Over'])
+        with self.assertRaisesRegex(ValueError,'every direction'):discovery.response_directions(reply(dict(directions=[long])),games)
+        with self.assertRaisesRegex(ValueError,'directions list'):discovery.response_directions(reply(dict(directions=[d],notes='')),games)
+        self.assertEqual(discovery.response_directions(reply(dict(directions=[])),games),[])
+
     def test_game_quotes_preserve_line_book_source_time_and_no_model(self):
         with tempfile.TemporaryDirectory() as td:
             events=[dict(id='g1',home_team='Home Team',away_team='Away Team',commence_time=iso(NOW+timedelta(hours=5)),

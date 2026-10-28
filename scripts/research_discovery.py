@@ -125,7 +125,17 @@ def response_directions(response, games):
     if response.get('status') != 'completed': raise ValueError('Incomplete discovery')
     text = ''.join(c.get('text','') for o in response.get('output',[]) if o.get('type')=='message'
                    for c in o.get('content',[]) if c.get('type')=='output_text')
-    result = json.loads(text); astra.validate_shape(result,SCHEMA)
+    result = json.loads(text); spec = SCHEMA['properties']['directions']
+    # The reply's frame must be whole; each direction is then checked on its own, so one
+    # lead that overruns a field limit is dropped instead of the whole search.
+    if (not isinstance(result,dict) or set(result)!={'directions'} or not isinstance(result['directions'],list)
+            or len(result['directions'])>spec['maxItems']):
+        raise astra.ReviewRejected(f"reply: expected only a directions list of at most {spec['maxItems']}")
+    valid=[]
+    for i,d in enumerate(result['directions']):
+        try: astra.validate_shape(d,spec['items'],f'directions[{i}]'); valid.append(d)
+        except astra.ReviewRejected as error: print(f'::warning::Discovery dropped one direction: {error}',flush=True)
+    if result['directions'] and not valid: raise astra.ReviewRejected('every direction in the reply broke a rule')
     allowed = {(g['sport'],g['game_id']):g for g in games}
     found = {s.get('url') for o in response.get('output',[]) if o.get('type')=='web_search_call'
              for s in o.get('action',{}).get('sources',[])}
@@ -133,7 +143,7 @@ def response_directions(response, games):
     found.update(a.get('url') for o in response.get('output',[]) for c in o.get('content',[])
                  for a in c.get('annotations',[]) if a.get('type')=='url_citation')
     directions=[]
-    for d in result['directions']:
+    for d in valid:
         g=allowed.get((d['sport'],d['game_id']))
         if not g or d['market'] not in g['markets']: raise ValueError('Unknown discovery identity')
         urls=[u for u in d['source_urls'] if u in found and evidence.trusted(u)]
