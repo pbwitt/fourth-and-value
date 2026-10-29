@@ -2,7 +2,7 @@
   "date": "2026-10-29",
   "slots": {
     "0-nfl": {
-      "status": "started",
+      "status": "skipped",
       "model": "claude-sonnet-5-5",
       "audit_model": "claude-opus-5-5",
       "effort": "medium",
@@ -19,7 +19,52 @@
         "ready": true
       },
       "event_id": "ab2865e9f2d4b012de8bc6fb6de11a7c",
-      "selection": "different_sport"
+      "selection": "different_sport",
+      "response_id": "msg_011CgWRxSceYwkcF2PMjGRnr",
+      "usage": {
+        "input_tokens": 6792,
+        "output_tokens": 2200,
+        "web_search_requests": 0
+      },
+      "review_usage": {
+        "input_tokens": 7603,
+        "output_tokens": 1343,
+        "web_search_requests": 0
+      },
+      "first_audit_reason": "Times, prices, quotes and statistics match the evidence, but four passages must change. (1) 'What the market shows': 'which suggests the books are protecting that number' is an unsupported claim about why the books priced the total this way. Describe the under pricing only. (2) 'Matchup mechanisms': 'Both reports come from one-week samples' is wrong. Prisco's 27.7 points allowed per game is season-long, and NFL.com's 44.3% pressure rate and 15-of-17 sacks are season figures. (3) Same section: 'A weak run defense could lengthen Green Bay drives and keep the clock moving, which pulls against scoring volume' is speculation no source supports, and it sits awkwardly beside Prisco's remark that the Packers don't run well. Cut it or tie it to sourced facts. (4) 'Countercase': 'our snapshot included no verified injury or inactive information' presents missing data instead of an event that had not happened. Rewrite it as, for example, 'As of 7:14 AM EDT Thursday, neither team had announced its inactive players.' Also confirm that 'Fourth & Value' is the publication's own model name, because the evidence does not name the model.",
+      "revision_response_id": "msg_011CgWRzaTjUMHrLgqjhxuSA",
+      "revision_usage": {
+        "input_tokens": 9550,
+        "output_tokens": 2107,
+        "web_search_requests": 0
+      },
+      "revision_review_usage": {
+        "input_tokens": 7512,
+        "output_tokens": 1337,
+        "web_search_requests": 0
+      },
+      "audit_reason": "1) Countercase section: \"in the material we reviewed\" refers to the review process. State the availability gap directly, for example: \"As of 7:14 AM EDT Thursday, neither team had announced its inactive players.\" 2) The market and model sections are tagged to s1, the CBS Sports odds roundup, but the book prices, 11-book median, the 8:58 PM EDT Wednesday comparison and the 46.5 estimate do not come from CBS. Remove s1 from both sections, or attribute those figures to our snapshot, so readers are not told CBS reported them. 3) Model section: the name \"Fourth & Value\" and the claim that the model \"has not been validated against betting prices\" are not supported as worded. The evidence says only that a calibrated fair price, win probability and injury adjustment are not established, so restate it in those terms. 4) Countercase: \"could score 27 or more by itself\" is an invented projection loosely echoing Prisco's 27.7 points allowed. Remove it or tie it explicitly to that figure. 5) Matchup section: only the 44.3% and 15-of-17 figures carry the Next Gen Stats credit in NFL.com's piece. Attribute the five sacks, 51.5% and 24.2% figures to NFL.com without implying the same Next Gen Stats sourcing. The other facts, times, prices and the pass conclusion are supported.",
+      "reason": "Factual audit did not pass: 1) Countercase section: \"in the material we reviewed\" refers to the review process. State the availability gap directly, for example: \"As of 7:14 AM EDT Thursday, neither team had announced its inactive players.\" 2) The market and model sections are tagged to s1, the CBS Sports odds roundup, but the book prices, 11-book "
+    },
+    "1-nfl": {
+      "status": "started",
+      "model": "claude-sonnet-5-5",
+      "audit_model": "claude-opus-5-5",
+      "effort": "medium",
+      "at": "2026-10-29T11:15:17.974927+00:00",
+      "source_check": {
+        "at": "2026-10-29T11:15:17.974927+00:00",
+        "candidates": 4,
+        "hosts": [
+          "www.cbssports.com",
+          "www.nfl.com"
+        ],
+        "fallback_attempted": true,
+        "fallback_used": true,
+        "ready": true
+      },
+      "event_id": "9255ca8f32aea590d00aa57de79f6bb6",
+      "selection": "same_sport_fallback"
     }
   },
   "last_writer_check": {
@@ -33,8 +78,8 @@
   },
   "source_checks": {
     "NFL": {
-      "at": "2026-10-29T11:14:16.724876+00:00",
-      "candidates": 5,
+      "at": "2026-10-29T11:15:17.974927+00:00",
+      "candidates": 4,
       "hosts": [
         "www.cbssports.com",
         "www.nfl.com"
