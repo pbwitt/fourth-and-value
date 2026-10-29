@@ -44,13 +44,16 @@
     const decided=settled.filter(b=>b.status!=='push'),won=decided.filter(b=>b.status==='won').length;
     const staked=settled.reduce((a,b)=>a+num(b.stake_dollars),0),pl=settled.reduce((a,b)=>a+profit(b),0);
     const priced=decided.filter(b=>Math.abs(num(b.odds)??0)>=100);
+    const dollars=(list,f=()=>1)=>list.reduce((a,b)=>a+num(b.stake_dollars)*f(b),0),pricedStake=dollars(priced);
     // Closing prices are captured before the game, so pending bets count here too.
     const closed=bets.filter(b=>b.status!=='void').map(beatClose).filter(v=>v!==null);
     return {settled:settled.length,won,lost:decided.length-won,push:settled.length-decided.length,
       pending:bets.filter(b=>!SETTLED.includes(b.status)&&b.status!=='void').length,staked,pl,
-      roi:staked>0?pl/staked:null,winRate:decided.length?won/decided.length:null,
+      // Win rate and break-even weigh each bet by its stake, so a 50¢ longshot doesn't pull the
+      // break-even below where the money is; with equal stakes they are the plain share and average.
+      roi:staked>0?pl/staked:null,winRate:decided.length?dollars(decided,b=>b.status==='won'?1:0)/dollars(decided):null,
       // The win rate at which these prices break even; plus-money bets lower it.
-      breakEven:priced.length?priced.reduce((a,b)=>a+implied(num(b.odds)),0)/priced.length:null,
+      breakEven:pricedStake>0?dollars(priced,b=>implied(num(b.odds)))/pricedStake:null,
       closed:closed.length,beatClose:closed.length?closed.filter(Boolean).length/closed.length:null};
   }
 
@@ -403,7 +406,7 @@
         +`<table class="perf-table perf-sports" aria-label="Results by sport"><thead><tr><th scope="col">Sport</th><th scope="col">Won</th><th scope="col" class="r">Profit</th><th scope="col" class="r">ROI</th><th scope="col"><span class="sr-only">Profit bar</span></th></tr></thead><tbody>${sportsHTML(s)}</tbody></table></div>`
       +(s.odds.length?`<div class="perf-card"><div class="perf-cap">By odds${shareButton('odds','Share results by odds')}</div>`
         +`<table class="perf-table perf-odds" aria-label="Results by odds"><thead><tr><th scope="col">Odds</th><th scope="col">Won</th><th scope="col" class="r">Profit</th><th scope="col" class="r">Beat close</th></tr></thead><tbody>${oddsHTML(s)}</tbody></table>`
-        +`<p class="perf-note">Won is the share of decided bets, against the win rate the prices need to break even. Beat close is the share of bets with a closing price where your price beat the fair close, or the line closed past your number. With fewer than ${SMALL_SAMPLE} settled bets, a range’s profit can swing widely; beating the close is the steadier sign.</p></div>`:'');
+        +`<p class="perf-note">Won is the share of decided bets, weighted by stake, against the win rate the prices need to break even, weighted the same way. Beat close is the share of bets with a closing price where your price beat the fair close, or the line closed past your number. With fewer than ${SMALL_SAMPLE} settled bets, a range’s profit can swing widely; beating the close is the steadier sign.</p></div>`:'');
   }
 
   function render(el,bets){

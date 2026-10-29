@@ -25,6 +25,11 @@ const pair=(fav,dog)=>summarize([bet('2026-10-01','NFL',fav,-200,fav==='won'?7.5
 for(const [fav,dog,pl] of [['won','lost',-2.5],['lost','won',5]]){
   const t=pair(fav,dog);assert.equal(t.breakEven,.5);assert.equal(t.winRate,.5);assert.ok(Math.abs(t.pl-pl)<1e-9,`${fav} favorite: ${t.pl}`);
 }
+// Win rate and break-even weigh bets by stake: a won $10 −150 and a lost 50¢ +900 longshot are
+// 1 of 2 bets but 95% of the money, against a break-even of 57.6%, not the 35% a plain average gives.
+const sized=summarize([bet('2026-10-01','NFL','won',-150,16.67,{stake_dollars:10}),bet('2026-10-01','NFL','lost',900,0,{stake_dollars:.5})]);
+assert.ok(Math.abs(sized.winRate-10/10.5)<1e-12,'win rate by stake');
+assert.ok(Math.abs(sized.breakEven-(10*implied(-150)+.5*implied(900))/10.5)<1e-12,'break-even by stake');
 assert.deepEqual(s.path.map(p=>p.bet.league+p.bet.status),['NFLwon','NFLlost','NHLwon','MLBpush','MLBlost'],'order placed: date, then time logged');
 assert.ok(Math.abs(s.path[s.path.length-1].total-s.pl)<1e-9);
 assert.deepEqual(s.sports.map(t=>t.sport),['NHL','NFL','MLB'],'largest profit first');

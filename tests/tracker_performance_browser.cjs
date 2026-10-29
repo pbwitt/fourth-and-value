@@ -46,7 +46,7 @@ const rows=[
       assert.equal(await p.locator('#winRateNote').textContent(),'Break-even at your prices: 48.9%','break-even sits with the win rate');
       // How it is calculated sits at the bottom of the page; a link in the tile jumps there.
       const how=p.locator('#breakEvenNote');
-      assert.match(await how.textContent(),/^How break-even is calculated: .*averaged, each bet counting once whatever its stake\. Pushes are left out\./);
+      assert.match(await how.textContent(),/^How break-even is calculated: .*averaged by stake, so a \$10 bet counts twice as much as a \$5 one\. The win rate is weighted the same way, .* Pushes are left out\./);
       assert.equal(await p.evaluate(()=>document.getElementById('breakEvenNote').matches('.container > :last-child')),true,'note at the bottom');
       await p.locator('.stat-card #breakEvenHow').click();
       await p.waitForFunction(()=>{const r=document.getElementById('breakEvenNote').getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight;});
