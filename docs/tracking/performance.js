@@ -30,6 +30,10 @@
   const oddsRange=odds=>{const o=given(odds);return o===null?null:ODDS_RANGES.find(r=>r.test(o))?.key||null;};
   // Under this many settled bets a range's profit can swing widely (the page note says so).
   const SMALL_SAMPLE=30;
+  const SIZING_NOTE='Per bet treats every bet as the same size; by stake weighs each by what you risked, which is what your profit follows. A few long shots can swing the per-bet row.';
+  const sizingNote=s=>{const d=s.roi-s.perBet.roi;
+    return Math.abs(d)<.005?'Your bet sizes have made little difference so far.':`Your bigger bets have done ${d<0?'worse':'better'} than your smaller ones so far.`;};
+  const SIZING_ROWS=s=>[['Per bet','each bet once',s.perBet],['By stake','what you risked',s]];
   // Beat the close: the price taken beat the fair closing price, or, when the line moved, the
   // close moved past the number taken (supabase/closing_line_value.sql). Null: no closing data.
   const beatClose=b=>{const ev=given(b.clv_ev);return ev!==null?ev>0:typeof b.beat_line==='boolean'?b.beat_line:null;};
@@ -44,14 +48,21 @@
     const decided=settled.filter(b=>b.status!=='push'),won=decided.filter(b=>b.status==='won').length;
     const staked=settled.reduce((a,b)=>a+num(b.stake_dollars),0),pl=settled.reduce((a,b)=>a+profit(b),0);
     const priced=decided.filter(b=>Math.abs(num(b.odds)??0)>=100);
+    const dollars=(list,f=()=>1)=>list.reduce((a,b)=>a+num(b.stake_dollars)*f(b),0),pricedStake=dollars(priced);
     // Closing prices are captured before the game, so pending bets count here too.
     const closed=bets.filter(b=>b.status!=='void').map(beatClose).filter(v=>v!==null);
     return {settled:settled.length,won,lost:decided.length-won,push:settled.length-decided.length,
       pending:bets.filter(b=>!SETTLED.includes(b.status)&&b.status!=='void').length,staked,pl,
-      roi:staked>0?pl/staked:null,winRate:decided.length?won/decided.length:null,
+      // Win rate and break-even weigh each bet by its stake, so a 50¢ longshot doesn't pull the
+      // break-even below where the money is; with equal stakes they are the plain share and average.
+      roi:staked>0?pl/staked:null,winRate:decided.length?dollars(decided,b=>b.status==='won'?1:0)/dollars(decided):null,
       // The win rate at which these prices break even; plus-money bets lower it.
-      breakEven:priced.length?priced.reduce((a,b)=>a+implied(num(b.odds)),0)/priced.length:null,
-      closed:closed.length,beatClose:closed.length?closed.filter(Boolean).length/closed.length:null};
+      breakEven:pricedStake>0?dollars(priced,b=>implied(num(b.odds)))/pricedStake:null,
+      closed:closed.length,beatClose:closed.length?closed.filter(Boolean).length/closed.length:null,
+      // The same three counting each bet once, as if every stake were equal, for the Bet sizing card.
+      perBet:{winRate:decided.length?won/decided.length:null,
+        breakEven:priced.length?priced.reduce((a,b)=>a+implied(num(b.odds)),0)/priced.length:null,
+        roi:settled.length?settled.reduce((a,b)=>a+profit(b)/num(b.stake_dollars),0)/settled.length:null}};
   }
 
   function summarize(bets){
@@ -65,7 +76,8 @@
     // Shortest prices first, so the table reads from favorites to long shots.
     const odds=ODDS_RANGES.map(r=>({range:r.key,label:r.label,...tally(list.filter(b=>oddsRange(b.odds)===r.key))}))
       .filter(t=>t.settled||t.pending);
-    return {...tally(list),path,sports,odds};
+    // Bet sizing compares per bet with by stake, which differ only when stakes do.
+    return {...tally(list),path,sports,odds,sized:new Set(settled.map(b=>num(b.stake_dollars))).size>1};
   }
 
   // What a share image covers: the sport when the filters show one, the dates, the count.
@@ -165,6 +177,7 @@
   };
   const SHARES={
     summary:{title:'My betting performance',file:'summary'},
+    sizing:{title:'Bet sizing',file:'bet-sizing'},
     roi:{title:'ROI against winning bettors',file:'roi'},
     path:{title:'Running profit, bet by bet',file:'running-profit'},
     sports:{title:'Results by sport',file:'by-sport'},
@@ -308,6 +321,28 @@
     }};
   }
 
+  // Per bet against by stake: win rate, break-even and ROI, and what the difference says.
+  function sizingBody(s,w,ctx){
+    const rows=SIZING_ROWS(s),rowH=50,head=26;
+    ctx.font=`400 13px ${FONT}`;const lines=wrap(ctx,sizingNote(s),w);
+    return {h:head+rows.length*rowH+14+lines.length*19,draw(ctx,x,y,cw){
+      const col={won:cw*.55,needs:cw*.77,roi:cw};
+      ctx.font=`700 11px ${FONT}`;ctx.fillStyle=C.muted;ctx.textAlign='right';
+      ctx.fillText('WON',x+col.won,y+14);ctx.fillText('NEEDS',x+col.needs,y+14);ctx.fillText('ROI',x+col.roi,y+14);
+      rows.forEach(([label,sub,t],i)=>{
+        const ry=y+head+i*rowH,base=ry+24,low=ry+41;
+        ctx.fillStyle=C.edge;ctx.fillRect(x,ry,cw,1);
+        ctx.textAlign='left';ctx.font=`700 15px ${FONT}`;ctx.fillStyle=C.ink;ctx.fillText(label,x,base);
+        ctx.font=`500 12px ${FONT}`;ctx.fillStyle=C.muted;ctx.fillText(sub,x,low);
+        ctx.textAlign='right';ctx.font=`500 15px ${FONT}`;ctx.fillStyle=C.ink;
+        ctx.fillText(rate(t.winRate),x+col.won,base);ctx.fillText(rate(t.breakEven),x+col.needs,base);
+        ctx.font=`700 15px ${FONT}`;ctx.fillStyle=tone(t.roi);ctx.fillText(pct(t.roi),x+col.roi,base);
+      });
+      ctx.textAlign='left';ctx.font=`400 13px ${FONT}`;ctx.fillStyle=C.muted;
+      lines.forEach((l,i)=>ctx.fillText(l,x,y+head+rows.length*rowH+28+i*19));
+    }};
+  }
+
   function shareImage(el,kind){
     const s=state.get(el),spec=SHARES[kind];
     if(!s||s.settled<2||!spec)throw new Error('Nothing to share yet');
@@ -319,6 +354,7 @@
     if(all||kind==='path')parts.push(card(all?SHARES.path.title:'',pathBody(s,inner)));
     if(all||kind==='sports')parts.push(card(all?SHARES.sports.title:'',sportsBody(s)));
     if((all&&s.odds.length)||kind==='odds')parts.push(card(all?SHARES.odds.title:'',oddsBody(s)));
+    if((all&&s.sized)||kind==='sizing')parts.push(card(all?SHARES.sizing.title:'',sizingBody(s,inner,measure)));
     const top=128,foot=56,H=top+parts.reduce((a,p)=>a+p.h+GAP,0)-GAP+foot;
 
     const canvas=document.createElement('canvas');
@@ -341,6 +377,7 @@
       roi:`ROI ${pct(s.roi)}, against break-even and winning bettors at about +2% to +5%.`,
       path:`Running profit after ${s.settled} settled bets, now ${money(s.pl)}.`,
       sports:`Results by sport: ${s.sports.map(t=>`${t.sport} ${rate(t.winRate)} won, ${t.settled?money(t.pl):'no settled bets'}`).join('; ')}.`,
+      sizing:`Bet sizing: ${SIZING_ROWS(s).map(([label,,t])=>`${label.toLowerCase()} ${rate(t.winRate)} won (needs ${rate(t.breakEven)}), ROI ${pct(t.roi)}`).join('; ')}.`,
       odds:`Results by odds: ${s.odds.map(t=>`${t.label} ${t.settled?`${rate(t.winRate)} won (${needs(t)}), ${money(t.pl)}`:'no settled bets'}${t.closed?`, beat the close ${rate(t.beatClose)}`:''}`).join('; ')}.`}[kind];
     return {canvas,alt,name:`fourth-and-value-performance-${spec.file}${/^\d{4}-\d{2}-\d{2}$/.test(last||'')?'-'+last:''}.png`};
   }
@@ -354,6 +391,12 @@
         +`<td class="r ${t.pl>0?'positive':t.pl<0?'negative':''}">${t.settled?money(t.pl):'—'}</td><td class="r">${pct(t.roi)}</td>`
         +`<td class="perf-barcell"><div class="perf-bar" aria-hidden="true">${t.settled?bar:''}</div></td></tr>`;
     }).join('');
+  }
+
+  function sizingHTML(s){
+    return SIZING_ROWS(s).map(([label,sub,t])=>`<tr><th scope="row">${label} <small>${sub}</small></th>`
+      +`<td class="r">${rate(t.winRate)}</td><td class="r">${rate(t.breakEven)}</td>`
+      +`<td class="r ${t.roi>0?'positive':t.roi<0?'negative':''}">${pct(t.roi)}</td></tr>`).join('');
   }
 
   function oddsHTML(s){
@@ -403,7 +446,10 @@
         +`<table class="perf-table perf-sports" aria-label="Results by sport"><thead><tr><th scope="col">Sport</th><th scope="col">Won</th><th scope="col" class="r">Profit</th><th scope="col" class="r">ROI</th><th scope="col"><span class="sr-only">Profit bar</span></th></tr></thead><tbody>${sportsHTML(s)}</tbody></table></div>`
       +(s.odds.length?`<div class="perf-card"><div class="perf-cap">By odds${shareButton('odds','Share results by odds')}</div>`
         +`<table class="perf-table perf-odds" aria-label="Results by odds"><thead><tr><th scope="col">Odds</th><th scope="col">Won</th><th scope="col" class="r">Profit</th><th scope="col" class="r">Beat close</th></tr></thead><tbody>${oddsHTML(s)}</tbody></table>`
-        +`<p class="perf-note">Won is the share of decided bets, against the win rate the prices need to break even. Beat close is the share of bets with a closing price where your price beat the fair close, or the line closed past your number. With fewer than ${SMALL_SAMPLE} settled bets, a range’s profit can swing widely; beating the close is the steadier sign.</p></div>`:'');
+        +`<p class="perf-note">Won is the share of decided bets, weighted by stake, against the win rate the prices need to break even, weighted the same way. Beat close is the share of bets with a closing price where your price beat the fair close, or the line closed past your number. With fewer than ${SMALL_SAMPLE} settled bets, a range’s profit can swing widely; beating the close is the steadier sign.</p></div>`:'')
+      +(s.sized?`<div class="perf-card"><div class="perf-cap">${SHARES.sizing.title}${shareButton('sizing','Share bet sizing')}</div>`
+        +`<table class="perf-table perf-sizing" aria-label="Bet sizing"><thead><tr><th scope="col"><span class="sr-only">Counted</span></th><th scope="col" class="r">Won</th><th scope="col" class="r">Needs</th><th scope="col" class="r">ROI</th></tr></thead><tbody>${sizingHTML(s)}</tbody></table>`
+        +`<p class="perf-note">${sizingNote(s)} ${SIZING_NOTE}</p></div>`:'');
   }
 
   function render(el,bets){

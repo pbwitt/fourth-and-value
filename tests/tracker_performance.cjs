@@ -25,6 +25,20 @@ const pair=(fav,dog)=>summarize([bet('2026-10-01','NFL',fav,-200,fav==='won'?7.5
 for(const [fav,dog,pl] of [['won','lost',-2.5],['lost','won',5]]){
   const t=pair(fav,dog);assert.equal(t.breakEven,.5);assert.equal(t.winRate,.5);assert.ok(Math.abs(t.pl-pl)<1e-9,`${fav} favorite: ${t.pl}`);
 }
+// Win rate and break-even weigh bets by stake: a won $10 −150 and a lost 50¢ +900 longshot are
+// 1 of 2 bets but 95% of the money, against a break-even of 57.6%, not the 35% a plain average gives.
+const sized=summarize([bet('2026-10-01','NFL','won',-150,16.67,{stake_dollars:10}),bet('2026-10-01','NFL','lost',900,0,{stake_dollars:.5})]);
+assert.ok(Math.abs(sized.winRate-10/10.5)<1e-12,'win rate by stake');
+assert.ok(Math.abs(sized.breakEven-(10*implied(-150)+.5*implied(900))/10.5)<1e-12,'break-even by stake');
+// Bet sizing sets that against each bet counted once, only when stakes differ.
+assert.equal(sized.sized,true);assert.equal(s.sized,false,'equal stakes: no Bet sizing card');
+assert.equal(sized.perBet.winRate,.5);assert.equal(sized.perBet.breakEven,(implied(-150)+implied(900))/2);assert.ok(Math.abs(sized.perBet.roi-(6.67/10-1)/2)<1e-12,'per-bet ROI: the average return per dollar');
+const sizing=html(sized);
+assert.match(sizing,/<th scope="row">Per bet <small>each bet once<\/small><\/th><td class="r">50%<\/td><td class="r">35%<\/td><td class="r negative">−16\.6%<\/td><\/tr>/);
+assert.match(sizing,/<th scope="row">By stake <small>what you risked<\/small><\/th><td class="r">95\.2%<\/td><td class="r">57\.6%<\/td><td class="r positive">\+58\.8%<\/td><\/tr>/);
+assert.match(sizing,/Your bigger bets have done better than your smaller ones so far\./);
+assert.deepEqual([...sizing.matchAll(/data-perf-share="(\w+)"/g)].map(m=>m[1]),['summary','roi','path','sports','odds','sizing']);
+assert.doesNotMatch(html(s),/Bet sizing/);
 assert.deepEqual(s.path.map(p=>p.bet.league+p.bet.status),['NFLwon','NFLlost','NHLwon','MLBpush','MLBlost'],'order placed: date, then time logged');
 assert.ok(Math.abs(s.path[s.path.length-1].total-s.pl)<1e-9);
 assert.deepEqual(s.sports.map(t=>t.sport),['NHL','NFL','MLB'],'largest profit first');

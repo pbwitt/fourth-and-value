@@ -46,7 +46,7 @@ const rows=[
       assert.equal(await p.locator('#winRateNote').textContent(),'Break-even at your prices: 48.9%','break-even sits with the win rate');
       // How it is calculated sits at the bottom of the page; a link in the tile jumps there.
       const how=p.locator('#breakEvenNote');
-      assert.match(await how.textContent(),/^How break-even is calculated: .*averaged, each bet counting once whatever its stake\. Pushes are left out\./);
+      assert.match(await how.textContent(),/^How break-even is calculated: .*averaged by stake, so a \$10 bet counts twice as much as a \$5 one\. The win rate is weighted the same way, .* Pushes are left out\./);
       assert.equal(await p.evaluate(()=>document.getElementById('breakEvenNote').matches('.container > :last-child')),true,'note at the bottom');
       await p.locator('.stat-card #breakEvenHow').click();
       await p.waitForFunction(()=>{const r=document.getElementById('breakEvenNote').getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight;});
@@ -115,6 +115,29 @@ const rows=[
       await p.locator('#f-reset').click();
       await p.waitForFunction(()=>/8 settled bets in this view/.test(document.getElementById('performance').textContent));
       assert.equal(await p.locator('#f-odds').inputValue(),'');
+      // Uneven stakes: the tile weighs bets by stake and a Bet sizing card sets that against per bet.
+      assert.equal(await panel.locator('.perf-sizing').count(),0,'equal stakes: no Bet sizing card');
+      await p.evaluate(()=>{db.rows=db.rows.map(r=>r.id==='2'?{...r,stake_dollars:10,payout:17.14}:r);loadBets();});
+      await p.waitForSelector('#performance .perf-sizing');
+      assert.deepEqual(await Promise.all(['winRate','winRateNote'].map(tile)),['66.7%','Break-even at your prices: 49.9%']);
+      assert.deepEqual((await panel.locator('.perf-sizing tbody tr').allInnerTexts()).map(t=>t.replace(/\s+/g,' ').trim()),
+        ['Per bet each bet once 62.5% 48.9% +28.2%','By stake what you risked 66.7% 49.9% +33.0%']);
+      assert.match(await panel.textContent(),/Your bigger bets have done better than your smaller ones so far\./);
+      assert.equal(await p.evaluate(()=>{const c=document.querySelector('.perf-card:has(.perf-sizing)');return c.scrollWidth>c.clientWidth+1;}),false,`sizing table scrolls sideways at ${width}`);
+      assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,`overflow with sizing at ${width}`);
+      await panel.locator('[data-perf-share=sizing]').click();
+      await p.waitForFunction(()=>{const i=document.getElementById('shareImage');
+        return document.getElementById('shareSheet').classList.contains('open')&&i.src.startsWith('blob:')&&i.complete&&i.naturalWidth>0;});
+      assert.equal(await p.evaluate(()=>document.getElementById('shareImage').alt),
+        'Bet sizing: per bet 62.5% won (needs 48.9%), ROI +28.2%; by stake 66.7% won (needs 49.9%), ROI +33.0%.');
+      assert.equal(await p.locator('#shareSaveLink').getAttribute('download'),'fourth-and-value-performance-bet-sizing-2026-10-04.png');
+      if(width===390){
+        const png=await p.evaluate(async()=>{const bytes=new Uint8Array(await (await fetch(document.getElementById('shareImage').src)).arrayBuffer());
+          let s='';for(const b of bytes)s+=String.fromCharCode(b);return btoa(s);});
+        fs.writeFileSync('/tmp/fv-performance-share-sizing.png',Buffer.from(png,'base64'));
+        await p.screenshot({path:'/tmp/fv-tracker-sizing-390.png',fullPage:true});
+      }
+      await p.locator('#shareSheet button',{hasText:'Close'}).click();
       assert.deepEqual(errors,[]);
       await p.close();
     }

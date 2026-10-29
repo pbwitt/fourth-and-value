@@ -186,9 +186,11 @@ function betTrackerSummary(bets) {
   const decided=settled.filter(b=>b.status!=='push');
   const stake=list=>list.reduce((sum,b)=>sum+Number(b.stake_dollars||0),0);
   const staked=stake(settled),returned=settled.reduce((sum,b)=>sum+Number(b.payout||0),0);
+  // Weighted by stake, like the break-even under it; the plain share when no stakes are given.
+  const won=decided.filter(b=>b.status==='won'),decidedStake=stake(decided);
   return {totalBets:bets.length,staked,pending:pending.length,pendingStaked:stake(pending),pushes:settled.length-decided.length,
     totalReturned:returned,profitLoss:returned-staked,roi:staked>0?(returned-staked)/staked*100:0,
-    winRate:decided.length?100*decided.filter(b=>b.status==='won').length/decided.length:null};
+    winRate:decided.length?100*(decidedStake>0?stake(won)/decidedStake:won.length/decided.length):null};
 }
 window.betTrackerSummary=betTrackerSummary;
 
