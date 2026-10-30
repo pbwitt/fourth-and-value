@@ -91,6 +91,8 @@
       $('results').querySelectorAll('.prop-card .actions').forEach((actions,i)=>actions.append(window.FVOfferTracker.button(ticketRow(current[i]))));
       window.FVOfferTracker.refresh();
     }
+    // Share draws the same exact offer as an image (assets/offer-share.js).
+    window.FVOfferShare?.attach($('results'),current.map(ticketRow));
     $('pager').hidden=pages===1; $('previous').disabled=state.page===1; $('next').disabled=state.page===pages;
     $('page-info').textContent=`Page ${state.page} of ${pages}`;
     const future=DATA.filter(upcoming);
