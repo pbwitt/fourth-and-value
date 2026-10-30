@@ -503,3 +503,13 @@ console.log('PASS: afternoon price check, afternoon editions and the afternoon a
   assert.equal(pinnacleHTML(null),'');
 }
 console.log('PASS: Pinnacle reference matches exact lines, labels unposted lines only when asked and ignores other days.');
+{
+  const {shareData}=require('../docs/assets/briefing-picks.js');
+  const row={sport:'NHL',game:'Bruins at Rangers',player:null,side:'Under',line:6.5,market:'totals',market_label:'Total goals',price:-115,book:'draftkings',book_label:'DraftKings',quoted_at:'2026-10-30T11:14:02Z'};
+  const pool=shareData(row),card=shareData({...row,card_snapshot_at:'2026-10-30T11:30:00Z'});
+  assert.equal(pool.text,'Fourth & Value research candidate: Under 6.5 Total goals -115 at DraftKings (NHL · Bruins at Rangers). Price quoted Oct 30, 7:14:02 AM ET. Experimental estimate; confirm the current line and price before deciding.');
+  assert.match(card.text,/^Fourth & Value pick: /,'only published-edition rows are called picks');
+  assert.equal(card.url,'https://fourthandvalue.com/briefing/?utm_source=share&utm_medium=social&utm_campaign=pick_share#daily-picks');
+  assert.match(shareData({...row,player:'Connor McDavid',side:'Over',line:0.5,market:'player_points',market_label:'Points',price:120}).text,/Connor McDavid Over 0\.5 Points \+120 at DraftKings/);
+}
+console.log('PASS: Share text keeps the exact line, price, book and Eastern quote time, and labels research candidates.');

@@ -570,6 +570,15 @@
     return paragraphs+`<p class="meta">${currentReviews} of ${selected.length} ${selected.some(r=>r.card_snapshot_at)?'published':'current'} candidates reviewed${earlier?`; ${earlier} with earlier analysis requiring a recheck`:''}; ${featured.length} summarized here. Full findings and remaining checks appear under each bet. Review every bet and confirm the current line and price before deciding.</p>`;
   }
 
+  // Share text for one bet: the exact offered line, price, book and quote time (ET), so a
+  // link opened later still says which offer was assessed. Research-pool offers are not
+  // called picks; only rows from a published edition are.
+  function shareData(r) {
+    const title=r.card_snapshot_at?'Fourth & Value pick':'Fourth & Value research candidate';
+    const text=`${title}: ${betLabel(r).replaceAll(' · ',' ')} ${odds(r.price)} at ${r.book_label||r.book} (${r.sport} · ${r.game}). Price quoted ${time(r.quoted_at)}. Experimental estimate; confirm the current line and price before deciding.`;
+    return {title,text,url:'https://fourthandvalue.com/briefing/?utm_source=share&utm_medium=social&utm_campaign=pick_share#daily-picks'};
+  }
+
   function rowHTML(r,index=0,saved=false) {
     const context=global.FVPlayerContext?.render(r,r.sport,{saved:!!r.card_snapshot_at})||'';
     const research=context+researchHTML(r);
@@ -580,7 +589,7 @@
     const related=r.card_related_candidates??r.related_candidates;
     const exposure=related?'<br>Shared game: '+related+' other '+(r.card_related_candidates!==undefined?'shortlisted bet(s)':'research candidate(s)'):'';
     const dated=r.card_snapshot_at?`<br><strong>${stamp(r.commence_time)<=Date.now()?'Game started · historical assessment':'Published assessment · confirm current conditions'}</strong><br>Analysis and prices preserved from ${esc(time(r.card_snapshot_at))}`:'';
-    return `<tr class="pick-offer-row"><td class="pick-bet"><a href="${esc(r.url)}"><strong>${esc(betLabel(r))}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${confidenceOf(r.blend)?esc(CONFIDENCE[confidenceOf(r.blend)])+' · ':''}${esc(displayReview(r))}${reason}${exposure}${dated}${r.discovery_origin?'<br>Origin: '+(r.discovery_origin==='independent_research'?'independent research':'model and independent research'):''}</span></td><td class="pick-estimate pick-model" data-label="Model prediction">${modelHTML(r)}</td><td class="pick-estimate pick-market" data-label="Market consensus">${marketHTML(r)}</td><td class="pick-offer" data-label="Book line / price">${offer}<span class="meta estimate-detail">${pct(comparison(r).breakEven)} break-even*</span>${blendHTML(r)}${priceCheckHTML(r.price_check)}</td><td class="pick-quote-time" data-label="Price time (ET)"><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td class="pick-book" data-label="Book">${esc(r.book_label||r.book)}<br><button type="button" class="track-pick secondary" data-track-pick="${index}" ${saved?'disabled':''} aria-label="${esc((saved?'Tracked: ':'Track bet: ')+betLabel(r))}">${saved?'Tracked':'Track bet'}</button></td></tr>${research?`<tr class="pick-research-row" id="pick-review-${index}"><td colspan="6">${research}</td></tr>`:''}`;
+    return `<tr class="pick-offer-row"><td class="pick-bet"><a href="${esc(r.url)}"><strong>${esc(betLabel(r))}</strong></a><br><span class="meta">${esc(r.sport)} · ${esc(r.game)}<br>Starts ${esc(time(r.commence_time))}<br>Experimental · ${confidenceOf(r.blend)?esc(CONFIDENCE[confidenceOf(r.blend)])+' · ':''}${esc(displayReview(r))}${reason}${exposure}${dated}${r.discovery_origin?'<br>Origin: '+(r.discovery_origin==='independent_research'?'independent research':'model and independent research'):''}</span></td><td class="pick-estimate pick-model" data-label="Model prediction">${modelHTML(r)}</td><td class="pick-estimate pick-market" data-label="Market consensus">${marketHTML(r)}</td><td class="pick-offer" data-label="Book line / price">${offer}<span class="meta estimate-detail">${pct(comparison(r).breakEven)} break-even*</span>${blendHTML(r)}${priceCheckHTML(r.price_check)}</td><td class="pick-quote-time" data-label="Price time (ET)"><time datetime="${esc(r.quoted_at)}">${esc(time(r.quoted_at))}</time></td><td class="pick-book" data-label="Book">${esc(r.book_label||r.book)}<br><button type="button" class="track-pick secondary" data-track-pick="${index}" ${saved?'disabled':''} aria-label="${esc((saved?'Tracked: ':'Track bet: ')+betLabel(r))}">${saved?'Tracked':'Track bet'}</button> <button type="button" class="share-pick secondary" data-share-pick="${index}" aria-label="${esc('Share bet: '+betLabel(r))}">Share</button></td></tr>${research?`<tr class="pick-research-row" id="pick-review-${index}"><td colspan="6">${research}</td></tr>`:''}`;
   }
 
   async function mount() {
@@ -641,6 +650,18 @@
       const link=event.target.closest('.read-pick-review');if(!link)return;
       const row=document.getElementById(link.hash.slice(1)),detail=row?.querySelector('details');
       if(detail){detail.open=true;detail.querySelector('summary').focus();}
+    });
+    // Phones get the native share sheet; elsewhere the text and link are copied.
+    root.addEventListener('click',async event=>{
+      const button=event.target.closest('[data-share-pick]');if(!button)return;
+      const row=current[Number(button.dataset.sharePick)];if(!row)return;
+      const share=shareData(row),full=share.text+' '+share.url;
+      if(navigator.share) {
+        try {await navigator.share(share);return;}
+        catch(error){if(error?.name==='AbortError')return;}
+      }
+      try {await navigator.clipboard.writeText(full);button.textContent='Copied';setTimeout(()=>{button.textContent='Share';},2000);}
+      catch {window.prompt('Copy this bet to share it:',full);}
     });
     const script=src=>new Promise((resolve,reject)=>{const el=document.createElement('script');el.src=src;const fail=()=>{clearTimeout(timer);el.remove();reject(Error('Bet Tracker could not load. Please try again.'));};const timer=setTimeout(fail,15000);el.onload=()=>{clearTimeout(timer);resolve();};el.onerror=fail;document.head.append(el);});
     async function tracker() {
@@ -744,6 +765,6 @@
       `<p class="muted"><strong>The case against:</strong> ${esc(r.qualitative_review.countercase)}</p>`+
       `<p class="meta">${started?'<strong>Game started · historical assessment.</strong> ':''}Original price and analysis from the ${esc(shortTime(r.card_snapshot_at))} edition.${started?'':' Confirm the current line before deciding.'}</p>${links}`;
   }
-  if(typeof module==='object'&&module.exports)module.exports={collect,shortlist,editionRows,currentEditionRows,priceCheck,pinnacleIndex,pinnacleFor,pinnacleHTML,leadKey,rowKey:key,ideaKey,SHORTLIST_LIMIT,CARD_CAPS,BLEND,blend,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus,featuredPick,featuredHTML,boardOrder,boardBlendHTML};
+  if(typeof module==='object'&&module.exports)module.exports={collect,shortlist,editionRows,currentEditionRows,priceCheck,pinnacleIndex,pinnacleFor,pinnacleHTML,leadKey,rowKey:key,ideaKey,SHORTLIST_LIMIT,CARD_CAPS,BLEND,blend,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus,featuredPick,featuredHTML,boardOrder,boardBlendHTML,shareData};
   else {global.FVPicks={featuredPick,featuredHTML,blend,boardOrder,boardBlendHTML};mount();}
 })(typeof window==='undefined'?globalThis:window);

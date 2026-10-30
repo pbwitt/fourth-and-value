@@ -129,7 +129,7 @@ def build(state, archive=False):
             body = body.replace(f'<script src="{rel}/assets/nhl', f'<script src="{rel}/assets/offer-tracker.js?v=3" defer></script><script src="{rel}/assets/nhl', 1)
             body = body.replace('assets/nhl.js?v=3', 'assets/nhl.js?v=9').replace('assets/nhl-candidates.js?v=7', 'assets/nhl-candidates.js?v=11')
         if page in ('props', 'lines'):
-            body = body.replace(f'<script src="{rel}/assets/nhl.js', f'<script src="{rel}/assets/briefing-picks.js?v=27" defer></script><script src="{rel}/assets/nhl.js', 1)
+            body = body.replace(f'<script src="{rel}/assets/nhl.js', f'<script src="{rel}/assets/briefing-picks.js?v=28" defer></script><script src="{rel}/assets/nhl.js', 1)
         path.write_text(body)
     try:
         # The pop-up's track record for the running model version; display only.

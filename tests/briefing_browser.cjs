@@ -38,6 +38,7 @@ const server=http.createServer((req,res)=>{
         const offer=await row.locator('.pick-offer').boundingBox(),model=await row.locator('.pick-model').boundingBox();
         assert(offer.y<model.y,'show the offered line and price before forecast details on mobile');
         assert((await row.locator('.track-pick').boundingBox()).height>=44,'tracker remains easy to tap');
+        assert((await row.locator('.share-pick').boundingBox()).height>=44,'share remains easy to tap');
       }
       assert.match(await page.locator('#research-picks-rows').textContent(),/53.0%/);
       assert.equal(await page.locator('.book-offer-line').first().textContent(),'Over 2.5');
@@ -162,6 +163,17 @@ const server=http.createServer((req,res)=>{
     await page.waitForFunction(()=>document.getElementById('research-pool-label').textContent.includes('3 additional'));
     assert.match(await page.locator('#picks-status').textContent(),/0 reviewed picks/);
     await page.locator('#picks-research-pool').evaluate(e=>e.open=true);
+    // Share: copy fallback without the Web Share API, native sheet when present.
+    await page.evaluate(()=>{window.shared=[];Object.defineProperty(navigator,'share',{value:undefined,configurable:true});Object.defineProperty(navigator,'clipboard',{value:{writeText:async t=>{window.shared.push(t);}},configurable:true});});
+    await page.locator('[data-share-pick="1"]').click();
+    await page.waitForFunction(()=>document.querySelector('[data-share-pick="1"]').textContent==='Copied');
+    const copied=await page.evaluate(()=>window.shared[0]);
+    assert.match(copied,/^Fourth & Value research candidate: .+ at .+ ET\. .+ https:\/\/fourthandvalue\.com\/briefing\/\?utm_source=share/);
+    await page.evaluate(()=>Object.defineProperty(navigator,'share',{value:async d=>{window.shared.push(d);},configurable:true}));
+    await page.locator('[data-share-pick="0"]').click();
+    await page.waitForFunction(()=>window.shared.length===2);
+    const native=await page.evaluate(()=>window.shared[1]);
+    assert.equal(native.title,'Fourth & Value research candidate');assert.match(native.url,/#daily-picks$/);
     // Real shared helper against a local fake client: no auth emails or real bets.
     await page.locator('[data-track-pick="1"]').click();
     await page.locator('#track-odds').fill('-120');await page.locator('#track-stake').fill('25');await page.locator('#track-confirm').check();
