@@ -63,7 +63,10 @@
       const watch=page==='watch'?`<p>Other-book fair probability: ${pct(r.other_book_probability)} (${r.other_books} books). Price gap: ${(100*(r.other_book_probability-r.book_probability)).toFixed(1)} percentage points.</p>`:'';
       return `<article class="panel prop-card"><p class="meta">${esc(r.game)} · ${esc(time(r.commence_time))}</p>${started(r)?'<p class="meta"><strong>Game started · historical quote</strong></p>':''}<h2>${r.player?(window.FVPlayerContext?.name?.(r,'NBA')??esc(r.player)):esc(r.market_label)}</h2><p class="betline">${esc(r.side)} ${r.line===null?'':esc(r.line)} · ${esc(r.market_label)}</p><p><strong>${esc(r.book_label)} ${esc(odds(r.price))}</strong></p><dl><dt>Book probability</dt><dd>${pct(r.book_probability)}</dd><dt>Paired fair probability</dt><dd>${pct(r.fair_probability)}</dd><dt>Same-line consensus</dt><dd>${pct(r.consensus_probability)}</dd><dt>Paired books</dt><dd>${r.paired_books}</dd></dl>${watch}${model}${baseline}<p class="meta">Quote: ${esc(time(r.quoted_at))}</p></article>`;
     }).join('')||`<p class="empty">No matching NBA offers. Markets may not be posted yet, or your filters may exclude the available quotes.${$('history')&&!showStarted&&relevant.some(started)?' Include started games to see their last pregame quotes.':''}</p>`;
-    window.FVOfferTracker?.attach($('results'),selected.slice(0,limit).map(r=>({...r,sport:'NBA'})));
+    const offers=selected.slice(0,limit).map(r=>({...r,sport:'NBA'}));
+    window.FVOfferTracker?.attach($('results'),offers);
+    // Share draws the same exact offer as an image (assets/offer-share.js, loaded on Player Props only).
+    window.FVOfferShare?.attach($('results'),offers);
     $('more').hidden=selected.length<=limit;
     const p=new URLSearchParams();for(const id of ['market','book','game'])if($(id).value)p.set(id,$(id).value);if(q)p.set('q',$('search').value);if(showStarted)p.set('history','1');if($('sort')?.value==='time')p.set('sort','time');history.replaceState(null,'',location.pathname+(p.size?'?'+p.toString():''));
   }
@@ -72,6 +75,6 @@
   $('more').onclick=()=>{limit+=30;render();};
   render();
   // Move started games behind the toggle and drop expired quotes on an open tab as well as at load.
-  function refresh(){if(window.FVOfferTracker?.isOpen())setTimeout(refresh,30000);else location.reload();}
+  function refresh(){if(window.FVOfferTracker?.isOpen()||window.FVOfferShare?.isOpen())setTimeout(refresh,30000);else location.reload();}
   setTimeout(refresh,300000);
 })();

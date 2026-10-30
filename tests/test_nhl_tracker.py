@@ -31,6 +31,12 @@ class TrackerPages(unittest.TestCase):
                 self.assertLess(text.index('player-context.js?'), text.index(board))
                 # Only the lookup boards offer started games; picks and Market Watch never do.
                 self.assertEqual('id="history"' in text, name in ('props/index.html', 'totals/index.html'))
+                # Share joins Track bet on Player Props cards only.
+                self.assertEqual(text.count('offer-share.js?v=1'), int(name == 'props/index.html'))
+                self.assertEqual(text.count('offer-share.css?v=1'), int(name == 'props/index.html'))
+                if name == 'props/index.html':
+                    self.assertLess(text.index('offer-tracker.js?v=3'), text.index('offer-share.js?v=1'))
+                    self.assertLess(text.index('offer-share.js?v=1'), text.index(board))
             for name in ['index.html', 'methods.html']:
                 self.assertNotIn('offer-tracker.js', (output / 'docs/nhl' / name).read_text())
 

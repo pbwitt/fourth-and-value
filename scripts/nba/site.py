@@ -58,15 +58,18 @@ def build(state):
         tracker_css = f'<link rel="stylesheet" href="{rel}/assets/offer-tracker.css?v=1">' if tracking else ''
         tracker_js = f'<script src="{rel}/assets/offer-tracker.js?v=3" defer></script>' if tracking else ''
         picks_js = f'<script src="{rel}/assets/briefing-picks.js?v=27" defer></script>' if page in ('props', 'lines') else ''
+        # Player prop cards add a Share button that draws the offer as an image.
+        share_css = f'<link rel="stylesheet" href="{rel}/assets/offer-share.css?v=1">' if page == 'props' else ''
+        share_js = f'<script src="{rel}/assets/offer-share.js?v=1" defer></script>' if page == 'props' else ''
         search_title = title if title.startswith('NBA') else 'NBA ' + title
         descriptions = {'overview': 'Explore NBA matchups, player props and sportsbook comparisons, with links to historical player statistics and current model limitations.', 'props': 'Compare NBA player prop prices with recent scoring, rebounding, assists and minutes when available, using clearly labeled historical data.', 'lines': 'Compare NBA moneylines, spreads and totals at the same line across sportsbooks, with paired prices and market consensus.', 'watch': 'Find NBA prices that differ from other sportsbooks at the same line, and inspect historical player context before researching a bet.', 'methods': 'Learn how NBA sportsbook prices are compared, how historical player averages are calculated and why validated model picks remain unavailable.'}
         body = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{search_title} | Fourth &amp; Value</title>
 {metadata(path, search_title+' | Fourth & Value', descriptions[page])}
-<link rel="stylesheet" href="{rel}/assets/site.css"><link rel="stylesheet" href="{rel}/assets/player-context.css?v=7"><script src="{rel}/assets/player-context.js?v=8" defer></script><link rel="icon" href="{rel}/assets/logo.svg">{tracker_css}</head>
+<link rel="stylesheet" href="{rel}/assets/site.css"><link rel="stylesheet" href="{rel}/assets/player-context.css?v=7"><script src="{rel}/assets/player-context.js?v=8" defer></script><link rel="icon" href="{rel}/assets/logo.svg">{tracker_css}{share_css}</head>
 <body><a class="skip-link" href="#main">Skip to content</a><div id="nav-root"></div><script src="{rel}/nav.js?v=47"></script>
 <main class="wrap" id="main" data-nba-page="{page}" data-feed="{nba}/data/latest.json">{links}<p class="eyebrow">NBA · 2026–27</p><h1>{title}</h1>
 <div class="notice" id="feed-status" role="status"><strong>NBA market snapshot</strong><p>Last successful check: {escape(eastern_time(state['last_success_at']) if state.get('last_success_at') else 'Not yet checked')}. Enable JavaScript to view current quote availability.</p></div>
 {intro}<footer>Fourth &amp; Value · <a href="{rel}/terms.html">Terms &amp; privacy</a> · <a href="{rel}/videos/">Videos</a></footer></main>
-{tracker_js}{picks_js}<script src="{rel}/assets/nba.js?v=7" defer></script></body></html>'''
+{tracker_js}{share_js}{picks_js}<script src="{rel}/assets/nba.js?v=8" defer></script></body></html>'''
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(body)

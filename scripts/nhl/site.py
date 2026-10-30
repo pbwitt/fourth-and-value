@@ -127,9 +127,13 @@ def build(state, archive=False):
         if page in ('props', 'lines', 'watch', 'candidates'):
             body = body.replace('</head>', f'<link rel="stylesheet" href="{rel}/assets/offer-tracker.css?v=1"></head>')
             body = body.replace(f'<script src="{rel}/assets/nhl', f'<script src="{rel}/assets/offer-tracker.js?v=3" defer></script><script src="{rel}/assets/nhl', 1)
-            body = body.replace('assets/nhl.js?v=3', 'assets/nhl.js?v=9').replace('assets/nhl-candidates.js?v=7', 'assets/nhl-candidates.js?v=11')
+            body = body.replace('assets/nhl.js?v=3', 'assets/nhl.js?v=10').replace('assets/nhl-candidates.js?v=7', 'assets/nhl-candidates.js?v=11')
         if page in ('props', 'lines'):
             body = body.replace(f'<script src="{rel}/assets/nhl.js', f'<script src="{rel}/assets/briefing-picks.js?v=27" defer></script><script src="{rel}/assets/nhl.js', 1)
+        if page == 'props':
+            # Player prop cards add a Share button that draws the offer as an image.
+            body = body.replace('</head>', f'<link rel="stylesheet" href="{rel}/assets/offer-share.css?v=1"></head>')
+            body = body.replace(f'<script src="{rel}/assets/offer-tracker.js?v=3" defer></script>', f'<script src="{rel}/assets/offer-tracker.js?v=3" defer></script><script src="{rel}/assets/offer-share.js?v=1" defer></script>', 1)
         path.write_text(body)
     try:
         # The pop-up's track record for the running model version; display only.
