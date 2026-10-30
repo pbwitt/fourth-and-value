@@ -244,6 +244,14 @@ class MorningEmailTests(unittest.TestCase):
                       'needs +141 or better.', mail['text'])
         self.assertIn('AFTERNOON PICKS', mail['html'])
         self.assertIn('Morning picks at 4:30 p.m.', mail['html'])
+        self.assertNotIn('since replaced', mail['text'])
+        # A pick from an earlier morning card that a recovery start replaced says which card.
+        earlier = dict(check, status='qualifies', ev=0.051,
+                       replaced_edition=dict(edition_id='edition-a', published_at='2026-10-18T11:17:20Z'))
+        both = email.message(dict(later, price_check=[check, earlier]), CONFIG, UNSUBSCRIBE)
+        self.assertIn('- Sam Reinhart Over 0.5 assists (NHL · From the 7:17 AM EDT card, since replaced): '
+                      'Still a pick at +135 at DraftKings (+5.1% after blending).', both['text'])
+        self.assertIn('NHL · From the 7:17 AM EDT card, since replaced · ', both['html'])
         self.assertIn('edition=edition-p', mail['text'])
         # Nothing new and every morning pick still qualifies: no email.
         quiet = dict(later, rows=[], price_check=[dict(check, status='qualifies', ev=0.03)])

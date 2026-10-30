@@ -436,26 +436,35 @@ marks the shared queue and cannot spend independently.
 once per Eastern date unless `--replace-card`. It then:
 
 - Builds `afternoon_input`: today's morning edition (`docs/briefing/morning-card.json`,
-  kind `morning`) and every verdict in today's `docs/briefing/reviews.json`.
+  kind `morning`), every earlier morning edition archived today with rows that a recovery
+  start replaced (`replaced_editions`, oldest first), and every verdict in today's
+  `docs/briefing/reviews.json`. A replaced edition's picks were on Today's Picks, with
+  Track buttons, until the replacement (on October 30, 2026 a 7:17 a.m. card was replaced
+  at 7:42 a.m.).
 - Passes it to `scripts/analyst_shortlist.cjs`, which drops every market on the morning
-  card (`leadKey`, either side, any line) and every side reviewed `pass` today, marks
-  sides reviewed `wait` as `afternoon_recheck`, and records `priceCheck` for each morning
-  pick. NFL rows have usually expired by then (90-minute quotes) and drop out on their own.
+  card or a replaced edition (`leadKey`, either side, any line) and every side reviewed
+  `pass` today, marks sides reviewed `wait` as `afternoon_recheck`, and records
+  `priceCheck` for each morning pick, then for each replaced-edition pick whose outcome
+  (`outcomeKey`) is not already checked, tagged `replaced_edition` (`edition_id`,
+  `published_at`). NFL rows have usually expired by then (90-minute quotes) and drop out on
+  their own.
 - Reviews in the `afternoon` session: no discovery (`prepare` skips it outside the
   morning/test sessions), `verification_candidates` 0 (a targeted search reserves about
   $0.83, more than an afternoon usually has left), `afternoon_recheck` rows first, then by
   `score`. Reservations use `run_cap` after noon, the whole daily limit minus what is
   already charged, so the afternoon spends only what the morning left.
 - Publishes `docs/briefing/afternoon-card.json` and its dated archive with
-  `morning_card.publish_card(kind='afternoon')`: policy `afternoon-edition-2`
-  (`afternoon-edition-1`, from October 19, had no game or player cap),
+  `morning_card.publish_card(kind='afternoon')`: policy `afternoon-edition-3`
+  (`afternoon-edition-2`, until October 30, did not leave out replaced editions' markets;
+  `afternoon-edition-1`, from October 19, had no game or player cap),
   `morning_edition_id`, `price_check` and the shortlisted `rows` (same caps and
   three-hour review rule). `research_health` checks only NHL and MLB, accepts a refresh
   skipped as already done, and records `budget_exhausted`/`review_limit_reached` as a
   `research.notes` entry rather than an incomplete edition.
 - Verifies the public file (`morning_operations.py --kind afternoon --verify-live`) and
   sends `morning_email.py --kind afternoon`: new picks in the morning layout plus a
-  "Morning picks at 4:30 p.m." section, keyed `afternoon-picks-<edition_id>`. It is
+  "Morning picks at 4:30 p.m." section, keyed `afternoon-picks-<edition_id>`; a
+  replaced-edition pick says "From the 7:17 AM EDT card, since replaced". It is
   skipped (`nothing_new`) when there is no new pick and every morning pick still
   qualifies. It uses the same `morning_card` subscription row, so one unsubscribe stops
   both emails.
@@ -506,7 +515,12 @@ edition does not satisfy a normal morning run: both the pre-feed gate and resear
 step proceed without needing `--replace-card`, retaining the test archive and
 same-day spending. Explicit `--test-edition` requests still skip if either kind
 is already complete, unless `--replace-card` is supplied. Incomplete editions do not
-block recovery. Missing/malformed/future-dated editions cannot suppress a run. `--replace-card` is an explicit
+block recovery. From October 31, 2026, a failed discovery search alone does not make an
+edition incomplete when it has rows, no other issue and no pending candidate in any sport:
+`research_health` records it in `research.notes` and the edition is `published`, so
+recovery starts leave it in place rather than replace reviewed picks with an edition that
+can afford fewer reviews. An empty card, or one with unreviewed candidates, still records
+the discovery issue and recovers. Missing/malformed/future-dated editions cannot suppress a run. `--replace-card` is an explicit
 operator override; archives and spending remain intact. `--test-edition` permits
 an outside-window run and labels it Test edition. Both flags are workflow inputs.
 The scheduled parent defaults both to false. A blank card is allowed after

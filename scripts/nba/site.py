@@ -57,7 +57,7 @@ def build(state):
         tracking = page in ('props', 'lines', 'watch')
         tracker_css = f'<link rel="stylesheet" href="{rel}/assets/offer-tracker.css?v=1">' if tracking else ''
         tracker_js = f'<script src="{rel}/assets/offer-tracker.js?v=3" defer></script>' if tracking else ''
-        picks_js = f'<script src="{rel}/assets/briefing-picks.js?v=27" defer></script>' if page in ('props', 'lines') else ''
+        picks_js = f'<script src="{rel}/assets/briefing-picks.js?v=28" defer></script>' if page in ('props', 'lines') else ''
         search_title = title if title.startswith('NBA') else 'NBA ' + title
         descriptions = {'overview': 'Explore NBA matchups, player props and sportsbook comparisons, with links to historical player statistics and current model limitations.', 'props': 'Compare NBA player prop prices with recent scoring, rebounding, assists and minutes when available, using clearly labeled historical data.', 'lines': 'Compare NBA moneylines, spreads and totals at the same line across sportsbooks, with paired prices and market consensus.', 'watch': 'Find NBA prices that differ from other sportsbooks at the same line, and inspect historical player context before researching a bet.', 'methods': 'Learn how NBA sportsbook prices are compared, how historical player averages are calculated and why validated model picks remain unavailable.'}
         body = f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{search_title} | Fourth &amp; Value</title>

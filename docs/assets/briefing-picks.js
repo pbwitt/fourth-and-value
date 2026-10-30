@@ -618,7 +618,10 @@
       current.forEach((r,i)=>{const row=$('pick-review-'+i);if(row){row.dataset.reviewKey=key(r);row.querySelector('details').open=openReviews.has(key(r));}});
       const editionAt=stamp(edition?.published_at),validEdition=Number.isFinite(editionAt)&&editionAt<=now&&edition?.schema_version===1&&['morning','test'].includes(edition.kind)&&edition.decision_date===day(editionAt)&&Array.isArray(edition.rows)&&edition.rows.length<=SHORTLIST_LIMIT;
       const tierCounts=rows=>{const h=rows.filter(r=>confidenceOf(r.blend)==='high').length,m=rows.filter(r=>confidenceOf(r.blend)==='moderate').length;return m?` (${h} high, ${m} moderate confidence)`:'';};
-      const health=incomplete?' · Research incomplete: '+(edition.research?.issues||['Some assessments could not be completed']).join('; '):edition?.status==='no_reviewed_candidates'?' · Research completed; no qualifying picks':'';
+      // A published card can carry a note, such as a discovery search that did not finish.
+      const researchNotes=Array.isArray(edition?.research?.notes)?edition.research.notes.filter(n=>typeof n==='string'):[];
+      const health=incomplete?' · Research incomplete: '+(edition.research?.issues||['Some assessments could not be completed']).join('; '):edition?.status==='no_reviewed_candidates'?' · Research completed; no qualifying picks':
+        researchNotes.length?' · '+researchNotes.join('; '):'';
       document.getElementById('picks-status').textContent=validEdition&&today?`${card.length} reviewed picks${tierCounts(card)} · ${edition.kind==='test'?'Test':'Morning'} edition for ${edition.decision_date} · Published ${time(edition.published_at)}${health}. Original prices and analysis; not continuously reassessed.`:'0 reviewed picks · Waiting for today’s morning edition. Data refreshes are scheduled for 7:05 a.m. Eastern, with recovery starts at 7:35, 8:05 and 8:35; the card publishes after research finishes.';
       const exposure=$('picks-exposure');if(exposure){const games=new Set(card.map(r=>r.exposure_group||r.sport+':'+r.game_id));exposure.textContent=card.length>1&&games.size===1?'All shortlisted offers are from one game and share exposure. They are not independent signals.':'';}
       document.getElementById('picks-coverage').textContent=result.coverage.map(c=>`${c.sport}: ${c.message}`).join(' · ');

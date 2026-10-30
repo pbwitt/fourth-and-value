@@ -202,10 +202,18 @@ def check_text(c):
             'not_offered': 'No longer offered at the books we follow.'}.get(c.get('status'), '')
 
 
+def replaced_from(c):
+    """Where a pick from an earlier, replaced morning edition first appeared."""
+    try:
+        return f"From the {clock(c['replaced_edition']['published_at'])} card, since replaced"
+    except (KeyError, TypeError, ValueError):
+        return ''
+
+
 def checks(card):
     """The afternoon card's price check of each morning pick, for display."""
     return [dict(title=bet_title(c['pick']), sport=c['pick']['sport'], game=c['pick']['game'],
-                 ok=c.get('status') == 'qualifies', text=check_text(c))
+                 ok=c.get('status') == 'qualifies', text=check_text(c), origin=replaced_from(c))
             for c in card.get('price_check') or [] if isinstance(c.get('pick'), dict)]
 
 
@@ -245,7 +253,8 @@ def text_body(card, entries, config, unsubscribe, test=False):
     if entries:
         lines += [preheader(entries), '']
     if checks(card):
-        lines += ['MORNING PICKS AT 4:30 P.M.'] + [f"- {c['title']} ({c['sport']}): {c['text']}" for c in checks(card)] + ['']
+        lines += ['MORNING PICKS AT 4:30 P.M.'] + [f"- {c['title']} ({c['sport']}{' · ' + c['origin'] if c['origin'] else ''}): {c['text']}"
+                                                   for c in checks(card)] + ['']
     for e in entries:
         lines += [f"{e['index'] + 1}. {e['title']}",
                   f"   {e['sport']} · {e['game']} · starts {e['starts']}",
@@ -354,6 +363,7 @@ def html_body(card, entries, config, unsubscribe, test=False):
         morning = (f'<tr><td style="background:#ffffff;padding:0 24px 16px">'
                    + p('Morning picks at 4:30 p.m.', f'font:700 15px/1.5 {FONT};color:{TEXT}')
                    + ''.join(p(f'<span style="font-weight:700;color:{TEXT}">{e_(c["title"])}</span> · {e_(c["sport"])} · '
+                               + (f'{e_(c["origin"])} · ' if c['origin'] else '') +
                                f'<span style="color:{"#1c6b3a" if c["ok"] else "#8a5a00"}">{e_(c["text"])}</span>',
                                f'padding-top:6px;font:400 14px/1.5 {FONT};color:{MUTED}') for c in checks(card))
                    + '</td></tr>')

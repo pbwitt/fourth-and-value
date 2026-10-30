@@ -475,6 +475,16 @@ console.log('PASS: featured pick follows the published card, keeps the day’s p
   assert.equal(checked.price_check.length,1);assert.equal(checked.price_check[0].status,'qualifies');
   assert.equal(checked.price_check[0].pick.player,'Example player');
   assert.equal(checked.price_check[0].key,JSON.stringify([pick.sport,pick.game_id,pick.player,pick.market,pick.side,pick.line,pick.book,pick.quoted_at]));
+  assert.equal(checked.price_check[0].replaced_edition,undefined);
+  // An earlier edition that a recovery start replaced: its other picks were trackable on the
+  // page, so they are checked and kept out of the new picks too, once per outcome.
+  const nhlPick=collect(fixture(),now).selected.find(r=>r.sport==='NHL');
+  const replaced={...morning,edition_id:'earlier',rows:[readyRow(pick),readyRow(nhlPick)]};
+  const f=later();f.NHL.rows=[{...f.NHLBoard.candidates[0],quoted_at:iso(at-60e3)}];
+  const both=adapter({feeds:f,asof:iso(at),afternoon:{morning_edition:morning,replaced_editions:[replaced],reviewed:[]}});
+  assert.deepEqual(both.price_check.map(c=>[c.pick.sport,c.replaced_edition?.edition_id??null]),[['MLB',null],['NHL','earlier']]);
+  assert.equal(both.price_check[1].replaced_edition.published_at,morning.published_at);
+  assert(!both.selected.some(r=>r.sport==='NHL'),'a replaced pick is not offered again as new');
 }
 console.log('PASS: afternoon price check, afternoon editions and the afternoon adapter’s exclusions.');
 // Pinnacle's morning no-vig chance is a reference beside morning picks only. It is "not posted"

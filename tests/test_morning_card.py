@@ -86,6 +86,24 @@ class MorningCardTests(unittest.TestCase):
             self.assertIn('MLB: refresh failed or did not finish',value['research']['issues'])
             self.assertIn('Independent discovery did not complete',value['research']['issues'])
 
+    def test_failed_discovery_keeps_a_fully_reviewed_card_but_not_an_empty_or_partial_one(self):
+        # 2026-10-30: a card whose candidates were all reviewed was replaced 25 minutes later
+        # by a recovery start that could afford fewer reviews, dropping picks readers had bet.
+        coverage=[dict(sport=s,available=True) for s in ('NFL','MLB','NHL')]
+        reviews=empty_reviews();reviews['discovery_status']='discovery_unavailable'
+        reviews['sports']['NHL'].update(review_status='completed',candidate_count=12,reviewed_count=12,batch_statuses=['completed'])
+        health=lambda rows,refresh={}:card.research_health(empty_feeds(),reviews,dict(coverage=coverage,card=rows),NOW,refresh)
+        kept=health([{}])
+        self.assertTrue(kept['completed'])
+        self.assertEqual(kept['notes'],['Independent discovery did not complete; every model candidate was reviewed'])
+        # An empty card still retries rather than publish a failed search as a no-pick day.
+        self.assertIn('Independent discovery did not complete',health([])['issues'])
+        # So does a card with another failure.
+        self.assertIn('Independent discovery did not complete',health([{}],{'MLB':'failure'})['issues'])
+        # And one that left candidates unreviewed.
+        reviews['sports']['NHL'].update(review_status='budget_exhausted',reviewed_count=7)
+        self.assertIn('Independent discovery did not complete',health([{}])['issues'])
+
     def test_reused_fresh_nfl_refresh_is_not_a_failure(self):
         # A recovery start reuses a recent NFL refresh instead of buying it again.
         with TemporaryDirectory() as td:
@@ -131,6 +149,10 @@ class MorningCardTests(unittest.TestCase):
             self.assertEqual(value['status'],'published')
             self.assertEqual(len(value['rows']),2)
             self.assertEqual(value['research']['reviewed_count'],2)
+            self.assertTrue(card.existing_today(root,asof))
+            # A failed discovery search does not send these reviewed picks back for recovery.
+            kept=card.publish_card(frozen,dict(result,discovery_status='discovery_unavailable'),asof,root=root)
+            self.assertEqual((kept['status'],len(kept['rows'])),('published',2))
             self.assertTrue(card.existing_today(root,asof))
 
     def test_exhausted_discovery_retry_cannot_become_completed_empty_day(self):
@@ -247,7 +269,7 @@ class AfternoonEditionTests(unittest.TestCase):
     AFTER=datetime(2026,9,27,20,45,tzinfo=timezone.utc)   # 4:45 p.m. Eastern
 
     def afternoon(self,morning=None):
-        return {'morning_edition':morning,'reviewed':[]}
+        return {'morning_edition':morning,'replaced_editions':[],'reviewed':[]}
 
     def test_afternoon_edition_is_separate_and_ignores_sports_without_an_afternoon_refresh(self):
         with TemporaryDirectory() as td:
@@ -256,7 +278,7 @@ class AfternoonEditionTests(unittest.TestCase):
             feeds=empty_feeds(self.AFTER);feeds['NFL']=None   # NFL's morning prices have expired
             later=card.publish_card(feeds,empty_reviews(),self.AFTER,root=root,kind='afternoon',
                 refresh_results={'NHL':'success','MLB':'skipped'},afternoon=self.afternoon(morning))
-            self.assertEqual((later['kind'],later['policy_version'],later['status']),('afternoon','afternoon-edition-2','no_reviewed_candidates'))
+            self.assertEqual((later['kind'],later['policy_version'],later['status']),('afternoon','afternoon-edition-3','no_reviewed_candidates'))
             self.assertEqual((later['morning_edition_id'],later['price_check'],later['discovery_status']),(morning['edition_id'],[],'not_run'))
             self.assertTrue(card.existing_today(root,self.AFTER,kind='afternoon'))
             self.assertTrue((root/'docs'/later['archive_url'].lstrip('/')).exists())
@@ -288,7 +310,20 @@ class AfternoonEditionTests(unittest.TestCase):
             value=review.afternoon_input(self.AFTER,root)
             self.assertEqual(value['morning_edition']['edition_id'],morning['edition_id'])
             self.assertEqual([(r['player'],r['verdict']) for r in value['reviewed']],[('P','wait')])
+            self.assertEqual(value['replaced_editions'],[])
             self.assertIsNone(review.afternoon_input(self.AFTER+timedelta(days=1),root)['morning_edition'])
+
+    def test_afternoon_input_includes_todays_replaced_morning_editions_with_picks(self):
+        with TemporaryDirectory() as td:
+            root=Path(td)
+            morning=card.publish_card(empty_feeds(),empty_reviews(),NOW,root=root)
+            earlier=lambda name,minutes,**changes:write_json(root/f'docs/briefing/cards/{name}.json',dict(dict(
+                kind='morning',decision_date='2026-09-27',edition_id=name,published_at=iso(NOW-timedelta(minutes=minutes)),rows=[{'player':'X'}]),**changes))
+            earlier('2026-09-27-second',25);earlier('2026-09-27-first',50)
+            earlier('2026-09-27-empty',40,rows=[]);earlier('2026-09-27-test',30,kind='test')
+            earlier('2026-09-27-later',-5);earlier('2026-09-26-yesterday',60*24,decision_date='2026-09-26')
+            value=review.afternoon_input(self.AFTER,root)
+            self.assertEqual([e['edition_id'] for e in value['replaced_editions']],['2026-09-27-first','2026-09-27-second'])
 
     def test_afternoon_runs_no_discovery_search(self):
         from test_analyst_review import CONFIG

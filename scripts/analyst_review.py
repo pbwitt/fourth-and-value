@@ -593,7 +593,20 @@ def afternoon_input(now, root=ROOT):
                 for b in reviews.get('sports', {}).values() if b.get('decision_date') == today
                 for r in b.get('candidates', []) if verdict(r)]
     morning = card if card.get('kind') == 'morning' and card.get('decision_date') == today else None
-    return dict(morning_edition=morning, reviewed=reviewed)
+    # Earlier editions today that a recovery start replaced: their picks were on the page,
+    # and could be tracked, until then, so the afternoon checks them too.
+    replaced = []
+    for path in sorted((root/'docs/briefing/cards').glob(today+'-*.json')) if morning else []:
+        earlier = load(path.relative_to(root))
+        try:
+            if (earlier.get('kind') == 'morning' and earlier.get('decision_date') == today and earlier.get('rows')
+                    and earlier.get('edition_id') != morning.get('edition_id')
+                    and stamp(earlier['published_at']) < stamp(morning['published_at'])):
+                replaced.append(earlier)
+        except (KeyError, TypeError, ValueError, AttributeError):
+            continue
+    replaced.sort(key=lambda e: stamp(e['published_at']))
+    return dict(morning_edition=morning, replaced_editions=replaced, reviewed=reviewed)
 
 
 def report_edition(card):

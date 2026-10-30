@@ -9,7 +9,7 @@ from nhl.analyst import immutable
 ET=ZoneInfo('America/New_York')
 # Afternoon editions add new picks from the 4:30 p.m. NHL/MLB prices and record each
 # morning pick's price check; they never rewrite the morning edition.
-AFTERNOON_POLICY='afternoon-edition-2'
+AFTERNOON_POLICY='afternoon-edition-3'
 AFTERNOON_SPORTS=('MLB','NHL')
 FILES={'morning':'morning-card.json','test':'morning-card.json','afternoon':'afternoon-card.json'}
 
@@ -79,7 +79,14 @@ def research_health(feeds, reviews, selected, now, refresh_results, kind='mornin
     discovery_without_completion=(discovery.get('slate_games',0) or 0)>0 and not discovery.get('submitted_games') and reviews.get('discovery_status')!='completed'
     # The afternoon edition runs no discovery of its own.
     if kind != 'afternoon' and (reviews.get('discovery_status') in ('api_key_unavailable', 'discovery_unavailable', 'budget_halted') or (discovery_without_completion and not any(s['reviewed_count'] for s in sports.values()))):
-        issues.append('Independent discovery did not complete')
+        # Discovery only adds candidates. A card whose model candidates were all reviewed
+        # stands: a recovery start would replace picks readers may have bet with an edition
+        # that can afford fewer reviews. An empty card still retries, so a failed search is
+        # never published as a no-pick day.
+        if selected.get('card') and not issues and not any(s['pending_count'] for s in sports.values()):
+            notes.append('Independent discovery did not complete; every model candidate was reviewed')
+        else:
+            issues.append('Independent discovery did not complete')
     return dict(completed=not issues, issues=issues, notes=notes, sports=sports,
         candidate_count=sum(s['candidate_count'] for s in sports.values()),
         reviewed_count=sum(s['reviewed_count'] for s in sports.values()))

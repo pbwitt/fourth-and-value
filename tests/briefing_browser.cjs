@@ -204,6 +204,11 @@ const server=http.createServer((req,res)=>{
         await page.screenshot({path:`/tmp/fv-morning-${status}-${width}.png`,fullPage:true});
       }
     }
+    // A completed card says when its discovery search did not finish.
+    feeds={Card:{schema_version:1,kind:'morning',decision_date:'2026-09-27',published_at:new Date(now).toISOString(),rows:[],status:'published',
+      research:{completed:true,issues:[],notes:['Independent discovery did not complete; every model candidate was reviewed']}}};
+    await page.reload();await page.waitForFunction(()=>!document.getElementById('picks-status').textContent.includes('Loading'));
+    assert.match(await page.locator('#picks-status').textContent(),/Morning edition for 2026-09-27 · Published [^·]+ · Independent discovery did not complete; every model candidate was reviewed\. Original prices/);
     feeds=fixture(now);
     const original=collect(feeds,now).selected.find(r=>r.sport==='MLB');
     const reviewed={...original,review_key:reviewKey(original),review_bet_key:reviewBetKey(original),offer_id:'o',forecast_id:'f',qualitative_review:{
