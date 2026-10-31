@@ -65,9 +65,14 @@
   function nameParts(name) {
     // NHL: "J. Staal". Initials that are the first name ("J.T. Miller", "J. T. Miller") are a full name.
     const initialForm = /^([a-z])\.\s+([^.\s]{2,}.*)$/i.exec(String(name).trim());
-    if (initialForm) return { full: null, initial: initialForm[1].toLowerCase(), last: squash(initialForm[2]) };
-    const tokens = norm(name).split(' ').filter(Boolean);
-    return { full: tokens.join(''), initial: (tokens[0] || '')[0] || '', last: tokens.slice(1).join('') };
+    if (initialForm) return { full: null, initial: initialForm[1].toLowerCase(), lasts: [squash(initialForm[2])] };
+    // Words split on spaces only, so a hyphenated first name stays one word:
+    // "Charle-Edouard D'Astous" is first "charleedouard", last "dastous".
+    const words = String(name ?? '').replace(/\(.*?\)/g, ' ').split(/\s+/).map(squash).filter(Boolean);
+    // Any trailing run of words can be the last name, which covers a hyphen typed
+    // as a space ("Jean Gabriel Pageau") and multi-word surnames ("van Riemsdyk").
+    const lasts = words.slice(1).map((_, i) => words.slice(i + 1).join(''));
+    return { full: words.join(''), initial: (words[0] || '')[0] || '', lasts };
   }
 
   // Exact full name first, then first initial + last name. Ambiguity is no match.
@@ -78,7 +83,7 @@
     if (exact.length) return exact.length === 1 ? exact[0] : null;
     const close = (players || []).filter(p => {
       const got = nameParts(p.name);
-      return got.last && got.last === want.last && got.initial === want.initial;
+      return got.initial === want.initial && got.lasts.some(last => last && want.lasts.includes(last));
     });
     return close.length === 1 ? close[0] : null;
   }
@@ -164,7 +169,7 @@
     const clear = Number.isInteger(line) ? line + 1 : Math.ceil(line);   // first value that wins an over
     if (final) {
       const tone = value === line ? 'push' : (value > line) === over ? 'won' : 'lost';
-      return { tone, label: tone === 'push' ? 'Push' : tone === 'won' ? 'Won' : 'Lost', note: 'Final · awaiting official grade' };
+      return { tone, label: tone === 'push' ? 'Push' : tone === 'won' ? 'Won' : 'Lost', note: 'awaiting official grade' };
     }
     if (over) {
       if (value >= clear) return moves ? { tone: 'ahead', label: 'Over the line' } : { tone: 'won', label: 'Hit' };
@@ -209,7 +214,7 @@
     const adj = kind === 'spread' && Number.isFinite(Number(bet.line)) ? margin + Number(bet.line) : margin;
     if (final) {
       const tone = adj === 0 ? 'push' : adj > 0 ? 'won' : 'lost';
-      return { margin, tone, label: tone === 'push' ? 'Push' : tone === 'won' ? 'Won' : 'Lost', note: 'Final · awaiting official grade' };
+      return { margin, tone, label: tone === 'push' ? 'Push' : tone === 'won' ? 'Won' : 'Lost', note: 'awaiting official grade' };
     }
     const lead = kind === 'spread' ? ['Covering', 'Not covering', 'On the number'] : ['Leading', 'Trailing', 'Tied'];
     const verdict = adj > 0 ? { tone: 'ahead', label: lead[0] } : adj < 0 ? { tone: 'behind', label: lead[1] } : { tone: 'alive', label: lead[2] };
@@ -257,7 +262,7 @@
     // Books void a player prop when the player does not play. A final box that lists
     // him without an appearance (ESPN "DNP", an MLB bench player) is a refund, not a zero.
     if (final && player.played === false) {
-      return { ...view, value: null, line, side, tone: 'push', label: 'Did not play · void', note: 'Final · awaiting official grade' };
+      return { ...view, value: null, line, side, tone: 'push', label: 'Did not play · void', note: 'awaiting official grade' };
     }
     const verdict = overUnder(value, line, side, { final, moves: !!spec.moves });
     const clear = Number.isInteger(line) ? line + 1 : Math.ceil(line);
