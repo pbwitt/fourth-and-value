@@ -62,6 +62,10 @@ const server=http.createServer((req,res)=>{
       note:'Newer games carry more weight. Ice time has a 30-day half-life; production per minute has a 120-day half-life. Observed averages are unweighted.'}};
   try{
     const p=await browser.newPage();p.on('pageerror',e=>errors.push(e.message));
+    // The published MLB validation window rolls forward with each refresh and holds no
+    // regular-season games after the season ends; pin a report so the chart is always tested.
+    await p.route('**/mlb/data/validation.json',route=>route.fulfill({json:{test_start:'2026-08-29',test_end:'2026-09-28',postseason_year:2025,
+      regular:{pitcher_strikeouts:{forecasts:1200,brier_skill:.04,ece:.012,calibration_bins:[{predicted:.3,observed:.31,n:400},{predicted:.5,observed:.49,n:420},{predicted:.7,observed:.71,n:380}]}}}}));
     await p.route('**/nhl/players/players.json',route=>route.fulfill({json:{players:{'example-player':{name:'Example Player',player_id:null},'other':{name:'Other Player',player_id:8}}}}));
     for(const [sport,row] of [['mlb',pitcher],['nhl',nhl]]){
       let data={status:'ready',last_success_at:now,history_checked_at:now,model_checked_at:now,history_through_date:'2026-09-30',season:2026,events:[],rows:[row]};
