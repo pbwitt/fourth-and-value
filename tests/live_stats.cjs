@@ -123,6 +123,15 @@ const espnSummary={header:{competitions:[espnComp('in')]},boxscore:{players:[
   assert.equal(L.findPlayer('TJ Oshie',[{name:'T.J. Oshie'}]).name,'T.J. Oshie');
   assert.equal(L.findPlayer('A.J. Brown',[{name:'AJ Brown'}]).name,'AJ Brown');
   assert.equal(L.findPlayer('J.T. Miller',[{name:'J.T. Compher'}]),null);
+  // A hyphenated first name is the first name, not part of the surname (NHL box: "C. D'Astous").
+  const tbl=[{name:"C. D'Astous"},{name:'J. Pageau'},{name:'R. Nugent-Hopkins'},{name:'T. van Riemsdyk'},{name:'V. Hedman'}];
+  for(const [bet,box] of [["Charle-Edouard D'Astous","C. D'Astous"],["Charle-Édouard D’Astous","C. D'Astous"],["Charle Edouard D'Astous","C. D'Astous"],
+    ['Jean-Gabriel Pageau','J. Pageau'],['Jean Gabriel Pageau','J. Pageau'],['Ryan Nugent-Hopkins','R. Nugent-Hopkins'],['Trevor van Riemsdyk','T. van Riemsdyk']])
+    assert.equal(L.findPlayer(bet,tbl)?.name,box,`${bet} matches ${box}`);
+  for(const box of ["C-E. D'Astous","C.E. D'Astous","Charle-Edouard D'Astous"])
+    assert.equal(L.findPlayer("Charle-Edouard D'Astous",[{name:box},{name:'V. Hedman'}])?.name,box,`D'Astous matches ${box}`);
+  assert.equal(L.findPlayer('Ryan Hopkins',tbl),null,'a hyphenated surname is not a shorter one');
+  assert.equal(L.findPlayer('Victor Pageau',tbl),null,'initial must still match');
   assert.equal(L.findPlayer('J.T. Miller',[{name:'J. Miller'},{name:'J. Miller'}]),null,'ambiguous initials are no match');
 
   assert.deepEqual(L.marketSpec('NHL','player_shots_on_goal').stats,['sog']);
@@ -166,7 +175,7 @@ const espnSummary={header:{competitions:[espnComp('in')]},boxscore:{players:[
   v=L.evaluate(bet({market_type:'faceoffs'}),game,box);assert.equal(v.kind,'unsupported');
   const final={...game,state:'final',elapsed:1};
   v=L.evaluate(bet({line:3}),final,{game:final,players:box.players});assert.deepEqual([v.tone,v.label],['push','Push']);
-  v=L.evaluate(bet({line:3.5}),final,{game:final,players:box.players});assert.deepEqual([v.tone,v.note],['lost','Final · awaiting official grade']);
+  v=L.evaluate(bet({line:3.5}),final,{game:final,players:box.players});assert.deepEqual([v.tone,v.note],['lost','awaiting official grade']);
   assert.equal(L.evaluate(bet(),{...game,state:'pre',start:game.start},null).tone,'pre');
   assert.equal(L.evaluate(bet(),null,null).status,'nogame');
 
