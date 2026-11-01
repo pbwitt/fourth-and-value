@@ -57,7 +57,7 @@ def build(state):
         tracking = page in ('props', 'lines', 'watch')
         tracker_css = f'<link rel="stylesheet" href="{rel}/assets/offer-tracker.css?v=1">' if tracking else ''
         tracker_js = f'<script src="{rel}/assets/offer-tracker.js?v=3" defer></script>' if tracking else ''
-        picks_js = f'<script src="{rel}/assets/briefing-picks.js?v=28" defer></script>' if page in ('props', 'lines') else ''
+        picks_js = f'<script src="{rel}/assets/briefing-picks.js?v=29" defer></script>' if page in ('props', 'lines') else ''
         # Player prop cards add a Share button that draws the offer as an image.
         share_css = f'<link rel="stylesheet" href="{rel}/assets/offer-share.css?v=1">' if page == 'props' else ''
         share_js = f'<script src="{rel}/assets/offer-share.js?v=1" defer></script>' if page == 'props' else ''
