@@ -111,7 +111,18 @@ Still open:
 - Early-season disagreement with the market (offseason roster moves) is large; consider
   blending toward the market or a preseason roster prior before Phase 3.
 
-## Phase 3: Top Picks and research (after graded evidence)
+## Phase 3: Top Picks and research — player props shipped November 1, 2026
+
+The owner chose to start before the 150-game bar (88 games graded through October 31;
+props blend −0.001, interval just below zero; game lines not ready). Policy
+`morning-edition-7` adds NBA player props to `collect()` with a two-hour expiry, the
+0.10 blend and the usual card caps; research boards, NBA reviewer guidance, NBA evidence
+sources and `OPTIONAL_SPORTS` handling are in place (see `ANALYST_RESEARCH.md`, "NBA on
+the card"). Still open from the list below: NBA in independent discovery
+(`scripts/research_discovery.py`), an afternoon NBA refresh before 4:30 p.m., and game
+lines once they meet the bar. The original plan follows for reference.
+
+### Original Phase 3 plan
 
 Start with the markets `artifacts/nba/evaluation/PROSPECTIVE.md` marks *supported*, and use
 its blend curve to choose the `BLEND` weight.

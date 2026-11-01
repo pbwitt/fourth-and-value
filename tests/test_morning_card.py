@@ -86,6 +86,26 @@ class MorningCardTests(unittest.TestCase):
             self.assertIn('MLB: refresh failed or did not finish',value['research']['issues'])
             self.assertIn('Independent discovery did not complete',value['research']['issues'])
 
+    def test_nba_problems_are_notes_and_never_mark_the_edition_incomplete(self):
+        with TemporaryDirectory() as td:
+            root=Path(td)
+            # No NBA feed at all: the edition still completes, with a note.
+            value=card.publish_card(empty_feeds(),empty_reviews(),NOW,root=root)
+            self.assertTrue(value['research']['completed'])
+            self.assertEqual(value['status'],'no_reviewed_candidates')
+            self.assertIn('NBA: current feed unavailable or expired (not counted against the edition)',value['research']['notes'])
+            self.assertFalse(value['research']['sports']['NBA']['available_at_publication'])
+            # NBA candidates left unreviewed are a note; the same for NFL is still a failure.
+            reviews=empty_reviews();reviews['sports']['NBA']=dict(review_status='budget_exhausted',candidates=[],candidate_count=4,reviewed_count=0)
+            value=card.publish_card(empty_feeds(),reviews,NOW+timedelta(minutes=1),root=root)
+            self.assertTrue(value['research']['completed'])
+            self.assertIn('NBA: no completed assessments (daily research allowance reached) (not counted against the edition)',value['research']['notes'])
+            reviews['sports']['NFL'].update(review_status='budget_exhausted',candidate_count=4,reviewed_count=0)
+            value=card.publish_card(empty_feeds(),reviews,NOW+timedelta(minutes=2),root=root)
+            self.assertEqual(value['status'],'research_incomplete')
+            self.assertEqual(value['research']['issues'],['NFL: no completed assessments (daily research allowance reached)'])
+            self.assertEqual(value['policy_version'],'morning-edition-7')
+
     def test_reused_fresh_nfl_refresh_is_not_a_failure(self):
         # A recovery start reuses a recent NFL refresh instead of buying it again.
         with TemporaryDirectory() as td:
@@ -256,7 +276,7 @@ class AfternoonEditionTests(unittest.TestCase):
             feeds=empty_feeds(self.AFTER);feeds['NFL']=None   # NFL's morning prices have expired
             later=card.publish_card(feeds,empty_reviews(),self.AFTER,root=root,kind='afternoon',
                 refresh_results={'NHL':'success','MLB':'skipped'},afternoon=self.afternoon(morning))
-            self.assertEqual((later['kind'],later['policy_version'],later['status']),('afternoon','afternoon-edition-2','no_reviewed_candidates'))
+            self.assertEqual((later['kind'],later['policy_version'],later['status']),('afternoon','afternoon-edition-3','no_reviewed_candidates'))
             self.assertEqual((later['morning_edition_id'],later['price_check'],later['discovery_status']),(morning['edition_id'],[],'not_run'))
             self.assertTrue(card.existing_today(root,self.AFTER,kind='afternoon'))
             self.assertTrue((root/'docs'/later['archive_url'].lstrip('/')).exists())

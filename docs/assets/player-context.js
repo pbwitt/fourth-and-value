@@ -138,7 +138,7 @@
     if(!c)return '';
     const recent=(c.recent||[]).filter(w=>w&&finite(w.games)&&w.games>0);
     const inputs=Array.isArray(c.inputs)?c.inputs:[];
-    const mean=sport==='MLB'?r.model_mean:sport==='NFL'?r.mu:r.projected_mean;
+    const mean=sport==='MLB'||sport==='NBA'?r.model_mean:sport==='NFL'?r.mu:r.projected_mean;
     const first=recent[0],workload=inputs.find(i=>/Projected ice time|Recent innings \/ start|Expected plate appearances/.test(i.label));
     const median=medianOf(r,sport);
     let stats=finite(mean)?tile('Model average',number(mean),c.stat_label,`${median!==null?`Median ${fmt(median,'',sport)} · `:''}experimental`,true):'';
@@ -181,7 +181,7 @@
     const line=lineOf(r),market=marketKey(r);
     const bet=[sideText(r),line!==null?lineText(line):'',r.market_label||(c?statName(c):'')].filter(Boolean).join(' ');
     const title=[r.player,bet].filter(Boolean).join(' · ');
-    const mean=sport==='MLB'?r.model_mean:sport==='NFL'?r.mu:r.projected_mean,median=medianOf(r,sport);
+    const mean=sport==='MLB'||sport==='NBA'?r.model_mean:sport==='NFL'?r.mu:r.projected_mean,median=medianOf(r,sport);
     const text=`${title}.${c&&finite(mean)?` Model average: ${fmt(mean,'',sport)} ${c.stat_label}${median!==null?` (median ${fmt(median,'',sport)})`:''}.`:''} Player snapshot on Fourth & Value.`;
     const url=new URL(global.location.pathname,global.location.href);
     url.searchParams.set('q',r.player);
@@ -219,7 +219,7 @@
   // against tonight's opponent, drawn from the same data as the snapshot.
   function drawSnapshot({r,sport,c}){
     const PAD=40,inner=SHARE_W-PAD*2,line=lineOf(r),side=sideOf(r),focus=c?.game_focus;
-    const mean=sport==='MLB'?r.model_mean:sport==='NFL'?r.mu:r.projected_mean;
+    const mean=sport==='MLB'||sport==='NBA'?r.model_mean:sport==='NFL'?r.mu:r.projected_mean;
     const v=stripValues(r,sport),vs=c?versusParts(c,r,sport):null;
     const bet=[sideText(r),line!==null?lineText(line):'',r.market_label||(c?statName(c):'')].filter(Boolean).join(' ');
     const sub=[position(r),r.game].filter(Boolean).join(' · ');
@@ -670,7 +670,7 @@
     // Model inputs first. Only a field the selected model is known not to use is marked as
     // context; older saved snapshots do not record usage, so they carry no tag.
     const inputs=(c?.inputs||[]).filter(i=>i&&finite(i.value)).sort((a,b)=>!!b.used-!!a.used).slice(0,6);
-    const mean=sport==='MLB'?r.model_mean:sport==='NFL'?r.mu:r.projected_mean,first=recent[0];
+    const mean=sport==='MLB'||sport==='NBA'?r.model_mean:sport==='NFL'?r.mu:r.projected_mean,first=recent[0];
     const per=c?.sample_label==='starts'?'start':'game';
     const median=medianOf(r,sport);
     const projection=!options.statsOnly&&c&&finite(mean)?`<dl class="pc-stats pc-proj">${tile('Model average · experimental',fmt(mean,'',sport),c.stat_label,median!==null?`Median ${fmt(median,'',sport)}`:'',true)}</dl>`:'';
