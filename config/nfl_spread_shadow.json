@@ -1,0 +1,23 @@
+{
+  "version": "nfl-spread-shadow-1",
+  "status": "shadow: logged and graded only; never feeds projections, probabilities, Top Picks or recommendations",
+  "adjustment": "shadow_mu = mu * clip(1 + pct_per_point[market] / 100 * team_spread, multiplier_limits); team_spread is the median book spread in the frozen pregame snapshot, from the player's team's side, positive when the team is an underdog",
+  "pct_per_point": {
+    "pass_attempts": 0.462,
+    "pass_completions": 0.462,
+    "pass_yds": 0.462,
+    "pass_tds": 0.462,
+    "receptions": 1.147,
+    "recv_yds": 1.147
+  },
+  "multiplier_limits": [0.85, 1.15],
+  "first_prospective_week": 8,
+  "fit": {
+    "season": 2026,
+    "weeks": [3, 4, 5, 6, 7],
+    "games": 69,
+    "rows": {"pass": 498, "recv": 1007},
+    "method": "OLS of (actual - mu) on [mu, mu * team_spread] per market group (pass, receiving); the level term is not applied",
+    "evidence": "Leave-one-week-out on weeks 3-7, raw (uncalibrated) probabilities at the consensus line: log loss vs a level-only baseline, passing 0.7649 -> 0.7592, receiving 0.7635 -> 0.7609. Rushing got worse with the spread and is excluded. Weeks 3-7 are in-sample for these coefficients; only weeks from first_prospective_week count as evidence."
+  }
+}
