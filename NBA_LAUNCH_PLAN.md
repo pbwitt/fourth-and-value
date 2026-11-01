@@ -120,7 +120,9 @@ props blend −0.001, interval just below zero; game lines not ready). Policy
 sources and `OPTIONAL_SPORTS` handling are in place (see `ANALYST_RESEARCH.md`, "NBA on
 the card"). Still open from the list below: NBA in independent discovery
 (`scripts/research_discovery.py`), an afternoon NBA refresh before 4:30 p.m., and game
-lines once they meet the bar. The original plan follows for reference.
+lines once they meet the bar. Entry timing (`scripts/nba/entry_timing.py`, `ENTRY_TIMING.md`) supports the
+morning edition's timing: game-morning prices beat the last pregame snapshot by about 1%; day-before props are rarely posted
+and did not. The original plan follows for reference.
 
 ### Original Phase 3 plan
 
