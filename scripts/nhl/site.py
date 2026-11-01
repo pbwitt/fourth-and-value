@@ -129,7 +129,7 @@ def build(state, archive=False):
             body = body.replace(f'<script src="{rel}/assets/nhl', f'<script src="{rel}/assets/offer-tracker.js?v=3" defer></script><script src="{rel}/assets/nhl', 1)
             body = body.replace('assets/nhl.js?v=3', 'assets/nhl.js?v=10').replace('assets/nhl-candidates.js?v=7', 'assets/nhl-candidates.js?v=11')
         if page in ('props', 'lines'):
-            body = body.replace(f'<script src="{rel}/assets/nhl.js', f'<script src="{rel}/assets/briefing-picks.js?v=28" defer></script><script src="{rel}/assets/nhl.js', 1)
+            body = body.replace(f'<script src="{rel}/assets/nhl.js', f'<script src="{rel}/assets/briefing-picks.js?v=29" defer></script><script src="{rel}/assets/nhl.js', 1)
         if page == 'props':
             # Player prop cards add a Share button that draws the offer as an image.
             body = body.replace('</head>', f'<link rel="stylesheet" href="{rel}/assets/offer-share.css?v=1"></head>')
