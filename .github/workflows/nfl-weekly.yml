@@ -118,6 +118,14 @@ jobs:
         run: |
           python scripts/nfl_weekly_review.py snapshot --season "$NFL_SEASON" --week "$NFL_WEEK"
 
+      - name: Log spread shadow from the frozen pregame archive (never used for picks)
+        if: steps.weekly_snapshot.outcome == 'success'
+        continue-on-error: true
+        env:
+          NFL_SEASON: ${{ steps.week.outputs.season }}
+          NFL_WEEK: ${{ steps.week.outputs.week }}
+        run: python scripts/nfl_spread_shadow.py build --season "$NFL_SEASON" --week "$NFL_WEEK"
+
       - name: Build previous-week review and next-week preview
         id: weekly_review
         if: steps.weekly_snapshot.outcome == 'success' && steps.week.outputs.week != '1'
@@ -134,6 +142,13 @@ jobs:
             --season "$NFL_SEASON" \
             --completed-week "$completed" \
             --preview-week "$NFL_WEEK"
+
+      - name: Grade spread shadow against completed weeks
+        if: steps.weekly_review.outcome == 'success'
+        continue-on-error: true
+        env:
+          NFL_SEASON: ${{ steps.week.outputs.season }}
+        run: python scripts/nfl_spread_shadow.py report --season "$NFL_SEASON"
 
       - name: Grade market results
         if: steps.refresh.outcome == 'success'
