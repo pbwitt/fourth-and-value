@@ -90,6 +90,8 @@ and review prompts share the presentation rule in `scripts/display_time.py`.
    not four ideas. There is no per-game or per-sport quota (no minimum). Remaining
    shared game exposure is labeled on the card; the limits are a reader workflow
    choice, not a validated betting policy.
+   From policy `morning-edition-7` (from the November 2, 2026 morning edition) NBA
+   player props are a fourth sport; see "NBA on the card" below.
 
 Existing sport routes and JSON contracts remain supported. Additive feeds are
 `/briefing/discovery.json` and `/nfl/data/quotes.json`; `/briefing/reviews.json`
@@ -232,6 +234,38 @@ mass stays unknown. NHL/MLB other-book references exclude the offered book; the
 inherited NFL prop consensus can include it and is labeled accordingly. A market
 median threshold is not a mean forecast. `EV = p_win * decimal_odds + p_push - 1`;
 fair decimal odds are `(1 - p_push) / p_win`. No model means no model EV claim.
+
+### NBA on the card (policy `morning-edition-7`, from November 2, 2026)
+
+The owner added NBA player props before the proposed 150-game bar in
+`NBA_LAUNCH_PLAN.md`. Through October 31, 2026 the shadow grade
+(`artifacts/nba/evaluation/PROSPECTIVE.md`) covered 88 games: the model alone trailed
+the market in every market; the 10% blend beat the market on props by about 0.001 log
+loss (95% interval just below zero), and the market moved toward the model's lean.
+Game lines did not, so they stay out.
+
+- **Feed:** `/nba/data/latest.json` from `nba-daily.yml`, started by Supabase at
+  6:45 a.m. (before the 7:05 morning pipeline) and 5 p.m. `collect()` requires
+  `status` `ready`, no `model_error`, and `last_success_at`, `model_predicted_at` and
+  each `quoted_at` within two hours (`NBA_EXPIRY`), which covers morning recovery starts.
+- **Rows:** player props only (not `h2h`, `spreads`, `totals`), the feed's
+  `model_version`, no `model_unsupported_reason`, not listed out, `model_probability`
+  strictly between 0 and 1 and `model_ev_pct` above 0. Fields follow MLB
+  (`model_probability`, `model_push_probability`, `other_book_probability`,
+  `other_books`); the blend weight is 0.10 and the card caps apply unchanged (at most
+  four NBA picks).
+- **Research:** `config/analyst_review.json` lists NBA, so it gets its own board and
+  round-robin turn within the same daily allowance. NBA boards add
+  `analyst_review.NBA_INSTRUCTIONS` (minutes, status, rest, usage, blowout risk; an
+  unresolved player status is a blocker); other sports' requests are unchanged and the
+  prompt version stays `sports-research-8`. Evidence uses the ESPN and CBS NBA RSS
+  feeds, the `nba.com/news/` index and CBS's live NBA injury table. Independent discovery
+  does not search NBA yet.
+- **Edition health:** `morning_card.OPTIONAL_SPORTS` is `('NBA',)`. A stale NBA feed or
+  unreviewed NBA candidates become `research.notes`, never an incomplete edition, so NBA
+  cannot trigger a paid recovery run.
+- **Not yet done:** NBA in independent discovery, and an NBA refresh before the 4:30 p.m.
+  afternoon edition (moving the Supabase 5 p.m. slot is an owner action).
 
 ## Evidence and analyst review
 
@@ -447,8 +481,10 @@ once per Eastern date unless `--replace-card`. It then:
   `score`. Reservations use `run_cap` after noon, the whole daily limit minus what is
   already charged, so the afternoon spends only what the morning left.
 - Publishes `docs/briefing/afternoon-card.json` and its dated archive with
-  `morning_card.publish_card(kind='afternoon')`: policy `afternoon-edition-2`
-  (`afternoon-edition-1`, from October 19, had no game or player cap),
+  `morning_card.publish_card(kind='afternoon')`: policy `afternoon-edition-3`
+  (from November 2, 2026; admits NBA props when NBA prices under two hours old are
+  published, which the 5 p.m. NBA refresh rarely allows), `afternoon-edition-2` before
+  it (`afternoon-edition-1`, from October 19, had no game or player cap),
   `morning_edition_id`, `price_check` and the shortlisted `rows` (same caps and
   three-hour review rule). `research_health` checks only NHL and MLB, accepts a refresh
   skipped as already done, and records `budget_exhausted`/`review_limit_reached` as a

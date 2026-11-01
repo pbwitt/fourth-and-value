@@ -1,4 +1,4 @@
-"""Sourced MLB/NFL critique of the briefing's actual model-and-price shortlist.
+"""Sourced MLB/NFL/NBA critique of the briefing's actual model-and-price shortlist.
 
 No probability changes, no automatic selection, and no billable retries. NHL's
 existing validator, response client, evidence collector and budget logic are shared.
@@ -81,12 +81,26 @@ and required break-even. Keep uncertainty specific. Do not treat multiple transf
 the same price/model as independent confirming signals.
 '''
 
+# NBA boards only (from policy morning-edition-7), so other sports' requests are byte-identical.
+NBA_INSTRUCTIONS = '''
+NBA forecasts project minutes, then per-minute rates adjusted for pace and opponent, and withhold
+players ESPN lists as out; they do not adjust for teammates' absences. Check questionable and
+game-time statuses, minutes limits, rest or back-to-back sits, confirmed starters, a teammate's
+absence changing usage, and blowout risk cutting minutes. Morning NBA prices come hours before
+tipoff: an unresolved status for the player is a material blocker, not an open check.
+'''
+
+
+def instructions_for(sport):
+    return INSTRUCTIONS + NBA_INSTRUCTIONS if sport == 'NBA' else INSTRUCTIONS
+
 
 def load_feeds():
     feeds = {}
     for sport, relative in [('NFL', 'docs/props/top-picks.json'), ('MLB', 'docs/mlb/data/latest.json'),
                            ('NFLContext', 'docs/props/model-context.json'), ('NFLGames','docs/nfl/data/quotes.json'), ('NFLGameModels','docs/nfl/data/latest.json'),
                            ('NHL','docs/nhl/data/latest.json'), ('NHLBoard','docs/nhl/data/candidates.json'),
+                           ('NBA','docs/nba/data/latest.json'),
                            ('Reviews','docs/briefing/reviews.json'), ('Discovery','docs/briefing/discovery.json')]:
         try:
             feeds[sport] = json.loads((ROOT/relative).read_text())
@@ -150,10 +164,11 @@ def review_payload(board, sources, asof, config):
     equally, then retain one source per candidate before any second sources.
     No candidate, price, distribution assumption or numerical input is removed.
     """
-    request = astra.payload(board, sources, asof, config, instructions=INSTRUCTIONS, schema=SCHEMA,
+    request = astra.payload(board, sources, asof, config, instructions=instructions_for(board.get('sport')), schema=SCHEMA,
         prompt_version=PROMPT_VERSION, extra_fields=('sport', 'probability_basis', 'market_reference',
             'model_limitations', 'home_pitcher', 'away_pitcher', 'model_diagnostics',
-            'discovery_origin', 'discovery', 'source_game_forecast', 'original_forecast', 'model_withheld', 'forecast_health', 'screening_ev', 'blend', 'exposure_group'))
+            'discovery_origin', 'discovery', 'source_game_forecast', 'original_forecast', 'model_withheld', 'forecast_health', 'screening_ev', 'blend', 'exposure_group',
+            'model_minutes', 'injury_status'))
     packet = json.loads(request['input'])
     limitations = [((r.get('model_diagnostics') or {}).get('projection') or {}).get('limitations') for r in packet['candidates']]
     if limitations and all(v == limitations[0] and v for v in limitations):

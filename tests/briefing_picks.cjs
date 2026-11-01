@@ -297,7 +297,7 @@ console.log('PASS: cross-sport card order, comparable units, conservative NFL pr
   assert.equal(blend(mlbRow).weight,.25);assert(Math.abs(blend(mlbRow).final-mix(.25,.532,.403))<1e-12);
   for(const market of ['h2h','spreads','totals'])assert.equal(blend({...mlbRow,market}).weight,.10,market);
   assert.equal(blend({sport:'NFL',price:110,model_prob:.6,push_prob:0,consensus_prob:.53,book_count:2}).weight,.10);
-  // NBA (board sort only) reads MLB's field names at the NHL weight, for props and game lines alike.
+  // NBA reads MLB's field names at the NHL weight (game lines never reach collect(); see the NBA block).
   const nbaRow={...mlbRow,sport:'NBA',market:'player_assists'};
   for(const market of ['player_assists','h2h','spreads','totals'])assert.equal(blend({...nbaRow,market}).weight,.10,market);
   assert(Math.abs(blend(nbaRow).final-mix(.10,.532,.403))<1e-12);
@@ -503,3 +503,52 @@ console.log('PASS: afternoon price check, afternoon editions and the afternoon a
   assert.equal(pinnacleHTML(null),'');
 }
 console.log('PASS: Pinnacle reference matches exact lines, labels unposted lines only when asked and ignores other days.');
+
+// NBA player props join the card with policy morning-edition-7: MLB-style fields, the 6:45 a.m.
+// refresh's two-hour expiry, props only, the feed's own model version and no listed-out players.
+{
+  const {SPORTS,collect,ticketData,shortlist,rowHTML}=require('../docs/assets/briefing-picks.js');
+  assert.deepEqual(SPORTS,['NFL','MLB','NHL','NBA']);
+  const base={game:'Away @ Home',home_team:'Home',away_team:'Away',commence_time:iso(now+6*3600e3),book:'a',book_label:'Book A',quoted_at:iso(now-60e3),
+    model_version:'nba-v1.0',model_probability:.62,model_push_probability:0,other_book_probability:.52,other_books:3,model_ev_pct:9,model_mean:7.4,model_median:7,model_minutes:34.1};
+  const prop={...base,event_id:'nba1',player:'Example guard',market:'player_assists',market_label:'Assists',side:'Over',line:6.5,price:110};
+  const nba=(rows,extra={})=>({NBA:{status:'ready',last_success_at:iso(now-60e3),model_predicted_at:iso(now-60e3),model_version:'nba-v1.0',rows,...extra}});
+  let out=collect(nba([prop]),now);
+  assert.deepEqual(out.selected.map(r=>[r.sport,r.game_id,r.player]),[['NBA','nba1','Example guard']]);
+  const pick=out.selected[0];
+  assert.equal(pick.blend.status,'qualifies');assert.equal(pick.blend.weight,.10);
+  assert.equal(pick.forecast_at,iso(now-60e3));assert.match(pick.url,/^\/nba\/props\/\?q=Example\+guard&market=player_assists$/);
+  const cov=out.coverage.find(c=>c.sport==='NBA');assert.equal(cov.available,true);assert.equal(cov.count,1);
+  // Game lines stay out: the model trails the market there.
+  for(const market of ['h2h','spreads','totals'])
+    assert.equal(collect(nba([{...prop,player:'',market,side:'Home',line:market==='h2h'?null:-3.5}]),now).selected.length,0,market);
+  // Two-hour expiry for quotes, the model run and the refresh; future quotes never count.
+  for(const [field,where] of [['quoted_at','row'],['last_success_at','feed'],['model_predicted_at','feed']]) {
+    const stale=iso(now-120*60e3-1);
+    const feeds=where==='row'?nba([{...prop,[field]:stale}]):nba([prop],{[field]:stale});
+    assert.equal(collect(feeds,now).selected.length,0,field);
+  }
+  assert.equal(collect(nba([{...prop,quoted_at:iso(now-119*60e3)}]),now).selected.length,1);
+  assert.equal(collect(nba([{...prop,quoted_at:iso(now+1000)}]),now).selected.length,0);
+  // No unsupported, listed-out, other-version, negative-EV or degenerate forecasts.
+  for(const bad of [{model_unsupported_reason:'Fewer than 10 NBA appearances in the history'},{injury_status:{status:'Out'}},{model_version:'nba-v0.9'},
+    {model_ev_pct:-1},{model_probability:1},{model_probability:null}])
+    assert.equal(collect(nba([{...prop,...bad}]),now).selected.length,0,JSON.stringify(bad));
+  assert.equal(collect(nba([{...prop,injury_status:{status:'Questionable'}}]),now).selected.length,1,'questionable players go to research, not the bin');
+  assert.equal(collect(nba([prop],{status:'feed_error'}),now).selected.length,0);
+  // A missing NBA feed hides only NBA.
+  const f=fixture();assert.equal(collect(f,now).selected.length,3);
+  assert.equal(collect(f,now).coverage.find(c=>c.sport==='NBA').available,false);
+  assert.equal(collect({...f,...nba([prop])},now).selected.length,4);
+  // Tracking uses the MLB-style unconditional win and the ledger's NBA market key.
+  const ticket=ticketData({...pick,model_push_probability:.1,model_probability:.54},-110,10);
+  assert.equal(ticket.league,'NBA');assert.equal(ticket.market_type,'player_assists');assert(Math.abs(ticket.model_prob-.6)<1e-12);
+  assert.equal(ticketData({...pick,model_push_probability:undefined},-110,10).model_prob,null);
+  // The card caps NBA like any sport and shows the NBA projection.
+  assert.match(rowHTML(pick),/Projected assists: average 7\.4 · median 7/);
+  const many=Array.from({length:6},(_,i)=>({...pick,game_id:'g'+i,player:'P'+i,market:i%2?'player_points':'player_rebounds',
+    qualitative_review:{status:'research_support',reviewed_at:iso(now),countercase:'c',open_checks:[],evidence:[],
+      assessment:{verdict:'consider',reason:'r',model_case:'m',price_case:'p',context_case:'x',blocking_checks:[]}},reviewed_candidate:{},review_matches_current:true}));
+  assert.equal(shortlist(many,now).length,4,'four per sport at most');
+}
+console.log('PASS: NBA props enter collect() with MLB fields, a two-hour expiry, props only and the shared card caps.');

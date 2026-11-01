@@ -120,6 +120,56 @@ class ScreeningTests(unittest.TestCase):
         self.assertEqual(analyst.session_at(datetime(2026,11,1,15,tzinfo=timezone.utc),CONFIG),'morning')
 
 
+class NBAResearchTests(unittest.TestCase):
+    def nba_feeds(self):
+        f = feeds()
+        row = dict(event_id='nba1', game='Boston Celtics @ Orlando Magic', home_team='Orlando Magic', away_team='Boston Celtics',
+            commence_time=iso(NOW+timedelta(hours=7)), player='Synthetic Guard', side='Over', line=6.5, price=110, book='test',
+            book_label='Test Book', market='player_assists', market_label='Assists', quoted_at=iso(NOW-timedelta(minutes=5)),
+            model_version='nba-v1.0', model_probability=.6, model_push_probability=0, model_ev_pct=26, model_mean=7.4,
+            model_median=7, model_minutes=34.1, injury_status={'status': 'Questionable'}, other_book_probability=.5, other_books=3)
+        f['NBA'] = dict(status='ready', last_success_at=iso(NOW), model_predicted_at=iso(NOW), model_version='nba-v1.0', rows=[row])
+        return f
+
+    def test_nba_props_are_selected_and_normalized_with_mlb_fields(self):
+        rows = analyst.selected(self.nba_feeds(), NOW)['selected']
+        nba = analyst.normalized(next(r for r in rows if r['sport'] == 'NBA'))
+        self.assertEqual((nba['independent_probability'], nba['final_probability'], nba['push_probability']), (.6, .6, 0))
+        self.assertEqual(nba['market_probability'], .5)
+        self.assertEqual(nba['probability_basis'], 'unconditional_win')
+        self.assertAlmostEqual(nba['estimated_ev'], .26)
+        self.assertEqual(nba['review_context']['projected_quantity'], 7.4)
+        self.assertEqual(nba['review_context']['projected_median'], 7)
+        self.assertEqual(nba['review_context']['quantity_label'], 'Assists')
+        self.assertIn('NBA', analyst.CONFIG.read_text())
+
+    def test_nba_guidance_reaches_nba_boards_only(self):
+        self.assertTrue(analyst.instructions_for('NBA').startswith(analyst.INSTRUCTIONS))
+        self.assertIn('blowout risk', analyst.instructions_for('NBA'))
+        for sport in ('NFL', 'MLB', 'NHL'):
+            self.assertEqual(analyst.instructions_for(sport), analyst.INSTRUCTIONS)
+        rows = analyst.selected(self.nba_feeds(), NOW)['selected']
+        b = dict(sport='NBA', board_id='synthetic', generated_at=iso(NOW), decision_date='2026-09-27', session='morning',
+            candidates=[analyst.normalized(r) for r in rows if r['sport'] == 'NBA'])
+        request = analyst.review_payload(b, [], NOW, CONFIG)
+        packet = json.loads(request['input'])
+        self.assertEqual(packet['candidates'][0]['model_minutes'], 34.1)
+        self.assertEqual(packet['candidates'][0]['injury_status'], {'status': 'Questionable'})
+        self.assertIn(analyst.NBA_INSTRUCTIONS.strip()[:60], json.dumps(request))
+
+    def test_nba_reporting_sources_and_injury_table(self):
+        import requests
+        with patch.object(evidence, 'fetch', side_effect=requests.RequestException('offline')):
+            sources, status = evidence.collect([dict(candidate_id='c1', player='Synthetic Guard', home_team='Orlando Magic',
+                away_team='Boston Celtics', game='Boston Celtics @ Orlando Magic')], lambda: NOW, sport='NBA')
+        self.assertEqual(sources, [])
+        self.assertEqual(status['injury_tables']['url'], 'https://www.cbssports.com/nba/injuries/')
+        self.assertIn({'host': 'www.nba.com', 'stage': 'index_unavailable'}, status['failures'])
+        self.assertTrue(evidence.trusted('https://www.nba.com/news/synthetic'))
+        with self.assertRaises(ValueError):
+            evidence.collect([dict(candidate_id='c1')], lambda: NOW, sport='WNBA')
+
+
 class ResearchTests(unittest.TestCase):
     def test_official_team_reporting_is_allowlisted_and_retrieved(self):
         b=board('NFL'); row=b['candidates'][0]

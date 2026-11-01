@@ -25,7 +25,7 @@ NFL_TEAM_SITES = dict(zip(
      'houstontexans.com','colts.com','jaguars.com','chiefs.com','raiders.com','chargers.com','therams.com',
      'miamidolphins.com','vikings.com','patriots.com','neworleanssaints.com','giants.com','newyorkjets.com',
      'philadelphiaeagles.com','steelers.com','49ers.com','seahawks.com','buccaneers.com','tennesseetitans.com','commanders.com']))
-HOSTS = ('nhl.com', 'mlb.com', 'nfl.com', 'espn.com', 'cbssports.com', 'actionnetwork.com', 'covers.com', 'vsin.com', *NFL_TEAM_SITES.values())
+HOSTS = ('nhl.com', 'mlb.com', 'nfl.com', 'nba.com', 'espn.com', 'cbssports.com', 'actionnetwork.com', 'covers.com', 'vsin.com', *NFL_TEAM_SITES.values())
 FEEDS = ('https://www.espn.com/espn/rss/nhl/news',
          'https://www.cbssports.com/rss/headlines/nhl/')
 
@@ -153,7 +153,7 @@ def reporting_priority(row, source):
     teams = [row.get('home_team'), row.get('away_team')]
     if all(teams) and all(matching_text(t.split()[-1]) in matching_text(text) for t in teams):
         priority += 2
-    if (urlsplit(source['url']).hostname or '').removeprefix('www.') in ('nfl.com','mlb.com','nhl.com', *NFL_TEAM_SITES.values()):
+    if (urlsplit(source['url']).hostname or '').removeprefix('www.') in ('nfl.com','mlb.com','nhl.com','nba.com', *NFL_TEAM_SITES.values()):
         priority += 1
     return priority
 
@@ -161,7 +161,8 @@ def reporting_priority(row, source):
 def usable(source, row, asof):
     try:
         if source.get('source_kind') == 'live_injury_table':
-            return (source['url'] in ('https://www.cbssports.com/mlb/injuries/', 'https://www.cbssports.com/nhl/injuries/')
+            return (source['url'] in ('https://www.cbssports.com/mlb/injuries/', 'https://www.cbssports.com/nhl/injuries/',
+                                      'https://www.cbssports.com/nba/injuries/')
                     and source.get('published_at') is None
                     and asof-timedelta(minutes=90) <= stamp(source['retrieved_at']) <= asof
                     and row['candidate_id'] in source['candidate_ids'] and bool(source.get('injury_rows'))
@@ -177,15 +178,15 @@ def usable(source, row, asof):
 
 
 def collect(rows, clock=lambda: datetime.now(timezone.utc), sport='NHL'):
-    """Direct MLB/NHL injury table, league/team indexes, at most 16 articles."""
+    """Direct MLB/NHL/NBA injury table, league/team indexes, at most 16 articles."""
     if not rows:
         return [], {'status': 'no_candidates', 'failures': []}
     pool, sources, failures = [], [], []
     now = clock()
-    if sport not in ('NHL', 'MLB', 'NFL'):
+    if sport not in ('NHL', 'MLB', 'NFL', 'NBA'):
         raise ValueError('Unsupported reporting sport')
     injury_status = {'status': 'official_articles'}
-    if sport in ('MLB', 'NHL'):
+    if sport in ('MLB', 'NHL', 'NBA'):
         from .injuries import collect as collect_injuries
         sources, injury_status = collect_injuries(rows, clock, sport, fetch)
     feeds = FEEDS if sport == 'NHL' else (
