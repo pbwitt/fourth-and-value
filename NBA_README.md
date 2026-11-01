@@ -52,13 +52,20 @@ De-vig needs both outcomes from the same book/event/player/market/line. Spread p
 evaluation in `reports/nba-v1/`. The daily refresh only runs inference (a few seconds; ESPN rosters and injury report,
 free). It never retrains. Rows gain `model_probability`, `model_push_probability`, `model_mean`, `model_median`, `model_minutes`,
 `model_ev_pct` (feed only, not displayed) and `model_unsupported_reason`. The feed gains `model_version`,
-`model_predicted_at` and `model_coverage`, but never `model_checked_at`, so editorial and Top Picks keep skipping NBA.
+`model_predicted_at` and `model_coverage`, but never `model_checked_at`, so editorial keeps skipping NBA. From policy
+`morning-edition-7` (November 2, 2026) Top Picks reads NBA player props through `model_predicted_at` (see ANALYST_RESEARCH.md).
 **Prospective grading** (`scripts/nba/grade_shadow.py`, run by `nba-daily.yml` after Market Analytics with
 `--offline`): each final game's last pregame forecasts against the books' paired consensus at the same line and ESPN
 finals, by market and week; the market's movement toward the model between the last two pregame snapshots; and the
 offers that would have passed the NHL card's price rule, tagged *price* (one book off the market) or *model*. Output:
 `artifacts/nba/evaluation/prospective.json` and `PROSPECTIVE.md`, including the proposed per-market bar for Top Picks
 (see NBA_LAUNCH_PLAN.md). Only the production model version is graded. `make nba_grade PY=.venv/bin/python` runs it locally.
+**Entry timing** (`scripts/nba/entry_timing.py --offline`, after the shadow grade; research only): for the offers that
+pass the card's rule in the latest day-before snapshot and the first game-morning snapshot (before noon ET), closing
+value against each game's last pregame snapshot, movement toward the bet, the same bet at the best price left at the
+close, line moves, and results. Output: `artifacts/nba/evaluation/entry-timing.json` and `ENTRY_TIMING.md`. Through
+October 31, 2026: game-morning prices beat the close by about 1% (58% of bets); day-before prices, available mainly in
+opening week, did not.
 
 Retrain (about 20 minutes, no network) after the history changes materially:
 

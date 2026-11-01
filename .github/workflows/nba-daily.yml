@@ -80,6 +80,12 @@ jobs:
         # Phase 2 evidence for Top Picks (NBA_LAUNCH_PLAN.md): each game's last pregame forecasts vs. the
         # books' consensus and ESPN finals. Reads committed snapshots and the results saved above; no requests.
         run: python scripts/nba/grade_shadow.py --offline
+      - name: Measure entry timing (research only)
+        if: always() && (steps.refresh.outcome == 'success' || steps.refresh.outcome == 'failure')
+        continue-on-error: true
+        # Day-before and game-morning prices for would-be card bets vs. each game's last pregame snapshot.
+        # Reads committed snapshots and saved results; no requests; never selects or times a pick.
+        run: python scripts/nba/entry_timing.py --offline
       - name: Archive odds and model inputs for later review
         if: always()
         uses: actions/upload-artifact@v4
