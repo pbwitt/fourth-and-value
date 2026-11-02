@@ -224,7 +224,12 @@ def todays_articles(articles, now):
             published = parse_time(a['published_at'])
         except (KeyError, TypeError, ValueError):
             continue
-        if eastern_date(published) == today and published <= now and str(a.get('url', '')).startswith('/'):
+        try:  # An article stops being featured when its game starts; don't draft it after that.
+            expired = bool(a.get('featured_until')) and parse_time(a['featured_until']) <= now
+        except (TypeError, ValueError):
+            expired = False
+        if (eastern_date(published) == today and published <= now and not expired
+                and str(a.get('url', '')).startswith('/')):
             picked.append(a)
     return sorted(picked, key=lambda a: a['published_at'])
 

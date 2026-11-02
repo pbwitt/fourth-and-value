@@ -152,6 +152,12 @@ class CollectTests(unittest.TestCase):
         drafts, handled, _ = self.collect(card(rows=[started]))
         self.assertEqual((drafts, handled), ([], ['card:e1']))
 
+    def test_articles_stop_once_their_game_starts(self):
+        kickoff = article(featured_until='2026-11-01T18:00:00Z')
+        self.assertEqual(len(self.collect(card(), [kickoff])[0]), 2)
+        evening = datetime(2026, 11, 2, 1, 55, tzinfo=timezone.utc)  # 8:55 PM EST, Nov 1
+        self.assertEqual(self.collect(card(status='no_reviewed_candidates'), [kickoff], now=evening)[0], [])
+
     def test_items_wait_until_the_site_serves_them(self):
         drafts, handled, _ = self.collect(card(), [article()], is_live=lambda path, check=None: False)
         self.assertEqual((drafts, handled), ([], []))

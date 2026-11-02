@@ -979,7 +979,8 @@ and never calls the X API. `scripts/post_tweet.py` (paid API) is not used by it.
   line, price and book unchanged. Picks whose games have started are left out. If
   the card is too long for 280 characters, the draft counts the rest ("+2 more on
   the card") and links to Today's Picks. Article drafts use the headline, the
-  summary's leading whole sentences and the article link. The afternoon card,
+  summary's leading whole sentences and the article link, until the article's
+  game starts (`featured_until`). The afternoon card,
   research-incomplete cards and test editions are not drafted.
 - **When:** runs at 7:25–9:55 AM ET every half hour, then 11:55 AM, 3:55 PM and
   8:55 PM ET. Until 9:45 AM ET a run waits for the finished morning card so the
