@@ -1,0 +1,24 @@
+name: X Post Drafts Tests
+on:
+  pull_request:
+    paths:
+      - 'scripts/social_drafts.py'
+      - 'scripts/display_time.py'
+      - 'docs/assets/briefing-picks.js'
+      - 'tests/test_social_drafts.py'
+      - '.github/workflows/social-drafts*.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m unittest discover -s tests -p 'test_social_drafts.py'

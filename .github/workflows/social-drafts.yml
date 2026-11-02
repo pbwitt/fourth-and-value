@@ -1,0 +1,76 @@
+name: X Post Drafts
+
+# Emails the owner one-tap X drafts for today's morning card and each new article
+# (scripts/social_drafts.py). Free: it never calls the X API; each "Post on X" button
+# opens x.com's composer pre-filled and nothing is posted until the owner taps Post.
+# Runs wait for a finished morning card until 9:45 AM ET so the card and the morning
+# articles arrive together; later runs pick up late cards and articles. A per-day
+# ledger in the Actions cache keeps anything from being emailed twice.
+on:
+  schedule:
+    - cron: '25,55 7-9 * * *'
+      timezone: America/New_York
+    - cron: '55 11,15,20 * * *'
+      timezone: America/New_York
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Print today's drafts in the log without emailing
+        type: boolean
+        default: false
+      resend_today:
+        description: Email today's drafts again, even if already sent
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: social-drafts
+  cancel-in-progress: false
+
+jobs:
+  drafts:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - id: day
+        run: echo "date=$(TZ=America/New_York date +%F)" >> "$GITHUB_OUTPUT"
+      - name: Restore today's sent ledger
+        uses: actions/cache/restore@v4
+        with:
+          path: .social-drafts-ledger.json
+          key: social-drafts-${{ steps.day.outputs.date }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: social-drafts-${{ steps.day.outputs.date }}-
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: pip install requests==2.32.5
+      - name: Email new drafts
+        id: drafts
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EDITORIAL_NOTIFY_FROM: ${{ secrets.EDITORIAL_NOTIFY_FROM }}
+          EDITORIAL_NOTIFY_EMAIL: ${{ secrets.EDITORIAL_NOTIFY_EMAIL }}
+          SOCIAL_DRAFTS_EMAIL: ${{ secrets.SOCIAL_DRAFTS_EMAIL }}
+          DRY_RUN: ${{ inputs.dry_run || false }}
+          RESEND_TODAY: ${{ inputs.resend_today || false }}
+        run: |
+          args=(--ledger .social-drafts-ledger.json --verify-live)
+          if [ "$DRY_RUN" != 'true' ]; then args+=(--send); fi
+          if [ "$RESEND_TODAY" = 'true' ]; then args+=(--resend-today); fi
+          python scripts/social_drafts.py "${args[@]}"
+      - name: Save today's sent ledger
+        if: steps.drafts.outputs.ledger_changed == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .social-drafts-ledger.json
+          key: social-drafts-${{ steps.day.outputs.date }}-${{ github.run_id }}-${{ github.run_attempt }}
