@@ -65,7 +65,7 @@ class DiagnosticTests(unittest.TestCase):
         self.assertNotIn('secret',json.dumps(payload))
     def test_writer_note_is_private_and_attached_to_its_slot(self):
         self.write('docs/editorial/runs/2026-09-26.json',{'allocation':[['NFL','matchup:e1']],'slots':{'0-nfl':{'status':'skipped','reason':'No publishable angle'}}})
-        with patch.dict(os.environ,{'SUPABASE_URL':'https://example.supabase.co','SUPABASE_SERVICE_ROLE_KEY':'secret','GITHUB_RUN_ID':'123'}),patch.object(diag.requests,'post',return_value=Mock(ok=True,status_code=201)) as post:
+        with patch.dict(os.environ,{'SUPABASE_URL':'https://example.supabase.co','SUPABASE_SERVICE_ROLE_KEY':'secret','GITHUB_RUN_ID':'123','GITHUB_RUN_ATTEMPT':'1'}),patch.object(diag.requests,'post',return_value=Mock(ok=True,status_code=201)) as post:
             diag.store_writer_note('0-nfl','gpt-6.1-sol','Repeats yesterday\'s angle',self.root,self.now)
         payload=post.call_args.kwargs['json'];self.assertEqual(payload['id'],'123-1-writer-0-nfl')
         self.assertIn('editorial_pipeline_reports',post.call_args.args[0])
@@ -74,7 +74,7 @@ class DiagnosticTests(unittest.TestCase):
         self.assertEqual(article['reason'],'See the workflow checks for details')
     def test_requested_story_note_does_not_relabel_the_daily_slot(self):
         self.write('docs/editorial/runs/2026-09-26.json',{'allocation':[['NFL','matchup:e1']],'slots':{'0-nfl':{'status':'skipped','reason':'No publishable angle'}}})
-        with patch.dict(os.environ,{'SUPABASE_URL':'https://example.supabase.co','SUPABASE_SERVICE_ROLE_KEY':'secret','GITHUB_RUN_ID':'124'}),patch.object(diag.requests,'post',return_value=Mock(ok=True,status_code=201)) as post:
+        with patch.dict(os.environ,{'SUPABASE_URL':'https://example.supabase.co','SUPABASE_SERVICE_ROLE_KEY':'secret','GITHUB_RUN_ID':'124','GITHUB_RUN_ATTEMPT':'1'}),patch.object(diag.requests,'post',return_value=Mock(ok=True,status_code=201)) as post:
             diag.store_writer_note('0-nfl','gpt-6.1-sol','Request needs a narrower angle',self.root,self.now,requested=True)
         payload=post.call_args.kwargs['json'];self.assertEqual(payload['id'],'124-1-writer-requested-0-nfl')
         daily,requested=payload['report']['articles']
@@ -82,7 +82,7 @@ class DiagnosticTests(unittest.TestCase):
         self.assertEqual((requested['slot'],requested['sport'],requested['writer_reason']),('requested-0-nfl','NFL','Request needs a narrower angle'))
     def test_rejected_draft_note_is_private_and_attached_to_its_slot(self):
         self.write('docs/editorial/runs/2026-09-26.json',{'allocation':[['NFL','matchup:e1']],'slots':{'0-nfl':{'status':'skipped','reason':'Missing section citations (section 3 of 5 lists no source)'}}})
-        with patch.dict(os.environ,{'SUPABASE_URL':'https://example.supabase.co','SUPABASE_SERVICE_ROLE_KEY':'secret','GITHUB_RUN_ID':'125'}),patch.object(diag.requests,'post',return_value=Mock(ok=True,status_code=201)) as post:
+        with patch.dict(os.environ,{'SUPABASE_URL':'https://example.supabase.co','SUPABASE_SERVICE_ROLE_KEY':'secret','GITHUB_RUN_ID':'125','GITHUB_RUN_ATTEMPT':'1'}),patch.object(diag.requests,'post',return_value=Mock(ok=True,status_code=201)) as post:
             diag.store_rejection_note('0-nfl','claude-sonnet-5-5','Missing section citations Draft: 5 sections, 700 words.',self.root,self.now)
         payload=post.call_args.kwargs['json'];self.assertEqual(payload['id'],'125-1-rejected-0-nfl')
         article=payload['report']['articles'][0]
