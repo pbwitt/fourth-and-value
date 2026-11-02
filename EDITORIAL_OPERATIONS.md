@@ -963,3 +963,34 @@ Regression coverage: editorial Python suite (including Opinion without market
 records, missing-source no-cost gate, rewrite audit failure and planner routing),
 manual UI-controller checks, Edge Function authorization/dispatch tests, isolated
 PostgreSQL permissions, and desktop/mobile rewrite tests for both article types.
+
+## X post drafts (November 2)
+
+X's API has had no free posting tier since February 2026, and since April 20 a post
+that contains a link costs about $0.20. Rather than pay per post,
+`.github/workflows/social-drafts.yml` emails the owner ready-to-post drafts. Each
+"Post on X" button is an x.com web intent: it opens X's composer pre-filled, the
+owner can edit, and nothing is posted until the owner taps Post. It costs nothing
+and never calls the X API. `scripts/post_tweet.py` (paid API) is not used by it.
+
+- **What:** one draft for today's finished morning card and one per article
+  published today. Card drafts list the rows Today's Picks shows, from the shared
+  selector (`editionRows` in `docs/assets/briefing-picks.js`), with the offered
+  line, price and book unchanged. Picks whose games have started are left out. If
+  the card is too long for 280 characters, the draft counts the rest ("+2 more on
+  the card") and links to Today's Picks. Article drafts use the headline, the
+  summary's leading whole sentences and the article link. The afternoon card,
+  research-incomplete cards and test editions are not drafted.
+- **When:** runs at 7:25–9:55 AM ET every half hour, then 11:55 AM, 3:55 PM and
+  8:55 PM ET. Until 9:45 AM ET a run waits for the finished morning card so the
+  card and morning articles arrive in one email; later runs pick up a late card
+  or article. A card or article is drafted only after fourthandvalue.com serves it.
+- **Once only:** a per-day ledger in the Actions cache and a Resend idempotency
+  key keep a card or article from being emailed twice. A replacement card for the
+  same day is emailed and labeled as a replacement.
+- **Settings:** reuses `RESEND_API_KEY`, `EDITORIAL_NOTIFY_FROM` and
+  `EDITORIAL_NOTIFY_EMAIL`. Set `SOCIAL_DRAFTS_EMAIL` to send drafts somewhere
+  else. Manual runs offer `dry_run` (print drafts in the log, send nothing) and
+  `resend_today`.
+- **Preview locally:** `python scripts/social_drafts.py --now 2026-11-01T12:45:00Z
+  --preview /tmp/drafts.html` builds drafts from the files on disk and sends nothing.
