@@ -24,6 +24,12 @@ const server=http.createServer((req,res)=>{
     async function openReview(){const pool=page.locator('#picks-research-pool');if(await pool.locator('.pick-research').count())await pool.evaluate(e=>e.open=true);const d=page.locator('.pick-research').first();if(!await d.evaluate(e=>e.open))await d.locator(':scope > summary').click();}
     const urls={'/briefing/pinnacle.json':'Pinnacle','/briefing/morning-card.json':'Card','/briefing/afternoon-card.json':'Afternoon','/props/top-picks.json':'NFL','/mlb/data/latest.json':'MLB','/nhl/data/latest.json':'NHL','/nhl/data/candidates.json':'NHLBoard','/briefing/reviews.json':'Reviews'};
     for(const [url,key] of Object.entries(urls))await page.route('**'+url,r=>feeds[key]?r.fulfill({json:feeds[key]}):r.fulfill({status:503,body:'Unavailable'}));
+    // A clock jump fires the page's reload timer. Its render relabels an open tracker, so a
+    // click must wait for the feed requests in flight and the render that follows them.
+    let inflight=0;const isFeed=r=>Object.hasOwn(urls,new URL(r.url()).pathname);
+    page.on('request',r=>{if(isFeed(r))inflight++;});
+    for(const event of ['requestfinished','requestfailed'])page.on(event,r=>{if(isFeed(r))inflight--;});
+    async function settled(){await page.waitForTimeout(50);while(inflight>0)await page.waitForTimeout(10);await page.waitForTimeout(50);}
     for(const width of [320,390,768,1440]) {
       await page.setViewportSize({width,height:1000});await page.goto(base+'/briefing/');
       await page.waitForFunction(()=>document.getElementById('research-pool-label').textContent.includes('3 additional'));
@@ -253,7 +259,7 @@ const server=http.createServer((req,res)=>{
     assert.doesNotMatch(await page.locator('#daily-picks-rows').textContent(),/Price check/,'a check of another morning edition is not shown');
     assert.match(await page.locator('#afternoon-picks-rows').textContent(),/No new picks qualified this afternoon/);
     delete feeds.Afternoon;
-    await page.clock.fastForward(6*3600e3);
+    await page.clock.fastForward(6*3600e3);await settled();
     assert.match(await page.locator('#picks-status').textContent(),/Test edition for 2026-09-27/);
     assert.match(await page.locator('#daily-picks-rows').textContent(),/Game started · historical assessment/);
     assert.match(await page.locator('#daily-picks-rows').textContent(),/Original assessment/);
