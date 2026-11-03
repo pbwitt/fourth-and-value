@@ -94,4 +94,70 @@ class NBATests(unittest.TestCase):
         self.assertEqual(flatten(event,NOW),[])
 
 
+def context(opp='@ BOS', hits=11):
+    return dict(schema_version=1, source='ESPN regular-season box scores', through='2026-10-30', sample_games=30,
+                games=[dict(date='2026-10-30', opp=opp, minutes=32, value=24)], opponent=dict(team=opp[-3:]),
+                build=dict(steps=[dict(label='Games over the line', value=hits, unit='of 30')]))
+
+
+def feed():
+    rows = []
+    for book in 'abc':
+        for side, hits in [('Over', 11), ('Under', 19)]:
+            rows.append(dict(quote(book=book, side=side), player_context=context(hits=hits)))
+    rows.append(dict(quote(event='later'), player_context=context(opp='vs NYK')))  # another opponent
+    rows.append(dict(quote(market='totals', line=220.5), player_context=None))      # game line
+    return dict(status='ready', rows=rows)
+
+
+class NBAPackedContextTests(unittest.TestCase):
+    """Nov 2, 2026: repeated player histories made latest.json 128.8 MB; GitHub rejects 100 MB."""
+
+    def test_shared_parts_are_stored_once_and_restore_exactly(self):
+        from nba.pipeline import pack_player_contexts, unpack_player_contexts
+        original = feed()
+        packed = pack_player_contexts(copy.deepcopy(original))
+        # Two histories (two opponents) and two line parts (Over/Under), not eight copies.
+        self.assertEqual(len(packed['player_contexts']), 4)
+        self.assertTrue(all('player_context' not in r for r in packed['rows'][:7]))
+        self.assertEqual(len({tuple(r['player_context_parts']) for r in packed['rows'][:6]}), 2)
+        self.assertNotEqual(packed['rows'][0]['player_context_parts'][0], packed['rows'][6]['player_context_parts'][0])
+        self.assertIsNone(packed['rows'][7]['player_context'])
+        self.assertNotIn('player_context_parts', packed['rows'][7])
+        self.assertEqual(unpack_player_contexts(copy.deepcopy(packed)), original)
+        # A failed refresh re-saves the packed feed: nothing is lost or re-keyed.
+        self.assertEqual(pack_player_contexts(copy.deepcopy(packed)), packed)
+        # A part missing from the map yields no context, never another row's.
+        broken = copy.deepcopy(packed)
+        del broken['player_contexts'][packed['rows'][0]['player_context_parts'][1]]
+        self.assertIsNone(unpack_player_contexts(broken)['rows'][0]['player_context'])
+        self.assertNotIn('player_contexts', pack_player_contexts(dict(rows=[dict(quote())])))
+
+    def test_compact_feed_file(self):
+        import json, tempfile
+        from nba.pipeline import save_json
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'latest.json'
+            save_json(path, feed(), compact=True)
+            text = path.read_text()
+            self.assertNotIn('\n  ', text)
+            self.assertEqual(json.loads(text), feed())
+
+    @unittest.skipUnless(__import__('shutil').which('node'), 'node is not installed')
+    def test_browser_readers_restore_python_packed_rows(self):
+        import json, subprocess
+        from nba.pipeline import pack_player_contexts
+        root = Path(__file__).resolve().parents[1]
+        script = ("const fs=require('fs'),d=JSON.parse(fs.readFileSync(0,'utf8'));"
+                  "const a=JSON.parse(JSON.stringify(d)),b=JSON.parse(JSON.stringify(d));"
+                  "require('./docs/assets/briefing-picks.js').unpackContexts(a);"
+                  "require('./docs/tracking/player-stats.js').rowsFrom(b,'NBA');"
+                  "process.stdout.write(JSON.stringify([a.rows,b.rows]));")
+        packed = json.dumps(pack_player_contexts(feed()))
+        result = subprocess.run(['node', '-e', script], input=packed, capture_output=True, text=True,
+                                cwd=root, timeout=30, check=True)
+        for rows in json.loads(result.stdout):
+            self.assertEqual(rows, feed()['rows'])
+
+
 if __name__=='__main__':unittest.main()

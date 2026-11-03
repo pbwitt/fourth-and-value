@@ -38,7 +38,14 @@ The workflow tests pricing and grading behavior, adds the last four Eastern date
 
 ## Artifacts and correctness
 
-- Public feed: `docs/nba/data/latest.json`
+- Public feed: `docs/nba/data/latest.json`, written without indentation. Each distinct part of a row's
+  `player_context` is stored once in the feed's `player_contexts` map, keyed by a hash of its content: the
+  history every line of a player and game shares, and the line-and-side `build` (hit rate at that line). A row
+  lists its keys in `player_context_parts`; `unpack_player_contexts` in `pipeline.py` and the browser copies in
+  `briefing-picks.js`, `nba.js` and `docs/tracking/player-stats.js` rebuild the full `player_context`. Repeating
+  the history on every book, side and line made the Nov 2, 2026 feed 128.8 MB, over GitHub's 100 MB file limit,
+  and every NBA refresh that day failed to publish. Packed, the 95.7 MB Oct 30 feed is 25.6 MB; the refresh
+  warns in Actions above 60 MB.
 - Local audit snapshots: `data/nba/snapshots/YYYYMMDDTHHMMSSZ.json` (gitignored)
 - Historical box scores: `artifacts/nba/history/YYYY-YY.json.gz` plus `manifest.json` (committed; ESPN game, team and player rows with NBA Stats column names and ESPN IDs; `SEASON_TYPE` is regular, cup_final, play_in or playoffs)
 - Raw ESPN responses: `data/nba/espn/` (gitignored cache)

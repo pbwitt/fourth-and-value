@@ -13,8 +13,19 @@
   }
   // NFL already publishes one saved context per event/player/market, without
   // the thousands of repeated book quotes on the full props board.
+  // The NBA feed stores each shared player_context part once (scripts/nba/pipeline.py
+  // pack_player_contexts); rebuild each row's context in place before matching.
+  function unpack(data){
+    const shared=data?.player_contexts&&typeof data.player_contexts==='object'?data.player_contexts:{};
+    const part=k=>Object.prototype.hasOwnProperty.call(shared,k)&&shared[k]&&typeof shared[k]==='object';
+    for(const r of Array.isArray(data?.rows)?data.rows:[])if(r&&Array.isArray(r.player_context_parts)){
+      const keys=r.player_context_parts;
+      r.player_context=keys.length&&keys.every(part)?Object.assign({},...keys.map(k=>shared[k])):null;delete r.player_context_parts;
+    }
+    return data;
+  }
   function rowsFrom(data,league){
-    if(league!=='NFL')return Array.isArray(data?.rows)?data.rows:[];
+    if(league!=='NFL')return Array.isArray(unpack(data)?.rows)?data.rows:[];
     return Object.entries(data?.groups||{}).flatMap(([key,model_diagnostics])=>{
       try{const [,player,market]=JSON.parse(key);return [{player,market,model_diagnostics}];}catch{return [];}
     });

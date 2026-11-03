@@ -8,7 +8,22 @@
   const recent=(s,now,limit)=>Number.isFinite(stamp(s))&&now-stamp(s)>=0&&now-stamp(s)<=limit;
   const today=(r,now)=>stamp(r.commence_time)>now&&day(stamp(r.commence_time))===day(now);
   const records=value=>Array.isArray(value)?value.filter(r=>r&&typeof r==='object'):[];
-  const rows=d=>records(d?.rows);
+  // The NBA feed stores each shared player_context part once (scripts/nba/pipeline.py
+  // pack_player_contexts). Rows get their full context back, in place, on first read.
+  const unpacked=new WeakSet();
+  function unpackContexts(d) {
+    if(!d||typeof d!=='object'||unpacked.has(d))return d;
+    unpacked.add(d);
+    const shared=d.player_contexts&&typeof d.player_contexts==='object'?d.player_contexts:{};
+    const part=k=>Object.prototype.hasOwnProperty.call(shared,k)&&shared[k]&&typeof shared[k]==='object';
+    for(const r of records(d.rows))if(Array.isArray(r.player_context_parts)) {
+      const keys=r.player_context_parts;
+      r.player_context=keys.length&&keys.every(part)?Object.assign({},...keys.map(k=>shared[k])):null;
+      delete r.player_context_parts;
+    }
+    return d;
+  }
+  const rows=d=>records(unpackContexts(d)?.rows);
   const priced=r=>finite(r.price)&&Math.abs(r.price)>=100&&r.game&&r.book&&r.side&&r.market_label;
   const odds=n=>(n>0?'+':'')+n;
   const time=s=>new Date(s).toLocaleString('en-US',{timeZone:'America/New_York',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',second:'2-digit'})+' ET';
@@ -803,6 +818,6 @@
       `<p class="muted"><strong>The case against:</strong> ${esc(r.qualitative_review.countercase)}</p>`+
       `<p class="meta">${started?'<strong>Game started · historical assessment.</strong> ':''}Original price and analysis from the ${esc(shortTime(r.card_snapshot_at))} edition.${started?'':' Confirm the current line before deciding.'}</p>${links}`;
   }
-  if(typeof module==='object'&&module.exports)module.exports={SPORTS,bookOptions,collect,shortlist,editionRows,currentEditionRows,priceCheck,pinnacleIndex,pinnacleFor,pinnacleHTML,leadKey,rowKey:key,ideaKey,SHORTLIST_LIMIT,CARD_CAPS,BLEND,blend,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus,featuredPick,featuredHTML,boardOrder,boardBlendHTML};
+  if(typeof module==='object'&&module.exports)module.exports={SPORTS,unpackContexts,bookOptions,collect,shortlist,editionRows,currentEditionRows,priceCheck,pinnacleIndex,pinnacleFor,pinnacleHTML,leadKey,rowKey:key,ideaKey,SHORTLIST_LIMIT,CARD_CAPS,BLEND,blend,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus,featuredPick,featuredHTML,boardOrder,boardBlendHTML};
   else {global.FVPicks={featuredPick,featuredHTML,blend,boardOrder,boardBlendHTML};mount();}
 })(typeof window==='undefined'?globalThis:window);

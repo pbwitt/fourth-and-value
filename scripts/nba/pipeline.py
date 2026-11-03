@@ -3,6 +3,7 @@
 import argparse
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+import hashlib
 import json
 import math
 import os
@@ -61,11 +62,63 @@ def timestamp(value):
         return None
 
 
-def save_json(path, data):
+def save_json(path, data, compact=False):
     path.parent.mkdir(parents=True, exist_ok=True)
     temp = path.with_suffix('.tmp')
-    temp.write_text(json.dumps(data, indent=2, allow_nan=False) + '\n')
+    text = json.dumps(data, separators=(',', ':'), allow_nan=False) if compact else json.dumps(data, indent=2, allow_nan=False)
+    temp.write_text(text + '\n')
     temp.replace(path)
+
+
+# A full slate repeats each player's history on every book, side and line, which pushed
+# docs/nba/data/latest.json past GitHub's 100 MB file limit (Nov 2, 2026). The feed stores
+# each distinct part of a player_context once in `player_contexts`, keyed by its content:
+# the history shared by every line, and the line-and-side part (`build`: the hit rate at
+# this line). A row lists its keys in `player_context_parts`. Readers rebuild the row's
+# player_context with unpack_player_contexts or its browser copies in
+# docs/assets/briefing-picks.js, docs/assets/nba.js and docs/tracking/player-stats.js.
+LINE_CONTEXT = ('build',)
+FEED_WARN_BYTES = 60_000_000
+
+
+def _context_key(part):
+    text = json.dumps(part, sort_keys=True, separators=(',', ':'), allow_nan=False)
+    return hashlib.sha256(text.encode()).hexdigest()[:16]
+
+
+def pack_player_contexts(state):
+    """Move repeated player_context parts into state['player_contexts']; safe to rerun."""
+    previous, shared = state.get('player_contexts') or {}, {}
+    for row in state.get('rows', []):
+        context = row.get('player_context')
+        if isinstance(context, dict):
+            base = {k: v for k, v in context.items() if k not in LINE_CONTEXT}
+            line = {k: context[k] for k in LINE_CONTEXT if k in context}
+            # Content-addressed: different opponents, dates or lines never share a key.
+            parts = [part for part in (base, line) if part]
+            row['player_context_parts'] = [_context_key(part) for part in parts]
+            shared.update(zip(row['player_context_parts'], parts))
+            del row['player_context']
+        elif row.get('player_context_parts'):
+            # Already packed (a failed refresh re-saves the previous feed).
+            shared.update((key, previous[key]) for key in row['player_context_parts'] if key in previous)
+    if shared:
+        state['player_contexts'] = shared
+    else:
+        state.pop('player_contexts', None)
+    return state
+
+
+def unpack_player_contexts(state):
+    """Give each packed row its full player_context again, in place."""
+    shared = state.get('player_contexts') or {}
+    for row in state.get('rows', []):
+        parts = row.pop('player_context_parts', None)
+        if parts is not None:
+            row['player_context'] = ({k: v for key in parts for k, v in shared[key].items()}
+                                     if parts and all(key in shared for key in parts) else None)
+    state.pop('player_contexts', None)
+    return state
 
 
 def read_json(path, default):
@@ -357,11 +410,11 @@ def main():
     if not args.offline:
         try:
             client = OddsClient(os.getenv('ODDS_API_KEY'))
-            state = refresh(client, now, history, state, model_history)
+            state = pack_player_contexts(refresh(client, now, history, state, model_history))
             # Request-start time is not the time the completed forecast became available.
             state['captured_at'] = iso(datetime.now(UTC))
             archive = ROOT / 'data/nba/snapshots' / f"{now.strftime('%Y%m%dT%H%M%SZ')}.json"
-            save_json(archive, state)
+            save_json(archive, state, compact=True)
             from recap_archive import save_nba_run
             save_nba_run(state, now)
         except FeedError as error:
@@ -369,7 +422,10 @@ def main():
             state.update(status='feed_error', checked_at=iso(now), error=str(error))
             print(str(error), file=sys.stderr)
             exit_code = 1
-        save_json(public, state)
+        save_json(public, pack_player_contexts(state), compact=True)
+        size = public.stat().st_size
+        if size > FEED_WARN_BYTES:
+            print(f'::warning::NBA feed is {size / 1e6:.1f} MB; GitHub rejects files over 100 MB.', file=sys.stderr)
     from nba.site import build
     build(state)
     print(f"NBA: {state['status']}; {len(state['events'])} upcoming provider events; {len(state['rows'])} saved quotes")
