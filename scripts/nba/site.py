@@ -57,7 +57,7 @@ def build(state):
         tracking = page in ('props', 'lines', 'watch')
         tracker_css = f'<link rel="stylesheet" href="{rel}/assets/offer-tracker.css?v=1">' if tracking else ''
         tracker_js = f'<script src="{rel}/assets/offer-tracker.js?v=3" defer></script>' if tracking else ''
-        picks_js = f'<script src="{rel}/assets/briefing-picks.js?v=29" defer></script>' if page in ('props', 'lines') else ''
+        picks_js = f'<script src="{rel}/assets/briefing-picks.js?v=30" defer></script>' if page in ('props', 'lines') else ''
         # Player prop cards add a Share button that draws the offer as an image.
         share_css = f'<link rel="stylesheet" href="{rel}/assets/offer-share.css?v=1">' if page == 'props' else ''
         share_js = f'<script src="{rel}/assets/offer-share.js?v=1" defer></script>' if page == 'props' else ''
@@ -70,6 +70,6 @@ def build(state):
 <main class="wrap" id="main" data-nba-page="{page}" data-feed="{nba}/data/latest.json">{links}<p class="eyebrow">NBA · 2026–27</p><h1>{title}</h1>
 <div class="notice" id="feed-status" role="status"><strong>NBA market snapshot</strong><p>Last successful check: {escape(eastern_time(state['last_success_at']) if state.get('last_success_at') else 'Not yet checked')}. Enable JavaScript to view current quote availability.</p></div>
 {intro}<footer>Fourth &amp; Value · <a href="{rel}/terms.html">Terms &amp; privacy</a> · <a href="{rel}/videos/">Videos</a></footer></main>
-{tracker_js}{share_js}{picks_js}<script src="{rel}/assets/nba.js?v=8" defer></script></body></html>'''
+{tracker_js}{share_js}{picks_js}<script src="{rel}/assets/nba.js?v=9" defer></script></body></html>'''
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(body)

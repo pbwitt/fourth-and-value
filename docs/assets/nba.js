@@ -11,6 +11,13 @@
   let data;
   try { const response=await fetch(root.dataset.feed,{cache:'no-store'});if(!response.ok)throw Error('Unavailable');data=await response.json(); }
   catch {status.textContent='NBA data could not be loaded. Please try again later.';return;}
+  // Shared player_context parts are stored once (scripts/nba/pipeline.py pack_player_contexts).
+  const shared=data.player_contexts&&typeof data.player_contexts==='object'?data.player_contexts:{};
+  const part=k=>Object.prototype.hasOwnProperty.call(shared,k)&&shared[k]&&typeof shared[k]==='object';
+  for(const r of Array.isArray(data.rows)?data.rows:[])if(r&&Array.isArray(r.player_context_parts)){
+    const keys=r.player_context_parts;
+    r.player_context=keys.length&&keys.every(part)?Object.assign({},...keys.map(k=>shared[k])):null;delete r.player_context_parts;
+  }
   const now=Date.now(), success=Date.parse(data.last_success_at);
   const stale=!Number.isFinite(success)||now-success>24*3600e3||success>now+300e3;
   const failed=data.status==='feed_error';

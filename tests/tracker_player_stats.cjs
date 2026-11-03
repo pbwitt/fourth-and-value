@@ -30,6 +30,14 @@ const nfl={groups:{'["game","Example Back","rush_yds"]':{projection:{family:'rus
   current_sample:[{season:2026,week:1,carries:15,rushing_yards:60}],mean_stages:{final:60}}},'bad JSON':{}}};
 assert.equal(stats.rowsFrom(nfl,'NFL').length,1);
 assert.equal(stats.findContext({league:'NFL',player:'Example Back',market_type:'rush_yds'},nfl).recent[0].mean,60);
+// The NBA feed stores each shared player_context part once (scripts/nba/pipeline.py).
+const nbaHistory={schema_version:1,source:'ESPN regular-season box scores',through:'2026-10-30',stat_label:'Points',sample_label:'appearances',
+  workload_label:'Minutes / game',workload_unit:'min',recent:[{games:5,mean:24.2,workload:34}],games:[{date:'2026-10-30',opp:'@ BOS',minutes:34,value:27}],
+  game_columns:[['date','Date'],['value','PTS']],game_focus:'value'};
+const nbaFeed={player_contexts:{h:nbaHistory,l:{build:{steps:[]}}},rows:[{player:'Example Guard',market:'player_points',line:20.5,side:'Over',player_context_parts:['h','l']}]};
+const nbaBet={league:'NBA',player:'Example Guard',market_type:'player_points',side:'over',line:21.5};
+assert.equal(stats.findContext(nbaBet,nbaFeed).recent[0].mean,24.2);assert.equal(stats.findContext(nbaBet,nbaFeed).through,'2026-10-30');
+assert.equal(stats.findContext(nbaBet,{player_contexts:{},rows:[{...nbaFeed.rows[0],player_context_parts:['h']}]}),null,'a missing part gives no stats');
 const games=[{date:'2026-10-08',opp:'@ BOS',toi:'20:30',minutes:20.5,shots:4,goals:1,assists:0,points:1},
   {date:'2026-10-07',opp:'vs NYR',toi:'19:00',minutes:19,shots:2,goals:0,assists:0,points:0},
   {date:'2026-10-06',shots:null,goals:0},{date:'bad',shots:100}];

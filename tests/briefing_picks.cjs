@@ -550,5 +550,13 @@ console.log('PASS: Pinnacle reference matches exact lines, labels unposted lines
     qualitative_review:{status:'research_support',reviewed_at:iso(now),countercase:'c',open_checks:[],evidence:[],
       assessment:{verdict:'consider',reason:'r',model_case:'m',price_case:'p',context_case:'x',blocking_checks:[]}},reviewed_candidate:{},review_matches_current:true}));
   assert.equal(shortlist(many,now).length,4,'four per sport at most');
+  // The feed stores shared player_context parts once (scripts/nba/pipeline.py); picks carry the full context.
+  const history={schema_version:1,source:'ESPN regular-season box scores',games:[{date:'2026-10-30',value:8}]},line={build:{steps:[{label:'Games over 6.5'}]}};
+  const packed=nba([{...prop,player_context_parts:['h','l']},{...prop,book:'b',player_context_parts:['h','gone']}],{player_contexts:{h:history,l:line}});
+  out=collect(packed,now);
+  const [kept]=out.selected;
+  assert.deepEqual(kept.player_context,{...history,...line});assert(!('player_context_parts' in kept));
+  assert.equal(packed.NBA.rows[1].player_context,null,'a missing part gives no context, never another row\'s');
+  assert.deepEqual(collect(packed,now).selected[0].player_context,{...history,...line},'unpacking twice is harmless');
 }
 console.log('PASS: NBA props enter collect() with MLB fields, a two-hour expiry, props only and the shared card caps.');

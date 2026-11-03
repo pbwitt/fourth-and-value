@@ -57,6 +57,14 @@ const server=http.createServer((req,res)=>{
     await p.locator('#sort').selectOption('time');assert.deepEqual(await names(),['Alpha Guard','Mid Center','Zeta Forward']);
     assert(p.url().includes('sort=time'));await p.reload();await p.waitForSelector('.prop-card');assert.equal(await p.locator('#sort').inputValue(),'time');
     await p.locator('#reset').click();assert.equal(await p.locator('#sort').inputValue(),'value');assert.deepEqual(await names(),['Zeta Forward','Alpha Guard','Mid Center']);
+    // The feed stores shared player_context parts once (scripts/nba/pipeline.py); cards show the full context.
+    fixture={...fixture,player_contexts:{h:{schema_version:1,source:'Packed ESPN history',through:'2026-10-30',sample_games:1,sample_label:'appearances',stat_label:'Points',
+      workload_label:'Minutes / game',workload_unit:'min',recent:[{games:5,mean:24.2,workload:34}],games:[{date:'2026-10-30',opp:'@ BOS',minutes:34,value:27}],
+      game_columns:[['date','Date'],['opp','Opp'],['minutes','MIN'],['value','PTS']],game_focus:'value',note:'Historical context only.'}},
+      rows:[{...row,player:'Packed Guard',player_context_parts:['h']}]};
+    await p.reload();await p.waitForSelector('.prop-card .pc-name');await p.locator('.prop-card .pc-name').click();
+    await p.waitForSelector('.pc-pop:not([hidden])');assert((await p.locator('.pc-pop').textContent()).includes('Packed ESPN history'));
+    await p.keyboard.press('Escape');
     fixture={...fixture,status:'feed_error'};await p.reload();await p.waitForFunction(()=>document.getElementById('feed-status').textContent.includes('failed'));assert.equal(await p.locator('.prop-card').count(),0);
     fixture={...fixture,status:'ready',last_success_at:new Date(+now-25*3600e3).toISOString()};await p.reload();await p.waitForFunction(()=>document.getElementById('feed-status').textContent.includes('needs a refresh'));assert.equal(await p.locator('.prop-card').count(),0);
     assert.deepEqual(errors,[]);console.log('PASS: NBA nav/layout at five widths, populated props filters, best-book selection, Best value sort, error/stale suppression.');
