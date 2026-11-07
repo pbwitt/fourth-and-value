@@ -1,33 +1,33 @@
 # NBA v1 shadow model: prospective grading
 
-Model `nba-v1.0`, generated Fri, Nov 6, 2026, 5:04 PM EST. 108 of 108 tipped games graded through Nov 5; 10246 main-line and 21831 alternate-line forecasts.
+Model `nba-v1.0`, generated Sat, Nov 7, 2026, 6:48 AM EST. 117 of 117 tipped games graded through Nov 6; 11099 main-line and 23670 alternate-line forecasts.
 
 Log loss is lower-is-better; negative differences favor the model or blend. Movement is in probability points toward the model's earlier lean (positive means the market came to the model). The card pool is every offer that would have passed the NHL card's price rule, before research review and card caps.
 
 | Market | Games | Model − market | 10% blend − market | Market moved toward model | Card pool | Readiness |
 |---|---|---|---|---|---|---|
-| **All props** | 108 | +0.013 (+0.005 to +0.020) | -0.001 (-0.001 to -0.000) | +0.88 (+0.74 to +1.03) | 610-677-0, -7.00u | insufficient sample |
-| **All game lines** | 108 | +0.036 (+0.007 to +0.067) | +0.002 (-0.001 to +0.005) | +0.39 (+0.02 to +0.76) | 17-36-0, -17.33u | insufficient sample |
-| Moneyline | 108 | +0.058 (+0.017 to +0.100) | +0.004 (+0.000 to +0.007) | +0.71 (+0.14 to +1.30) | 7-30-0, -20.92u | insufficient sample |
-| Spread | 107 | +0.022 (-0.022 to +0.066) | -0.000 (-0.004 to +0.004) | -0.00 (-0.36 to +0.34) | 10-5-0, +4.59u | insufficient sample |
-| Game total | 107 | +0.030 (-0.002 to +0.060) | +0.002 (-0.001 to +0.005) | +0.17 (-0.19 to +0.58) | 0-1-0, -1.00u | insufficient sample |
-| Assists | 108 | +0.024 (+0.010 to +0.037) | -0.000 (-0.002 to +0.001) | +1.04 (+0.77 to +1.29) | 85-114-0, -15.59u | insufficient sample |
-| Blocks | 75 | +0.009 (-0.016 to +0.036) | -0.000 (-0.003 to +0.002) | +0.57 (+0.10 to +1.05) | 1-2-0, -1.07u | insufficient sample |
-| Points | 108 | +0.005 (-0.005 to +0.015) | -0.001 (-0.002 to -0.000) | +0.87 (+0.67 to +1.10) | 104-110-0, -0.32u | insufficient sample |
-| Points + assists | 108 | +0.008 (-0.006 to +0.021) | -0.001 (-0.002 to +0.000) | +0.80 (+0.57 to +1.00) | 27-33-0, -5.52u | insufficient sample |
-| Points + rebounds | 108 | +0.004 (-0.007 to +0.016) | -0.001 (-0.002 to -0.000) | +0.92 (+0.74 to +1.11) | 63-60-0, +4.90u | insufficient sample |
-| Points + rebounds + assists | 108 | +0.013 (-0.000 to +0.026) | -0.001 (-0.002 to +0.000) | +0.91 (+0.71 to +1.17) | 71-90-0, -17.79u | insufficient sample |
-| Rebounds | 108 | +0.021 (+0.010 to +0.032) | +0.000 (-0.001 to +0.001) | +1.01 (+0.81 to +1.23) | 101-107-0, +0.09u | insufficient sample |
-| Rebounds + assists | 108 | +0.025 (+0.007 to +0.043) | -0.000 (-0.002 to +0.001) | +0.93 (+0.68 to +1.18) | 70-66-0, +5.77u | insufficient sample |
-| Steals | 85 | +0.011 (-0.005 to +0.029) | -0.000 (-0.002 to +0.002) | +0.36 (-0.00 to +0.72) | 4-2-0, +2.02u | insufficient sample |
-| Threes made | 108 | +0.010 (-0.001 to +0.019) | -0.001 (-0.001 to +0.000) | +0.64 (+0.47 to +0.82) | 84-93-0, +20.51u | insufficient sample |
+| **All props** | 117 | +0.014 (+0.006 to +0.022) | -0.001 (-0.001 to +0.000) | +0.85 (+0.71 to +1.00) | 659-745-0, -23.56u | insufficient sample |
+| **All game lines** | 117 | +0.034 (+0.007 to +0.062) | +0.002 (-0.001 to +0.004) | +0.33 (-0.01 to +0.69) | 18-38-0, -17.98u | insufficient sample |
+| Moneyline | 117 | +0.053 (+0.013 to +0.092) | +0.003 (-0.001 to +0.007) | +0.57 (+0.03 to +1.14) | 8-32-0, -21.57u | insufficient sample |
+| Spread | 116 | +0.019 (-0.023 to +0.058) | -0.000 (-0.005 to +0.003) | -0.00 (-0.37 to +0.34) | 10-5-0, +4.59u | insufficient sample |
+| Game total | 116 | +0.030 (-0.001 to +0.060) | +0.002 (-0.001 to +0.005) | +0.17 (-0.18 to +0.60) | 0-1-0, -1.00u | insufficient sample |
+| Assists | 117 | +0.023 (+0.010 to +0.036) | -0.000 (-0.001 to +0.001) | +0.99 (+0.73 to +1.26) | 93-125-0, -17.71u | insufficient sample |
+| Blocks | 81 | +0.010 (-0.014 to +0.035) | -0.000 (-0.003 to +0.002) | +0.51 (+0.04 to +0.98) | 1-3-0, -2.07u | insufficient sample |
+| Points | 117 | +0.007 (-0.003 to +0.016) | -0.001 (-0.002 to +0.000) | +0.82 (+0.61 to +1.04) | 110-118-0, -2.04u | insufficient sample |
+| Points + assists | 117 | +0.011 (-0.001 to +0.022) | -0.001 (-0.002 to +0.000) | +0.79 (+0.58 to +1.00) | 29-38-0, -8.62u | insufficient sample |
+| Points + rebounds | 117 | +0.005 (-0.006 to +0.016) | -0.001 (-0.002 to -0.000) | +0.88 (+0.71 to +1.05) | 71-69-0, +4.54u | insufficient sample |
+| Points + rebounds + assists | 117 | +0.016 (+0.003 to +0.029) | -0.001 (-0.002 to +0.001) | +0.86 (+0.65 to +1.09) | 77-104-0, -25.27u | insufficient sample |
+| Rebounds | 117 | +0.021 (+0.011 to +0.031) | +0.000 (-0.001 to +0.001) | +1.00 (+0.80 to +1.21) | 109-116-0, -0.93u | insufficient sample |
+| Rebounds + assists | 117 | +0.026 (+0.009 to +0.043) | -0.000 (-0.002 to +0.001) | +0.92 (+0.67 to +1.16) | 79-73-0, +8.00u | insufficient sample |
+| Steals | 92 | +0.011 (-0.006 to +0.028) | -0.000 (-0.002 to +0.001) | +0.30 (-0.02 to +0.66) | 4-2-0, +2.02u | insufficient sample |
+| Threes made | 117 | +0.010 (+0.000 to +0.019) | -0.001 (-0.001 to +0.000) | +0.62 (+0.46 to +0.78) | 86-97-0, +18.53u | insufficient sample |
 
 **Card pool by source.** *Price*: one book is far enough off the other books that the consensus alone clears the floor (no model needed). *Model*: the value rests on the model disagreeing with the market.
 
-- Props, price: 533 bets, 239-294-0, -10.62u (ROI -0.02 (-0.11 to +0.07))
-- Props, model: 754 bets, 371-383-0, +3.62u (ROI +0.00 (-0.08 to +0.09))
-- Game lines, price: 10 bets, 0-10-0, -10.00u (ROI -1.00 (-1.00 to -1.00))
-- Game lines, model: 43 bets, 17-26-0, -7.33u (ROI -0.17 (-0.51 to +0.18))
+- Props, price: 599 bets, 261-338-0, -32.06u (ROI -0.05 (-0.15 to +0.04))
+- Props, model: 805 bets, 398-407-0, +8.50u (ROI +0.01 (-0.07 to +0.09))
+- Game lines, price: 11 bets, 0-11-0, -11.00u (ROI -1.00 (-1.00 to -1.00))
+- Game lines, model: 45 bets, 18-27-0, -6.98u (ROI -0.16 (-0.48 to +0.18))
 
 Proposed, not automatic: at least 150 graded games, the 10% blend beating the market on log loss with the whole 95% interval below zero, and the market moving toward the model with the whole interval above zero.
 
