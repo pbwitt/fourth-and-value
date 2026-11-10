@@ -47,7 +47,7 @@
       "reason": "Factual audit did not pass: Most of the article is supported by the evidence. The trade details, the Rapoport salary note, the CBS publication time, the TruMedia coverage numbers, the per-book quotes and juice, the 7:11 PM EST Monday comparison and Bovada's move, the 44.4/22.4/22.0 estimate, and the kickoff at 1:00 PM EST Sunday, Nov. 15 all match."
     },
     "1-nfl": {
-      "status": "started",
+      "status": "skipped",
       "model": "claude-sonnet-5-5",
       "audit_model": "claude-opus-5-5",
       "effort": "medium",
@@ -64,12 +64,38 @@
         "ready": true
       },
       "event_id": "1057d50949844ddf483da9c8c20354be",
-      "selection": "same_sport_fallback"
+      "selection": "same_sport_fallback",
+      "response_id": "msg_011CguERHpFc9ggNdMs1MwmY",
+      "usage": {
+        "input_tokens": 6311,
+        "output_tokens": 2138,
+        "web_search_requests": 0
+      },
+      "review_usage": {
+        "input_tokens": 7068,
+        "output_tokens": 944,
+        "web_search_requests": 0
+      },
+      "first_audit_reason": "Several passages need changes.\n\n1. Time-zone labels are wrong throughout. The Eastern-time reference labels every timestamp as EST, but the article prints EDT in:\n- \"As of 7:16 AM EDT Tuesday\"\n- \"Sunday 1:00 PM EDT game\"\n- \"7:14 AM EDT Tuesday\", \"7:13 AM EDT\" and \"7:15 AM and 7:14 AM EDT\"\n- \"7:11 PM EDT Monday\"\n- \"1:00 PM EDT Sunday kickoff\"\nAll must read EST.\n\n2. Two passages attribute facts to internal material rather than a named source and stated time:\n- \"none of which had been confirmed in our materials as of Tuesday morning\" should say what had not been announced as of 7:16 AM EST Tuesday.\n- \"the reporting we reviewed did not say\" should be restated the same way.\n\n3. \"The sample also predates Sunday's game\" is misleading. The estimate uses data through Nov. 9, so it may predate Buffalo's Monday night win, not a Sunday game. Rephrase accurately.\n\n4. The trade-deadline framing omits that CBS Sports said the deadline falls on Tuesday. \"The roster could change\" over the next five days should reflect that any deadline deals would occur Tuesday.\n\n5. The \"What the market shows\" section cites s1 and s3, but neither supports the price quotes. Remove the misattributed source citations there.",
+      "revision_response_id": "msg_011CguETBGRcEnxnejBa1Tq3",
+      "revision_usage": {
+        "input_tokens": 9135,
+        "output_tokens": 4393,
+        "web_search_requests": 0
+      },
+      "reason": "Extra data: line 3 column 1 (char 5648)"
     }
   },
   "last_writer_check": {
-    "at": "2026-11-10T12:15:14.000857+00:00",
-    "status": "started"
+    "at": "2026-11-10T12:17:34.306049+00:00",
+    "status": "completed",
+    "counts": {
+      "published": 0,
+      "review": 0,
+      "skipped": 2,
+      "started": 0,
+      "waiting_for_data": 0
+    }
   },
   "data_skips": {
     "NBA": "NBA has no validated model forecasts in its feed: Experimental NBA v1 forecast (shadow mode); not yet graded against prices",
