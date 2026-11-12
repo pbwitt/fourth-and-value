@@ -1,33 +1,33 @@
 # NBA v1 shadow model: prospective grading
 
-Model `nba-v1.0`, generated Wed, Nov 11, 2026, 5:03 PM EST. 145 of 145 tipped games graded through Nov 10; 13727 main-line and 28960 alternate-line forecasts.
+Model `nba-v1.0`, generated Thu, Nov 12, 2026, 6:49 AM EST. 155 of 155 tipped games graded through Nov 11; 14643 main-line and 30834 alternate-line forecasts.
 
 Log loss is lower-is-better; negative differences favor the model or blend. Movement is in probability points toward the model's earlier lean (positive means the market came to the model). The card pool is every offer that would have passed the NHL card's price rule, before research review and card caps.
 
 | Market | Games | Model − market | 10% blend − market | Market moved toward model | Card pool | Readiness |
 |---|---|---|---|---|---|---|
-| **All props** | 145 | +0.014 (+0.007 to +0.021) | -0.000 (-0.001 to +0.000) | +0.83 (+0.71 to +0.96) | 772-883-0, -38.38u | insufficient sample |
-| **All game lines** | 145 | +0.036 (+0.013 to +0.059) | +0.002 (-0.000 to +0.004) | +0.37 (+0.05 to +0.72) | 19-47-0, -24.13u | insufficient sample |
-| Moneyline | 145 | +0.053 (+0.019 to +0.085) | +0.003 (+0.000 to +0.006) | +0.66 (+0.08 to +1.26) | 9-40-0, -26.72u | insufficient sample |
-| Spread | 144 | +0.020 (-0.016 to +0.058) | -0.000 (-0.004 to +0.004) | +0.01 (-0.27 to +0.29) | 10-6-0, +3.59u | insufficient sample |
-| Game total | 143 | +0.035 (+0.010 to +0.062) | +0.002 (-0.000 to +0.005) | +0.12 (-0.22 to +0.52) | 0-1-0, -1.00u | insufficient sample |
-| Assists | 145 | +0.020 (+0.008 to +0.032) | -0.000 (-0.001 to +0.001) | +0.97 (+0.73 to +1.20) | 111-143-0, -17.60u | insufficient sample |
-| Blocks | 101 | +0.013 (-0.009 to +0.037) | -0.000 (-0.002 to +0.002) | +0.58 (+0.20 to +0.99) | 1-4-0, -3.07u | insufficient sample |
-| Points | 145 | +0.007 (-0.001 to +0.015) | -0.001 (-0.001 to +0.000) | +0.81 (+0.58 to +1.02) | 132-133-0, +6.25u | insufficient sample |
-| Points + assists | 145 | +0.013 (+0.003 to +0.024) | -0.000 (-0.001 to +0.001) | +0.88 (+0.69 to +1.08) | 31-44-0, -12.64u | insufficient sample |
-| Points + rebounds | 145 | +0.005 (-0.004 to +0.014) | -0.001 (-0.002 to -0.000) | +0.91 (+0.73 to +1.07) | 82-85-0, +0.71u | insufficient sample |
-| Points + rebounds + assists | 145 | +0.016 (+0.005 to +0.028) | -0.001 (-0.002 to +0.001) | +0.83 (+0.63 to +1.01) | 94-120-0, -23.45u | insufficient sample |
-| Rebounds | 145 | +0.019 (+0.010 to +0.029) | +0.000 (-0.001 to +0.001) | +0.96 (+0.78 to +1.15) | 129-139-0, -2.41u | insufficient sample |
-| Rebounds + assists | 145 | +0.025 (+0.010 to +0.040) | -0.000 (-0.001 to +0.001) | +0.85 (+0.62 to +1.08) | 94-91-0, +5.99u | insufficient sample |
-| Steals | 118 | +0.004 (-0.009 to +0.017) | -0.001 (-0.002 to +0.001) | +0.33 (+0.04 to +0.65) | 4-2-0, +2.02u | insufficient sample |
-| Threes made | 145 | +0.011 (+0.003 to +0.019) | -0.000 (-0.001 to +0.000) | +0.57 (+0.42 to +0.72) | 94-122-0, +5.83u | insufficient sample |
+| **All props** | 155 | +0.013 (+0.006 to +0.019) | -0.000 (-0.001 to +0.000) | +0.83 (+0.71 to +0.96) | 823-930-0, -22.29u | not supported |
+| **All game lines** | 155 | +0.036 (+0.013 to +0.060) | +0.002 (-0.000 to +0.004) | +0.39 (+0.05 to +0.71) | 20-50-0, -26.17u | not supported |
+| Moneyline | 155 | +0.053 (+0.023 to +0.085) | +0.004 (+0.000 to +0.007) | +0.71 (+0.13 to +1.27) | 9-43-0, -29.72u | not supported |
+| Spread | 154 | +0.024 (-0.006 to +0.058) | +0.000 (-0.003 to +0.004) | -0.00 (-0.28 to +0.27) | 10-6-0, +3.59u | not supported |
+| Game total | 153 | +0.032 (+0.007 to +0.058) | +0.002 (-0.000 to +0.004) | +0.09 (-0.24 to +0.43) | 1-1-0, -0.05u | not supported |
+| Assists | 155 | +0.019 (+0.008 to +0.032) | -0.000 (-0.001 to +0.001) | +0.98 (+0.76 to +1.21) | 117-146-0, -11.85u | not supported |
+| Blocks | 106 | +0.013 (-0.008 to +0.036) | +0.000 (-0.002 to +0.002) | +0.60 (+0.20 to +1.03) | 1-4-0, -3.07u | insufficient sample |
+| Points | 155 | +0.006 (-0.001 to +0.015) | -0.001 (-0.002 to +0.000) | +0.82 (+0.60 to +1.04) | 139-145-0, +2.12u | not supported |
+| Points + assists | 155 | +0.013 (+0.003 to +0.022) | -0.000 (-0.001 to +0.000) | +0.87 (+0.68 to +1.08) | 31-45-0, -13.64u | not supported |
+| Points + rebounds | 155 | +0.005 (-0.005 to +0.014) | -0.001 (-0.002 to -0.000) | +0.90 (+0.74 to +1.07) | 90-91-0, +3.26u | supported |
+| Points + rebounds + assists | 155 | +0.016 (+0.004 to +0.027) | -0.001 (-0.001 to +0.001) | +0.85 (+0.66 to +1.04) | 103-127-0, -20.49u | not supported |
+| Rebounds | 155 | +0.018 (+0.008 to +0.027) | +0.000 (-0.001 to +0.001) | +0.96 (+0.79 to +1.15) | 139-144-0, +4.37u | not supported |
+| Rebounds + assists | 155 | +0.023 (+0.009 to +0.036) | -0.000 (-0.001 to +0.001) | +0.82 (+0.61 to +1.05) | 98-96-0, +5.17u | not supported |
+| Steals | 127 | +0.002 (-0.011 to +0.015) | -0.001 (-0.002 to +0.000) | +0.31 (+0.03 to +0.62) | 4-2-0, +2.02u | insufficient sample |
+| Threes made | 155 | +0.010 (+0.002 to +0.018) | -0.000 (-0.001 to +0.000) | +0.55 (+0.41 to +0.70) | 101-130-0, +9.83u | not supported |
 
 **Card pool by source.** *Price*: one book is far enough off the other books that the consensus alone clears the floor (no model needed). *Model*: the value rests on the model disagreeing with the market.
 
-- Props, price: 713 bets, 310-403-0, -41.28u (ROI -0.06 (-0.14 to +0.02))
-- Props, model: 942 bets, 462-480-0, +2.90u (ROI +0.00 (-0.08 to +0.08))
-- Game lines, price: 15 bets, 0-15-0, -15.00u (ROI -1.00 (-1.00 to -1.00))
-- Game lines, model: 51 bets, 19-32-0, -9.13u (ROI -0.18 (-0.51 to +0.16))
+- Props, price: 769 bets, 339-430-0, -29.49u (ROI -0.04 (-0.11 to +0.05))
+- Props, model: 984 bets, 484-500-0, +7.20u (ROI +0.01 (-0.07 to +0.08))
+- Game lines, price: 16 bets, 0-16-0, -16.00u (ROI -1.00 (-1.00 to -1.00))
+- Game lines, model: 54 bets, 20-34-0, -10.17u (ROI -0.19 (-0.46 to +0.13))
 
 Proposed, not automatic: at least 150 graded games, the 10% blend beating the market on log loss with the whole 95% interval below zero, and the market moving toward the model with the whole interval above zero.
 
