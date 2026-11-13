@@ -1,6 +1,6 @@
 # NBA v1 shadow model: prospective grading
 
-Model `nba-v1.0`, generated Fri, Nov 13, 2026, 6:49 AM EST. 159 of 159 tipped games graded through Nov 12; 15059 main-line and 31333 alternate-line forecasts.
+Model `nba-v1.0`, generated Fri, Nov 13, 2026, 5:02 PM EST. 159 of 159 tipped games graded through Nov 12; 15059 main-line and 31333 alternate-line forecasts.
 
 Log loss is lower-is-better; negative differences favor the model or blend. Movement is in probability points toward the model's earlier lean (positive means the market came to the model). The card pool is every offer that would have passed the NHL card's price rule, before research review and card caps.
 
