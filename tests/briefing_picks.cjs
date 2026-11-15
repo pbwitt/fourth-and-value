@@ -285,16 +285,16 @@ console.log('PASS: cross-sport card order, comparable units, conservative NFL pr
 {
   const {blend,BLEND}=require('../docs/assets/briefing-picks.js');
   const lg=p=>Math.log(p/(1-p)),mix=(w,m,c)=>1/(1+Math.exp(-(w*lg(m)+(1-w)*lg(c))));
-  assert.deepEqual([BLEND.weights,BLEND.minEV,BLEND.highEV,BLEND.minBooks],[{NFL:.10,NHL:.10,MLB:.25,MLB_game:.10,NBA:.10},.01,.03,2]);
+  assert.deepEqual([BLEND.weights,BLEND.minEV,BLEND.highEV,BLEND.minBooks],[{NFL:.10,NHL:.10,MLB:.10,MLB_game:.10,NBA:.10},.01,.03,2]);
   // The brief's example: an SOG Under at -140, model 71%, market 52%. At 25% it blended to
   // about 57%; at NHL's 10% it is about 54%. Either way below the 58.3% break-even.
   const sog={sport:'NHL',price:-140,final_probability:.71,push_probability:0,market_probability:.52,other_books:4};
   const b=blend(sog);
   assert(Math.abs(b.final-mix(.10,.71,.52))<1e-12,b.final);assert(Math.abs(b.final-.5403)<5e-4);
   assert.equal(b.weight,.10);assert(b.ev<0);assert.equal(b.status,'below_threshold');
-  // MLB props keep 25%; MLB game lines and NFL props use 10%.
+  // From morning-edition-8 MLB props use 10% too (2026-11-15 refit: best weight 0 after October 12).
   const mlbRow={sport:'MLB',market:'pitcher_outs',price:140,model_probability:.532,model_push_probability:0,other_book_probability:.403,other_books:3};
-  assert.equal(blend(mlbRow).weight,.25);assert(Math.abs(blend(mlbRow).final-mix(.25,.532,.403))<1e-12);
+  assert.equal(blend(mlbRow).weight,.10);assert(Math.abs(blend(mlbRow).final-mix(.10,.532,.403))<1e-12);
   for(const market of ['h2h','spreads','totals'])assert.equal(blend({...mlbRow,market}).weight,.10,market);
   assert.equal(blend({sport:'NFL',price:110,model_prob:.6,push_prob:0,consensus_prob:.53,book_count:2}).weight,.10);
   // NBA reads MLB's field names at the NHL weight (game lines never reach collect(); see the NBA block).
@@ -351,7 +351,8 @@ console.log('PASS: cross-sport card order, comparable units, conservative NFL pr
   assert.match(rowHTML(readyRow(nhlPick)),/Weighted 10% model and 90% market/);
   assert.match(rowHTML(readyRow({...nhlPick,blend:{...nhlPick.blend,weight:.25}})),/Weighted 25% model and 75% market/);
   // Between 1% and 3%: a moderate-confidence pick, ranked after high-confidence picks.
-  g=fixture();Object.assign(g.MLB.rows[0],{price:-110,model_probability:.56,other_book_probability:.52});
+  // (MLB props at 10% from morning-edition-8: -105 now, -110 at the earlier 25%.)
+  g=fixture();Object.assign(g.MLB.rows[0],{price:-105,model_probability:.56,other_book_probability:.52});
   out=collect(g,now);
   const moderate=out.selected.find(r=>r.sport==='MLB');
   assert.equal(moderate.blend.confidence,'moderate');assert(moderate.blend.ev>=.01&&moderate.blend.ev<.03);
@@ -359,24 +360,24 @@ console.log('PASS: cross-sport card order, comparable units, conservative NFL pr
   assert.match(out.coverage.find(c=>c.sport==='MLB').message,/1 review candidate \(0 high, 1 moderate confidence\)/);
   assert.match(rowHTML(moderate),/Experimental · Moderate confidence · /);
   assert.match(rowHTML(moderate),/· Moderate confidence<\/span>/);
-  assert.match(rowHTML(readyRow(moderate)),/Weighted 25% model and 75% market, .* so it is a moderate-confidence pick/);
+  assert.match(rowHTML(readyRow(moderate)),/Weighted 10% model and 90% market, .* so it is a moderate-confidence pick/);
   // On the card, a high-confidence pick precedes a moderate one even with a larger log-growth score.
   const hi=readyRow({...moderate,player:'High',market:'pitcher_outs',blend:{...moderate.blend,confidence:'high',final:.53}});
   const mo=readyRow({...moderate,player:'Moderate',blend:{...moderate.blend,final:.6}});
   assert.deepEqual(shortlist([mo,hi],now).map(r=>r.player),['High','Moderate']);
   // Below the 1% floor but positive: excluded from picks, offered as that sport's lean.
-  g=fixture();Object.assign(g.MLB.rows[0],{price:-112,model_probability:.56,other_book_probability:.52});
+  g=fixture();Object.assign(g.MLB.rows[0],{price:-108,model_probability:.56,other_book_probability:.52});
   out=collect(g,now);
   assert(!out.selected.some(r=>r.sport==='MLB'));
   assert.deepEqual(out.leans.map(r=>r.sport),['MLB']);assert(out.leans[0].blend.ev>0&&out.leans[0].blend.ev<.01);
   assert.match(out.coverage.find(c=>c.sport==='MLB').message,/1 below the 1% market-blend floor/);
   // A worse price for an outcome already picked is not a lean.
-  g=fixture();g.MLB.rows.push({...g.MLB.rows[0],book:'worse',price:-112,model_probability:.56,other_book_probability:.52});
+  g=fixture();g.MLB.rows.push({...g.MLB.rows[0],book:'worse',price:-108,model_probability:.56,other_book_probability:.52});
   Object.assign(g.MLB.rows[0],{model_probability:.56,other_book_probability:.52});
   out=collect(g,now);
   assert.equal(out.selected.filter(r=>r.sport==='MLB').length,1);assert.equal(out.leans.length,0);
   // Nor is another side or line of a listed market.
-  g=fixture();g.MLB.rows.push({...g.MLB.rows[0],side:'Under',line:3.5,book:'other',price:-112,model_probability:.56,other_book_probability:.52});
+  g=fixture();g.MLB.rows.push({...g.MLB.rows[0],side:'Under',line:3.5,book:'other',price:-108,model_probability:.56,other_book_probability:.52});
   assert.equal(collect(g,now).leans.length,0);
   // Negative after the blend: no lean.
   g=fixture();Object.assign(g.MLB.rows[0],{price:-130,model_probability:.56,other_book_probability:.52});
@@ -384,7 +385,7 @@ console.log('PASS: cross-sport card order, comparable units, conservative NFL pr
   // Tickets record what the pick was decided on, at the price actually taken.
   const pick=collect(fixture(),now).selected.find(r=>r.sport==='MLB');
   const t=ticketData(pick,105,10);
-  assert.equal(t.market_prob,.52);assert.equal(t.blend_weight,.25);assert(Math.abs(t.final_prob-pick.blend.final)<1e-12);
+  assert.equal(t.market_prob,.52);assert.equal(t.blend_weight,.10);assert(Math.abs(t.final_prob-pick.blend.final)<1e-12);
   assert(Math.abs(t.expected_value-(pick.blend.final*2.05-1))<1e-12);assert.equal(t.decision_at,pick.forecast_at);
   assert.match(rowHTML(pick),/Blended \d+\.\d% · \+\d+\.\d% expected value/);
   const research=ticketData({...pick,blend:undefined},110,10);
@@ -498,11 +499,61 @@ console.log('PASS: afternoon price check, afternoon editions and the afternoon a
   assert.equal(pinnacleIndex(feed,'2026-10-23'),null,'another day’s snapshot is never shown');
   assert.equal(pinnacleIndex({...feed,status:'unavailable'},'2026-10-24'),null);
   assert.equal(pinnacleIndex(feed,null),null);
-  assert.match(pinnacleHTML(pinnacleFor(nhl,ref)),/Pinnacle 43\.2%<\/strong> no-vig at 7:09 AM ET · sharp reference, not used to choose picks/);
+  assert.match(pinnacleHTML(pinnacleFor(nhl,ref)),/Pinnacle 43\.2%<\/strong> no-vig at 7:09 AM ET · sharp reference, not used in this pick/,'a blend without Pinnacle (older editions) says so');
   assert.match(pinnacleHTML(pinnacleFor({...nhl,line:1.5},ref)),/Pinnacle had not posted this line at 7:09 AM ET/);
   assert.equal(pinnacleHTML(null),'');
 }
 console.log('PASS: Pinnacle reference matches exact lines, labels unposted lines only when asked and ignores other days.');
+// Policy morning-edition-8: where a fresh same-day snapshot posts the exact line, the market term
+// mixes Pinnacle into the US median in log-odds, 20% for props and 50% for game lines. The blend's
+// `market` stays the US median (tickets, closing-line value); the mixed value is `market_blend`.
+{
+  const {blend,PINNACLE,pinnacleHTML,collect,ticketData,day}=require('../docs/assets/briefing-picks.js');
+  const lg=p=>Math.log(p/(1-p)),mix=(w,a,b)=>1/(1+Math.exp(-(w*lg(a)+(1-w)*lg(b))));
+  assert.deepEqual([PINNACLE.props,PINNACLE.games,PINNACLE.maxAge],[.20,.50,3*3600e3]);
+  // November 15, 2026: Javonte Williams under 2.5 receptions at +136. US median 42.8%, Pinnacle
+  // 45.3%, model 54.1%. The market term becomes 43.3% and the blend 44.4%, +4.7% expected value.
+  const williams={sport:'NFL',market:'receptions',price:136,model_prob:.540881,push_prob:0,consensus_prob:.427775,book_count:4};
+  const plain=blend(williams),sharp=blend({...williams,pinnacle:{status:'posted',probability:.452869}});
+  assert(Math.abs(plain.final-.4389)<5e-4&&Math.abs(plain.ev-.0359)<5e-4,'US median alone: the published 43.9%, +3.6%');
+  assert.equal(plain.pinnacle_share,undefined);
+  assert(Math.abs(sharp.market_blend-mix(.20,.452869,.427775))<1e-12);assert(Math.abs(sharp.market_blend-.4328)<5e-4);
+  assert(Math.abs(sharp.final-mix(.10,.540881,sharp.market_blend))<1e-12);assert(Math.abs(sharp.ev-.0466)<5e-4);
+  assert.deepEqual([sharp.market,sharp.pinnacle,sharp.pinnacle_share,sharp.status,sharp.confidence],[.427775,.452869,.20,'qualifies','high']);
+  // Game lines take half; "not posted" and missing probabilities leave the US median alone.
+  const line={sport:'NHL',market:'h2h',price:120,final_probability:.50,push_probability:0,market_probability:.44,other_books:3};
+  assert(Math.abs(blend({...line,pinnacle:{status:'posted',probability:.48}}).market_blend-mix(.5,.48,.44))<1e-12);
+  assert.equal(blend({...line,pinnacle:{status:'not_posted'}}).market_blend,undefined);
+  assert.equal(blend({...line,pinnacle:{status:'posted',probability:null}}).market_blend,undefined);
+  // The model must reach the mixed market: 47% clears the US 44% but not Pinnacle-led 45.9%.
+  const below=blend({...line,final_probability:.45,pinnacle:{status:'posted',probability:.52}});
+  assert.equal(below.status,'model_below_market');assert(below.market_blend>.45&&below.market===.44);
+  // Tickets keep the US median as market_prob, so closing-line value still compares US with US.
+  const t=ticketData({...williams,game:'San Francisco 49ers @ Dallas Cowboys',home_team:'Dallas Cowboys',away_team:'San Francisco 49ers',
+    commence_time:'2026-11-15T21:25:00Z',player:'Javonte Williams',side:'under',line:2.5,book:'draftkings',market_std:'receptions',blend:sharp},136,10);
+  assert.equal(t.market_prob,.427775);assert.equal(t.final_prob,sharp.final);
+  // Labels follow the pick's own blend.
+  const p={status:'posted',probability:.452869,checked_at:'2026-11-15T12:14:21Z'};
+  assert.match(pinnacleHTML(p,sharp),/Pinnacle 45\.3%<\/strong> no-vig at 7:14 AM ET · counted at 20% of the market: 43\.3%/);
+  assert.match(pinnacleHTML(p,plain),/sharp reference, not used in this pick/);
+  // collect(): a same-day snapshot under three hours old joins; an older or other-day one does not.
+  const at=Date.parse('2026-11-15T12:20:00Z'),iso=t=>new Date(t).toISOString();
+  const feeds=t0=>({NFL:{schema_version:1,status:'ready',generated_at:iso(at),rows:[{game:'San Francisco 49ers @ Dallas Cowboys',
+      game_id:'evt',commence_time:'2026-11-15T21:25:00Z',player:'Javonte Williams',bookmaker:'draftkings',book_label:'DraftKings',
+      market_std:'receptions',market_label:'Receptions',name:'under',point:2.5,price:136,last_update:iso(at-60e3),model_prob:.540881,
+      push_prob:0,mu:2.33,consensus_prob:.427775,consensus_line:2.5,book_count:4,model_status:'Calibration fitted · historical',edge_bps:1000}]},
+    Pinnacle:{schema_version:1,status:'recorded',decision_date:day(t0),generated_at:iso(t0),checked_games:['NFL'],checked_events:['evt'],
+      lines:[{sport:'NFL',event_id:'evt',market:'player_receptions',market_std:'receptions',player:'Javonte Williams',side:'Under',line:2.5,probability:.452869}]}});
+  const pick=f=>collect(f,at).selected.find(r=>r.player==='Javonte Williams');
+  const fresh=pick(feeds(at-6*60e3));
+  assert.equal(fresh.pinnacle.status,'posted');assert.equal(fresh.blend.pinnacle_share,.20);assert(Math.abs(fresh.blend.ev-.0466)<5e-4);
+  const stale=pick(feeds(at-3*3600e3-1));
+  assert.equal(stale.pinnacle,undefined,'over three hours old: afternoon editions use the US median');assert(Math.abs(stale.blend.ev-.0359)<5e-4);
+  const yesterday=feeds(at-60e3);yesterday.Pinnacle.decision_date='2026-11-14';
+  assert.equal(pick(yesterday).blend.pinnacle_share,undefined,'another day’s snapshot never enters');
+  const none=feeds(at);delete none.Pinnacle;assert.equal(pick(none).blend.pinnacle_share,undefined,'no snapshot: US median alone');
+}
+console.log('PASS: Pinnacle enters the market term at 20% for props and 50% for game lines only while fresh, and tickets keep the US median.');
 
 // NBA player props join the card with policy morning-edition-7: MLB-style fields, the 6:45 a.m.
 // refresh's two-hour expiry, props only, the feed's own model version and no listed-out players.

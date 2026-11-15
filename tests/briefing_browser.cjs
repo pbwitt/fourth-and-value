@@ -219,13 +219,14 @@ const server=http.createServer((req,res)=>{
     const card={schema_version:1,kind:'test',decision_date:'2026-09-27',published_at:new Date(now).toISOString(),rows:shortlist(collect(feeds,now).selected,now)};
     feeds={Card:card};await page.reload();await page.waitForSelector('#daily-picks-rows [data-track-pick]');
     assert.doesNotMatch(await page.locator('#daily-picks-rows').textContent(),/Pinnacle/,'no snapshot: no Pinnacle line');
-    // Pinnacle's morning reference sits beside the morning pick and never changes the card.
+    // A snapshot the edition's blend did not use sits beside the pick as a reference only and
+    // never changes the published card (from morning-edition-8 a fresh one enters collect()).
     const pick=card.rows[0],event=pick.event_id||pick.game_id;
     feeds.Pinnacle={schema_version:1,status:'recorded',decision_date:'2026-09-27',generated_at:new Date(now-60e3).toISOString(),
       checked_games:[],checked_events:[String(event)],lines:[{sport:pick.sport,event_id:event,market:pick.market,market_std:pick.market_std,
       player:pick.player,side:pick.side,line:pick.line,probability:0.512}]};
     await page.reload();await page.waitForFunction(()=>document.getElementById('daily-picks-rows').textContent.includes('Pinnacle'));
-    assert.match(await page.locator('#daily-picks-rows').textContent(),/Pinnacle 51\.2% no-vig at .* ET · sharp reference, not used to choose picks/);
+    assert.match(await page.locator('#daily-picks-rows').textContent(),/Pinnacle 51\.2% no-vig at .* ET · sharp reference, not used in this pick/);
     assert.equal(await page.locator('#daily-picks-rows [data-track-pick]').count(),1,'the reference adds no picks');
     // The owner email's "I placed this" link opens Track bet for that pick of the same
     // edition with the suggested stake, once; a link from another edition opens nothing.

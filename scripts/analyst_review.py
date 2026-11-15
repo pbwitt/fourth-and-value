@@ -101,6 +101,9 @@ def load_feeds():
                            ('NFLContext', 'docs/props/model-context.json'), ('NFLGames','docs/nfl/data/quotes.json'), ('NFLGameModels','docs/nfl/data/latest.json'),
                            ('NHL','docs/nhl/data/latest.json'), ('NHLBoard','docs/nhl/data/candidates.json'),
                            ('NBA','docs/nba/data/latest.json'),
+                           # Morning Pinnacle snapshot: enters the market term while under three
+                           # hours old (policy morning-edition-8, briefing-picks.js PINNACLE).
+                           ('Pinnacle','docs/briefing/pinnacle.json'),
                            ('Reviews','docs/briefing/reviews.json'), ('Discovery','docs/briefing/discovery.json')]:
         try:
             feeds[sport] = json.loads((ROOT/relative).read_text())

@@ -104,7 +104,7 @@ class MorningCardTests(unittest.TestCase):
             value=card.publish_card(empty_feeds(),reviews,NOW+timedelta(minutes=2),root=root)
             self.assertEqual(value['status'],'research_incomplete')
             self.assertEqual(value['research']['issues'],['NFL: no completed assessments (daily research allowance reached)'])
-            self.assertEqual(value['policy_version'],'morning-edition-7')
+            self.assertEqual(value['policy_version'],'morning-edition-8')
 
     def test_reused_fresh_nfl_refresh_is_not_a_failure(self):
         # A recovery start reuses a recent NFL refresh instead of buying it again.

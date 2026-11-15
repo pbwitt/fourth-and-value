@@ -67,8 +67,11 @@ jobs:
     if: needs.gate.outputs.refresh == 'true'
     uses: ./.github/workflows/nhl-daily.yml
     secrets: inherit
+  # Research waits for the Pinnacle snapshot: from policy morning-edition-8 a fresh snapshot
+  # enters the market term (docs/assets/briefing-picks.js PINNACLE). A skipped or failed
+  # snapshot leaves the US median alone; it never blocks the edition.
   research:
-    needs: [gate, nfl, mlb, nhl]
+    needs: [gate, nfl, mlb, nhl, pinnacle]
     if: always() && !cancelled() && needs.gate.result == 'success'
     uses: ./.github/workflows/analyst-daily.yml
     with:
@@ -76,8 +79,8 @@ jobs:
       replace_card: ${{ inputs.replace_card || false }}
       refresh_results: '{"NFL":"${{ needs.gate.outputs.refresh == ''true'' && needs.gate.outputs.refresh_nfl == ''false'' && ''reused_fresh'' || needs.nfl.result }}","MLB":"${{ needs.mlb.result }}","NHL":"${{ needs.nhl.result }}"}'
     secrets: inherit
-  # Record only: Pinnacle prices for the Step 2c refit. It runs beside research and
-  # never feeds the card; a failure is a warning, not a failed edition.
+  # Pinnacle prices for the events in our feeds. From policy morning-edition-8 the snapshot
+  # runs before research and enters the market term; a failure is a warning, not a failed edition.
   pinnacle:
     needs: [gate, nfl, mlb, nhl]
     if: always() && !cancelled() && needs.gate.result == 'success' && needs.gate.outputs.refresh == 'true' && !inputs.test_edition
