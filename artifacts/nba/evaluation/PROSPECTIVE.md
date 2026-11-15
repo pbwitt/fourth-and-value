@@ -1,33 +1,33 @@
 # NBA v1 shadow model: prospective grading
 
-Model `nba-v1.0`, generated Sat, Nov 14, 2026, 5:03 PM EST. 168 of 168 tipped games graded through Nov 13; 15967 main-line and 33237 alternate-line forecasts.
+Model `nba-v1.0`, generated Sun, Nov 15, 2026, 6:49 AM EST. 173 of 173 tipped games graded through Nov 14; 16369 main-line and 34131 alternate-line forecasts.
 
 Log loss is lower-is-better; negative differences favor the model or blend. Movement is in probability points toward the model's earlier lean (positive means the market came to the model). The card pool is every offer that would have passed the NHL card's price rule, before research review and card caps.
 
 | Market | Games | Model − market | 10% blend − market | Market moved toward model | Card pool | Readiness |
 |---|---|---|---|---|---|---|
-| **All props** | 168 | +0.012 (+0.006 to +0.018) | -0.000 (-0.001 to +0.000) | +0.84 (+0.72 to +0.96) | 863-984-0, -33.50u | not supported |
-| **All game lines** | 168 | +0.038 (+0.016 to +0.059) | +0.002 (-0.000 to +0.004) | +0.38 (+0.06 to +0.71) | 20-53-0, -29.17u | not supported |
-| Moneyline | 168 | +0.051 (+0.024 to +0.081) | +0.003 (+0.001 to +0.006) | +0.74 (+0.21 to +1.28) | 9-46-0, -32.72u | not supported |
-| Spread | 167 | +0.029 (-0.001 to +0.064) | +0.001 (-0.003 to +0.004) | -0.01 (-0.27 to +0.24) | 10-6-0, +3.59u | not supported |
-| Game total | 166 | +0.032 (+0.008 to +0.055) | +0.002 (-0.000 to +0.004) | +0.05 (-0.25 to +0.34) | 1-1-0, -0.05u | not supported |
-| Assists | 168 | +0.017 (+0.007 to +0.029) | -0.000 (-0.001 to +0.000) | +0.99 (+0.78 to +1.21) | 125-152-0, -8.56u | not supported |
-| Blocks | 115 | +0.012 (-0.007 to +0.033) | -0.000 (-0.002 to +0.002) | +0.62 (+0.26 to +1.02) | 1-4-0, -3.07u | insufficient sample |
-| Points | 168 | +0.007 (-0.001 to +0.015) | -0.001 (-0.001 to +0.000) | +0.84 (+0.65 to +1.02) | 146-155-0, -0.22u | not supported |
-| Points + assists | 168 | +0.012 (+0.003 to +0.021) | -0.000 (-0.001 to +0.000) | +0.87 (+0.69 to +1.06) | 31-47-0, -15.64u | not supported |
-| Points + rebounds | 168 | +0.005 (-0.003 to +0.014) | -0.001 (-0.002 to -0.000) | +0.90 (+0.74 to +1.06) | 93-98-0, -0.69u | supported |
-| Points + rebounds + assists | 168 | +0.015 (+0.004 to +0.025) | -0.001 (-0.001 to +0.000) | +0.83 (+0.63 to +1.02) | 108-132-0, -20.36u | not supported |
-| Rebounds | 168 | +0.015 (+0.007 to +0.025) | -0.000 (-0.001 to +0.001) | +0.99 (+0.81 to +1.18) | 147-152-0, +4.79u | not supported |
-| Rebounds + assists | 168 | +0.021 (+0.008 to +0.035) | -0.000 (-0.001 to +0.001) | +0.83 (+0.61 to +1.05) | 103-100-0, +5.40u | not supported |
-| Steals | 140 | -0.000 (-0.014 to +0.014) | -0.001 (-0.002 to +0.000) | +0.33 (+0.06 to +0.60) | 4-2-0, +2.02u | insufficient sample |
-| Threes made | 168 | +0.011 (+0.004 to +0.018) | -0.000 (-0.001 to +0.000) | +0.58 (+0.44 to +0.72) | 105-142-0, +2.85u | not supported |
+| **All props** | 173 | +0.012 (+0.006 to +0.019) | -0.000 (-0.001 to +0.000) | +0.85 (+0.73 to +0.96) | 873-1009-0, -48.76u | not supported |
+| **All game lines** | 173 | +0.037 (+0.016 to +0.059) | +0.002 (-0.000 to +0.004) | +0.37 (+0.06 to +0.71) | 22-54-0, -27.51u | not supported |
+| Moneyline | 173 | +0.052 (+0.022 to +0.079) | +0.003 (+0.001 to +0.006) | +0.72 (+0.16 to +1.27) | 10-47-0, -32.01u | not supported |
+| Spread | 172 | +0.028 (-0.002 to +0.061) | +0.001 (-0.002 to +0.004) | -0.01 (-0.29 to +0.24) | 11-6-0, +4.54u | not supported |
+| Game total | 171 | +0.030 (+0.006 to +0.056) | +0.002 (-0.000 to +0.004) | +0.02 (-0.25 to +0.32) | 1-1-0, -0.05u | not supported |
+| Assists | 173 | +0.018 (+0.008 to +0.029) | -0.000 (-0.001 to +0.001) | +1.00 (+0.77 to +1.23) | 126-156-0, -11.82u | not supported |
+| Blocks | 116 | +0.012 (-0.008 to +0.033) | -0.000 (-0.002 to +0.002) | +0.61 (+0.26 to +1.01) | 1-4-0, -3.07u | insufficient sample |
+| Points | 173 | +0.007 (-0.001 to +0.014) | -0.001 (-0.001 to +0.000) | +0.83 (+0.64 to +1.02) | 148-160-0, -3.23u | not supported |
+| Points + assists | 173 | +0.012 (+0.002 to +0.021) | -0.000 (-0.001 to +0.000) | +0.86 (+0.66 to +1.05) | 32-47-0, -14.69u | not supported |
+| Points + rebounds | 173 | +0.005 (-0.003 to +0.013) | -0.001 (-0.002 to -0.000) | +0.88 (+0.73 to +1.03) | 95-102-0, -2.54u | supported |
+| Points + rebounds + assists | 173 | +0.015 (+0.005 to +0.026) | -0.000 (-0.001 to +0.000) | +0.83 (+0.64 to +1.03) | 109-136-0, -23.39u | not supported |
+| Rebounds | 173 | +0.016 (+0.008 to +0.025) | -0.000 (-0.001 to +0.001) | +1.00 (+0.81 to +1.18) | 148-155-0, +2.76u | not supported |
+| Rebounds + assists | 173 | +0.021 (+0.009 to +0.034) | -0.000 (-0.001 to +0.001) | +0.84 (+0.62 to +1.06) | 105-102-0, +5.36u | not supported |
+| Steals | 144 | +0.001 (-0.012 to +0.014) | -0.001 (-0.002 to +0.000) | +0.39 (+0.11 to +0.69) | 4-2-0, +2.02u | insufficient sample |
+| Threes made | 173 | +0.012 (+0.005 to +0.019) | -0.000 (-0.001 to +0.001) | +0.59 (+0.45 to +0.73) | 105-145-0, -0.15u | not supported |
 
 **Card pool by source.** *Price*: one book is far enough off the other books that the consensus alone clears the floor (no model needed). *Model*: the value rests on the model disagreeing with the market.
 
-- Props, price: 824 bets, 361-463-0, -37.33u (ROI -0.05 (-0.12 to +0.04))
-- Props, model: 1023 bets, 502-521-0, +3.83u (ROI +0.00 (-0.07 to +0.07))
+- Props, price: 841 bets, 364-477-0, -48.18u (ROI -0.06 (-0.14 to +0.02))
+- Props, model: 1041 bets, 509-532-0, -0.58u (ROI -0.00 (-0.08 to +0.08))
 - Game lines, price: 16 bets, 0-16-0, -16.00u (ROI -1.00 (-1.00 to -1.00))
-- Game lines, model: 57 bets, 20-37-0, -13.17u (ROI -0.23 (-0.51 to +0.07))
+- Game lines, model: 60 bets, 22-38-0, -11.51u (ROI -0.19 (-0.50 to +0.13))
 
 Proposed, not automatic: at least 150 graded games, the 10% blend beating the market on log loss with the whole 95% interval below zero, and the market moving toward the model with the whole interval above zero.
 
