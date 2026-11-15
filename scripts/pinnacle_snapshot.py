@@ -1,15 +1,16 @@
-"""Record-only Pinnacle snapshot, taken after the morning sports refreshes.
+"""Morning Pinnacle snapshot, taken after the sports refreshes and before research.
 
-Our feeds request regions=us, so the market blend has never seen Pinnacle. Each
-morning this records Pinnacle's game lines and the props our feeds request, for the
-events in our own feeds that start within 36 hours, so the split between Pinnacle and
-the US-book median can be fitted against graded results (docs/model-improvement-plan.md,
-Step 2c). A one-market probe naming ten bookmakers records whether The Odds API bills
-them as one region. Nothing recorded here enters a model or a pick. From October 24, 2026 a small
-public file (docs/briefing/pinnacle.json) gives Pinnacle's no-vig chance for the lines in our feeds,
-shown beside morning picks as a sharp reference only; it never selects, ranks or reprices a pick.
+Our feeds request regions=us, so this is the only place Pinnacle is priced. Each morning it
+records Pinnacle's game lines and the props our feeds request, for the events in our own feeds
+that start within 36 hours (artifacts/pinnacle/snapshots/), and writes a small public file
+(docs/briefing/pinnacle.json) with Pinnacle's no-vig chance for the lines in our feeds. From
+policy morning-edition-8 the selector (docs/assets/briefing-picks.js PINNACLE) mixes that chance
+into the market term while the file is under three hours old: 20% for player props, 50% for game
+lines (reports/pinnacle-refit/2026-11-15). The research snapshot itself never enters a pick.
+A one-market probe naming ten bookmakers records whether The Odds API bills them as one region.
 Paid requests go through the shared credit budget as an optional job (scripts/odds_budget.py),
-leaving the sports refreshes their reserve, and the run stops at --max-credits. One snapshot per Eastern date; later starts skip.
+leaving the sports refreshes their reserve, and the run stops at --max-credits. One snapshot per
+Eastern date; later starts skip.
 """
 import argparse
 import json
@@ -193,7 +194,7 @@ def report(result):
     probe_result = result['billing_probe'] or {}
     billed = {True: 'yes', False: 'no', None: 'not established'}[probe_result.get('billed_as_one_region')]
     lines = [f"## Pinnacle snapshot, {eastern_time(result['generated_at'])}", '',
-             f"Record only. Credits charged: {result['credits_spent']:.0f}; balance after: {result['credits_remaining']}. "
+             f"Credits charged: {result['credits_spent']:.0f}; balance after: {result['credits_remaining']}. "
              f"Ten named bookmakers billed as one region: {billed}.", '',
              '| Sport | Market | Events | Pinnacle events | Pinnacle outcomes | Our outcomes | Same exact line |',
              '|---|---|---|---|---|---|---|']
@@ -224,7 +225,7 @@ def no_vig(quotes):
 
 
 def public_reference(quotes, ours, checked, now):
-    """The public sharp reference: Pinnacle's no-vig chance for the outcomes in our own feeds."""
+    """The public file: Pinnacle's no-vig chance for the outcomes in our own feeds (market term while fresh)."""
     fair = no_vig(quotes)
     wanted = {identity(q) for outcomes in ours.values() for q in outcomes}
     lines = [dict(sport=q['sport'], event_id=q['event_id'], market=q['market'],
@@ -233,13 +234,13 @@ def public_reference(quotes, ours, checked, now):
              for q in quotes if identity(q) in fair and identity(q) in wanted]
     checked_any = bool(checked['games'] or checked['props'])
     return dict(schema_version=1, generated_at=now.isoformat(), decision_date=now.astimezone(EASTERN).date().isoformat(),
-                status='recorded' if checked_any else 'unavailable', use='reference_only',
+                status='recorded' if checked_any else 'unavailable', use='market_term_when_fresh',
                 basis='Pinnacle two-sided prices at the same line, vig removed proportionally',
                 checked_games=sorted(checked['games']), checked_events=sorted(set(checked['props'])), lines=lines)
 
 
 def snapshot(client, budget, root, now, sports):
-    """The record-only research snapshot, and the public sharp reference built from it."""
+    """The research snapshot, and the public Pinnacle file the selector reads, built from it."""
     quotes, ours, asked, probed, checked = run(client, root, now, sports)
     public = public_reference(quotes, ours, checked, now)
     return dict(schema_version=1, generated_at=now.isoformat(), decision_date=now.astimezone(EASTERN).date().isoformat(),
@@ -256,7 +257,7 @@ def main():
     parser.add_argument('--sports', default=','.join(SPORTS))
     parser.add_argument('--max-credits', type=int, default=250)
     parser.add_argument('--out-dir', default='artifacts/pinnacle/snapshots')
-    parser.add_argument('--public', default='docs/briefing/pinnacle.json', help='Public sharp-reference file')
+    parser.add_argument('--public', default='docs/briefing/pinnacle.json', help='Public Pinnacle no-vig file read by the selector')
     parser.add_argument('--force', action='store_true', help='Replace an existing snapshot for this Eastern date')
     args = parser.parse_args()
     now = datetime.now(timezone.utc)

@@ -31,7 +31,7 @@ class PublicReference(unittest.TestCase):
                   quote('player_receptions', 'Over', 2.5, -151, 'X Y', 'e2', 'NFL')]
         ours = {'NHL': [quote('player_assists', 'Over', 0.5, 300, 'A B')], 'NFL': [quote('player_receptions', 'Under', 2.5, 120, 'X Y', 'e2', 'NFL')]}
         public = ps.public_reference(quotes, ours, dict(games=['NHL'], props=['e1', 'e2']), NOW)
-        self.assertEqual((public['status'], public['decision_date'], public['use']), ('recorded', '2026-10-24', 'reference_only'))
+        self.assertEqual((public['status'], public['decision_date'], public['use']), ('recorded', '2026-10-24', 'market_term_when_fresh'))
         self.assertEqual([(r['market'], r['side']) for r in public['lines']], [('player_assists', 'Over'), ('player_receptions', 'Under')],
                          'only outcomes our feeds carry are published')
         self.assertEqual(public['lines'][1]['market_std'], 'receptions')

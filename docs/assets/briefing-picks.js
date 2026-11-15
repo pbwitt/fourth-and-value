@@ -80,7 +80,19 @@
   // price alone is a Market Watch signal, not a pick. Expected value refunds pushes.
   // NBA gets the NHL weight its shadow grade scores (scripts/nba/grade_shadow.py). From
   // policy morning-edition-7 its player props enter collect(); game lines stay out (below).
-  const BLEND={version:'market-blend-3',weights:{NFL:.10,NHL:.10,MLB:.25,MLB_game:.10,NBA:.10},minEV:.01,highEV:.03,maxEV:.30,minBooks:2};
+  // Policy morning-edition-8 (market-blend-4, 2026-11-15 refit, reports/pinnacle-refit/2026-11-15):
+  // MLB player props drop from 0.25 to 0.10 (best weight 0 after October 12); the others keep
+  // 0.10, inside every fitted range although each best point estimate was 0.
+  const BLEND={version:'market-blend-4',weights:{NFL:.10,NHL:.10,MLB:.10,MLB_game:.10,NBA:.10},minEV:.01,highEV:.03,maxEV:.30,minBooks:2};
+  // Pinnacle in the market term (same refit). Where the morning Pinnacle snapshot posts the
+  // exact line, the market is a log-odds mix of Pinnacle's no-vig chance and the US median:
+  // 20% Pinnacle for player props, 50% for game lines. By game time the US median closed about
+  // that share of its gap to Pinnacle's 7 a.m. price (props: NFL 0.18, NHL 0.20, NBA 0.24; NHL
+  // game lines 0.54); on results alone the two scored the same. A snapshot counts only within
+  // three hours of being taken, so afternoon editions, price checks and the boards use the US
+  // median alone. The blend's `market` stays the US median (tickets, closing-line value); the
+  // mixed value is `market_blend`.
+  const PINNACLE={props:.20,games:.50,maxAge:3*HOUR};
   const GAME_MARKETS=['h2h','spreads','totals'];
   // Sports on the card, in collect() and summary order. NBA joined with policy morning-edition-7.
   const SPORTS=['NFL','MLB','NHL','NBA'];
@@ -94,12 +106,18 @@
     // NFL's book_count includes the offered book; MLB/NHL count only the other books.
     const lineBooks=finite(c.books)?c.books+(r.sport==='NFL'?0:1):null;
     if(c.market===null||lineBooks===null||lineBooks<BLEND.minBooks)return {status:'thin_market',model,market:c.market,books:c.books};
-    if(model<c.market)return {status:'model_below_market',version:BLEND.version,weight,model,market:c.market,books:c.books,line_books:lineBooks};
-    const final=sigmoid(weight*logit(clip(model))+(1-weight)*logit(clip(c.market)));
+    const sharp=r.pinnacle?.status==='posted'&&probability(r.pinnacle.probability)?r.pinnacle.probability:null;
+    const share=sharp===null?0:GAME_MARKETS.includes(r.market)?PINNACLE.games:PINNACLE.props;
+    const market=share?sigmoid(share*logit(clip(sharp))+(1-share)*logit(clip(c.market))):c.market;
+    const sharpFields=share?{pinnacle:sharp,pinnacle_share:share,market_blend:market}:{};
+    if(model<market)return {status:'model_below_market',version:BLEND.version,weight,model,market:c.market,...sharpFields,books:c.books,line_books:lineBooks};
+    const final=sigmoid(weight*logit(clip(model))+(1-weight)*logit(clip(market)));
     const ev=(1-(c.push??0))*(final*decimal(r.price)-1);
     return {status:ev>=BLEND.minEV?'qualifies':'below_threshold',confidence:ev>=BLEND.highEV?'high':ev>=BLEND.minEV?'moderate':null,
-      version:BLEND.version,weight,model,market:c.market,books:c.books,line_books:lineBooks,final,ev,threshold:BLEND.minEV};
+      version:BLEND.version,weight,model,market:c.market,...sharpFields,books:c.books,line_books:lineBooks,final,ev,threshold:BLEND.minEV};
   }
+  // The market the blend actually used: the US median, or its mix with Pinnacle.
+  const blendMarket=b=>probability(b?.market_blend)?b.market_blend:b?.market;
   const signedPct=n=>(n>=0?'+':'')+(100*n).toFixed(1)+'%';
   const barPct=n=>(100*n).toFixed(0)+'%';
   // Editions published before the tiers carry no label; their blended picks all cleared 3%.
@@ -118,7 +136,7 @@
   const boardTier=b=>b?.status==='qualifies'?(b.ev>BLEND.maxEV?1:0):b?.status==='below_threshold'?2:3;
   const boardOrder=(a,b)=>boardTier(a)-boardTier(b)||(boardTier(a)<3?b.ev-a.ev:0);
   function boardBlendHTML(b) {
-    if(b?.status==='model_below_market')return `<p class="meta">Our blend: model ${pct(b.model)} is below the market's ${pct(b.market)} · not a pick</p>`;
+    if(b?.status==='model_below_market')return `<p class="meta">Our blend: model ${pct(b.model)} is below the market's ${pct(blendMarket(b))} · not a pick</p>`;
     if(b?.status==='thin_market')return '<p class="meta">Our blend: fewer than two books post this line · not scored</p>';
     if(!finite(b?.final))return '';
     const note=b.status==='below_threshold'?`below the ${barPct(BLEND.minEV)} floor`:
@@ -149,14 +167,15 @@
     const c=comparison(r),line=finite(r.line)?' at '+r.line:' for this outcome';
     const median=r.sport==='NFL'&&finite(r.consensus_line)?`<span class="estimate-detail">Median line: ${esc(r.consensus_line)}</span>`:'';
     const basis=c.market===null?'Paired prices unavailable':`${c.books} ${r.sport==='NFL'?'paired':'other paired'} book${c.books===1?' only':'s'}${r.sport==='NFL'?' · includes listed book':''}`;
-    return `<strong>${pct(c.market)}</strong><span class="estimate-detail">Win chance*${esc(line)}</span>${median}<span class="meta estimate-detail">${esc(basis)}</span>${pinnacleHTML(r.pinnacle)}`;
+    return `<strong>${pct(c.market)}</strong><span class="estimate-detail">Win chance*${esc(line)}</span>${median}<span class="meta estimate-detail">${esc(basis)}</span>${pinnacleHTML(r.pinnacle,r.blend)}`;
   }
   function screenReason(r) {
     const c=comparison(r);
     if(c.model===null||r.model_withheld)return 'Independent research surfaced this offer. A reliable model win probability and numerical edge are not established.';
     const market=c.market===null?'':`, versus ${pct(c.market)} from ${c.books===1?(r.sport==='NFL'?'one paired book':'one other book'):(r.sport==='NFL'?'the market':'other books')}`;
     const w=finite(r.blend?.weight)?r.blend.weight:blendWeight(r);
-    const b=r.blend&&finite(r.blend.final)?` Weighted ${Math.round(100*w)}% model and ${Math.round(100*(1-w))}% market, that is ${pct(r.blend.final)}, or ${signedPct(r.blend.ev)} expected value at this price.${confidenceReason(r.blend)}`:'';
+    const sharp=finite(r.blend?.pinnacle_share)?` (the US median with Pinnacle’s ${pct(r.blend.pinnacle)} counted at ${Math.round(100*r.blend.pinnacle_share)}%: ${pct(r.blend.market_blend)})`:'';
+    const b=r.blend&&finite(r.blend.final)?` Weighted ${Math.round(100*w)}% model and ${Math.round(100*(1-w))}% market${sharp}, that is ${pct(r.blend.final)}, or ${signedPct(r.blend.ev)} expected value at this price.${confidenceReason(r.blend)}`:'';
     return `The experimental model estimates a ${pct(c.model)} win chance${market}. The offered ${odds(r.price)} needs ${pct(c.breakEven)} to break even, excluding pushes.${b}`;
   }
   function researchStatus(sport,feed,selected,now) {
@@ -397,12 +416,14 @@
   }
 
   // Pinnacle's no-vig chance at the same line, from the morning snapshot (/briefing/pinnacle.json).
-  // A sharp reference beside morning picks only: it never selects, ranks or reprices a pick, and a
-  // line counts as not posted only when Pinnacle was actually asked for that game.
+  // From policy morning-edition-8 collect() passes `now` so a snapshot under three hours old enters
+  // the market term (PINNACLE above); the page passes none and shows the morning figure beside
+  // morning picks. A line counts as not posted only when Pinnacle was actually asked for that game.
   const pinnacleKey=(sport,event,market,player,side,line)=>JSON.stringify([sport,String(event??''),market,
     String(player??'').toLowerCase(),String(side??'').toLowerCase(),finite(line)?Number(line):null]);
-  function pinnacleIndex(feed,decisionDate) {
+  function pinnacleIndex(feed,decisionDate,now) {
     if(feed?.schema_version!==1||feed.status!=='recorded'||!decisionDate||feed.decision_date!==decisionDate||!Number.isFinite(stamp(feed.generated_at)))return null;
+    if(now!==undefined&&!recent(feed.generated_at,now,PINNACLE.maxAge))return null;
     const index=new Map();
     for(const p of records(feed.lines))if(probability(p.probability))
       for(const m of [p.market,p.market_std].filter(Boolean))index.set(pinnacleKey(p.sport,p.event_id,m,p.player,p.side,p.line),p);
@@ -415,16 +436,22 @@
     const asked=markets.some(m=>GAME_MARKETS.includes(m))?ref.games.has(r.sport):ref.events.has(String(event??''));
     return asked?{status:'not_posted',checked_at:ref.checked_at}:null;
   }
-  function pinnacleHTML(p) {
+  // Whether this pick's own blend counted Pinnacle decides the label: editions before
+  // morning-edition-8, and picks blended without a fresh snapshot, show it as a reference only.
+  function pinnacleHTML(p,b) {
     if(!p)return '';
     const at=esc(new Date(p.checked_at).toLocaleString('en-US',{timeZone:'America/New_York',hour:'numeric',minute:'2-digit'})+' ET');
+    const used=p.status==='posted'&&finite(b?.pinnacle_share)&&probability(b?.market_blend);
     return p.status==='posted'
-      ?`<span class="meta estimate-detail pinnacle-ref"><strong>Pinnacle ${pct(p.probability)}</strong> no-vig at ${at} · sharp reference, not used to choose picks</span>`
+      ?`<span class="meta estimate-detail pinnacle-ref"><strong>Pinnacle ${pct(p.probability)}</strong> no-vig at ${at} · ${used
+        ?`counted at ${Math.round(100*b.pinnacle_share)}% of the market: ${pct(b.market_blend)}`:'sharp reference, not used in this pick'}</span>`
       :`<span class="meta estimate-detail pinnacle-ref">Pinnacle had not posted this line at ${at}.</span>`;
   }
 
   function collect(feeds,now=Date.now()) {
     const selected=[],coverage=[],excluded=[],leans=[];
+    // A same-day Pinnacle snapshot under three hours old joins the market term (PINNACLE).
+    const sharpRef=pinnacleIndex(feeds.Pinnacle,day(now),now);
     for(const sport of SPORTS) {
       const data=feeds[sport],board=feeds.NHLBoard;
       let available=false,candidates=[];
@@ -486,9 +513,11 @@
           if(sport==='NFL'&&Math.abs(r.model_prob-.5)<1e-9){excluded.push({...r,exclusion_reasons:['Calibrated estimate is exactly 50%, so the model has no information at this line']});continue;}
           // NFL keeps its sensitivity heuristic: the lower of raw and calibrated.
           const raw=r.forecast_health.raw_probability;
+          const sharp=pinnacleFor(r,sharpRef);
+          if(sharp)r.pinnacle=sharp;
           const b=r.blend=blend(r,sport==='NFL'&&probability(raw)?Math.min(r.model_prob,raw):undefined);
           if(b.status==='thin_market'){excluded.push({...r,exclusion_reasons:['Fewer than two books, counting the offered one, post this exact line, so there is no market price to blend with']});continue;}
-          if(b.status==='model_below_market'){excluded.push({...r,exclusion_reasons:[`The model gives this side ${pct(b.model)}, below the market’s ${pct(b.market)}; a better price alone belongs in Market Watch`]});continue;}
+          if(b.status==='model_below_market'){excluded.push({...r,exclusion_reasons:[`The model gives this side ${pct(b.model)}, below the market’s ${pct(blendMarket(b))}; a better price alone belongs in Market Watch`]});continue;}
           if(b.status!=='qualifies'){
             if(b.status==='below_threshold'&&b.ev>0)belowBlend.push(r);
             excluded.push({...r,blend_shortfall:true,exclusion_reasons:[b.status==='below_threshold'?`${signedPct(b.ev)} expected value after blending with the market; ${barPct(BLEND.minEV)} required`:'No model probability']});continue;
@@ -818,6 +847,6 @@
       `<p class="muted"><strong>The case against:</strong> ${esc(r.qualitative_review.countercase)}</p>`+
       `<p class="meta">${started?'<strong>Game started · historical assessment.</strong> ':''}Original price and analysis from the ${esc(shortTime(r.card_snapshot_at))} edition.${started?'':' Confirm the current line before deciding.'}</p>${links}`;
   }
-  if(typeof module==='object'&&module.exports)module.exports={SPORTS,unpackContexts,bookOptions,collect,shortlist,editionRows,currentEditionRows,priceCheck,pinnacleIndex,pinnacleFor,pinnacleHTML,leadKey,rowKey:key,ideaKey,SHORTLIST_LIMIT,CARD_CAPS,BLEND,blend,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus,featuredPick,featuredHTML,boardOrder,boardBlendHTML};
+  if(typeof module==='object'&&module.exports)module.exports={SPORTS,unpackContexts,bookOptions,collect,shortlist,editionRows,currentEditionRows,priceCheck,PINNACLE,blendMarket,pinnacleIndex,pinnacleFor,pinnacleHTML,leadKey,rowKey:key,ideaKey,SHORTLIST_LIMIT,CARD_CAPS,BLEND,blend,forecastHealth,outcomeKey,rowHTML,day,ticketData,reviewKey,reviewBetKey,summaryHTML,comparison,researchStatus,featuredPick,featuredHTML,boardOrder,boardBlendHTML};
   else {global.FVPicks={featuredPick,featuredHTML,blend,boardOrder,boardBlendHTML};mount();}
 })(typeof window==='undefined'?globalThis:window);

@@ -92,6 +92,9 @@ and review prompts share the presentation rule in `scripts/display_time.py`.
    choice, not a validated betting policy.
    From policy `morning-edition-7` (from the November 2, 2026 morning edition) NBA
    player props are a fourth sport; see "NBA on the card" below.
+   From policy `morning-edition-8` (from the November 16, 2026 morning edition) a
+   fresh Pinnacle snapshot enters the market term and MLB player props use the 0.10
+   model weight; see "Pinnacle in the market term" below.
 
 Existing sport routes and JSON contracts remain supported. Additive feeds are
 `/briefing/discovery.json` and `/nfl/data/quotes.json`; `/briefing/reviews.json`
@@ -164,12 +167,18 @@ fixed-fraction log growth; the fraction is not stake advice.
 blended with the market: `f = sigmoid(w * logit(model) + (1 - w) * logit(market))`,
 where `market` is the median no-vig probability at the exact line (NFL consensus may
 include the offered book; MLB/NHL use other books). `w` is `BLEND.weights` in
-`docs/assets/briefing-picks.js`: 0.10 for NHL, NFL props and MLB h2h/spreads/totals,
-0.25 for MLB player props (every sport used 0.25 from `morning-edition-2` through
+`docs/assets/briefing-picks.js`: 0.10 for every sport and market from
+`morning-edition-8` (MLB player props used 0.25 from `morning-edition-5` through
+`morning-edition-7`; every sport used 0.25 from `morning-edition-2` through
 `morning-edition-4`). The October 14, 2026 fit on graded recap lines put the best
 weight near zero for NHL (5,112 lines, 86 games; 90% game-bootstrap range 0-0.21,
 0-0.11 on 10-point disagreements) and NFL props (567 lines, weeks 3-5; 0-0.18); MLB
-props favored the model over only six games. The candidate's model probability must
+props favored the model over only six games. The November 15, 2026 refit
+(`reports/pinnacle-refit/2026-11-15`) again put the best weight at 0 on lines graded
+after October 12: NHL 0-0.16 (12,895 lines, 197 games), NFL props 0-0.22 (458 lines,
+weeks 6-9) and MLB 0-0 (554 lines, 11 games), so MLB props moved to 0.10 and the rest
+kept 0.10, inside every range. A zero weight would leave no model picks; that remains
+the owner's call. The candidate's model probability must
 be at least the market's (`model_below_market` otherwise, withheld and never a lean):
 a better price alone is Market Watch's signal. At least two books must post
 that line, counting the offered book: NFL `book_count >= 2`, MLB/NHL
@@ -185,11 +194,26 @@ win probability, and research never changes it. Above 30% a candidate drops to t
 research tier. NFL uses the smaller of raw and calibrated model probability, and
 withholds a calibrated 50% (the curve's flat centre, no information). The 1% and
 3% bars are starting values from `docs/model-improvement-plan.md`; the weights are
-refit as recaps accumulate (Step 2c there). Pinnacle no-vig prices are recorded each
-morning by `scripts/pinnacle_snapshot.py` for that refit; they do not enter
-`market` or any pick. From October 24, 2026, `docs/briefing/pinnacle.json` carries
-Pinnacle's no-vig chance for our feed lines, shown beside morning picks as a sharp
-reference only (a line reads as not posted only when Pinnacle was asked for that game). The best
+refit as recaps accumulate (Step 2c there).
+
+**Pinnacle in the market term (policy `morning-edition-8`, from November 16, 2026).**
+`scripts/pinnacle_snapshot.py` records Pinnacle each morning after the sports
+refreshes, and research now waits for it. `docs/briefing/pinnacle.json` carries
+Pinnacle's no-vig chance for our feed lines. Where it posts the candidate's exact line
+and the file is from the same Eastern day and under three hours old, the market term
+becomes `sigmoid(s * logit(pinnacle) + (1 - s) * logit(US median))` with `s` = 0.20
+for player props and 0.50 for game lines (`PINNACLE` in the selector); otherwise the
+US median stands alone. The shares come from how far the US median moved toward
+Pinnacle's 7 a.m. price by game time on graded lines (props: NFL 0.18, NHL 0.20, NBA
+0.24; NHL game lines 0.54). On results alone Pinnacle and the US median scored the same
+on every sport; that test needs roughly ten times more lines to separate them. Afternoon
+editions, price checks and the boards' Best value sort use the US median alone, since
+the snapshot is older than three hours by then. The model-agreement rule uses the mixed
+market. The blend records `market` (the US median, which tickets store as
+`market_prob` and closing-line value compares against), `pinnacle`, `pinnacle_share`
+and `market_blend`. Before `morning-edition-8` Pinnacle was a reference shown beside
+morning picks (from October 24) and entered no pick; a line reads as not posted only
+when Pinnacle was asked for that game. The best
 positive offer below 1% per sport is shown as a lean (not a pick, not tracked).
 Tickets record `market_prob`, `final_prob`, `blend_weight`, `expected_value` (at
 the price taken) and `decision_at` beside `model_prob`
