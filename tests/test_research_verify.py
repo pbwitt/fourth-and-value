@@ -96,6 +96,15 @@ class RunTests(unittest.TestCase):
             self.assertEqual((sources, records[0]['status']), ([], 'verification_unavailable'))
             (entry,) = json.loads((Path(td)/'daily-budget.json').read_text())['entries']
             self.assertEqual(entry['status'], 'settled')
+        with tempfile.TemporaryDirectory() as td, \
+             patch.object(astra, 'checkpoint', side_effect=astra.CheckpointFailed('push rejected')), \
+             patch.object(astra, 'call_api') as call:
+            sources, records = verify.run(rows, rows, CONFIG, Path(td), lambda: NOW)
+            call.assert_not_called()
+            self.assertEqual((sources, records[0]['status'], records[0]['error']),
+                             ([], 'verification_unavailable', 'CheckpointFailed'))
+            (entry,) = json.loads((Path(td)/'daily-budget.json').read_text())['entries']
+            self.assertEqual((entry['status'], entry['charge_usd']), ('not_billed', 0))
 
     def test_queue_verifies_the_strongest_first_and_adds_sources_to_the_review(self):
         b = board(); base = b['candidates'][0]

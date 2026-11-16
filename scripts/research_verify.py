@@ -118,9 +118,10 @@ def run(rows, batch, config, archive, clock):
             if status in ('budget_exhausted', 'budget_halted'):
                 break
             continue
-        astra.checkpoint([ledger, packet])
         response = error = None
         try:
+            # Inside the try: a failed checkpoint sends nothing and settles at $0.
+            astra.checkpoint([ledger, packet])
             response = astra.call_api(request)
             immutable(archive/'responses'/f'{request_id}.json', dict(received_at=iso(clock()), response=response))
             kept = findings(response)

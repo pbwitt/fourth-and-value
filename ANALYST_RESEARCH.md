@@ -636,7 +636,14 @@ expected actual cost is small; skip rather than guess. Before the switch, a morn
 eight review batches settled at about $0.24 on Sol.
 
 CI serializes research jobs and checkpoints the reservation and exact packet to
-origin before payment. Local runs use a file lock; standalone ledger mutations
+origin before payment. The checkpoint push retries three times, like the publish
+steps; if it still fails, no request is sent and the reservation settles at $0
+(`not_billed`, error `CheckpointFailed`) so it cannot hold the day's allowance.
+Before November 17, 2026 a failed checkpoint left its reservation open: on
+November 16 two rejected pushes held $1.32 that was never spent, the morning
+edition stayed incomplete and no morning email was sent. Older open
+reservations on earlier dates stay in the ledger as recorded. Local runs use a
+file lock; standalone ledger mutations
 are separately locked and atomic. Never run paid local experiments concurrently
 with production or against an isolated test ledger. No API retries follow timeouts.
 Unknown usage retains the entire reservation; a request the API refuses with a

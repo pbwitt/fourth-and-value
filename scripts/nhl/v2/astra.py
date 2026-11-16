@@ -5,6 +5,7 @@ import json
 import os
 import re
 import subprocess
+import time
 
 import requests
 
@@ -220,22 +221,37 @@ def settle_budget(path, key, usage=None):
     write_json(path, ledger)
 
 
+class CheckpointFailed(model_api.NotBilled):
+    """The reservation never reached origin, so no request was sent; callers settle it at $0."""
+
+
 def checkpoint(paths):
     if os.getenv('GITHUB_ACTIONS') != 'true':
         return
     if os.getenv('GITHUB_REF') != 'refs/heads/main':
-        raise RuntimeError('Paid CI reviews require main and a durable reservation')
+        raise CheckpointFailed('Paid CI reviews require main and a durable reservation')
     paths = [str(p.relative_to(ROOT)) for p in paths]
     commands = [['git', 'config', 'user.name', 'Fourth & Value Research'],
                 ['git', 'config', 'user.email', 'actions@github.com'],
                 ['git', 'add', '--', *paths],
-                ['git', 'commit', '--only', '-m', 'Research: reserve bounded analyst review', '--', *paths],
-                ['git', 'pull', '--rebase', '--autostash', 'origin', 'main'],
-                ['git', 'push', 'origin', 'HEAD:main']]
+                ['git', 'commit', '--only', '-m', 'Research: reserve bounded analyst review', '--', *paths]]
+
+    def run(command):
+        return subprocess.run(command, cwd=ROOT, capture_output=True, text=True).returncode == 0
     for command in commands:
-        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
-        if result.returncode:
-            raise RuntimeError('Budget checkpoint failed; no API call permitted')
+        if not run(command):
+            raise CheckpointFailed('Budget checkpoint failed; no API call permitted')
+    # Sports jobs push to main at the same time, and GitHub occasionally rejects a push
+    # outright ("fatal error in commit_refs_rules", November 16, 2026); retry like the
+    # publish steps. A commit left unpushed here goes out with the next push.
+    for attempt in range(3):
+        if run(['git', 'pull', '--rebase', '--autostash', 'origin', 'main']):
+            if run(['git', 'push', 'origin', 'HEAD:main']):
+                return
+        else:
+            run(['git', 'rebase', '--abort'])
+        time.sleep(5*(attempt+1))
+    raise CheckpointFailed('Budget checkpoint push failed; no API call permitted')
 
 
 def call_api(request):

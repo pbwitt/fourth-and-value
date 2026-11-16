@@ -215,9 +215,10 @@ def run(feeds, now, config, *, archive, clock, public=PUBLIC, execute=False, que
             status=budget.reserve(key,now,bounds(request),path=archive/'daily-budget.json',cap=budget.run_cap(now,config),config=config)
             result['status']=status
             if status=='reserved':
-                astra.checkpoint([archive/'daily-budget.json',packet])
                 response=error=None
                 try:
+                    # Inside the try: a failed checkpoint sends nothing and settles at $0.
+                    astra.checkpoint([archive/'daily-budget.json',packet])
                     response=astra.call_api(request)
                     immutable(archive/'responses'/f'{request_id}.json',dict(received_at=iso(clock()),response=response))
                     found=[dict(d,discovered_at=iso(clock())) for d in response_directions(response,group)]

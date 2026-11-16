@@ -142,6 +142,21 @@ class DiscoveryRunTests(unittest.TestCase):
             self.assertEqual(again['status'],'already_attempted');call.assert_called_once()
             self.assertEqual(len(again['submitted_games']),len(result['submitted_games']))
 
+    def test_failed_checkpoint_sends_nothing_and_releases_the_reservation(self):
+        from unittest.mock import patch
+        from nhl.v2 import astra
+        with tempfile.TemporaryDirectory() as td,patch.dict('os.environ',{KEY:'synthetic'}), \
+             patch.object(astra,'checkpoint',side_effect=astra.CheckpointFailed('push rejected')), \
+             patch.object(astra,'call_api') as call:
+            p=Path(td)
+            result=discovery.run(feeds(),NOW,CONFIG,archive=p,clock=lambda:NOW,public=p/'discovery.json',execute=True)
+            call.assert_not_called()
+            self.assertEqual((result['status'],result['error']),('discovery_unavailable','CheckpointFailed'))
+            self.assertEqual(result['budget']['charged_or_reserved_usd'],0)
+            (entry,)=json.loads((p/'daily-budget.json').read_text())['entries']
+            self.assertEqual((entry['status'],entry['charge_usd']),('not_billed',0))
+            self.assertTrue((p/'discovery.json').exists(),'the failure is published, not lost')
+
 class QueuePriorityTests(unittest.TestCase):
     def test_independent_idea_is_researched_before_large_model_pool(self):
         from unittest.mock import patch
