@@ -401,16 +401,41 @@ class ResearchTests(unittest.TestCase):
         self.assertIsNone(context['calibration_sample_size'])
 
     def test_expiry_during_collection_and_checkpoint_failure_prevent_payment(self):
-        for elapsed, checkpoint_error in [(timedelta(hours=2),None),(timedelta(),RuntimeError('checkpoint'))]:
+        for elapsed, checkpoint_error in [(timedelta(hours=2),None),(timedelta(),astra.CheckpointFailed('checkpoint'))]:
             b=board()
             with tempfile.TemporaryDirectory() as td, patch.dict('os.environ',{KEY:'synthetic'}), \
                  patch.object(evidence,'collect',return_value=([source(b)],{})), \
                  patch.object(astra,'checkpoint',side_effect=checkpoint_error), patch.object(astra,'call_api') as call:
                 if checkpoint_error:
-                    with self.assertRaises(RuntimeError): analyst.review(b,feeds(),CONFIG,Path(td),lambda:NOW)
+                    # Nothing was sent, so the reservation is released instead of holding
+                    # the day's allowance (November 16, 2026: $1.32 held, no email).
+                    reviewed=analyst.review(b,feeds(),CONFIG,Path(td),lambda:NOW)
+                    self.assertEqual((reviewed['review_status'],reviewed['review_error']),('review_unavailable','CheckpointFailed'))
+                    (entry,)=[e for e in json.loads((Path(td)/'daily-budget.json').read_text())['entries'] if not e.get('legacy')]
+                    self.assertEqual((entry['status'],entry['charge_usd']),('not_billed',0))
                 else:
                     self.assertEqual(analyst.review(b,feeds(),CONFIG,Path(td),lambda:NOW+elapsed)['review_status'],'expired_during_research')
                 call.assert_not_called()
+
+    def test_checkpoint_retries_a_rejected_push_and_fails_as_not_billed(self):
+        calls=[]
+        def runner(results):
+            results=iter(results)
+            def run(command,**kw):
+                calls.append(command[1]);return type('R',(),{'returncode':next(results)})()
+            return run
+        env={'GITHUB_ACTIONS':'true','GITHUB_REF':'refs/heads/main'}
+        paths=[astra.ROOT/'artifacts/analyst/daily-budget.json']
+        # config x2, add, commit; GitHub rejects the first push; the retry lands.
+        with patch.dict('os.environ',env),patch.object(astra.subprocess,'run',side_effect=runner([0,0,0,0, 0,1, 0,0])),patch.object(astra.time,'sleep'):
+            astra.checkpoint(paths)
+        self.assertEqual(calls[-4:],['pull','push','pull','push'])
+        with patch.dict('os.environ',env),patch.object(astra.subprocess,'run',side_effect=runner([0,0,0,0]+[0,1]*3)),patch.object(astra.time,'sleep'):
+            with self.assertRaises(analyst.model_api.NotBilled): astra.checkpoint(paths)
+        calls.clear()
+        with patch.dict('os.environ',env),patch.object(astra.subprocess,'run',side_effect=runner([0,0,0,1, 0,0,0])),patch.object(astra.time,'sleep'):
+            with self.assertRaises(astra.CheckpointFailed): astra.checkpoint(paths)
+        self.assertEqual(calls,['config','config','add','commit'],'a failed commit is not pushed')
 
     def test_shared_cap_and_timeout_reservation_are_conservative(self):
         for spent,expected in [(5,'budget_exhausted'),(0,'review_unavailable')]:

@@ -291,9 +291,10 @@ def review(board, feeds, config, archive, clock, *, assessment_update=False):
         board['review_status'] = status
         return board
     board['review_request_id'] = request_id
-    astra.checkpoint([budget, packet, archive/'boards'/f"{board['board_id']}.json"])
     response = error = None
     try:
+        # Inside the try: a failed checkpoint sends nothing and settles at $0.
+        astra.checkpoint([budget, packet, archive/'boards'/f"{board['board_id']}.json"])
         response = astra.call_api(request)
         finished = clock()
         immutable(archive/'responses'/f'{request_id}.json', dict(received_at=iso(finished), response=response))
