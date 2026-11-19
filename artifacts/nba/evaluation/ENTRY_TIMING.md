@@ -1,6 +1,6 @@
 # NBA entry timing: earlier prices against the final pregame price
 
-Model `nba-v1.0`, generated Thu, Nov 19, 2026, 6:51 AM EST. 207 games tipped; 67 had props in a day-before snapshot and 194 in a game-morning snapshot.
+Model `nba-v1.0`, generated Thu, Nov 19, 2026, 5:05 PM EST. 207 games tipped; 67 had props in a day-before snapshot and 194 in a game-morning snapshot.
 
 Bets are the offers that pass the card's rule at that time. Closing value compares the entry price with the no-vig chance in the last snapshot before tipoff; positive means the early price beat where the market settled. Early-price advantage is the same comparison against the best price still available at the close.
 
