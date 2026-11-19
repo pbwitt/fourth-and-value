@@ -48,7 +48,7 @@
       "words": 710
     },
     "1-nfl": {
-      "status": "started",
+      "status": "skipped",
       "model": "claude-sonnet-5-5",
       "audit_model": "claude-opus-5-5",
       "effort": "medium",
@@ -65,12 +65,44 @@
         "ready": true
       },
       "event_id": "403a88701352da05b0710a9e883b803e",
-      "selection": "same_sport_fallback"
+      "selection": "same_sport_fallback",
+      "response_id": "msg_011ChCGkS6fh61jBHCEEoLdV",
+      "usage": {
+        "input_tokens": 5932,
+        "output_tokens": 2177,
+        "web_search_requests": 0
+      },
+      "review_usage": {
+        "input_tokens": 6726,
+        "output_tokens": 1135,
+        "web_search_requests": 0
+      },
+      "first_audit_reason": "Two passages must change. (1) In 'What the market shows', the sentence 'Our comparison against 3:29 AM... more precisely 10:29 PM EST Wednesday' prints a UTC clock as if it were an Eastern time and then corrects itself in the text. Use only 10:29 PM EST Wednesday, Nov 18, for example: 'Compared with 10:29 PM EST Wednesday, the median line in our snapshot was up 0.5 across 12 matched books.' (2) In 'The experimental estimate', 'We cannot test that from the supplied data' refers to how the article was produced. Rephrase it as a plain statement of what is unknown, without saying 'supplied data'. Also consider removing the internal model version string 'nfl-totals-2026-w11-ac6d47f68a42', which means nothing to general readers. The other claims check out against the evidence: the quotes, book lines and prices, the 7:15 AM EST Thursday timestamps, the +0.5 median move, the 44.0/25.2/18.8 estimate, the Walker and Downs reporting, and the Sunday 1:00 PM EST start. The new matchup and total are a material update over the earlier Chiefs–Falcons angles.",
+      "revision_response_id": "msg_011ChCGnSQ5h2BMz6MHL3oH4",
+      "revision_usage": {
+        "input_tokens": 8677,
+        "output_tokens": 2693,
+        "web_search_requests": 0
+      },
+      "revision_review_usage": {
+        "input_tokens": 6726,
+        "output_tokens": 1451,
+        "web_search_requests": 0
+      },
+      "audit_reason": "Times, book lines, prices, the +0.5 median move, the model figures and the quotes all match the evidence. The Walker and Downs updates justify revisiting the recent Chiefs angles. Two passages must change. (1) In 'Matchup mechanisms and the countercase', 'the reporting we have is limited to excerpts' describes how the article was produced. Remove it, or replace it with a dated statement of what had not been reported as of 7:17 AM EST Thursday. (2) In 'The experimental estimate', 'The estimate may be reflecting Kansas City's recent scoring form, including the 35 points at Atlanta' is an unsupported causal guess about the model's drivers. The article itself says there is no sensitivity result. Remove the attribution or state plainly that what drives the estimate is unknown.",
+      "reason": "Factual audit did not pass: Times, book lines, prices, the +0.5 median move, the model figures and the quotes all match the evidence. The Walker and Downs updates justify revisiting the recent Chiefs angles. Two passages must change. (1) In 'Matchup mechanisms and the countercase', 'the reporting we have is limited to excerpts' describes how the ar"
     }
   },
   "last_writer_check": {
-    "at": "2026-11-19T12:16:03.990411+00:00",
-    "status": "started"
+    "at": "2026-11-19T12:18:23.886050+00:00",
+    "status": "completed",
+    "counts": {
+      "published": 1,
+      "review": 0,
+      "skipped": 1,
+      "started": 0,
+      "waiting_for_data": 0
+    }
   },
   "data_skips": {
     "NHL": "No distinct matchup with current model inputs and sufficient reporting",
