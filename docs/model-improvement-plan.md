@@ -128,9 +128,9 @@ We need injuries, goalie changes, lineups and other key information in every pre
   bets.
 - Tracker page: add a CLV card (average CLV, percent beating the close, breakdown by market) and
   a confidence band on ROI of about ±100%/√n.
-- NBA: `closing-lines` already recognizes the `market_type` labels points/pts, rebounds/reb,
-  assists/ast, threes/3pm, blocks, steals, turnovers, pra, pr, pa, ra and stocks. Use those labels
-  in the tracker, or update `MARKETS` in `clv.mjs`.
+- NBA: done November 19, 2026. `closing-lines` now also accepts the Odds API keys the tracker
+  saves (`player_points`, `player_rebounds_assists`, ...) for every league, so NBA bets and picks
+  get a close. Rows marked `unsupported` before that were re-queued for the daily backfill.
 
 ### Ground rules
 

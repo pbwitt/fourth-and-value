@@ -21,6 +21,16 @@ const near = (a, b, msg) => assert(Math.abs(a - b) < 1e-9, `${msg}: ${a} vs ${b}
     '3pm': 'player_threes', pra: 'player_points_rebounds_assists', stocks: 'player_blocks_steals' })) {
     assert.equal(C.specFor({ league: 'NBA', market_type: label, player: 'A B', line: 1.5 }).key, key, label);
   }
+  // The tracker saves NBA props under the Odds API key itself.
+  for (const key of ['player_points', 'player_rebounds', 'player_assists', 'player_threes', 'player_steals',
+    'player_blocks', 'player_turnovers', 'player_points_rebounds_assists', 'player_points_rebounds',
+    'player_points_assists', 'player_rebounds_assists', 'player_blocks_steals']) {
+    assert.deepEqual(C.specFor({ league: 'NBA', market_type: key, player: 'A B', line: 1.5 }),
+      { sport: 'basketball_nba', key, kind: 'player' }, key);
+  }
+  assert.equal(C.specFor({ league: 'WNBA', market_type: 'player_points', player: 'A B', line: 9.5 }).sport, 'basketball_wnba');
+  assert.equal(C.specFor({ league: 'NHL', market_type: 'player_shots_on_goal', player: 'A B', line: 2.5 }).key, 'player_shots_on_goal');
+  assert.equal(C.specFor({ league: 'NHL', market_type: 'totals', line: 6.5 }).kind, 'total', 'existing labels keep their entry');
   assert.match(C.specFor({ league: 'NHL', market_type: 'sog', line: 2.5 }).error, /without a player/);
   assert.match(C.specFor({ league: 'NFL', market_type: 'receptions', player: 'A B' }).error, /no line/);
   assert.match(C.specFor({ league: 'CFL', market_type: 'h2h' }).error, /not tracked/);

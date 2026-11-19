@@ -87,6 +87,12 @@ MARKETS.NBA = {
 };
 MARKETS.WNBA = MARKETS.NBA;
 MARKETS.NCAAF = MARKETS.NFL;
+// The bet tracker saves the Odds API market key itself for some props (every NBA
+// prop: player_points, player_rebounds_assists, ...), so each league also accepts
+// the keys it maps to. A short label that already exists keeps its own entry.
+for (const markets of new Set(Object.values(MARKETS))) {
+  for (const spec of Object.values({ ...markets })) if (!(spec.key in markets)) markets[spec.key] = spec;
+}
 
 export function specFor(bet) {
   const league = String(bet.league || '').toUpperCase();
@@ -100,7 +106,7 @@ export function specFor(bet) {
 
 export function norm(s) {
   return String(s ?? '')
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/[.'’`]/g, '')
     .replace(/[^a-z0-9]+/g, ' ')
