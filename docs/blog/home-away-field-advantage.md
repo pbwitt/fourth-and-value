@@ -145,6 +145,4 @@ Now, our model does too.
 
 **📖 Full methodology:** See the updated [Methods page](https://fourth-and-value.com/docs/methods.html) for complete details on how location, defense, and recency interact in our projections.
 
-**💬 Questions?** Find us on [GitHub](https://github.com/pbwitt/fourth-and-value).
-
 — *The Fourth & Value Team*

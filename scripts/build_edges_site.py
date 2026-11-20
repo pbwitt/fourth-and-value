@@ -51,7 +51,6 @@ tbody tr:hover{background:color-mix(in oklab, var(--accent) 12%, var(--card))}
       <a href="props/">Player Props</a>
       <a href="props/top.html">Top Picks</a>
       <a href="props/consensus.html">Consensus</a>
-      <a href="https://github.com/pbwitt/fourth-and-value">GitHub</a>
     </nav>
   </div>
 </header>

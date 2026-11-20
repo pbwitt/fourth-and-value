@@ -164,7 +164,7 @@ Week 1 leaves us with useful wins, measurable failures and a clear priority: our
 
 ## Sources and audit notes
 
-The primary forecast evidence is the [archived props board](https://github.com/pbwitt/fourth-and-value/blob/6d420cf/docs/props/index.html) and [archived Top Picks page](https://github.com/pbwitt/fourth-and-value/blob/6d420cf/docs/props/top.html), built September 9 at approximately 6:36 PM Eastern. Totals use the saved 6:52 PM Eastern snapshot. The audit retains the source hashes and timestamps in the [downloadable summary](./week-1-2026-review-data.json).
+The primary forecast evidence is the archived props board and archived Top Picks page, built September 9 at approximately 6:36 PM Eastern. Totals use the saved 6:52 PM Eastern snapshot. The audit retains the source hashes and timestamps in the [downloadable summary](./week-1-2026-review-data.json).
 
 Results come from the project's saved 2026 Week 1 schedule and player-stat files, using the [nflverse player-stat release](https://github.com/nflverse/nflverse-data/releases/tag/stats_player) and [nflverse schedule dataset](https://raw.githubusercontent.com/nflverse/nfldata/master/data/games.csv) as the upstream sources. Game identity, both teams and Eastern game dates are checked before matching players. Name punctuation and generational suffixes are normalized; ambiguous identities stop the audit. The old unseasoned `grades_week1.csv` file was not used.
 

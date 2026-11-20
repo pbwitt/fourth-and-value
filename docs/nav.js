@@ -1,4 +1,4 @@
-// docs/nav.js (v=52) — site navigation, footer social links and chart sharing
+// docs/nav.js (v=52) — site navigation and chart sharing
 (function () {
   // --- Find script & compute base (works locally and deployed) ---
   const scriptEl =
@@ -366,25 +366,6 @@
   inner.appendChild(links);
   nav.appendChild(inner);
   slot.replaceWith(nav);
-
-  // Keep the YouTube link in the footer across generated pages.
-  function addSocialLinks() {
-    let footer = document.querySelector('footer') || document.querySelector('.footer');
-    if (!footer) {
-      footer = document.createElement('footer');
-      footer.className = 'fv-social-footer';
-      footer.textContent = 'Fourth & Value';
-      document.body.appendChild(footer);
-    }
-    if (!footer.querySelector('a[href*="youtube.com/@fourthandvalue"]')) {
-      const youtube = document.createElement('a');
-      youtube.href = 'https://youtube.com/@fourthandvalue';
-      youtube.textContent = 'YouTube';
-      footer.append(document.createTextNode(' · '), youtube);
-    }
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addSocialLinks, {once:true});
-  else addSocialLinks();
 
   // Events
   burger.addEventListener('click', () => {
