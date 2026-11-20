@@ -347,7 +347,7 @@
   nav.appendChild(inner);
   slot.replaceWith(nav);
 
-  // Keep social destinations together in the footer across generated pages.
+  // Keep the YouTube link in the footer across generated pages.
   function addSocialLinks() {
     let footer = document.querySelector('footer') || document.querySelector('.footer');
     if (!footer) {
@@ -356,18 +356,11 @@
       footer.textContent = 'Fourth & Value';
       document.body.appendChild(footer);
     }
-    let x = footer.querySelector('a[href="https://x.com/fourthandvalue"]');
-    if (!x) {
-      x = document.createElement('a');
-      x.href = 'https://x.com/fourthandvalue';
-      x.textContent = 'X · @fourthandvalue';
-      footer.append(document.createTextNode(' · '), x);
-    }
     if (!footer.querySelector('a[href*="youtube.com/@fourthandvalue"]')) {
       const youtube = document.createElement('a');
       youtube.href = 'https://youtube.com/@fourthandvalue';
       youtube.textContent = 'YouTube';
-      x.after(document.createTextNode(' · '), youtube);
+      footer.append(document.createTextNode(' · '), youtube);
     }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addSocialLinks, {once:true});

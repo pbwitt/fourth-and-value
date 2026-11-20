@@ -20,8 +20,8 @@ assert.equal(s.pageLabel('/nhl/totals/'), 'NHL');
 assert.equal(s.pageLabel('/'), '');
 
 const url = 'https://fourthandvalue.com/research/low-scoring-games-situational-factors.html#figure-1';
-assert.equal(s.withUtm(url, 'x'),
-  'https://fourthandvalue.com/research/low-scoring-games-situational-factors.html?utm_source=x&utm_medium=social&utm_campaign=chart_share#figure-1');
+assert.equal(s.withUtm(url, 'bluesky'),
+  'https://fourthandvalue.com/research/low-scoring-games-situational-factors.html?utm_source=bluesky&utm_medium=social&utm_campaign=chart_share#figure-1');
 assert.equal(s.withUtm('https://fourthandvalue.com/markets/?sport=nfl', 'reddit'),
   'https://fourthandvalue.com/markets/?sport=nfl&utm_source=reddit&utm_medium=social&utm_campaign=chart_share');
 assert.equal(s.displayUrl(url), 'fourthandvalue.com/research/low-scoring-games-situational-factors.html');

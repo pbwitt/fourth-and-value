@@ -588,7 +588,6 @@
 
   // Social posts carry text plus a link back to the exact chart; the platform shows the page's preview card.
   const SOCIAL = [
-    ['x', 'X', (t, u) => `https://twitter.com/intent/tweet?text=${encodeURIComponent(t)}&url=${encodeURIComponent(u)}`],
     ['facebook', 'Facebook', (t, u) => `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(u)}`],
     ['linkedin', 'LinkedIn', (t, u) => `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(u)}`],
     ['reddit', 'Reddit', (t, u) => `https://www.reddit.com/submit?url=${encodeURIComponent(u)}&title=${encodeURIComponent(t)}`],

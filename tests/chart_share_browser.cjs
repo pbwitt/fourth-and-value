@@ -76,11 +76,14 @@ async function openCard(page, selector) {
       if (width === 390) {
         assert.match(await page.locator('[data-act=save]').getAttribute('download'), /^fourth-and-value-low-scoring-games-situational-factors-figure-1\.png$/);
         await page.evaluate(() => { window.__opened = []; window.open = u => { window.__opened.push(u); return null; }; });
-        await page.locator('[data-social=x]').click();
+        assert.equal(await page.locator('[data-social=x]').count(), 0, 'no X share button');
+        await page.locator('[data-social=reddit]').click();
         await page.locator('[data-social=bluesky]').click();
-        const [x, bsky] = await page.evaluate(() => window.__opened);
-        assert.match(x, /^https:\/\/twitter\.com\/intent\/tweet\?text=What%20makes%20NFL/);
-        assert.ok(decodeURIComponent(x).endsWith(`${STUDY}?utm_source=x&utm_medium=social&utm_campaign=chart_share#figure-1`));
+        const [reddit, bsky] = await page.evaluate(() => window.__opened);
+        const posted = new URL(reddit);
+        assert.equal(posted.hostname, 'www.reddit.com');
+        assert.match(posted.searchParams.get('title'), /^What makes NFL/);
+        assert.ok(posted.searchParams.get('url').endsWith(`${STUDY}?utm_source=reddit&utm_medium=social&utm_campaign=chart_share#figure-1`));
         assert.ok(decodeURIComponent(bsky.split('text=')[1]).length <= 300, 'Bluesky post fits 300 characters');
         await page.keyboard.press('Escape');
         assert.equal(await page.locator('.fv-cs-sheet.open').count(), 0);

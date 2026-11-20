@@ -195,7 +195,6 @@
   // snapshot and nothing else; Copy link is separate, for sending with your own note; social
   // buttons post text plus a link to this exact snapshot, tagged by network.
   const SOCIAL=[
-    ['x','X',(t,u)=>`https://twitter.com/intent/tweet?text=${encodeURIComponent(t)}&url=${encodeURIComponent(u)}`],
     ['facebook','Facebook',(t,u)=>`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(u)}`],
     ['linkedin','LinkedIn',(t,u)=>`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(u)}`],
     ['reddit','Reddit',(t,u)=>`https://www.reddit.com/submit?url=${encodeURIComponent(u)}&title=${encodeURIComponent(t)}`],

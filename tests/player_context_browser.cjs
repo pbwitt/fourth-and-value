@@ -140,12 +140,13 @@ const server=http.createServer((req,res)=>{
           const link=new URL((await p.evaluate(()=>window.__copied))[0]);
           assert.equal(link.pathname,'/nhl/props/');
           assert.equal(link.search,'?q=Example+Player&market=player_shots_on_goal&side=over&line=2.5&snapshot=1');
-          await panel.locator('[data-social=x]').click();
+          assert.equal(await panel.locator('[data-social=x]').count(),0,'no X share button');
+          await panel.locator('[data-social=reddit]').click();
           const posted=new URL((await p.evaluate(()=>window.__opened))[0]);
-          assert.equal(posted.hostname,'twitter.com');
+          assert.equal(posted.hostname,'www.reddit.com');
           const back=new URL(posted.searchParams.get('url'));
-          assert.equal(back.searchParams.get('utm_source'),'x');assert.equal(back.searchParams.get('utm_medium'),'social');assert.equal(back.searchParams.get('snapshot'),'1');
-          assert.match(posted.searchParams.get('text'),/^Example Player · Over 2\.5 Shots on goal\./);
+          assert.equal(back.searchParams.get('utm_source'),'reddit');assert.equal(back.searchParams.get('utm_medium'),'social');assert.equal(back.searchParams.get('snapshot'),'1');
+          assert.match(posted.searchParams.get('title'),/^Example Player · Over 2\.5 Shots on goal\./);
           assert(await pop.isVisible(),'the snapshot stays open behind the sheet');
           await p.keyboard.press('Escape');await panel.waitFor({state:'hidden'});
           assert(await pop.isVisible(),'Escape closes the sheet first');

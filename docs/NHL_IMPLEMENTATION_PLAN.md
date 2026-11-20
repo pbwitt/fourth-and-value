@@ -383,7 +383,7 @@ Change tagline:
 2. **Implement Phase A** - Start with `fetch_nhl_odds.py` adapter
 3. **Test with live data** - Run pipeline on today's slate
 4. **Iterate QC thresholds** - Tune coverage/edge caps based on real data
-5. **Launch soft preview** - Share `/nhl/props/` link on X for feedback
+5. **Launch soft preview** - Share `/nhl/props/` link for feedback
 
 ---
 
