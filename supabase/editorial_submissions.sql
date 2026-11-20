@@ -12,9 +12,12 @@ drop policy if exists "editor owns ideas" on public.editorial_ideas;
 drop policy if exists "read own ideas or editor inbox" on public.editorial_ideas;
 create policy "read own ideas or editor inbox" on public.editorial_ideas for select to authenticated
  using(user_id=auth.uid() or (auth.jwt()->'app_metadata'->>'fv_editor')='true');
+-- Reader suggestions closed November 20, 2026 (close_reader_suggestions.sql): only
+-- editors may insert. Reader inserts used `with check(user_id=auth.uid())`.
 drop policy if exists "submit own idea" on public.editorial_ideas;
-create policy "submit own idea" on public.editorial_ideas for insert to authenticated
- with check(user_id=auth.uid());
+drop policy if exists "editors submit ideas" on public.editorial_ideas;
+create policy "editors submit ideas" on public.editorial_ideas for insert to authenticated
+ with check(user_id=auth.uid() and (auth.jwt()->'app_metadata'->>'fv_editor')='true');
 drop policy if exists "edit ideas as editor" on public.editorial_ideas;
 create policy "edit ideas as editor" on public.editorial_ideas for update to authenticated
  using((auth.jwt()->'app_metadata'->>'fv_editor')='true')

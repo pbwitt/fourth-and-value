@@ -514,7 +514,9 @@ writer does not invent an owner's opinion. Submit analysis under its actual spor
 **Reader suggestions closed November 20, 2026.** `/editorial/suggest.html` now says
 suggestions are closed, loads no sign-in or form, is `noindex` and is out of the
 sitemap; the home footer no longer links to it. The inbox still shows earlier
-submissions. The description below is how the reader flow worked while open.
+submissions. `supabase/close_reader_suggestions.sql` makes the database refuse new
+ideas from anyone but an editor, so a reader cannot submit through the API either.
+The description below is how the reader flow worked while open.
 
 Reader flow: `/editorial/suggest.html` uses email sign-in, accepts at most three
 short suggestions per account per day, and exposes no other reader's submissions.
@@ -1029,5 +1031,6 @@ anyone given the link `https://fourthandvalue.com/tracking/`, but it is unlisted
   and Track bet buttons on the boards from then on, in that browser.
 
 Supabase still accepts sign-ups and saved bets from anyone who has the link; the
-gate hides entry points, it is not access control. `tests/tracker_visibility_browser.cjs`
+gate hides entry points, it is not access control. Reader suggestions, by contrast,
+are blocked in the database (see above). `tests/tracker_visibility_browser.cjs`
 covers both a signed-out visitor and a signed-in browser.
