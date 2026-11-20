@@ -47,6 +47,8 @@ window.saved=[];window.saveTrackedBet=async t=>{window.saved.push(t);return {ok:
 (async()=>{
   const browser=await chromium.launch({headless:true,...(process.env.FV_CHROME?{executablePath:process.env.FV_CHROME}:{})});
   const page=await browser.newPage({viewport:{width:390,height:844}});
+  // A browser that has signed in to Bet Tracker: nav.js shows Track bet and editor panels only there.
+  await page.addInitScript(()=>localStorage.setItem('sb-fzjonxpzsrbdhbujbhsn-auth-token','{"access_token":"test"}'));
   await page.route('https://cdn.jsdelivr.net/**',route=>route.fulfill({contentType:'application/javascript',body:''}));
   await page.route('https://fourthandvalue.com/**',route=>{
     const p=new URL(route.request().url()).pathname.replace(/\/$/,'/index.html');
@@ -186,6 +188,8 @@ window.saved=[];window.saveTrackedBet=async t=>{window.saved.push(t);return {ok:
 
   // A signed-in reader sees the gate and spends nothing.
   const reader=await browser.newPage({viewport:{width:1280,height:900}});
+  // A browser that has signed in to Bet Tracker: nav.js shows Track bet and editor panels only there.
+  await reader.addInitScript(()=>localStorage.setItem('sb-fzjonxpzsrbdhbujbhsn-auth-token','{"access_token":"test"}'));
   await reader.route('https://cdn.jsdelivr.net/**',route=>route.fulfill({contentType:'application/javascript',body:''}));
   await reader.route('https://fourthandvalue.com/**',route=>{
     const p=new URL(route.request().url()).pathname.replace(/\/$/,'/index.html');

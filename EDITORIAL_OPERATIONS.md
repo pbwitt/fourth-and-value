@@ -511,6 +511,11 @@ must pass. Successful owner ideas publish directly and are archived privately.
 Opinion ideas and general `Sports` ideas require personal editorial work; the
 writer does not invent an owner's opinion. Submit analysis under its actual sport.
 
+**Reader suggestions closed November 20, 2026.** `/editorial/suggest.html` now says
+suggestions are closed, loads no sign-in or form, is `noindex` and is out of the
+sitemap; the home footer no longer links to it. The inbox still shows earlier
+submissions. The description below is how the reader flow worked while open.
+
 Reader flow: `/editorial/suggest.html` uses email sign-in, accepts at most three
 short suggestions per account per day, and exposes no other reader's submissions.
 Suggestions appear in the editor's inbox notification count. The editor can
@@ -1000,3 +1005,29 @@ and never calls the X API. `scripts/post_tweet.py` (paid API) is not used by it.
   `resend_today`.
 - **Preview locally:** `python scripts/social_drafts.py --now 2026-11-01T12:45:00Z
   --preview /tmp/drafts.html` builds drafts from the files on disk and sends nothing.
+
+## Data collection off; Bet Tracker unlisted (November 20, 2026)
+
+The public site no longer offers any way to hand over data. Story suggestions are
+closed (above). Bet Tracker keeps working, with all accounts and bets intact, for
+anyone given the link `https://fourthandvalue.com/tracking/`, but it is unlisted:
+
+- `/tracking/` is `noindex,nofollow` and out of `docs/sitemap.xml`.
+- `docs/nav.js` shows the tracker's entry points only in a browser that holds a
+  Supabase session (localStorage `sb-fzjonxpzsrbdhbujbhsn-auth-token`, written when
+  someone signs in to Bet Tracker). Everyone else gets `html.fv-tracker-off`, which
+  hides the "Bet Tracker" nav link, every Track bet button and Track column
+  (`[data-fv-ticket]`, `.track-cell`, `.track-pick`, `.fv-track-actions`, NHL
+  player-page offer columns) and anything marked `.fv-tracker-only`. The tracker
+  page itself is never gated.
+- Tracker-only links and the editor sign-in panels are marked `.fv-tracker-only`:
+  the Today's Picks footer link, the NFL overview link, two blog mentions, the
+  arbitrage pages' Live odds and Bet Tracker links, the arbitrage "Scan now" editor
+  panel and the home footer's Editorial desk link. Editors sign in at `/tracking/`
+  or `/editorial/inbox.html` (both work from their links) to see them again.
+- To share the tracker, send the link. A friend who signs in there sees the nav link
+  and Track bet buttons on the boards from then on, in that browser.
+
+Supabase still accepts sign-ups and saved bets from anyone who has the link; the
+gate hides entry points, it is not access control. `tests/tracker_visibility_browser.cjs`
+covers both a signed-out visitor and a signed-in browser.

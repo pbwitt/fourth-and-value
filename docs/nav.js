@@ -10,6 +10,26 @@
 
   const LOGO = `${base}/assets/logo-fv.svg`; // change path if needed
 
+  // Bet Tracker is unlisted: it keeps working for anyone given the /tracking/ link, but
+  // only a browser that has signed in to it sees its entry points (the nav link, Track
+  // bet buttons and columns, and anything marked .fv-tracker-only). Everyone else sees
+  // no way in. The sign-in check reads Supabase's stored session (docs/tracking/bet-tracking.js).
+  const TRACKER_SESSION_KEY = 'sb-fzjonxpzsrbdhbujbhsn-auth-token';
+  const onTracker = /\/tracking\//.test(location.pathname);
+  const trackerVisible = onTracker || (() => {
+    try { return !!localStorage.getItem(TRACKER_SESSION_KEY); } catch (_) { return false; }
+  })();
+  if (!trackerVisible) {
+    document.documentElement.classList.add('fv-tracker-off');
+    const trackerCss = document.createElement('style');
+    trackerCss.dataset.fvTrackerGate = 'true';
+    trackerCss.textContent =
+      'html.fv-tracker-off :is(.fv-tracker-only,[data-fv-ticket],.fv-track-actions,.track-pick,.track-cell,.track-header){display:none!important}' +
+      'html.fv-tracker-off table:has(td.track-cell) tr>th:last-child,' +
+      'html.fv-tracker-off table:has([data-offer]) tr>:last-child{display:none!important}';
+    document.head.appendChild(trackerCss);
+  }
+
   // Responsible-use notices persist even when a generator rebuilds a page.
   if (!document.querySelector('script[data-fv-responsible-use]')) {
     const noticeScript = document.createElement('script');
@@ -233,7 +253,7 @@
         { href: `${base}/learn/`, label: 'Learn' },
       ]
     },
-    { type: 'link', href: `${base}/tracking/`, label: '📊 Bet Tracker' },
+    ...(trackerVisible ? [{ type: 'link', href: `${base}/tracking/`, label: '📊 Bet Tracker' }] : []),
   ];
 
   const here = location.pathname.replace(/\/index\.html$/, '/');

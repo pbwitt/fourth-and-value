@@ -24,6 +24,8 @@ const server=http.createServer((req,res)=>{
   const browser=await chromium.launch({headless:true,...(process.env.CHROME_PATH?{executablePath:process.env.CHROME_PATH}:{})});
   try {
     const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+    // A browser that has signed in to Bet Tracker: nav.js shows Track bet only there.
+    await page.addInitScript(()=>localStorage.setItem('sb-fzjonxpzsrbdhbujbhsn-auth-token','{"access_token":"test"}'));
     const now=Date.parse('2026-09-27T12:00:00Z');await page.clock.install({time:now});
     let feeds=fixture(now);
     const original=collect(feeds,now).selected.find(r=>r.sport==='MLB');

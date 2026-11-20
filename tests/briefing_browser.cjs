@@ -15,6 +15,8 @@ const server=http.createServer((req,res)=>{
     const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
     const now=Date.parse('2026-09-27T12:00:00Z');await page.clock.install({time:now});let feeds=fixture(now);
     await page.addInitScript(()=>{
+      // A browser that has signed in to Bet Tracker: nav.js shows Track bet only there.
+      localStorage.setItem('sb-fzjonxpzsrbdhbujbhsn-auth-token','{"access_token":"test"}');
       window.trackerTest={user:{id:'test-user'},writes:[],error:null,rows:[{id:'b7c9ba55-1234-4234-8234-123456789abc',league:'MLB',player:'<img src=x onerror=alert(1)>',status:'pending',stake_dollars:25,odds:110}]};
       window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:window.trackerTest.user?{user:window.trackerTest.user}:null}}),onAuthStateChange:()=>{}},
         from:()=>({insert:async row=>{window.trackerTest.writes.push(row);return {error:window.trackerTest.error};},select:()=>({order:async()=>({data:window.trackerTest.rows,error:null})})})})};
