@@ -5,6 +5,8 @@ import argparse
 import html
 import pandas as pd
 
+from site_metadata import social_tags
+
 
 def render(df: pd.DataFrame, season: int, week: int) -> str:
     rows = []
@@ -18,7 +20,7 @@ def render(df: pd.DataFrame, season: int, week: int) -> str:
                     f"<td>{r.injury_adjusted_total_model:.1f}</td><td>{impact}</td>"
                     f"<td>{move}</td><td>{residual}</td><td>{html.escape(best_over)}</td>"
                     f"<td>{html.escape(best_under)}</td><td>{html.escape(str(r.signal_status))}</td></tr>")
-    return f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Injury vs Totals Market — Week {week} | Fourth &amp; Value</title><meta name="description" content="Research screen comparing NFL injury impacts with captured totals market movement."><link rel="canonical" href="https://fourthandvalue.com/nfl/injuries/"><link rel="stylesheet" href="../../assets/site.css"></head><body><main class="wrap"><p class="eyebrow">NFL · {season} Week {week}</p><h1>Injury vs totals market</h1><p class="lead">A research screen comparing conservative injury impacts with captured total-line movement.</p><div class="notice"><strong>Research only.</strong> Position effects are priors awaiting historical calibration. A signal is not a pick, and missing line history is shown explicitly.</div><div class="table-wrap"><table><thead><tr><th>Game</th><th>Base model</th><th>Injury model</th><th>Injury impact</th><th>Market move</th><th>Residual</th><th>Best over</th><th>Best under</th><th>Status</th></tr></thead><tbody>{''.join(rows)}</tbody></table></div><p><a href="../../nfl/totals/">Back to totals</a> · <a href="../../nfl/">NFL overview</a></p></main></body></html>'''
+    return f'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Injury vs Totals Market — Week {week} | Fourth &amp; Value</title><meta name="description" content="Research screen comparing NFL injury impacts with captured totals market movement."><link rel="canonical" href="https://fourthandvalue.com/nfl/injuries/"><meta property="og:type" content="website"><meta property="og:title" content="Injury vs Totals Market — Week {week} | Fourth &amp; Value"><meta property="og:description" content="Research screen comparing NFL injury impacts with captured totals market movement."><meta property="og:url" content="https://fourthandvalue.com/nfl/injuries/">{social_tags()}<link rel="stylesheet" href="../../assets/site.css"></head><body><main class="wrap"><p class="eyebrow">NFL · {season} Week {week}</p><h1>Injury vs totals market</h1><p class="lead">A research screen comparing conservative injury impacts with captured total-line movement.</p><div class="notice"><strong>Research only.</strong> Position effects are priors awaiting historical calibration. A signal is not a pick, and missing line history is shown explicitly.</div><div class="table-wrap"><table><thead><tr><th>Game</th><th>Base model</th><th>Injury model</th><th>Injury impact</th><th>Market move</th><th>Residual</th><th>Best over</th><th>Best under</th><th>Status</th></tr></thead><tbody>{''.join(rows)}</tbody></table></div><p><a href="../../nfl/totals/">Back to totals</a> · <a href="../../nfl/">NFL overview</a></p></main></body></html>'''
 
 
 def main():
