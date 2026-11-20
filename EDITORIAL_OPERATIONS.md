@@ -964,7 +964,12 @@ records, missing-source no-cost gate, rewrite audit failure and planner routing)
 manual UI-controller checks, Edge Function authorization/dispatch tests, isolated
 PostgreSQL permissions, and desktop/mobile rewrite tests for both article types.
 
-## X post drafts (November 2)
+## X post drafts (November 2; retired November 20)
+
+**Retired November 20, 2026.** The owner no longer posts on X. The workflow's
+schedule is off, so no drafts are emailed unless someone starts it by hand, and
+the site no longer links to X (footer, contact lines and "Share on X" buttons were
+removed). The notes below describe how it worked while it ran.
 
 X's API has had no free posting tier since February 2026, and since April 20 a post
 that contains a link costs about $0.20. Rather than pay per post,

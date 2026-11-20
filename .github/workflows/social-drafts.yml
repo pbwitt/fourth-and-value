@@ -3,15 +3,10 @@ name: X Post Drafts
 # Emails the owner one-tap X drafts for today's morning card and each new article
 # (scripts/social_drafts.py). Free: it never calls the X API; each "Post on X" button
 # opens x.com's composer pre-filled and nothing is posted until the owner taps Post.
-# Runs wait for a finished morning card until 9:45 AM ET so the card and the morning
-# articles arrive together; later runs pick up late cards and articles. A per-day
-# ledger in the Actions cache keeps anything from being emailed twice.
+# Retired November 20, 2026: the owner no longer posts on X, so the schedule is off
+# and the workflow runs only when started by hand. A per-day ledger in the Actions
+# cache keeps anything from being emailed twice.
 on:
-  schedule:
-    - cron: '25,55 7-9 * * *'
-      timezone: America/New_York
-    - cron: '55 11,15,20 * * *'
-      timezone: America/New_York
   workflow_dispatch:
     inputs:
       dry_run:
