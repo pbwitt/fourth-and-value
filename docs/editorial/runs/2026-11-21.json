@@ -2,7 +2,7 @@
   "date": "2026-11-21",
   "slots": {
     "0-nfl": {
-      "status": "started",
+      "status": "skipped",
       "model": "claude-sonnet-5-5",
       "audit_model": "claude-opus-5-5",
       "effort": "medium",
@@ -19,7 +19,52 @@
         "ready": true
       },
       "event_id": "403a88701352da05b0710a9e883b803e",
-      "selection": "different_sport"
+      "selection": "different_sport",
+      "response_id": "msg_011ChG4Sszksd8Uiox3er82C",
+      "usage": {
+        "input_tokens": 6618,
+        "output_tokens": 2173,
+        "web_search_requests": 0
+      },
+      "review_usage": {
+        "input_tokens": 7408,
+        "output_tokens": 1262,
+        "web_search_requests": 0
+      },
+      "first_audit_reason": "1) Time zone label: 'as of 7:18 AM EDT Saturday' in the quarterback section and 'at 7:17 AM EDT Saturday' in the market section are wrong. Nov. 21 falls in standard time, and the source times read 7:18 AM EST and 7:17 AM EST. 2) Quarterback section: 'Both say Johnson, a 40-year-old veteran' is unsupported. Only NFL.com gives his age; CBS Sports calls him a 'journeyman veteran.' Also, 'fourth different starter in a short span' blurs the outlets' differing counts: CBS says fourth in five weeks, NFL.com says fourth in four weeks. Attribute each count to its outlet. 3) 'As of our check, Arizona had not announced a Sunday starter' needs a stated Eastern time, for example 'As of 7:18 AM EST Saturday.' 4) Matchup section: 'The excerpt does not tell us...' describes how the article was produced. Rephrase as what the CBS Sports report does not say. 5) Model section: 'saved background with no current price or expected value attached' is internal workflow wording. Rephrase for readers, for example 'it is a projection, not a price.' 6) Countercase: 'a unanimous 40.5-41 market' is self-contradictory because books split between 40.5 and 41. Use 'tight' or 'consistent' instead. 7) Market section: 'a tight consensus... all listed the total at 40.5' is accurate, but it omits Bovada, which also listed 40.5 at the 7:17 AM EST snapshot and was at 41 in the 8:37 PM EST Friday snapshot. 'No change in the median line' is still correct as written. The market section also cites s1 and s3, which contain no market data.",
+      "revision_response_id": "msg_011ChG4Uy88himQtUxWvfeHq",
+      "revision_usage": {
+        "input_tokens": 9544,
+        "output_tokens": 2195,
+        "web_search_requests": 0
+      },
+      "revision_review_usage": {
+        "input_tokens": 7430,
+        "output_tokens": 904,
+        "web_search_requests": 0
+      },
+      "audit_reason": "Two passages in 'Countercase and what would change it' must change. (1) 'A 25-point Chiefs outcome would leave Arizona needing only about 16 for the game to clear 41' is arithmetically wrong. 25 + 16 = 41, which is a push at 41, not an over. Clearing 41 takes 17; 16 clears only the 40.5 line. (2) 'Short fields from turnovers, likelier with an unsettled quarterback, could also push the total up' presents an unsupported causal claim as fact. Neither report links Arizona's quarterback situation to turnovers or field position, so cut it or clearly label it as speculation. The rest checks out against the sources and the Eastern-time labels: the quarterback reporting and its dates, the book lines and prices, Bovada's move from 41 to 40.5 since the 8:37 PM EST Friday snapshot, the model's 44.0/25.2/18.8 estimate with data through Nov. 16, and the CBS Sports explosive-play and success-rate figures.",
+      "reason": "Factual audit did not pass: Two passages in 'Countercase and what would change it' must change. (1) 'A 25-point Chiefs outcome would leave Arizona needing only about 16 for the game to clear 41' is arithmetically wrong. 25 + 16 = 41, which is a push at 41, not an over. Clearing 41 takes 17; 16 clears only the 40.5 line. (2) 'Short fields from turno"
+    },
+    "1-nfl": {
+      "status": "started",
+      "model": "claude-sonnet-5-5",
+      "audit_model": "claude-opus-5-5",
+      "effort": "medium",
+      "at": "2026-11-21T12:19:16.977954+00:00",
+      "source_check": {
+        "at": "2026-11-21T12:19:16.977954+00:00",
+        "candidates": 3,
+        "hosts": [
+          "www.cbssports.com",
+          "www.nfl.com"
+        ],
+        "fallback_attempted": true,
+        "fallback_used": true,
+        "ready": true
+      },
+      "event_id": "4527f57f5bc32742d8194af1ccf7da7e",
+      "selection": "same_sport_fallback"
     }
   },
   "last_writer_check": {
@@ -33,8 +78,8 @@
   },
   "source_checks": {
     "NFL": {
-      "at": "2026-11-21T12:18:16.347143+00:00",
-      "candidates": 4,
+      "at": "2026-11-21T12:19:16.977954+00:00",
+      "candidates": 3,
       "hosts": [
         "www.cbssports.com",
         "www.nfl.com"
