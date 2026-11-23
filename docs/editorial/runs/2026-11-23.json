@@ -2,7 +2,7 @@
   "date": "2026-11-23",
   "slots": {
     "0-nhl": {
-      "status": "started",
+      "status": "skipped",
       "model": "claude-sonnet-5-5",
       "audit_model": "claude-opus-5-5",
       "effort": "medium",
@@ -19,12 +19,44 @@
         "ready": true
       },
       "event_id": "806787e1b3ac73d09e3ae05f6d595865",
-      "selection": "different_sport"
+      "selection": "different_sport",
+      "response_id": "msg_011ChKr4bAjrZiXbJBN6veq4",
+      "usage": {
+        "input_tokens": 6953,
+        "output_tokens": 2244,
+        "web_search_requests": 0
+      },
+      "review_usage": {
+        "input_tokens": 7810,
+        "output_tokens": 941,
+        "web_search_requests": 0
+      },
+      "first_audit_reason": "Three passages must change.\n\n1. Wrong time-zone label (\"The news hook\"): \"As of 7:18 AM EDT Monday\" should read EST. The supplied Eastern labels show Monday, Nov. 23, 2026 as 7:18 AM EST.\n\n2. Wrong time-zone label (\"What the market says\"): \"At 7:17 AM EDT Monday\" should read EST. The supplied Eastern labels show 7:17 AM EST, and the 7:54 PM EST Sunday comparison is already labeled correctly.\n\n3. Production language: \"the excerpts we reviewed did not say...\" describes how the article was produced. Recast it as a dated unknown, for example: \"As of 7:18 AM EST Monday, Montreal had not announced whether Larkin would play against Los Angeles or who would start in goal.\"\n\nRecommended cleanup: \"saved background projection,\" \"saved inputs\" and the internal version tag \"nhl-v2.4\" read as data or workflow language. Describe them as an earlier model estimate using games through Nov. 22 and the model's team ratings.\n\nThe remaining facts check out: trade terms, Larkin's stats, all quoted prices and books, the median and range, the unchanged line across 11 matched books, and the model figures (5.95, 3.15, 2.63, 5.78).",
+      "revision_response_id": "msg_011ChKr6b7ZrfFtZqpfXJ4Vu",
+      "revision_usage": {
+        "input_tokens": 9822,
+        "output_tokens": 2247,
+        "web_search_requests": 0
+      },
+      "revision_review_usage": {
+        "input_tokens": 7813,
+        "output_tokens": 854,
+        "web_search_requests": 0
+      },
+      "audit_reason": "One passage must change. In the experimental model section, the sentence \"Los Angeles's penalty kill is near .815 and Montreal's near .728\" reverses the teams. In the model inputs, each team's row lists its opponent's penalty kill. The Montreal row shows .728 against it, which is Los Angeles's penalty kill. The Los Angeles row shows .815 against it, which is Montreal's. The sentence should read that Los Angeles's penalty kill is near .728 and Montreal's near .815. Everything else checks out: the trade details, sourcing, Eastern times, quotes, median and movement claims, model figures, caveats and the not-independent-confirmation framing.",
+      "reason": "Factual audit did not pass: One passage must change. In the experimental model section, the sentence \"Los Angeles's penalty kill is near .815 and Montreal's near .728\" reverses the teams. In the model inputs, each team's row lists its opponent's penalty kill. The Montreal row shows .728 against it, which is Los Angeles's penalty kill. The Los Angel"
     }
   },
   "last_writer_check": {
-    "at": "2026-11-23T12:18:05.549662+00:00",
-    "status": "started"
+    "at": "2026-11-23T12:19:12.938823+00:00",
+    "status": "completed",
+    "counts": {
+      "published": 0,
+      "review": 0,
+      "skipped": 1,
+      "started": 0,
+      "waiting_for_data": 0
+    }
   },
   "data_skips": {
     "NBA": "NBA has no validated model forecasts in its feed: Experimental NBA v1 forecast (shadow mode); not yet graded against prices",
