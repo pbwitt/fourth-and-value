@@ -48,7 +48,7 @@
       "words": 757
     },
     "1-nfl": {
-      "status": "started",
+      "status": "published",
       "model": "claude-sonnet-5-5",
       "audit_model": "claude-opus-5-5",
       "effort": "medium",
@@ -65,12 +65,45 @@
         "ready": true
       },
       "event_id": "9b825e6518156008da499be041975fdd",
-      "selection": "same_sport_fallback"
+      "selection": "same_sport_fallback",
+      "response_id": "msg_011ChPduNQtzkJvQzeYXCmEA",
+      "usage": {
+        "input_tokens": 6542,
+        "output_tokens": 3076,
+        "web_search_requests": 0
+      },
+      "review_usage": {
+        "input_tokens": 7479,
+        "output_tokens": 1046,
+        "web_search_requests": 0
+      },
+      "first_audit_reason": "Several passages must change.\n\n1. Eastern-time labels are wrong. The Eastern-time map labels every timestamp EST, since November is standard time.\n- \"As of 7:19 AM EDT Wednesday\" (hook) must be \"7:19 AM EST Wednesday.\"\n- \"7:19 AM EDT Wednesday\" (BetMGM quote) must be \"7:19 AM EST Wednesday.\"\n- \"5:51 PM EDT Tuesday\" must be \"5:51 PM EST Tuesday.\"\n- \"As of 7:21 AM EDT Wednesday\" must be \"7:21 AM EST Wednesday.\"\n\n2. Internal-process and evidence attributions must go.\n- \"our evidence establishes no injury adjustment\" attributes a fact to our evidence. Rephrase it as a property of the model, e.g. the estimate does not include an injury adjustment.\n- \"Nothing supplied lets us attribute the gap\" refers to supplied materials.\n- \"The supplied reporting does not move the analysis\" refers to supplied materials.\n- \"the reporting we retrieved\" and \"the retrieved excerpt\" describe how the article was produced.\n- \"in our materials\" describes how the article was produced.\n- Rewrite these as statements about what had or had not been reported as of a stated EST time, with named sources.\n\n3. One claim is unsupported. \"Chicago's share well below the market's implied roughly even split\" has no basis: a game total implies no team split, and no spread is in evidence. Remove it.\n\n4. Some prices need sources and times.\n- \"LowVig showed 55.5 at -107 each way\" needs a quoted time; none is available, so drop the price or state it without a time claim.\n- The list of books at 55.5 and 55.0 should carry the 7:19 AM EST Wednesday timestamp.",
+      "revision_response_id": "msg_011ChPdwqxQrMX8iXezS16cX",
+      "revision_usage": {
+        "input_tokens": 9672,
+        "output_tokens": 2211,
+        "web_search_requests": 0
+      },
+      "revision_review_usage": {
+        "input_tokens": 7371,
+        "output_tokens": 853,
+        "web_search_requests": 0
+      },
+      "audit_reason": "The article matches the evidence. Total quotes, books, juice and the Tuesday 5:51 PM EST comparison (BetMGM moved from 55.5 to 55.0, median unchanged) are accurate. The model figures (about 49.9 total, 27.0 for Detroit and 22.9 for Chicago, a 5.6-point gap) are correct, and the article states that the model has not been validated, has no calibrated price and has no injury adjustment. Eastern times and weekdays match the supplied labels: s2 Tuesday morning, s1 late Tuesday night, s3 Tuesday evening, quotes at 7:19 AM EST Wednesday and the cutoff at 7:21 AM EST. The kickoff, network and schedule match s2. The column excerpt and Ford death report are characterized accurately. There are no fabricated quotes. Missing injury information is stated as unknown as of a given time. The no-pick stance is measured. This game's angle differs from recent titles, so it is not a repeat.",
+      "url": "/editorial/articles/2026-11-25-1-nfl.html",
+      "words": 710
     }
   },
   "last_writer_check": {
-    "at": "2026-11-25T12:20:03.963083+00:00",
-    "status": "started"
+    "at": "2026-11-25T12:22:14.854338+00:00",
+    "status": "completed",
+    "counts": {
+      "published": 2,
+      "review": 0,
+      "skipped": 0,
+      "started": 0,
+      "waiting_for_data": 0
+    }
   },
   "data_skips": {
     "NBA": "NBA has no validated model forecasts in its feed: Experimental NBA v1 forecast (shadow mode); not yet graded against prices",
