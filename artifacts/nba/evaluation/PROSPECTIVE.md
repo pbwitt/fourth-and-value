@@ -1,6 +1,6 @@
 # NBA v1 shadow model: prospective grading
 
-Model `nba-v1.0`, generated Thu, Nov 26, 2026, 6:50 AM EST. 255 of 255 tipped games graded through Nov 25; 24058 main-line and 49970 alternate-line forecasts.
+Model `nba-v1.0`, generated Thu, Nov 26, 2026, 5:05 PM EST. 255 of 255 tipped games graded through Nov 25; 24058 main-line and 49970 alternate-line forecasts.
 
 Log loss is lower-is-better; negative differences favor the model or blend. Movement is in probability points toward the model's earlier lean (positive means the market came to the model). The card pool is every offer that would have passed the NHL card's price rule, before research review and card caps.
 
@@ -17,7 +17,7 @@ Log loss is lower-is-better; negative differences favor the model or blend. Move
 | Points + assists | 255 | +0.009 (+0.002 to +0.016) | -0.000 (-0.001 to +0.000) | +0.88 (+0.73 to +1.02) | 62-73-0, -9.05u | not supported |
 | Points + rebounds | 255 | +0.005 (-0.001 to +0.011) | -0.001 (-0.001 to -0.000) | +0.92 (+0.79 to +1.04) | 129-137-0, -0.70u | supported |
 | Points + rebounds + assists | 255 | +0.013 (+0.005 to +0.020) | -0.000 (-0.001 to +0.000) | +0.82 (+0.68 to +0.98) | 143-173-0, -25.04u | not supported |
-| Rebounds | 255 | +0.013 (+0.007 to +0.020) | -0.000 (-0.001 to +0.000) | +1.02 (+0.87 to +1.16) | 190-209-0, -4.10u | not supported |
+| Rebounds | 255 | +0.013 (+0.007 to +0.020) | -0.000 (-0.001 to +0.001) | +1.02 (+0.87 to +1.16) | 190-209-0, -4.10u | not supported |
 | Rebounds + assists | 255 | +0.020 (+0.010 to +0.029) | +0.000 (-0.001 to +0.001) | +0.90 (+0.72 to +1.08) | 147-156-0, -4.94u | not supported |
 | Steals | 204 | +0.000 (-0.011 to +0.012) | -0.001 (-0.002 to +0.000) | +0.44 (+0.18 to +0.72) | 5-2-0, +3.43u | not supported |
 | Threes made | 255 | +0.013 (+0.007 to +0.019) | +0.000 (-0.000 to +0.001) | +0.52 (+0.40 to +0.64) | 151-208-0, -0.55u | not supported |
